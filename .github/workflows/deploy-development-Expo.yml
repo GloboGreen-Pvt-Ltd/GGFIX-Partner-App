@@ -59,13 +59,19 @@ jobs:
           npx expo config --json > /dev/null
           node -e "JSON.parse(require('fs').readFileSync('eas.json', 'utf8')); console.log('eas.json is valid JSON')"
 
+      # Android-only for now: this is a brand-new Expo project with no iOS
+      # credentials provisioned yet, so a non-interactive --platform all/ios
+      # build fails ("couldn't find any credentials suitable for internal
+      # distribution"). Add ios back (platform: all) once someone runs
+      # `eas credentials` once, interactively, to set up a distribution
+      # certificate and provisioning profile.
       - name: Run EAS development build
         if: steps.creds.outputs.present == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           eas build \
-            --platform all \
+            --platform android \
             --profile development \
             --non-interactive \
             --no-wait
