@@ -13,10 +13,10 @@ const masterBase =
 export default {
   expo: {
     name: 'GGFIX Shop',
-    slug: 'ggfixshop',
+    slug: 'ggfix-partner-app',
     // EAS account/organization that owns the project (from your Expo dashboard).
     // Verify this matches expo.dev → your account. Change if different.
-    owner: 'snandhas-organization',
+    owner: 'globogreen-system-and-technology-private-limited',
     version: '1.0.0',
     platforms: ['ios', 'android', 'web'],
     orientation: 'portrait',
@@ -110,7 +110,7 @@ export default {
       eas: {
         projectId:
           process.env.EAS_PROJECT_ID ||
-          '2282d02b-e384-47b7-8689-1871a9fee61e',
+          '758360b1-f465-47b7-a1bd-867b8387a932',
       },
     },
   },
