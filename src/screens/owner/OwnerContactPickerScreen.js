@@ -321,7 +321,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
       ) : state === 'denied' ? (
         <Blocked
           title="Contacts access is off"
-          body={`Allow contacts to pick a ${copy.one.toLowerCase()} from your phone book. If the permission dialog no longer appears, turn it on for GGFIX Shop in Settings.`}
+          body={`Allow contacts to pick a ${copy.one.toLowerCase()} from your phone book. If the permission dialog no longer appears, turn it on for GGFIX Partner in Settings.`}
           actionLabel="Allow contacts"
           onAction={async () => {
             // Trust the CURRENT grant before asking again: the request watchdog

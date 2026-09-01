@@ -43,7 +43,7 @@ function UnsupportedRoleScreen({ onLogout }) {
         Account not supported here
       </Text>
       <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
-        This account can&apos;t be used in the GGFIX Shop app. Staff and pickup
+        This account can&apos;t be used in the GGFIX Partner app. Staff and pickup
         accounts should sign in from the GGFix Employee app, and admin accounts
         from the admin web dashboard.
       </Text>

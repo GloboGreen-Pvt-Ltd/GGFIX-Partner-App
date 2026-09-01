@@ -284,7 +284,7 @@ function MobileStep({ mobile, setMobile, loading, error, onSubmit, onCreateAccou
       </View>
 
       <Text style={styles.footnote}>
-        GGFIX Shop — for shop owners and in-shop technicians.
+        GGFIX Partner — for shop owners and in-shop technicians.
       </Text>
     </View>
   );

@@ -33,7 +33,7 @@ export default function BootSplash() {
           letterSpacing: 0.4,
         }}
       >
-        GGFIX Shop
+        GGFIX Partner
       </Text>
       <ActivityIndicator style={{ marginTop: rs(22) }} color={tokens.primary} />
     </View>

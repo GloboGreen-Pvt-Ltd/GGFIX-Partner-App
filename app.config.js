@@ -12,7 +12,7 @@ const masterBase =
 
 export default {
   expo: {
-    name: 'GGFIX Shop',
+    name: 'GGFIX Partner',
     slug: 'ggfix-partner-app',
     // EAS account/organization that owns the project (from your Expo dashboard).
     // Verify this matches expo.dev → your account. Change if different.
@@ -30,7 +30,7 @@ export default {
       infoPlist: {
         // iOS has no shared Downloads folder, so a saved statement lands in the
         // app's own Documents directory. These two keys are what make that
-        // directory show up in the Files app under "GGFIX Shop" — without them
+        // directory show up in the Files app under "GGFIX Partner" — without them
         // the file is saved somewhere the owner cannot reach.
         UIFileSharingEnabled: true,
         LSSupportsOpeningDocumentsInPlace: true,
