@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+
+# Expo / Metro
+.expo/
+.expo-dist/
+dist/
+web-build/
+
+# native (managed workflow regenerates these)
+/ios
+/android
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.*
+yarn-error.*
+
+# signing / keystores
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# gradle caches (nested local modules)
+.gradle/
+
+# Gradle output of the nested native module (modules/ggfix-downloads/android/build).
+# The root `build/` rule is anchored, so it does not cover this one.
+modules/*/android/build/
