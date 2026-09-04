@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View, Text, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
+import { RecordingPresets, createAudioPlayer, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import {
   ArrowLeft,
   MoreHorizontal,
@@ -205,7 +205,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   // The reference collapses the recorder to a single row with a chevron, so the
   // controls live behind a disclosure instead of always occupying the card.
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const recordingRef = useRef(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingLiveRef = useRef(false);
   const soundRef = useRef(null);
   const tickRef = useRef(null);
 
@@ -228,23 +229,22 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   // otherwise the next visit can fail to acquire the mic with "Already prepared".
   useEffect(() => {
     return () => {
-      try { recordingRef.current?.stopAndUnloadAsync?.(); } catch (_) {}
-      try { soundRef.current?.unloadAsync?.(); } catch (_) {}
+      if (recordingLiveRef.current) { try { audioRecorder.stop(); } catch (_) {} }
+      try { soundRef.current?.remove?.(); } catch (_) {}
     };
-  }, []);
+  }, [audioRecorder]);
 
   const startRecording = async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
         notify('Microphone needed', 'Allow microphone access to record the customer\'s issue.');
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await rec.startAsync();
-      recordingRef.current = rec;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      recordingLiveRef.current = true;
       setIsRecording(true);
     } catch (e) {
       notify('Could not start recording', e?.message || 'Please try again.');
@@ -254,11 +254,10 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const stopRecording = async () => {
     try {
       setIsRecording(false);
-      const rec = recordingRef.current;
-      if (!rec) return;
-      await rec.stopAndUnloadAsync();
-      const uri = rec.getURI();
-      recordingRef.current = null;
+      if (!recordingLiveRef.current) return;
+      recordingLiveRef.current = false;
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (!uri) return;
       setLocalUri(uri);
       // Upload immediately so by the time the user hits Continue, we already
@@ -285,20 +284,20 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const togglePlayback = async () => {
     try {
       if (isPlaying && soundRef.current) {
-        await soundRef.current.pauseAsync();
+        soundRef.current.pause();
         setIsPlaying(false);
         return;
       }
       const uriToPlay = audioUrl || localUri;
       if (!uriToPlay) return;
-      // Unload any previous sound so we don't leak.
-      if (soundRef.current) { try { await soundRef.current.unloadAsync(); } catch (_) {} }
-      const { sound } = await Audio.Sound.createAsync({ uri: uriToPlay });
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
+      // Release any previous player so we don't leak.
+      if (soundRef.current) { try { soundRef.current.remove(); } catch (_) {} }
+      const player = createAudioPlayer(uriToPlay);
+      soundRef.current = player;
+      player.addListener('playbackStatusUpdate', (status) => {
         if (status?.didJustFinish) setIsPlaying(false);
       });
-      await sound.playAsync();
+      player.play();
       setIsPlaying(true);
     } catch (e) {
       notify('Could not play', e?.message || 'Try again.');
@@ -308,9 +307,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const removeAudio = async () => {
     try {
       if (isPlaying && soundRef.current) {
-        await soundRef.current.stopAsync();
+        soundRef.current.pause();
       }
-      if (soundRef.current) await soundRef.current.unloadAsync();
+      if (soundRef.current) soundRef.current.remove();
     } catch (_) {}
     soundRef.current = null;
     setIsPlaying(false);

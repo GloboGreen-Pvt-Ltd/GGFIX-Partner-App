@@ -54,8 +54,25 @@ const CODE_META = {
 const DEFAULT_META = { emoji: '📦', sub: 'Devices' };
 function metaFor(code) { return CODE_META[String(code || '').toUpperCase()] || DEFAULT_META; }
 
+// Sell-specific category art, overriding whatever image the admin has set on
+// the shared master_device_categories row (that image is also used elsewhere,
+// so it isn't always right for the Sell context).
+const SELL_IMAGES = {
+  MOBILE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
+  SMARTPHONE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
+  LAPTOP: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Laptop.png',
+  SMARTWATCH: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
+  SMARTWATCHES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
+  TABLET: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Tablet.png',
+  AUDIO: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+};
+
 function imgUri(item) {
   if (!item) return null;
+  const sellImg = SELL_IMAGES[String(item.code || '').toUpperCase()];
+  if (sellImg) return sellImg;
   const b64 = item.imageBase64 && String(item.imageBase64).trim();
   if (b64) return b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
   const url = item.imageUrl && String(item.imageUrl).trim();

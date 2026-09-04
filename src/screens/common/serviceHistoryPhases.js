@@ -12,7 +12,7 @@
 // invoice lifecycle and the in-progress customer handover.
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, View, TouchableOpacity, Image, ScrollView } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import {
   Truck, Wrench, Play, Pause, Square,
   ClipboardCheck, Clock, RotateCcw, CheckCircle2,
@@ -359,8 +359,8 @@ function BranchFork({ merge }) {
 }
 
 const PLAYER_GREEN = '#087A0A';
-const fmtClock = (ms) => {
-  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+const fmtClock = (seconds) => {
+  const s = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
@@ -378,74 +378,65 @@ function EventMedia({ audioUrl, imageUrls }) {
   const [dur, setDur] = useState(0);
 
   useEffect(() => () => {
-    try { soundRef.current?.unloadAsync?.(); } catch (_) {}
+    try { soundRef.current?.remove?.(); } catch (_) {}
   }, []);
 
   const onStatus = (s) => {
-    if (!s || !s.isLoaded) return;
-    setPos(s.positionMillis || 0);
-    if (s.durationMillis) setDur(s.durationMillis);
-    setPlaying(!!s.isPlaying);
+    if (!s) return;
+    setPos(s.currentTime || 0);
+    if (s.duration) setDur(s.duration);
+    setPlaying(!!s.playing);
     if (s.didJustFinish) { setPlaying(false); setPos(0); }
   };
 
-  const ensureSound = async () => {
+  const ensureSound = () => {
     if (soundRef.current) return soundRef.current;
-    try { await Audio.setAudioModeAsync({ playsInSilentModeIOS: true }); } catch (_) {}
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: audioUrl },
-      { rate, shouldCorrectPitch: true, progressUpdateIntervalMillis: 200 },
-      onStatus,
-    );
-    soundRef.current = sound;
-    return sound;
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    const player = createAudioPlayer(audioUrl, { updateInterval: 200 });
+    player.shouldCorrectPitch = true;
+    player.setPlaybackRate(rate);
+    player.addListener('playbackStatusUpdate', onStatus);
+    soundRef.current = player;
+    return player;
   };
 
-  // Preload the clip so its total duration shows before the first play.
+  // Preload the clip so its total duration shows before the first play — the
+  // status listener above picks up the duration once the native side loads it.
   useEffect(() => {
     if (!audioUrl) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const sound = await ensureSound();
-        const st = await sound.getStatusAsync();
-        if (!cancelled && st.isLoaded && st.durationMillis) setDur(st.durationMillis);
-      } catch (_) {}
-    })();
-    return () => { cancelled = true; };
+    ensureSound();
   }, [audioUrl]);
 
-  const togglePlay = async () => {
+  const togglePlay = () => {
     try {
-      const sound = await ensureSound();
-      const st = await sound.getStatusAsync();
-      if (st.isLoaded && st.isPlaying) {
-        await sound.pauseAsync();
+      const player = ensureSound();
+      if (player.playing) {
+        player.pause();
         setPlaying(false);
       } else {
-        if (st.isLoaded && (st.didJustFinish || st.positionMillis >= (st.durationMillis || 0))) {
-          await sound.setPositionAsync(0);
+        if (player.duration > 0 && player.currentTime >= player.duration) {
+          player.seekTo(0);
         }
-        await sound.playAsync();
+        player.play();
         setPlaying(true);
       }
     } catch (_) { /* best-effort playback */ }
   };
 
-  const stop = async () => {
+  const stop = () => {
     try {
       if (!soundRef.current) return;
-      await soundRef.current.stopAsync();
-      await soundRef.current.setPositionAsync(0);
+      soundRef.current.pause();
+      soundRef.current.seekTo(0);
       setPlaying(false);
       setPos(0);
     } catch (_) {}
   };
 
-  const cycleRate = async () => {
+  const cycleRate = () => {
     const next = rate >= 2 ? 1 : 2;
     setRate(next);
-    try { await soundRef.current?.setRateAsync(next, true); } catch (_) {}
+    try { soundRef.current?.setPlaybackRate(next, 'high'); } catch (_) {}
   };
 
   const hasAudio = !!audioUrl;

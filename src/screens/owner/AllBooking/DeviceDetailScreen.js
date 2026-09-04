@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, Text, View, TouchableOpacity, StatusBar, useWindowDimensions, Linking, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   Smartphone,
   Clock,
@@ -220,93 +220,58 @@ function PhotoSlot({ label, uri, icon: Icon, onPress }) {
   );
 }
 
-const fmtClock = (ms) => {
-  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+const fmtClock = (seconds) => {
+  const s = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
 // Voice-note audio player for the compliance-note card: play / pause, stop, a
 // 1x ⇄ 2x speed toggle, and a progress bar with elapsed / total time. Each row
-// owns its own Audio.Sound and releases it on unmount so navigating away
+// owns its own AudioPlayer and releases it on unmount so navigating away
 // doesn't leak a player or block the next one.
 function VoiceNotePlayer({ uri }) {
-  const soundRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
+  // Preloads on creation (matches the old "load ahead so duration shows before
+  // the first play" behavior) and auto-releases when this row unmounts.
+  const player = useAudioPlayer(uri, { updateInterval: 200 });
+  const status = useAudioPlayerStatus(player);
   const [rate, setRate] = useState(1);
-  const [pos, setPos] = useState(0);
-  const [dur, setDur] = useState(0);
 
-  useEffect(() => () => {
-    try { soundRef.current?.unloadAsync?.(); } catch (_) {}
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
   }, []);
 
-  const onStatus = (s) => {
-    if (!s || !s.isLoaded) return;
-    setPos(s.positionMillis || 0);
-    if (s.durationMillis) setDur(s.durationMillis);
-    setPlaying(!!s.isPlaying);
-    if (s.didJustFinish) { setPlaying(false); setPos(0); }
-  };
-
-  const ensureSound = async () => {
-    if (soundRef.current) return soundRef.current;
-    try { await Audio.setAudioModeAsync({ playsInSilentModeIOS: true }); } catch (_) {}
-    const { sound } = await Audio.Sound.createAsync(
-      { uri },
-      { rate, shouldCorrectPitch: true, progressUpdateIntervalMillis: 200 },
-      onStatus,
-    );
-    soundRef.current = sound;
-    return sound;
-  };
-
-  // Preload the clip so its total duration shows before the first play.
   useEffect(() => {
-    if (!uri) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const sound = await ensureSound();
-        const st = await sound.getStatusAsync();
-        if (!cancelled && st.isLoaded && st.durationMillis) setDur(st.durationMillis);
-      } catch (_) {}
-    })();
-    return () => { cancelled = true; };
-  }, [uri]);
+    player.shouldCorrectPitch = true;
+  }, [player]);
 
-  const togglePlay = async () => {
+  const togglePlay = () => {
     try {
-      const sound = await ensureSound();
-      const st = await sound.getStatusAsync();
-      if (st.isLoaded && st.isPlaying) {
-        await sound.pauseAsync();
-        setPlaying(false);
+      if (status.playing) {
+        player.pause();
       } else {
-        if (st.isLoaded && (st.didJustFinish || st.positionMillis >= (st.durationMillis || 0))) {
-          await sound.setPositionAsync(0);
+        if (status.didJustFinish || status.currentTime >= (status.duration || 0)) {
+          player.seekTo(0);
         }
-        await sound.playAsync();
-        setPlaying(true);
+        player.play();
       }
     } catch (_) { /* best-effort playback */ }
   };
 
-  const stop = async () => {
+  const stop = () => {
     try {
-      if (!soundRef.current) return;
-      await soundRef.current.stopAsync();
-      await soundRef.current.setPositionAsync(0);
-      setPlaying(false);
-      setPos(0);
+      player.pause();
+      player.seekTo(0);
     } catch (_) {}
   };
 
-  const cycleRate = async () => {
+  const cycleRate = () => {
     const next = rate >= 2 ? 1 : 2;
     setRate(next);
-    try { await soundRef.current?.setRateAsync(next, true); } catch (_) {}
+    try { player.setPlaybackRate(next, 'high'); } catch (_) {}
   };
 
+  const pos = status.currentTime || 0;
+  const dur = status.duration || 0;
   const pct = dur > 0 ? Math.min(1, pos / dur) : 0;
 
   return (
@@ -320,7 +285,7 @@ function VoiceNotePlayer({ uri }) {
           className="w-9 h-9 rounded-full items-center justify-center mr-2"
           style={{ backgroundColor: ACCENT_GREEN }}
         >
-          {playing ? <Pause size={15} color="#fff" /> : <Play size={15} color="#fff" />}
+          {status.playing ? <Pause size={15} color="#fff" /> : <Play size={15} color="#fff" />}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={stop}

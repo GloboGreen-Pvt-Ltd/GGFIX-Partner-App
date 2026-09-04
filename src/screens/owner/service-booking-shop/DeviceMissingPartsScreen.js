@@ -16,7 +16,7 @@ import { rf, rs } from '../../../utils/responsive';
  * KeyboardAwareScrollView, not the manual `useKeyboardHeight` dance the sheets
  * use: that hook exists because a RN `Modal` is a separate window the root
  * <KeyboardProvider> doesn't instrument. On a SCREEN the provider IS in play, so
- * the library is the right tool — see `hooks/useKeyboardHeight` for the full why.
+ * the library is the right tool — see `lib/hooks/useKeyboardHeight` for the full why.
  */
 const ACCENT = '#004C40';
 const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';

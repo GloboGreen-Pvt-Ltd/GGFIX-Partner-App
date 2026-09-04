@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { useResponsive, SPACING, TOUCH_MIN } from '../../theme/responsive';
-import useKeyboardHeight from '../../hooks/useKeyboardHeight';
+import useKeyboardHeight from '../../lib/hooks/useKeyboardHeight';
 
 /**
  * Responsive layout primitives. All of them read `useResponsive()`, so they

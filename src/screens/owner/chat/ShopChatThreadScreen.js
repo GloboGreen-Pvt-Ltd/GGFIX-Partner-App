@@ -23,7 +23,7 @@ import {
   StopCircle,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import { RecordingPresets, createAudioPlayer, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { Loader } from '../../../components/rnr';
 import {
   getShopChat,
@@ -80,51 +80,51 @@ function lastSeenLabel(online, lastSeenAt) {
 // ─────────────────────────────────────── voice recording
 
 function useVoiceRecorder() {
-  const [recording, setRecording] = useState(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef(null);
 
   const start = useCallback(async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) return null;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const r = new Audio.Recording();
-      await r.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await r.startAsync();
-      setRecording(r);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setRecording(true);
       setElapsed(0);
       timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-      return r;
+      return audioRecorder;
     } catch {
       return null;
     }
-  }, []);
+  }, [audioRecorder]);
 
   const stop = useCallback(async () => {
     if (!recording) return null;
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
-      setRecording(null);
+      setRecording(false);
       const dur = elapsed;
       setElapsed(0);
       return { uri, durationSec: dur };
     } catch {
       return null;
     }
-  }, [recording, elapsed]);
+  }, [recording, elapsed, audioRecorder]);
 
   const cancel = useCallback(async () => {
     if (!recording) return;
-    try { await recording.stopAndUnloadAsync(); } catch {}
+    try { await audioRecorder.stop(); } catch {}
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
-    setRecording(null);
+    setRecording(false);
     setElapsed(0);
-  }, [recording]);
+  }, [recording, audioRecorder]);
 
   return { recording, elapsed, start, stop, cancel };
 }
@@ -179,18 +179,22 @@ function AudioRow({ url, mine }) {
   const toggle = useCallback(async () => {
     try {
       if (playing) {
-        await soundRef.current?.stopAsync();
-        await soundRef.current?.unloadAsync();
+        const player = soundRef.current;
         soundRef.current = null;
         setPlaying(false);
+        if (player) { try { player.pause(); } catch {} try { player.remove(); } catch {} }
         return;
       }
-      const { sound } = await Audio.Sound.createAsync({ uri: url });
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((st) => {
-        if (st?.didJustFinish) { setPlaying(false); sound.unloadAsync().catch(() => {}); soundRef.current = null; }
+      const player = createAudioPlayer(url);
+      soundRef.current = player;
+      player.addListener('playbackStatusUpdate', (st) => {
+        if (st?.didJustFinish) {
+          setPlaying(false);
+          soundRef.current = null;
+          try { player.remove(); } catch {}
+        }
       });
-      await sound.playAsync();
+      player.play();
       setPlaying(true);
     } catch {
       setPlaying(false);

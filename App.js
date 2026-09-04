@@ -8,6 +8,7 @@ import './src/theme/fontScaling';
 // See src/theme/remScaling.js.
 import './src/theme/remScaling';
 import React, { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,6 +20,14 @@ import { store } from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import colors from './src/theme/colors';
 import { attachDownloadNotifications } from './src/lib/downloads';
+
+// @gluestack-ui/themed's own bundled SafeAreaView wrapper
+// (node_modules/@gluestack-ui/themed/build/components/SafeAreaView/styled-components/Root.js)
+// imports RN's deprecated SafeAreaView directly — not our code, and not
+// something a local import fix can touch (it's inside their published
+// build, gone on the next `npm install`). Nothing in this app renders it;
+// this only silences that third-party noise so it doesn't read as our bug.
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 
 const navTheme = {
   ...DefaultTheme,

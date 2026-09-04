@@ -101,6 +101,9 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   const [showSwitcher, setShowSwitcher] = useState(false);
   // null = unknown (haven't checked yet); true/false once we know.
   const [hasKycDocs, setHasKycDocs] = useState(null);
+  // Same rule as the Home header: the only reviewed, admin-approved signal
+  // is the owner's KYC status, which is owner-wide (not per-shop).
+  const [kycStatus, setKycStatus] = useState(null);
 
   const reloadSession = async () => {
     // Prefer live /auth/me so the screen reflects DB state (shopName, shops,
@@ -129,9 +132,15 @@ export default function MyAccountScreen({ onLogout, navigation }) {
       (async () => {
         try {
           const kyc = await getOwnerKycDocuments();
-          if (!cancelled) setHasKycDocs(!!(kyc && (kyc.aadharFrontUrl || kyc.aadharBackUrl || kyc.panUrl)));
+          if (!cancelled) {
+            setHasKycDocs(!!(kyc && (kyc.aadharFrontUrl || kyc.aadharBackUrl || kyc.panUrl)));
+            setKycStatus(kyc?.status || null);
+          }
         } catch {
-          if (!cancelled) setHasKycDocs(false);
+          if (!cancelled) {
+            setHasKycDocs(false);
+            setKycStatus(null);
+          }
         }
       })();
       return () => { cancelled = true; };
@@ -151,7 +160,11 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
   const displayName = isShopLogin ? (shopName || 'Your Shop') : ownerName;
   const displayPhone = isShopLogin ? shopMobile : (user?.phone || '');
-  const displayAvatar = isShopLogin ? shopFrontImage : (user?.avatarUrl || '');
+  // Falls back to the shop's front image, same as the Home header — an owner
+  // who hasn't set a personal photo was showing a blank avatar here while
+  // Home showed the shop image, which read as a broken image on this screen.
+  const displayAvatar = isShopLogin ? shopFrontImage : (user?.avatarUrl || shopFrontImage);
+  const isVerified = kycStatus === 'APPROVED';
 
   const shops = user?.shops || [];
   // Shop-scoped sessions can't switch shops — the JWT is locked to one shop.
@@ -302,18 +315,20 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                 <Text className="text-[16px] font-extrabold text-gray-900 mr-2" numberOfLines={1}>
                   {displayName}
                 </Text>
-                <View
-                  className="flex-row items-center px-1.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: '#E6F7E3' }}
-                >
-                  <BadgeCheck size={10} color={PINE} strokeWidth={ICON_STROKE} />
-                  <Text
-                    className="ml-0.5 text-[8.5px] font-extrabold"
-                    style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.4 }}
+                {isVerified ? (
+                  <View
+                    className="flex-row items-center px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#E6F7E3' }}
                   >
-                    VERIFIED
-                  </Text>
-                </View>
+                    <BadgeCheck size={10} color={PINE} strokeWidth={ICON_STROKE} />
+                    <Text
+                      className="ml-0.5 text-[8.5px] font-extrabold"
+                      style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.4 }}
+                    >
+                      VERIFIED
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               {displayPhone ? (
                 <View className="flex-row items-center mt-1.5">

@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import {
   ArrowDown,
   ArrowLeft,
@@ -200,12 +200,13 @@ function applyKey(prev, k) {
    one nobody can settle an argument with a month later. ── */
 
 function useVoiceRecorder() {
-  const [recording, setRecording] = useState(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef(null);
   // Mirrors `recording` for the unmount cleanup below, which must not re-run
-  // (and re-unload an already-stopped recording) every time state changes.
-  const liveRef = useRef(null);
+  // (and re-stop an already-stopped recording) every time state changes.
+  const liveRef = useRef(false);
 
   const clearTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -214,17 +215,16 @@ function useVoiceRecorder() {
 
   const start = useCallback(async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
         notify('Microphone needed', 'Allow microphone access to record a voice note.');
         return false;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const r = new Audio.Recording();
-      await r.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await r.startAsync();
-      liveRef.current = r;
-      setRecording(r);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      liveRef.current = true;
+      setRecording(true);
       setElapsed(0);
       timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
       return true;
@@ -232,31 +232,31 @@ function useVoiceRecorder() {
       notify('Could not record', 'The microphone is busy — try again.', { preset: 'error' });
       return false;
     }
-  }, []);
+  }, [audioRecorder]);
 
   const stop = useCallback(async () => {
     if (!recording) return null;
     clearTimer();
-    liveRef.current = null;
-    setRecording(null);
+    liveRef.current = false;
+    setRecording(false);
     const seconds = elapsed;
     setElapsed(0);
     try {
-      await recording.stopAndUnloadAsync();
-      return { uri: recording.getURI(), seconds };
+      await audioRecorder.stop();
+      return { uri: audioRecorder.uri, seconds };
     } catch {
       return null;
     }
-  }, [recording, elapsed]);
+  }, [recording, elapsed, audioRecorder]);
 
   const cancel = useCallback(async () => {
     if (!recording) return;
     clearTimer();
-    liveRef.current = null;
-    setRecording(null);
+    liveRef.current = false;
+    setRecording(false);
     setElapsed(0);
-    try { await recording.stopAndUnloadAsync(); } catch { /* already gone */ }
-  }, [recording]);
+    try { await audioRecorder.stop(); } catch { /* already gone */ }
+  }, [recording, audioRecorder]);
 
   // Leaving the screen mid-recording must release the mic, or the next screen
   // that wants it gets a hardware-busy failure with nothing on screen to explain
@@ -264,9 +264,9 @@ function useVoiceRecorder() {
   useEffect(() => () => {
     clearTimer();
     const live = liveRef.current;
-    liveRef.current = null;
-    if (live) live.stopAndUnloadAsync().catch(() => {});
-  }, []);
+    liveRef.current = false;
+    if (live) audioRecorder.stop().catch(() => {});
+  }, [audioRecorder]);
 
   return { recording, elapsed, start, stop, cancel };
 }

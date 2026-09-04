@@ -58,6 +58,7 @@ export default {
     },
     plugins: [
       ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock GGFIX.' }],
+      ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
       // Android 11+ package visibility for the WhatsApp / SMS receipt share.
       // `android/` is gitignored in the mirror, so the hand-edited manifest never
       // reaches an EAS build — this is what puts the <queries> block in the
@@ -92,6 +93,9 @@ export default {
             'We use your contacts so you can pick a customer or supplier from your phone book instead of typing the number.',
         },
       ],
+      'expo-image',
+      'expo-sharing',
+      'expo-status-bar',
     ],
     extra: {
       API_HOST: host || edge,
