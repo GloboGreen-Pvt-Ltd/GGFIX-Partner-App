@@ -301,7 +301,12 @@ export const scopeMatches = (scope, row) => (
 );
 
 // Count one scope over the two already-loaded source lists.
-export function countScope(scope, { tickets = [], pickups = [] } = {}) {
+/**
+ * @param {any} scope
+ * @param {{tickets?: any[], pickups?: any[]}} [ctx]
+ */
+export function countScope(scope, ctx = {}) {
+  const { tickets = [], pickups = [] } = ctx;
   const rows = scope.source === 'PICKUP' ? pickups : tickets;
   return rows.filter((r) => scopeMatches(scope, r)).length;
 }

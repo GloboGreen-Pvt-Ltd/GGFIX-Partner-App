@@ -155,15 +155,20 @@ export async function fetchMe() {
     emailVerified: me.emailVerified,
     isActive: me.isActive,
     roles: me.role ? [me.role] : (prev.roles || []),
+    // `frontImageUrl` is carried through here (was previously dropped) so a
+    // consumer that falls back to `shops.find(...)` instead of the richer
+    // `activeShop` object below still gets the shop photo — ShopSummary
+    // already declares this field, this mapping just wasn't filling it in.
     shops: shopScoped
       ? (activeShop
-          ? [{ id: activeShop.id, name: activeShop.name, slug: activeShop.slug, isActive: true }]
+          ? [{ id: activeShop.id, name: activeShop.name, slug: activeShop.slug, isActive: true, frontImageUrl: activeShop.frontImageUrl }]
           : (prev.shops || []))
       : locations.map((s) => ({
           id: s.id,
           name: s.name,
           slug: s.slug,
           isActive: activeShop ? s.id === activeShop.id : false,
+          frontImageUrl: s.frontImageUrl,
         })),
     shopId: activeShop ? activeShop.id : prev.shopId,
     shopName: activeShop ? activeShop.name : prev.shopName,

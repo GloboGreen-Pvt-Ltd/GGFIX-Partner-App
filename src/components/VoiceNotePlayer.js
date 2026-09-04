@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { Pause, Play } from 'lucide-react-native';
 
 /*
@@ -29,9 +29,9 @@ export default function VoiceNotePlayer({ url, seconds, tint = '#087A0A', compac
   // Unmounting mid-playback (scrolling the row away, leaving the screen) has to
   // release the decoder, or the audio keeps playing over the next screen.
   useEffect(() => () => {
-    const sound = soundRef.current;
+    const player = soundRef.current;
     soundRef.current = null;
-    if (sound) sound.unloadAsync().catch(() => {});
+    if (player) { try { player.remove(); } catch {} }
   }, []);
 
   const toggle = async () => {
@@ -39,25 +39,25 @@ export default function VoiceNotePlayer({ url, seconds, tint = '#087A0A', compac
     setBusy(true);
     try {
       if (playing) {
-        const sound = soundRef.current;
+        const player = soundRef.current;
         soundRef.current = null;
         setPlaying(false);
-        if (sound) {
-          await sound.stopAsync().catch(() => {});
-          await sound.unloadAsync().catch(() => {});
+        if (player) {
+          try { player.pause(); } catch {}
+          try { player.remove(); } catch {}
         }
         return;
       }
-      const { sound } = await Audio.Sound.createAsync({ uri: url });
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((st) => {
+      const player = createAudioPlayer(url);
+      soundRef.current = player;
+      player.addListener('playbackStatusUpdate', (st) => {
         if (st?.didJustFinish) {
           setPlaying(false);
           soundRef.current = null;
-          sound.unloadAsync().catch(() => {});
+          try { player.remove(); } catch {}
         }
       });
-      await sound.playAsync();
+      player.play();
       setPlaying(true);
     } catch {
       setPlaying(false);

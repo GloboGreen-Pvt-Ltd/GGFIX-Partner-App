@@ -1,7 +1,8 @@
 // iOS 26 "Liquid Glass" design language — shared tokens + primitives.
 //
-// The owner Home screen (screens/owner/DashboardScreen.js) introduced this look
-// and still carries its own private copy of these definitions. This module is
+// The owner Home screen (screens/owner/DashboardScreen.tsx) introduced this look
+// and still carries its own private copy of these definitions (now in
+// components/dashboard/theme.tsx). This module is
 // the extracted version every SUBSEQUENT screen should import, so converting
 // another tab doesn't mean pasting the recipe a third time. Home is deliberately
 // left untouched for now — porting it is a separate, riskier change; when it

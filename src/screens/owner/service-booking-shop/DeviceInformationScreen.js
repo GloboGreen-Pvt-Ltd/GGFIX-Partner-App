@@ -25,7 +25,7 @@ import {
   Pause,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { notify } from '../../../components/confirm';
 import { uploadMedia } from '../../../api/masterData';
 import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
@@ -82,25 +82,25 @@ export default function DeviceInformationScreen({ navigation, route }) {
   const issueAudioUrl = params.issueAudioUrl || null;
   const [isPlayingIssue, setIsPlayingIssue] = useState(false);
   const issueSoundRef = useRef(null);
-  useEffect(() => () => { try { issueSoundRef.current?.unloadAsync?.(); } catch (_) {} }, []);
+  useEffect(() => () => { try { issueSoundRef.current?.remove?.(); } catch (_) {} }, []);
 
   const toggleIssuePlayback = async () => {
     if (!issueAudioUrl) return;
     try {
       if (isPlayingIssue && issueSoundRef.current) {
-        await issueSoundRef.current.pauseAsync();
+        issueSoundRef.current.pause();
         setIsPlayingIssue(false);
         return;
       }
       if (issueSoundRef.current) {
-        try { await issueSoundRef.current.unloadAsync(); } catch (_) {}
+        try { issueSoundRef.current.remove(); } catch (_) {}
       }
-      const { sound } = await Audio.Sound.createAsync({ uri: issueAudioUrl });
-      issueSoundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
+      const player = createAudioPlayer(issueAudioUrl);
+      issueSoundRef.current = player;
+      player.addListener('playbackStatusUpdate', (status) => {
         if (status?.didJustFinish) setIsPlayingIssue(false);
       });
-      await sound.playAsync();
+      player.play();
       setIsPlayingIssue(true);
     } catch (e) {
       notify('Could not play', e?.message || 'Try again.');

@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ClipboardList, House, Receipt, Settings, ShoppingBag, Tag } from 'lucide-react-native';
 import colors from '../theme/colors';
 import BackButton from '../components/BackButton';
+import { getTabBarContentHeight, isTabletWidth, MIN_SAFE_BOTTOM } from './tabBarMetrics';
 
 // White-tinted back arrow for the green-header screens (Shop Info, Pickup
 // Options). The shared BackButton renders a dark arrow which is invisible on
@@ -136,144 +138,168 @@ const OWNER_TAB_ICONS = {
 const HIDDEN_TABS = ['Billing'];
 
 // ── Bottom bar palette ────────────────────────────────────────────────────
-// Deep teal #004C40 (tokens.primary) carries the active state. The pill tint
-// is a wash of that SAME teal rather than the old green `primarySoft`, so the
-// pill and the icon inside it read as one hue instead of two greens.
-//
-// Inactive items sit at near-black, not a muted grey: the active/inactive
-// split is carried by the tinted pill and the teal glyph on it, so resting
-// labels can stay fully legible without competing with the active tab.
-const NAV_ACTIVE = '#004C40';
-const NAV_ACTIVE_SOFT = '#E3EFEC';
-const NAV_INACTIVE = '#101917';
+// Active tab's icon floats in a raised white circle (shadow only) above the
+// bar's top edge, per the uploaded reference — green icon + bold green
+// label. Inactive items are plain black icons/labels, no background.
+const NAV_ACTIVE = colors.primary;
+const NAV_BUBBLE_BG = '#FFFFFF';
+const NAV_INACTIVE = '#000000';
 
 /**
- * Floating capsule tab bar. Fully-rounded white bar lifted off the page by a
- * soft shadow, with a spring-animated rounded-square pill sliding under the
- * active tab and a solid-filled active glyph.
+ * One tab: a fixed-size icon slot (so the layout never reflows on
+ * selection) holding two absolutely-stacked layers that cross-fade via
+ * Reanimated — a plain small icon (inactive) and a raised white circular
+ * bubble with a bigger icon (active) — plus a label underneath. `progress`
+ * (0 → 1) drives both layers' opacity and the bubble's lift/scale in one
+ * 200ms transition.
+ */
+const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPress, onLongPress, iconSize, activeIconSize, labelSize, bubbleSize }) {
+  const progress = useSharedValue(isFocused ? 1 : 0);
+  useEffect(() => {
+    progress.value = withTiming(isFocused ? 1 : 0, { duration: 200 });
+  }, [isFocused, progress]);
+
+  const inactiveIconStyle = useAnimatedStyle(() => ({ opacity: 1 - progress.value }));
+  const bubbleStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [
+      { translateY: interpolate(progress.value, [0, 1], [0, -10]) },
+      { scale: interpolate(progress.value, [0, 1], [0.85, 1]) },
+    ],
+  }));
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={String(label)}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      hitSlop={6}
+      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <View style={{ width: bubbleSize, height: bubbleSize, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, inactiveIconStyle]}>
+          <Icon size={iconSize} color={NAV_INACTIVE} strokeWidth={1.8} />
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              width: bubbleSize,
+              height: bubbleSize,
+              borderRadius: bubbleSize / 2,
+              backgroundColor: NAV_BUBBLE_BG,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#0B1A16',
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 8,
+            },
+            bubbleStyle,
+          ]}
+        >
+          <Icon size={activeIconSize} color={NAV_ACTIVE} strokeWidth={2.3} />
+        </Animated.View>
+      </View>
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        style={{
+          fontSize: labelSize,
+          marginTop: 4,
+          color: isFocused ? NAV_ACTIVE : NAV_INACTIVE,
+          fontWeight: isFocused ? '700' : '500',
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+});
+
+/**
+ * Compact, flat, full-width tab bar anchored to the bottom of the screen.
+ * Height and icon/bubble/label sizes come from `tabBarMetrics` (phone vs.
+ * tablet breakpoint at 600dp) so the navigator and Dashboard's scroll
+ * padding read the same numbers. `insets.bottom` is the ONLY bottom
+ * padding — no stacked/fixed padding on top of it.
  */
 function GlassTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const isTablet = isTabletWidth(winW);
+
   const routes = state.routes.filter((r) => !HIDDEN_TABS.includes(r.name));
-  const [barW, setBarW] = useState(0);
-
-  const HPAD = 6;
-  const PILL_INSET = 6;
-  const count = routes.length || 1;
-  const slot = barW > 0 ? (barW - HPAD * 2) / count : 0;
-
   const activeKey = state.routes[state.index]?.key;
   const activeIndex = Math.max(0, routes.findIndex((r) => r.key === activeKey));
 
-  const anim = useRef(new Animated.Value(activeIndex)).current;
-  useEffect(() => {
-    Animated.spring(anim, {
-      toValue: activeIndex,
-      useNativeDriver: true,
-      friction: 14,
-      tension: 120,
-    }).start();
-  }, [activeIndex, slot]);
-
-  const translateX = anim.interpolate({
-    inputRange: routes.map((_, i) => i),
-    outputRange: routes.map((_, i) => HPAD + i * slot + PILL_INSET),
-    extrapolate: 'clamp',
-  });
+  const barHeight = getTabBarContentHeight(isTablet);
+  const bubbleSize = isTablet ? 60 : 54;
+  const iconSize = isTablet ? 25 : 23;
+  const activeIconSize = isTablet ? 28 : 26;
+  const labelSize = isTablet ? 12 : 11;
 
   return (
+    // Background always spans the full device width — on a tablet/iPad this
+    // is what keeps the bar reading as one continuous surface edge-to-edge
+    // instead of a floating card with the screen's own background showing
+    // through the gaps on either side.
     <View
       style={{
-        backgroundColor: colors.background,
-        paddingTop: 6,
-        paddingBottom: insets.bottom || 10,
-        paddingHorizontal: 14,
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: isTablet ? 24 : 22,
+        borderTopRightRadius: isTablet ? 24 : 22,
+        paddingBottom: Math.max(insets.bottom, MIN_SAFE_BOTTOM),
+        width: '100%',
+        shadowColor: '#0B1A16',
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: -2 },
+        elevation: 10,
       }}
     >
-      {/* Floating rounded capsule */}
+      {/* Only the row of tabs is width-capped + centered, so on a large
+          landscape iPad/Android tablet the 5 items stay a compact group
+          instead of spreading edge-to-edge with huge gaps between them. */}
       <View
-        onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
         style={{
           flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#FFFFFF',
-          // Generously rounded, but short of half the height: the reference
-          // bar keeps a straight run on the left/right edges.
-          borderRadius: 28,
-          paddingHorizontal: HPAD,
-          height: 68,
+          height: barHeight,
+          paddingHorizontal: isTablet ? 20 : 6,
           width: '100%',
-          maxWidth: 620,
+          maxWidth: isTablet ? 660 : '100%',
           alignSelf: 'center',
-          // No hairline border — the bar is separated from the page by the
-          // shadow alone, so the capsule silhouette stays clean.
-          shadowColor: '#0B1A16',
-          shadowOpacity: 0.1,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 10,
         }}
       >
-        {/* Sliding teal-tinted pill behind the active tab */}
-        {slot > 0 ? (
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: 7,
-              left: 0,
-              width: slot - PILL_INSET * 2,
-              height: 54,
-              borderRadius: 18,
-              backgroundColor: NAV_ACTIVE_SOFT,
-              transform: [{ translateX }],
-            }}
-          />
-        ) : null}
-
         {routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label = options.tabBarLabel ?? options.title ?? route.name;
           const Icon = OWNER_TAB_ICONS[route.name] || House;
           const isFocused = index === activeIndex;
+
           const onPress = () => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
             if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
           };
           const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
+
           return (
-            <Pressable
+            <TabBarItem
               key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
+              Icon={Icon}
+              label={label}
+              isFocused={isFocused}
               onPress={onPress}
               onLongPress={onLongPress}
-              style={{ width: slot, height: 54, alignItems: 'center', justifyContent: 'center' }}
-            >
-              {/*
-                Every tab keeps the same OUTLINE glyph — the active one is
-                marked by colour and a slightly heavier stroke, never by
-                swapping in a filled variant. A solid glyph on the tinted pill
-                reads as a second, competing shape.
-              */}
-              <Icon
-                size={22}
-                color={isFocused ? NAV_ACTIVE : NAV_INACTIVE}
-                strokeWidth={isFocused ? 2.2 : 1.8}
-              />
-              <Text
-                numberOfLines={1}
-                allowFontScaling={false}
-                style={{
-                  fontSize: 11,
-                  marginTop: 4,
-                  color: isFocused ? NAV_ACTIVE : NAV_INACTIVE,
-                  fontWeight: isFocused ? '800' : '600',
-                }}
-              >
-                {label}
-              </Text>
-            </Pressable>
+              iconSize={iconSize}
+              activeIconSize={activeIconSize}
+              labelSize={labelSize}
+              bubbleSize={bubbleSize}
+            />
           );
         })}
       </View>
