@@ -55,6 +55,7 @@ import { getDeviceCategories, getBrands, getBrandsForCategory, getModelsByBrand,
 import { listShops } from '../../api/shops';
 import { OfferBanner } from '../../components/rnr';
 import { notify } from '../../components/confirm';
+import { tintFor } from '../shared/categoryTints';
 
 const GREEN       = '#004C40';
 const GREEN_LIGHT = '#00695C';  // gradient top stop only - keeps the CTA from going flat
@@ -146,6 +147,8 @@ function priceOf(it) { return it.expectedPrice != null ? Number(it.expectedPrice
 export default function OwnerBuyListingScreen({ navigation, route }) {
   const { categoryId, categoryCode, categoryName } = route?.params || {};
   const { width: winW } = useWindowDimensions();
+  const isSmall = winW < 360;
+  const isTablet = winW >= 768;
   const padH = 16;
   // The hero carousel lives inside the FlatList content container, which is
   // inset by (padH - 2) on each side — so its real page/viewport width is the
@@ -649,31 +652,50 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     );
   };
 
-  // ── Category chip (image tile + label) ────────────────────────────
-  const CategoryChip = ({ active, label, isAll, uri, emoji, onPress }) => (
-    <Pressable onPress={onPress} className="items-center mr-3 active:opacity-80" style={{ width: 66 }}>
-      <View
-        className="h-16 w-16 rounded-2xl items-center justify-center overflow-hidden"
-        style={{
-          backgroundColor: isAll && active ? GREEN : '#FFFFFF',
-          borderWidth: active ? 2 : 1,
-          borderColor: active ? GREEN : '#EFF5EE',
-          ...cardShadow,
-        }}
-      >
-        {isAll ? (
-          <LayoutGrid size={26} color={active ? '#FFFFFF' : '#172117'} />
-        ) : uri ? (
-          <Image source={{ uri }} style={{ width: 40, height: 40 }} resizeMode="contain" />
-        ) : (
-          <Text style={{ fontSize: 21 }}>{emoji}</Text>
-        )}
-      </View>
-      <Text className="text-[10.5px] font-bold mt-1 text-center" numberOfLines={1} style={{ color: active ? GREEN_DARK : '#172117' }}>
-        {label}
-      </Text>
-    </Pressable>
-  );
+  // ── Category chip (image tile + label) ─────────────────────────────
+  // Same tinted-tile look as OwnerSellHomeScreen's category tiles (soft
+  // per-category colour behind the image, from the shared `tintFor`) —
+  // this chip still has to carry Buy's own filter semantics Sell's tiles
+  // don't need, so "active" reads as a green ring + bold label on top of
+  // that same tint, rather than the plain white/bordered chip before.
+  const CAT_CHIP_SIZE = isSmall ? 64 : isTablet ? 96 : 72;
+  const CAT_CHIP_IMG_SIZE = isSmall ? 40 : isTablet ? 64 : 44;
+  const CAT_CHIP_ICON_SIZE = isSmall ? 22 : isTablet ? 34 : 26;
+  const CAT_CHIP_LABEL_F = isSmall ? 9.5 : isTablet ? 12.5 : 10.5;
+
+  const CategoryChip = ({ active, label, isAll, uri, emoji, code, onPress }) => {
+    const tint = isAll ? '#E6F7E3' : tintFor(code);
+    return (
+      <Pressable onPress={onPress} className="items-center mr-3 active:opacity-80" style={{ width: CAT_CHIP_SIZE }}>
+        <View
+          className="items-center justify-center overflow-hidden"
+          style={{
+            height: CAT_CHIP_SIZE,
+            width: CAT_CHIP_SIZE,
+            borderRadius: 18,
+            backgroundColor: tint,
+            borderWidth: active ? 2 : 0,
+            borderColor: GREEN_DARK,
+          }}
+        >
+          {isAll ? (
+            <LayoutGrid size={CAT_CHIP_ICON_SIZE} color={GREEN_DARK} />
+          ) : uri ? (
+            <Image source={{ uri }} style={{ width: CAT_CHIP_IMG_SIZE, height: CAT_CHIP_IMG_SIZE }} resizeMode="contain" />
+          ) : (
+            <Text style={{ fontSize: CAT_CHIP_ICON_SIZE - 4 }}>{emoji}</Text>
+          )}
+        </View>
+        <Text
+          className="mt-1 text-center"
+          numberOfLines={1}
+          style={{ fontSize: CAT_CHIP_LABEL_F, color: active ? GREEN_DARK : '#172117', fontWeight: active ? '800' : '600' }}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
 
   // ── Flash-deal card (vertical, image on top) ──────────────────────
   const DealCard = ({ item }) => {
@@ -762,6 +784,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 label={c.name}
                 emoji={catEmoji(code)}
                 uri={catImage(c)}
+                code={code}
                 onPress={() => setSelected({ id: c.id, code, name: c.name })}
               />
             );
@@ -1053,20 +1076,6 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           }
         />
       )}
-
-      {/* Cart FAB */}
-      <Pressable
-        onPress={() => navigation.navigate('OwnerCart')}
-        className="rounded-full items-center justify-center active:opacity-90"
-        style={{ position: 'absolute', right: 18, bottom: 18, width: 58, height: 58, backgroundColor: GREEN_DARK, shadowColor: GREEN_DARK, shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 10 }}
-      >
-        <ShoppingCart size={24} color="#FFFFFF" />
-        {cartCount > 0 ? (
-          <View className="absolute -top-1 -right-1 rounded-full min-w-[20px] h-5 px-1 items-center justify-center" style={{ backgroundColor: '#F59E0B', borderWidth: 2, borderColor: '#FFFFFF' }}>
-            <Text className="text-text text-[10px] font-extrabold">{cartCount > 9 ? '9+' : cartCount}</Text>
-          </View>
-        ) : null}
-      </Pressable>
 
       {/* Filters popup */}
       <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
