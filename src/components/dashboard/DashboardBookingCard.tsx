@@ -53,7 +53,7 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         }}
       >
         {image ? (
-          <Image source={{ uri: image }} style={{ width: 50, height: 68 }} resizeMode="contain" />
+          <Image source={{ uri: image }} style={{ width: 60, height: 78 }} resizeMode="contain" />
         ) : (
           <Smartphone size={26} color={C.placeholder} strokeWidth={ICON_STROKE} />
         )}

@@ -10,6 +10,8 @@ import {
   Image,
   Animated,
   Easing,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,8 @@ import { getSession } from '../../auth/session';
 import { fetchMe, updateOwnerProfile } from '../../api/auth';
 import { uploadMedia } from '../../api/masterData';
 import { notify } from '../../components/confirm';
+import { rf, rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
 // Swiggy / Zomato green palette — same as the rest of the owner-side flows.
 // Constant names left as PRIMARY etc. so the rest of the file keeps reading
@@ -53,8 +57,17 @@ export default function OwnerPersonalInfoScreen() {
   const [additional, setAdditional] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
+  // View / Edit mode — purely a UI state, doesn't touch any profile data.
+  const [isEditing, setIsEditing] = useState(false);
+
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const navigation = useNavigation();
+  const r = useResponsive();
+  // Tablet/iPad: cap the column and centre it so a form doesn't stretch
+  // edge-to-edge. Phones keep contentW undefined and are unaffected.
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 740) : undefined;
+  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
+
   // Guards so the async /auth/me fetch doesn't clobber whatever the user has
   // already typed. Without these the network response would overwrite the
   // controlled `value` mid-typing and reset the TextInput cursor — what the
@@ -151,7 +164,9 @@ export default function OwnerPersonalInfoScreen() {
       Animated.timing(flashOpacity, { toValue: 0, duration: 220, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]).start(() => {
       setSavedFlash(false);
-      if (navigation.canGoBack()) navigation.goBack();
+      // Land back on View Mode with the just-saved values already in state —
+      // no navigation away, per the View/Edit flow this screen now has.
+      setIsEditing(false);
     });
   };
 
@@ -179,233 +194,362 @@ export default function OwnerPersonalInfoScreen() {
     }
   };
 
+  const handleBack = () => {
+    // Edit Mode's back arrow returns to View Mode first; only a second press
+    // (now that isEditing is false) actually leaves the screen.
+    if (isEditing) { setIsEditing(false); return; }
+    if (navigation.canGoBack()) navigation.goBack();
+  };
+
   return (
     <View style={styles.root}>
-      {/* Slim green hero — single row, matches the rest of the Swiggy/Zomato
-          screens. Subtitle copy moved into the identity card below so the
-          green band stays short and the avatar/stats card sits high on the
-          screen instead of being pushed below a tall banner. */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View style={styles.banner}>
-          <View style={styles.bannerTopRow}>
+      {/* Compact gradient header — sized to its own content (back button +
+          title/subtitle + OWNER badge) only. The profile card below sits in
+          normal document flow with a plain positive margin, never a negative
+          one, so there is no way for it to render underneath the header. */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY }}>
+        <LinearGradient
+          colors={[PRIMARY_LIGHT, PRIMARY]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={[styles.heroTopRow, capStyle]}>
             <Pressable
-              onPress={() => navigation.goBack()}
+              onPress={handleBack}
               hitSlop={10}
-              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [styles.heroBackBtn, pressed && { opacity: 0.7 }]}
             >
-              <Ionicons name="chevron-back" size={20} color="#172117" />
+              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
             </Pressable>
-            <Text style={styles.bannerTitle} numberOfLines={1}>Personal Information</Text>
-            <View style={styles.bannerKickerPill}>
-              <Ionicons name="shield-checkmark" size={10} color="#172117" />
-              <Text style={styles.bannerKicker}>OWNER</Text>
+            <View style={styles.heroTitleWrap}>
+              <Text style={styles.heroTitle} numberOfLines={1}>
+                {isEditing ? 'Edit Personal Information' : 'Personal Information'}
+              </Text>
+              <Text style={styles.heroSubtitle} numberOfLines={1}>
+                {isEditing ? 'Update your profile details' : 'View your profile details'}
+              </Text>
+            </View>
+            <View style={styles.heroKickerPill}>
+              <Ionicons name="shield-checkmark" size={11} color="#FFFFFF" />
+              <Text style={styles.heroKicker}>OWNER</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
       </SafeAreaView>
 
-      <ScrollView
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? rs(8) : 0}
       >
-        {/* Identity card — overlaps the banner */}
-        <View style={styles.identityCard}>
-          <View style={styles.identityRow}>
-            <View style={styles.avatarWrap}>
-              <Pressable
-                onPress={pickAvatar}
-                disabled={uploadingAvatar}
-                style={({ pressed }) => [styles.avatar, pressed && { opacity: 0.85 }]}
-              >
-                {uploadingAvatar ? (
-                  <ActivityIndicator color="#fff" />
-                ) : avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.avatarText}>{initials}</Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={pickAvatar}
-                disabled={uploadingAvatar}
-                style={styles.avatarEditBtn}
-                hitSlop={8}
-              >
-                <Ionicons name={avatarUrl ? 'pencil' : 'camera'} size={11} color="#fff" />
-              </Pressable>
-            </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Profile summary card — normal flow, plain positive margin below
+              the header. Never overlaps it. */}
+          <View style={[styles.identityCard, capStyle]}>
+            <View style={styles.identityTopRow}>
+              <View style={styles.avatarWrap}>
+                <Pressable
+                  onPress={pickAvatar}
+                  disabled={uploadingAvatar}
+                  style={({ pressed }) => [styles.avatar, pressed && { opacity: 0.85 }]}
+                >
+                  {uploadingAvatar ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : avatarUrl ? (
+                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+                  ) : (
+                    <Text style={styles.avatarText}>{initials}</Text>
+                  )}
+                </Pressable>
+                {isEditing ? (
+                  <Pressable
+                    onPress={pickAvatar}
+                    disabled={uploadingAvatar}
+                    style={styles.avatarEditBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="camera" size={11} color="#fff" />
+                  </Pressable>
+                ) : null}
+              </View>
 
-            <View style={styles.identityText}>
-              <View style={styles.nameRow}>
+              <View style={styles.identityText}>
                 <Text style={styles.name} numberOfLines={1}>
                   {fullName || 'Shop Owner'}
                 </Text>
+                <View style={styles.shopRow}>
+                  <Ionicons name="storefront-outline" size={12} color={MUTED} />
+                  <Text style={styles.shopName} numberOfLines={1}>
+                    {shopName}
+                  </Text>
+                </View>
                 <View style={styles.verifiedPill}>
-                  <Ionicons name="shield-checkmark" size={9} color={SUCCESS} />
-                  <Text style={styles.verifiedText}>VERIFIED</Text>
+                  <Ionicons name="shield-checkmark" size={10} color={SUCCESS} />
+                  <Text style={styles.verifiedText}>Verified Owner</Text>
                 </View>
               </View>
-              <View style={styles.shopRow}>
-                <Ionicons name="storefront-outline" size={12} color={MUTED} />
-                <Text style={styles.shopName} numberOfLines={1}>
-                  {shopName}
-                </Text>
-              </View>
+
+              {!isEditing ? (
+                <Pressable
+                  onPress={() => setIsEditing(true)}
+                  style={({ pressed }) => [styles.editPillBtn, pressed && { opacity: 0.8 }]}
+                >
+                  <Ionicons name="pencil" size={13} color={PRIMARY} />
+                  <Text style={styles.editPillText}>Edit</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {isEditing ? (
+              <Pressable
+                onPress={pickAvatar}
+                disabled={uploadingAvatar}
+                style={({ pressed }) => [styles.changePhotoBtn, pressed && { opacity: 0.85 }]}
+              >
+                <View style={styles.changePhotoIconWrap}>
+                  <Ionicons name="camera-outline" size={18} color={PRIMARY} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.changePhotoTitle}>Change Profile Photo</Text>
+                  <Text style={styles.changePhotoSub}>JPG, PNG up to 5 MB</Text>
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {/* Personal Details */}
+          <View style={[styles.card, capStyle]}>
+            <SectionHeader
+              icon="person-outline"
+              title="Personal Details"
+              subtitle={isEditing ? 'Keep your information up to date' : null}
+            />
+
+            <View style={styles.cardBody}>
+              {isEditing ? (
+                <>
+                  <Field
+                    icon="person-outline"
+                    label="Full Name"
+                    value={fullName}
+                    onChangeText={onChangeFullName}
+                    placeholder="Enter your full name"
+                  />
+                  <Field
+                    icon="mail-outline"
+                    label="Email Address"
+                    value={email}
+                    onChangeText={onChangeEmail}
+                    placeholder="name@example.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    last
+                  />
+                </>
+              ) : (
+                <>
+                  <DetailRow label="Full Name" value={fullName || '—'} />
+                  <DetailRow label="Email Address" value={email || '—'} last />
+                </>
+              )}
             </View>
           </View>
 
-          {/* Stat row removed: Bookings / Rating / Since were hardcoded
-              placeholders (128 / 4.8 / 2024) shown identically to every owner.
-              Re-add only when backed by a real per-account stats endpoint. */}
-        </View>
+          {/* Contact Numbers */}
+          <View style={[styles.card, capStyle]}>
+            <SectionHeader
+              icon="call-outline"
+              title="Contact Numbers"
+              subtitle={isEditing ? 'Add or update your contact number(s)' : null}
+            />
 
-        {/* Personal Details */}
-        <SectionLabel icon="person-circle-outline">Personal Details</SectionLabel>
-        <View style={styles.card}>
-          <Field
-            icon="person-outline"
-            label="Full Name"
-            value={fullName}
-            onChangeText={onChangeFullName}
-            placeholder="Enter your full name"
-          />
-          <Field
-            icon="mail-outline"
-            label="Email Address"
-            value={email}
-            onChangeText={onChangeEmail}
-            placeholder="name@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            last
-          />
-        </View>
-
-        {/* Contact Numbers */}
-        <SectionLabel icon="call-outline">Contact Numbers</SectionLabel>
-        <View style={styles.card}>
-          <Field
-            icon="logo-whatsapp"
-            iconColor="#25D366"
-            label="Mobile Number (WhatsApp)"
-            value={mobile}
-            onChangeText={onChangeMobile}
-            placeholder="98765 43210"
-            keyboardType="phone-pad"
-            prefix="+91"
-          />
-          <Field
-            icon="call-outline"
-            label="Additional Number"
-            value={additional}
-            onChangeText={onChangeAdditional}
-            placeholder="Optional"
-            keyboardType="phone-pad"
-            prefix="+91"
-            last
-          />
-        </View>
-
-        {/* Helper note */}
-        <View style={styles.helperRow}>
-          <View style={styles.helperIconWrap}>
-            <Ionicons name="lock-closed" size={11} color={PRIMARY} />
-          </View>
-          <Text style={styles.helperText}>
-            Your contact details stay private and are only used for service updates.
-          </Text>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={PRIMARY} />
-            <Text style={styles.loadingText}>Loading profile…</Text>
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {/* Sticky save bar */}
-      <SafeAreaView edges={['bottom']} style={styles.saveBarSafe}>
-        <View style={styles.saveBar}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.buttonShadow,
-              (saving || loading) && { opacity: 0.7 },
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-            disabled={saving || loading || savedFlash}
-            onPress={handleSave}
-          >
-            <LinearGradient
-              colors={
-                savedFlash
-                  ? [SUCCESS, '#087A0A']
-                  : [PRIMARY, PRIMARY_MID, PRIMARY_LIGHT]
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.button}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : savedFlash ? (
-                <Animated.View style={[styles.buttonInner, { opacity: flashOpacity }]}>
-                  <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                  <Text style={styles.buttonText}>Updated</Text>
-                </Animated.View>
+            <View style={styles.cardBody}>
+              {isEditing ? (
+                <>
+                  <PhoneField
+                    icon="logo-whatsapp"
+                    iconColor="#25D366"
+                    label="Mobile Number (WhatsApp)"
+                    value={mobile}
+                    onChangeText={onChangeMobile}
+                    placeholder="Mobile number"
+                    keyboardType="phone-pad"
+                  />
+                  <PhoneField
+                    icon="call-outline"
+                    label="Additional Number (Optional)"
+                    value={additional}
+                    onChangeText={onChangeAdditional}
+                    placeholder="Enter additional number"
+                    keyboardType="phone-pad"
+                    last
+                  />
+                </>
               ) : (
-                <View style={styles.buttonInner}>
-                  <Ionicons name="save-outline" size={18} color="#fff" />
-                  <Text style={styles.buttonText}>Save Changes</Text>
-                </View>
+                <>
+                  <DetailRow
+                    label="Mobile Number (WhatsApp)"
+                    value={mobile ? `+91  ${mobile}` : '—'}
+                    trailing={<Ionicons name="logo-whatsapp" size={16} color="#25D366" style={{ marginLeft: rs(8) }} />}
+                  />
+                  <DetailRow
+                    label="Additional Number"
+                    value={additional ? `+91  ${additional}` : 'Not added'}
+                    muted={!additional}
+                    trailing={!additional ? <Text style={styles.dash}>—</Text> : null}
+                    last
+                  />
+                </>
               )}
-            </LinearGradient>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+            </View>
+          </View>
+
+          {/* Privacy / information note */}
+          <View style={[styles.privacyCard, capStyle]}>
+            <View style={styles.privacyIconWrap}>
+              <Ionicons name="lock-closed" size={16} color={PRIMARY} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.privacyHeading}>Your information is safe with us</Text>
+              <Text style={styles.privacyText}>
+                Your contact details stay private and are only used for service updates.
+              </Text>
+            </View>
+          </View>
+
+          {loading ? (
+            <View style={[styles.loadingRow, capStyle]}>
+              <ActivityIndicator color={PRIMARY} />
+              <Text style={styles.loadingText}>Loading profile…</Text>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {/* Sticky save bar — Edit Mode only */}
+        {isEditing ? (
+          <SafeAreaView edges={['bottom']} style={styles.saveBarSafe}>
+            <View style={[styles.saveBar, capStyle]}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.buttonShadow,
+                  (saving || loading) && { opacity: 0.7 },
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+                disabled={saving || loading || savedFlash}
+                onPress={handleSave}
+              >
+                <LinearGradient
+                  colors={
+                    savedFlash
+                      ? [SUCCESS, '#087A0A']
+                      : [PRIMARY, PRIMARY_MID, PRIMARY_LIGHT]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.button}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : savedFlash ? (
+                    <Animated.View style={[styles.buttonInner, { opacity: flashOpacity }]}>
+                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Text style={styles.buttonText}>Updated</Text>
+                    </Animated.View>
+                  ) : (
+                    <View style={styles.buttonInner}>
+                      <Ionicons name="save-outline" size={18} color="#fff" />
+                      <Text style={styles.buttonText}>Save Changes</Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        ) : null}
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
-function SectionLabel({ icon, children }) {
+// Shared card header — icon chip + title, with an optional subtitle (Edit
+// Mode only; View Mode intentionally has no section description).
+function SectionHeader({ icon, title, subtitle }) {
   return (
-    <View style={styles.sectionLabelRow}>
-      {icon ? <Ionicons name={icon} size={13} color={PRIMARY} style={{ marginRight: 6 }} /> : null}
-      <Text style={styles.sectionLabel}>{children}</Text>
-    </View>
-  );
-}
-
-function Stat({ icon, label, value, iconColor }) {
-  return (
-    <View style={styles.stat}>
-      <View style={styles.statIconWrap}>
-        <Ionicons name={icon} size={13} color={iconColor || PRIMARY} />
+    <View style={styles.cardHeaderRow}>
+      <View style={styles.cardHeaderIconWrap}>
+        <Ionicons name={icon} size={16} color={PRIMARY} />
       </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <View style={styles.cardHeaderTextWrap}>
+        <Text style={styles.cardHeaderTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.cardHeaderHelper} numberOfLines={1}>{subtitle}</Text> : null}
+      </View>
     </View>
   );
 }
 
-// Plain Field — no local focus state, no React.memo trick. Each TextInput
-// owns its own native cursor; nothing in the parent or the wrapper reacts to
-// focus changes, so the cursor never gets pulled into a different field.
-// Visual focus highlight is dropped (it was the source of the bug); the
-// label-color stays muted and the border-color stays neutral regardless of
-// which field is being typed in.
-function Field({ icon, iconColor, label, last, prefix, ...inputProps }) {
+// View Mode — a compact read-only label/value row with a hairline divider
+// between rows (skipped on `last`).
+function DetailRow({ label, value, muted, trailing, last }) {
+  return (
+    <View>
+      <View style={styles.viewRow}>
+        <Text style={styles.viewRowLabel} numberOfLines={1}>{label}</Text>
+        <View style={styles.viewRowValueWrap}>
+          <Text style={[styles.viewRowValue, muted && styles.viewRowValueMuted]} numberOfLines={1}>
+            {value}
+          </Text>
+          {trailing}
+        </View>
+      </View>
+      {!last ? <View style={styles.viewRowDivider} /> : null}
+    </View>
+  );
+}
+
+// Edit Mode — plain text field. No local focus state, no React.memo trick:
+// each TextInput owns its own native cursor and nothing here reacts to focus
+// changes, so the cursor never gets pulled into a different field.
+function Field({ icon, iconColor, label, last, ...inputProps }) {
   return (
     <View style={[styles.field, last && styles.fieldLast]}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         {icon ? (
-          <View style={styles.inputIcon}>
-            <Ionicons name={icon} size={16} color={iconColor || MUTED} />
+          <View style={styles.inputIconWrap}>
+            <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
           </View>
         ) : null}
-        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#8FA08F"
+          {...inputProps}
+        />
+      </View>
+    </View>
+  );
+}
+
+// Edit Mode — phone field: icon chip, a static "+91" country code (with a
+// purely decorative chevron — there is no country list to open), a divider,
+// then the number itself.
+function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
+  return (
+    <View style={[styles.field, last && styles.fieldLast]}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.inputRow}>
+        <View style={styles.inputIconWrap}>
+          <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
+        </View>
+        <View style={styles.phoneCodeWrap}>
+          <Text style={styles.phoneCodeText}>+91</Text>
+          <Ionicons name="chevron-down" size={12} color={MUTED} />
+        </View>
         <TextInput
           style={styles.input}
           placeholderTextColor="#8FA08F"
@@ -419,86 +563,87 @@ function Field({ icon, iconColor, label, last, prefix, ...inputProps }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
 
-  // Banner — slim single row (same shape as Booking Status, KYC View, etc).
-  banner: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8E2',
+  // Compact gradient header
+  hero: {
+    paddingHorizontal: rs(20),
+    paddingTop: rs(10),
+    paddingBottom: rs(18),
+    borderBottomLeftRadius: rs(28),
+    borderBottomRightRadius: rs(28),
   },
-  bannerTopRow: {
+  heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  heroBackBtn: {
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(19),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF5EE',
-    marginRight: 12,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    marginRight: rs(12),
   },
-  bannerTitle: {
-    flex: 1,
-    color: '#172117',
-    fontSize: 17,
+  heroTitleWrap: { flex: 1, marginRight: rs(8) },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: rf(17),
     fontWeight: '800',
   },
-  bannerKickerPill: {
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: rf(11.5),
+    fontWeight: '500',
+    marginTop: rs(2),
+  },
+  heroKickerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(5),
     borderRadius: 999,
-    backgroundColor: '#EFF5EE',
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
-  bannerKicker: {
-    color: '#667066',
-    fontSize: 10.5,
+  heroKicker: {
+    color: '#FFFFFF',
+    fontSize: rf(10.5),
     fontWeight: '800',
     letterSpacing: 0.7,
-    marginLeft: 4,
+    marginLeft: rs(4),
   },
 
   content: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 100,
+    paddingHorizontal: rs(18),
+    paddingTop: rs(16),
+    paddingBottom: rs(100),
   },
 
-  // Identity card
+  // Profile summary card — plain flow, plain positive spacing above/below.
   identityCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    marginBottom: 14,
+    borderRadius: rs(24),
+    padding: rs(16),
+    marginBottom: rs(16),
     shadowColor: '#172117',
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  identityRow: {
+  identityTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'stretch',
   },
   identityText: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: rs(14),
     justifyContent: 'center',
   },
   avatarWrap: {},
   avatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: rs(66),
+    height: rs(66),
+    borderRadius: rs(33),
     backgroundColor: PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
@@ -506,164 +651,200 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FFFFFF',
     shadowColor: PRIMARY,
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
-  avatarImage: { width: 56, height: 56 },
-  avatarText: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: 1 },
+  avatarImage: { width: rs(60), height: rs(60) },
+  avatarText: { color: '#fff', fontSize: rf(23), fontWeight: '800', letterSpacing: 1 },
   avatarEditBtn: {
     position: 'absolute',
     right: -2,
     bottom: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: rs(22),
+    height: rs(22),
+    borderRadius: rs(11),
     backgroundColor: PRIMARY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  name: { fontSize: 17, fontWeight: '800', color: TEXT, marginRight: 6 },
-  shopRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  shopName: { fontSize: 12, color: MUTED, marginLeft: 4, fontWeight: '600' },
+  name: { fontSize: rf(16.5), fontWeight: '800', color: TEXT },
+  shopRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(4) },
+  shopName: { fontSize: rf(12), color: MUTED, marginLeft: rs(4), fontWeight: '600' },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E6F7E3',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    alignSelf: 'flex-start',
+    backgroundColor: PRIMARY_SOFT,
+    paddingHorizontal: rs(8),
+    paddingVertical: rs(3),
     borderRadius: 999,
+    marginTop: rs(6),
   },
   verifiedText: {
-    fontSize: 8.5,
-    color: '#087A0A',
+    fontSize: rf(9.5),
+    color: PRIMARY,
     fontWeight: '800',
-    marginLeft: 2,
-    letterSpacing: 0.4,
+    marginLeft: rs(3),
   },
-
-  // Stats
-  statsRow: {
+  editPillBtn: {
     flexDirection: 'row',
-    alignSelf: 'stretch',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    paddingHorizontal: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: BORDER,
+    backgroundColor: PRIMARY_SOFT,
+    paddingHorizontal: rs(12),
+    paddingVertical: rs(8),
+    borderRadius: rs(14),
   },
-  stat: { flex: 1, alignItems: 'center' },
-  statIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#F0F8EF',
+  editPillText: { fontSize: rf(12.5), fontWeight: '800', color: PRIMARY, marginLeft: rs(5) },
+
+  changePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: rs(14),
+    backgroundColor: PRIMARY_SOFT,
+    borderWidth: 1,
+    borderColor: PRIMARY_LIGHT,
+    borderRadius: rs(16),
+    paddingHorizontal: rs(14),
+    paddingVertical: rs(12),
+  },
+  changePhotoIconWrap: {
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(12),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    backgroundColor: '#FFFFFF',
+    marginRight: rs(10),
   },
-  statValue: { fontSize: 16, fontWeight: '800', color: TEXT },
-  statLabel: { fontSize: 10, color: MUTED, fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
-  statDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: BORDER },
+  changePhotoTitle: { fontSize: rf(13), fontWeight: '700', color: PRIMARY },
+  changePhotoSub: { fontSize: rf(10.5), color: MUTED, marginTop: rs(1) },
 
-  // Section labels
-  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginLeft: 4 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: PRIMARY,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-
-  // Form cards
+  // Form cards — shared header row (icon + title[/subtitle in Edit Mode])
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 12,
-    marginBottom: 12,
+    borderRadius: rs(22),
+    paddingHorizontal: rs(16),
+    paddingVertical: rs(14),
+    marginBottom: rs(16),
     shadowColor: '#172117',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center' },
+  cardHeaderIconWrap: {
+    width: rs(32),
+    height: rs(32),
+    borderRadius: rs(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_SOFT,
+    marginRight: rs(10),
+  },
+  cardHeaderTextWrap: { flex: 1 },
+  cardHeaderTitle: { fontSize: rf(15.5), fontWeight: '800', color: TEXT },
+  cardHeaderHelper: { fontSize: rf(11.5), color: MUTED, fontWeight: '500', marginTop: rs(2) },
+  cardBody: { marginTop: rs(12) },
 
-  // Field
-  field: { marginBottom: 10 },
+  // View Mode rows
+  viewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: rs(11),
+  },
+  viewRowLabel: { fontSize: rf(12.5), color: MUTED, fontWeight: '600', flex: 1, marginRight: rs(8) },
+  viewRowValueWrap: { flexDirection: 'row', alignItems: 'center' },
+  viewRowValue: { fontSize: rf(13.5), color: TEXT, fontWeight: '700' },
+  viewRowValueMuted: { color: MUTED, fontWeight: '600' },
+  viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER },
+  dash: { fontSize: rf(14), color: MUTED, fontWeight: '700', marginLeft: rs(8) },
+
+  // Edit Mode fields
+  field: { marginBottom: rs(14) },
   fieldLast: { marginBottom: 0 },
-  label: { fontSize: 11, color: MUTED, fontWeight: '700', marginBottom: 5, letterSpacing: 0.4 },
+  label: { fontSize: rf(11), color: MUTED, fontWeight: '700', marginBottom: rs(6), letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F7FAF7',
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    minHeight: 44,
+    borderRadius: rs(14),
+    paddingHorizontal: rs(8),
+    minHeight: rs(52),
   },
-  inputRowFocused: {
-    borderColor: PRIMARY,
-    backgroundColor: '#FFFFFF',
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+  inputIconWrap: {
+    width: rs(30),
+    height: rs(30),
+    borderRadius: rs(11),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_SOFT,
+    marginRight: rs(8),
   },
-  inputIcon: { width: 20, alignItems: 'center', marginRight: 2 },
-  prefix: {
-    fontSize: 13,
-    color: TEXT,
-    fontWeight: '700',
-    marginRight: 5,
-    paddingRight: 5,
+  phoneCodeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: rs(8),
+    marginRight: rs(8),
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: BORDER,
   },
+  phoneCodeText: { fontSize: rf(13), color: TEXT, fontWeight: '700', marginRight: rs(3) },
   input: {
     flex: 1,
-    paddingVertical: 8,
-    fontSize: 14,
+    paddingVertical: rs(8),
+    fontSize: rf(14),
     color: TEXT,
     fontWeight: '600',
   },
 
-  // Helper
-  helperRow: {
+  // Privacy / information card
+  privacyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 2,
-    marginBottom: 12,
-    backgroundColor: '#F0F8EF',
-    borderRadius: 12,
+    paddingHorizontal: rs(14),
+    paddingVertical: rs(14),
+    marginBottom: rs(14),
+    backgroundColor: PRIMARY_SOFT,
+    borderRadius: rs(20),
   },
-  helperIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  privacyIconWrap: {
+    width: rs(34),
+    height: rs(34),
+    borderRadius: rs(17),
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: rs(10),
   },
-  helperText: { fontSize: 11.5, color: '#667066', flex: 1, lineHeight: 16, fontWeight: '500' },
+  privacyHeading: { fontSize: rf(12.5), color: PRIMARY, fontWeight: '700' },
+  privacyText: { fontSize: rf(11), color: MUTED, marginTop: rs(3), lineHeight: rf(15.5), fontWeight: '500' },
 
-  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  loadingText: { color: MUTED, marginLeft: 8, fontSize: 11 },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: rs(10),
+    backgroundColor: '#FFFFFF',
+    borderRadius: rs(14),
+    paddingVertical: rs(12),
+    shadowColor: '#172117',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  loadingText: { color: MUTED, marginLeft: rs(8), fontSize: rf(11) },
 
   // Sticky save bar
   saveBarSafe: { backgroundColor: '#FFFFFF', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-  saveBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 },
+  saveBar: { paddingHorizontal: rs(18), paddingTop: rs(10), paddingBottom: rs(6) },
   buttonShadow: {
     borderRadius: 999,
     shadowColor: PRIMARY,
@@ -677,8 +858,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,
-    paddingVertical: 13,
+    paddingVertical: rs(14),
   },
   buttonInner: { flexDirection: 'row', alignItems: 'center' },
-  buttonText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginLeft: 8, letterSpacing: 0.3 },
+  buttonText: { fontSize: rf(15), fontWeight: '800', color: '#FFFFFF', marginLeft: rs(8), letterSpacing: 0.3 },
 });

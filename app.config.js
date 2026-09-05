@@ -57,6 +57,13 @@ export default {
       ],
     },
     plugins: [
+      // Peer deps of @expo/vector-icons (used app-wide) and expo-audio
+      // respectively — expo-doctor flags these as required native modules;
+      // without the plugin registration prebuild never links them, and the
+      // app can crash outside Expo Go the first time an icon font or an
+      // audio asset is touched.
+      'expo-font',
+      'expo-asset',
       ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock GGFIX.' }],
       ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
       // Android 11+ package visibility for the WhatsApp / SMS receipt share.
