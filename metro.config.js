@@ -3,14 +3,20 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
-// Gradle writes compile output under expo-modules-autolinking/android whenever
-// the app is built locally, and rewrites it while Metro is still crawling. The
-// watcher then calls fs.watch() on a directory that has already been replaced
-// and `expo start` dies with ENOENT (-4058). Nothing in there is ever imported
-// by the bundle, so keep it out of the crawl entirely.
+// Gradle/Kotlin compile output under any expo-*-gradle-plugin package gets
+// rewritten while Metro is still crawling node_modules, and the watcher's
+// fs.watch() call on a directory that just got replaced dies with ENOENT
+// (-4058) — seen under expo-modules-autolinking/android, expo-dev-launcher's
+// android build AND its expo-dev-launcher-gradle-plugin/build/kotlin cache,
+// and expo-modules-core so far, each a new subpath. Nothing under a native
+// android/gradle build dir is ever imported by the JS bundle, so block the
+// whole class (any build/ dir under an android/ folder, or under a package
+// named *-gradle-plugin) instead of listing packages one at a time.
 config.resolver.blockList = [
   ...[].concat(config.resolver.blockList ?? []),
-  /node_modules[\\/]expo-modules-autolinking[\\/]android[\\/].*[\\/]build([\\/]|$)/,
+  /node_modules[\\/].*[\\/]android[\\/].*[\\/]build([\\/]|$)/,
+  /node_modules[\\/].*-gradle-plugin[\\/]build([\\/]|$)/,
+  /node_modules[\\/].*[\\/]build[\\/]classes[\\/].*/,
 ];
 
 // `inlineRem: false` is what makes spacing responsive app-wide.

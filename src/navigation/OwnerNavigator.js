@@ -472,7 +472,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerPersonalInfo" component={OwnerPersonalInfoScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerShopInfo" component={OwnerShopInfoScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerKycIntro" component={OwnerKycIntroScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OwnerKycUpload" component={OwnerKycUploadScreen} options={{ title: 'KYC Documents' }} />
+      <Stack.Screen name="OwnerKycUpload" component={OwnerKycUploadScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerKycReview" component={OwnerKycReviewScreen} options={{ title: 'KYC Documents' }} />
       <Stack.Screen name="OwnerKycPending" component={OwnerKycPendingScreen} options={{ title: 'KYC Status' }} />
       <Stack.Screen name="OwnerKycView" component={OwnerKycViewScreen} options={{ headerShown: false }} />

@@ -25,18 +25,17 @@ import {
   CalendarClock,
   BadgeCheck,
   Phone,
+  Mail,
   ArrowLeftRight,
   X,
   Check,
   ChevronRight,
   ScrollText,
-  Lock,
   HelpCircle,
   Headphones,
   LogOut,
   Crown,
-  CreditCard,
-  CircleCheck,
+  ShieldCheck,
   Fingerprint,
   Plus,
 } from 'lucide-react-native';
@@ -50,6 +49,8 @@ import {
 import { showLimitPopup } from '../../subscription/limitPopup';
 import { getOwnerKycDocuments } from '../../api/shops';
 import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } from '../../auth/appLock';
+import { rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
 // Swiggy / Zomato green palette — shared with the rest of the owner app.
 const BRAND_GREEN      = '#16BB05';
@@ -57,20 +58,26 @@ const BRAND_GREEN_DARK = '#087A0A';
 const ACCENT_GREEN     = '#087A0A';
 const DANGER           = '#DC2626';
 
-// Icon system — lifted verbatim from the Home screen (owner/DashboardScreen.js)
-// so Home and My Account read as one app rather than two.
-//
 // PINE is the brand's deep pine at luminance 0.055, i.e. DARK: ~10:1 as a
-// foreground on the white cards here and 9.4:1 on the PINE_TINT tile. If it
-// ever moves, the thing to check is that the replacement is still dark — a
-// light value silently breaks every foreground use while fills keep working.
-//
-// ICON_STROKE is ONE weight for every icon on the screen. These had drifted to
-// per-call-site values (none, 2.2, 2.3), which is why the rows, the switcher
-// and the header never quite looked like one set.
-const PINE       = '#004C40';
-const PINE_TINT  = 'rgba(0,76,64,0.10)';  // the single icon-tile fill
-const ICON_STROKE = 2;
+// foreground on the white cards here and on the badge tints below. If it ever
+// moves, the thing to check is that the replacement is still dark — a light
+// value silently breaks every foreground use while fills keep working.
+const PINE        = '#004C40';
+const ICON_STROKE = 2; // ONE weight for every icon on the screen.
+
+// Icon-tile colour tones. One small named palette, assigned once per row
+// below, so a call site picks a NAME instead of inventing a bg/fg pair —
+// matches the reference design's colour-coded categories (KYC purple, pickup
+// orange, team pink, …) while staying centralised the same way the old
+// single-tint system was.
+const TONE = {
+  green:  { bg: '#E6F7E3', fg: BRAND_GREEN_DARK },
+  amber:  { bg: '#FDF0DC', fg: '#B45309' },
+  blue:   { bg: '#E7F0FF', fg: '#2563EB' },
+  purple: { bg: '#F1EBFF', fg: '#7C3AED' },
+  orange: { bg: '#FFEADC', fg: '#C2410C' },
+  pink:   { bg: '#FDE7EF', fg: '#DB2777' },
+};
 
 const cardShadow = {
   shadowColor: '#172117',
@@ -104,6 +111,13 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   // Same rule as the Home header: the only reviewed, admin-approved signal
   // is the owner's KYC status, which is owner-wide (not per-shop).
   const [kycStatus, setKycStatus] = useState(null);
+
+  // The app's single responsive system (see theme/responsive.js). Tablets get
+  // a capped, centred column so this settings list doesn't stretch edge to
+  // edge — the same rule OwnerPersonalInfoScreen applies to its form.
+  const r = useResponsive();
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 640) : undefined;
+  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   const reloadSession = async () => {
     // Prefer live /auth/me so the screen reflects DB state (shopName, shops,
@@ -155,11 +169,14 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
   const ownerName = user?.name || 'Shop Owner';
   const shopName = user?.shopName || activeShopObj?.name || '';
+  const shopSlug = activeShopObj?.slug || '';
   const shopMobile = activeShopObj?.mobile || activeShopObj?.mobilePrimary || activeShopObj?.phone || '';
   const shopFrontImage = activeShopObj?.frontImageUrl || '';
 
   const displayName = isShopLogin ? (shopName || 'Your Shop') : ownerName;
   const displayPhone = isShopLogin ? shopMobile : (user?.phone || '');
+  // Owner-only — a shop-scoped login has no personal inbox to show here.
+  const displayEmail = isShopLogin ? '' : (user?.email || '');
   // Falls back to the shop's front image, same as the Home header — an owner
   // who hasn't set a personal photo was showing a blank avatar here while
   // Home showed the shop image, which read as a broken image on this screen.
@@ -212,59 +229,62 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Slim white header — back/title row + small badge. Subtitle and big copy
-          have been moved into the content area so the header band stays short. */}
+      {/* Slim white header — title/badge row + subtitle. */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View
           style={{
             backgroundColor: '#FFFFFF',
-            paddingTop: 6,
-            paddingBottom: 14,
-            paddingHorizontal: 16,
+            paddingTop: rs(6),
+            paddingBottom: rs(14),
+            paddingHorizontal: rs(16),
             borderBottomWidth: 1,
             borderBottomColor: '#E2E8E2',
           }}
         >
-          <View className="flex-row items-center">
-            <Text className="flex-1 text-text text-[24px] font-extrabold" numberOfLines={1}>
-              My Account
-            </Text>
-            <View
-              className="flex-row items-center px-2.5 py-1 rounded-full bg-surface-muted"
-            >
-              {isShopLogin
-                ? <Store size={11} color={PINE} strokeWidth={ICON_STROKE} />
-                : <Crown size={11} color={PINE} strokeWidth={ICON_STROKE} />}
-              <Text
-                className="ml-1 text-text text-[10.5px] font-extrabold"
-                style={{ letterSpacing: 0.6 }}
-              >
-                {isShopLogin ? 'SHOP' : 'OWNER'}
+          <View style={capStyle}>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-text text-[24px] font-extrabold" numberOfLines={1}>
+                My Account
               </Text>
+              <View className="flex-row items-center px-2.5 py-1 rounded-full bg-surface-muted">
+                {isShopLogin
+                  ? <Store size={11} color={PINE} strokeWidth={ICON_STROKE} />
+                  : <Crown size={11} color={PINE} strokeWidth={ICON_STROKE} />}
+                <Text
+                  className="ml-1 text-text text-[10.5px] font-extrabold"
+                  style={{ letterSpacing: 0.6 }}
+                >
+                  {isShopLogin ? 'SHOP' : 'OWNER'}
+                </Text>
+              </View>
             </View>
+            <Text className="mt-1 text-[12.5px] font-medium text-gray-500" numberOfLines={1}>
+              Manage your profile, shop and preferences
+            </Text>
           </View>
         </View>
       </SafeAreaView>
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 28, paddingTop: 14 }}
+        contentContainerStyle={{ paddingHorizontal: rs(14), paddingBottom: 28, paddingTop: 14 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={capStyle}>
         {/* Identity card */}
         <View
           className="bg-white rounded-3xl p-4"
           style={cardShadow}
         >
-          <View className="flex-row items-center">
-            <Pressable
-              onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
-              style={{ position: 'relative' }}
-            >
+          <Pressable
+            onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
+            className="flex-row items-center"
+          >
+            <View style={{ position: 'relative' }}>
               <View
                 style={{
                   padding: 3,
-                  borderRadius: 36,
+                  borderRadius: rs(36),
                   backgroundColor: '#FFFFFF',
                   borderWidth: 2,
                   borderColor: '#E6F7E3',
@@ -272,9 +292,9 @@ export default function MyAccountScreen({ onLogout, navigation }) {
               >
                 <View
                   style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
+                    width: rs(56),
+                    height: rs(56),
+                    borderRadius: rs(28),
                     backgroundColor: BRAND_GREEN_DARK,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -284,7 +304,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                   {displayAvatar ? (
                     <Image
                       source={{ uri: displayAvatar }}
-                      style={{ width: 56, height: 56, borderRadius: 28 }}
+                      style={{ width: rs(56), height: rs(56), borderRadius: rs(28) }}
                       resizeMode="cover"
                     />
                   ) : (
@@ -297,11 +317,12 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                   )}
                 </View>
               </View>
-              {/* Camera badge — tap the avatar to edit profile / photo */}
+              {/* Camera badge — the whole row now navigates to profile/photo
+                  editing, this is just the visual affordance for it. */}
               <View
                 style={{
                   position: 'absolute', right: -1, bottom: -1,
-                  width: 22, height: 22, borderRadius: 11,
+                  width: rs(22), height: rs(22), borderRadius: rs(11),
                   backgroundColor: BRAND_GREEN_DARK,
                   alignItems: 'center', justifyContent: 'center',
                   borderWidth: 2, borderColor: '#FFFFFF',
@@ -309,7 +330,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
               >
                 <Camera size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
               </View>
-            </Pressable>
+            </View>
             <View className="flex-1 ml-3">
               <View className="flex-row items-center flex-wrap">
                 <Text className="text-[16px] font-extrabold text-gray-900 mr-2" numberOfLines={1}>
@@ -333,13 +354,22 @@ export default function MyAccountScreen({ onLogout, navigation }) {
               {displayPhone ? (
                 <View className="flex-row items-center mt-1.5">
                   <Phone size={11} color="#667066" strokeWidth={ICON_STROKE} />
-                  <Text className="ml-1 text-[12px] font-semibold text-gray-500">
+                  <Text className="ml-1 text-[12px] font-semibold text-gray-500" numberOfLines={1}>
                     {displayPhone}
                   </Text>
                 </View>
               ) : null}
+              {displayEmail ? (
+                <View className="flex-row items-center mt-1">
+                  <Mail size={11} color="#667066" strokeWidth={ICON_STROKE} />
+                  <Text className="ml-1 text-[12px] font-semibold text-gray-500" numberOfLines={1}>
+                    {displayEmail}
+                  </Text>
+                </View>
+              ) : null}
             </View>
-          </View>
+            <ChevronRight size={18} color="#8FA08F" strokeWidth={ICON_STROKE} />
+          </Pressable>
 
           {/* Active shop pill — hidden for shop-scoped logins (single shop) */}
           {!isShopLogin ? (
@@ -355,7 +385,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           >
             <View
               style={{
-                width: 32, height: 32, borderRadius: 10,
+                width: rs(32), height: rs(32), borderRadius: rs(10),
                 backgroundColor: '#FFFFFF',
                 alignItems: 'center', justifyContent: 'center',
                 marginRight: 10,
@@ -374,6 +404,11 @@ export default function MyAccountScreen({ onLogout, navigation }) {
               <Text className="text-[13.5px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
                 {shopName || 'No shop linked'}
               </Text>
+              {shopSlug ? (
+                <Text className="text-[10.5px] font-semibold text-gray-500 mt-0.5" numberOfLines={1}>
+                  Shop ID: #{shopSlug.toUpperCase()}
+                </Text>
+              ) : null}
             </View>
             {hasMultipleShops ? (
               <View
@@ -403,10 +438,11 @@ export default function MyAccountScreen({ onLogout, navigation }) {
         </View>
 
         {/* My Profile group */}
-        <SectionLabel>My Profile</SectionLabel>
+        <SectionLabel subtitle="Manage your personal and shop details">My Profile</SectionLabel>
         <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
           {!isShopLogin ? (
             <MenuRow
+              tone="green"
               Icon={User}
               label="Personal Information"
               sub="Name, mobile, email"
@@ -414,18 +450,21 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             />
           ) : null}
           <MenuRow
-            Icon={CircleCheck}
+            tone="amber"
+            Icon={Crown}
             label="Subscription"
             sub={isShopLogin ? 'View current plan' : 'View your plan & upgrade'}
             onPress={() => navigation?.navigate?.('OwnerSubscription')}
           />
           <MenuRow
+            tone="blue"
             Icon={QrCode}
             label="My QR Code"
             sub="Share your shop instantly"
             onPress={() => navigation?.navigate?.('OwnerQrCode')}
           />
           <MenuRow
+            tone="green"
             Icon={Store}
             label="Shop Information"
             sub="Address, opening hours, GST"
@@ -433,6 +472,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           />
           {!isShopLogin ? (
             <MenuRow
+              tone="purple"
               Icon={FileText}
               label="KYC Documents"
               sub="Aadhar, PAN, GST / Udyam"
@@ -440,24 +480,28 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             />
           ) : null}
           <MenuRow
+            tone="orange"
             Icon={Truck}
             label="Pickup Service"
             sub="Turn pickup on/off, slot timings & zones"
             onPress={() => navigation?.navigate?.('OwnerPickupSlots')}
           />
           <MenuRow
+            tone="blue"
             Icon={ShoppingBag}
             label="My Orders"
             sub="View your orders & history"
             onPress={() => navigation?.navigate?.('MarketplaceOrders')}
           />
           <MenuRow
+            tone="pink"
             Icon={Users}
             label="Employee Management"
             sub="Add, edit & track your team"
             onPress={() => navigation?.navigate?.('OwnerEmployeeList')}
           />
           <MenuRow
+            tone="green"
             Icon={CalendarClock}
             label="Leave Requests"
             sub="Approve or reject leave"
@@ -467,30 +511,34 @@ export default function MyAccountScreen({ onLogout, navigation }) {
         </View>
 
         {/* Security group */}
-        <SectionLabel>Security</SectionLabel>
+        <SectionLabel subtitle="Keep your account safe and secure">Security</SectionLabel>
         <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
           <AppLockRow />
         </View>
 
         {/* More group */}
-        <SectionLabel>More</SectionLabel>
+        <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
         <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
           <MenuRow
+            tone="blue"
             Icon={ScrollText}
             label="Terms & Conditions"
             sub="Platform usage rules"
           />
           <MenuRow
-            Icon={Lock}
+            tone="green"
+            Icon={ShieldCheck}
             label="Privacy Policy"
             sub="How we handle your data"
           />
           <MenuRow
+            tone="purple"
             Icon={HelpCircle}
             label="FAQs"
             sub="Common questions answered"
           />
           <MenuRow
+            tone="orange"
             Icon={Headphones}
             label="Help & Support"
             sub="Talk to the GGfix team"
@@ -502,11 +550,11 @@ export default function MyAccountScreen({ onLogout, navigation }) {
         {onLogout ? (
           <Pressable
             onPress={onLogout}
-            className="mt-4 flex-row items-center justify-center rounded-2xl py-3.5 bg-white"
+            className="mt-4 flex-row items-center justify-center rounded-2xl py-3.5"
             style={{
+              backgroundColor: '#FDECEE',
               borderWidth: 1,
-              borderColor: '#FEE2E2',
-              ...softShadow,
+              borderColor: '#F8C9CF',
             }}
           >
             <LogOut size={16} color={DANGER} strokeWidth={ICON_STROKE} />
@@ -515,6 +563,32 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             </Text>
           </Pressable>
         ) : null}
+
+        {/* Trust footer — reassurance only, no state or navigation. */}
+        <View
+          className="flex-row items-center rounded-2xl mt-3 p-3.5"
+          style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#DCEFD8' }}
+        >
+          <View
+            style={{
+              width: rs(34), height: rs(34), borderRadius: rs(17),
+              backgroundColor: BRAND_GREEN_DARK,
+              alignItems: 'center', justifyContent: 'center',
+              marginRight: 10,
+            }}
+          >
+            <ShieldCheck size={16} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-[12.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+              Your data is safe with us
+            </Text>
+            <Text className="text-[11px] text-gray-500 mt-0.5">
+              We follow industry-standard security practices to protect your information.
+            </Text>
+          </View>
+        </View>
+        </View>
       </ScrollView>
 
       {/* Shop switcher modal */}
@@ -668,15 +742,13 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   );
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, subtitle }) {
   return (
-    <View className="mt-4 mb-1 ml-1">
-      <Text
-        className="text-[11px] font-extrabold uppercase"
-        style={{ color: BRAND_GREEN_DARK, letterSpacing: 1.2 }}
-      >
-        {children}
-      </Text>
+    <View className="mt-5 mb-2 px-1">
+      <Text className="text-[16px] font-extrabold text-gray-900">{children}</Text>
+      {subtitle ? (
+        <Text className="mt-0.5 text-[12px] text-gray-500">{subtitle}</Text>
+      ) : null}
     </View>
   );
 }
@@ -696,10 +768,14 @@ function AppLockRow() {
     await setAppLockEnabled(next);
     setOn(next);
   };
+  const tone = TONE.blue;
   return (
     <View className="flex-row items-center px-3 py-3.5">
-      <View className="h-10 w-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: PINE_TINT }}>
-        <Fingerprint size={18} color={PINE} strokeWidth={ICON_STROKE} />
+      <View
+        style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: tone.bg }}
+        className="items-center justify-center mr-3"
+      >
+        <Fingerprint size={18} color={tone.fg} strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
         <Text className="text-[14px] font-extrabold text-gray-900">App Lock</Text>
@@ -715,11 +791,12 @@ function AppLockRow() {
     </View>
   );
 }
-// Every row draws the SAME pine glyph on the SAME tint. The per-row `tint` /
-// `accent` props are gone: they encoded a colour hierarchy (amber for KYC, red
-// for Leave Requests, grey for the More group) that no longer survives a
-// single-colour icon set, and leaving them would let call sites drift back.
-function MenuRow({ Icon, label, sub, onPress, last }) {
+
+// Each row picks a tone NAME from the shared TONE palette above instead of an
+// ad-hoc colour pair, so the colour-coding (green/amber/blue/purple/orange/
+// pink) stays centralised and can't drift call-site by call-site.
+function MenuRow({ Icon, label, sub, onPress, last, tone = 'green' }) {
+  const t = TONE[tone] || TONE.green;
   return (
     <Pressable
       onPress={onPress}
@@ -733,13 +810,13 @@ function MenuRow({ Icon, label, sub, onPress, last }) {
     >
       <View
         style={{
-          width: 36, height: 36, borderRadius: 12,
-          backgroundColor: PINE_TINT,
+          width: rs(36), height: rs(36), borderRadius: rs(12),
+          backgroundColor: t.bg,
           alignItems: 'center', justifyContent: 'center',
           marginRight: 12,
         }}
       >
-        <Icon size={17} color={PINE} strokeWidth={ICON_STROKE} />
+        <Icon size={17} color={t.fg} strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
         <Text className="text-[13.5px] font-extrabold text-gray-900">{label}</Text>
