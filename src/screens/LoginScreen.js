@@ -446,7 +446,6 @@ function MobileStep({
             // already-verified fix for that, not a regression.
             keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
             maxLength={MOBILE_DIGITS}
-            autoFocus
             returnKeyType="done"
             onFocus={() => scrollRef?.current?.scrollTo({ y: 0, animated: true })}
             onSubmitEditing={onSubmit}

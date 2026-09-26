@@ -74,7 +74,12 @@ export default function RootNavigator() {
   // Whether the pre-login Intro screen has already been shown once — read
   // once, alongside the session, so the unauthenticated stack's
   // initialRouteName is already known correctly the first time it mounts.
-  const [introSeen, setIntroSeen] = useState(true);
+  // Starts `null` ("not checked yet"), never `true`/`false` — this value is
+  // only ever read below once `sessionLoading` is false, and both flip
+  // together in the same state update (Promise.all + one .then()), so the
+  // real fetched value is always what initialRouteName sees; `null` here is
+  // just so an uninitialized read can never be silently treated as "seen".
+  const [introSeen, setIntroSeen] = useState(null);
   const hasLoadedSession = useRef(false);
 
   useEffect(() => {
