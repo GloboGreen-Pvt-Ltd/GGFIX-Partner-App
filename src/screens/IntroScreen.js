@@ -6,13 +6,13 @@ import { ArrowRight, ShieldCheck, Star, TrendingUp, Users } from 'lucide-react-n
 import { tokens } from '../theme/colors';
 import { rf, rs } from '../utils/responsive';
 import { resetOnboardingForTesting } from '../auth/onboarding';
+import { useBottomBarInset } from '../components/rnr';
 
 /**
  * Pre-login intro/onboarding screen. Shown once (see RootNavigator, which
  * decides the unauthenticated stack's `initialRouteName` from
- * `hasSeenIntro()`) — Skip and Get Started are deliberately the same action
- * here (there is nowhere else to send a signed-out user but Login); both
- * persist "seen" via the `onDone` prop before moving on.
+ * `hasSeenIntro()`) — "Get Started" persists "seen" via the `onDone` prop
+ * before moving on to Login.
  */
 const INTRO_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Intro-image.png';
 ExpoImage.prefetch(INTRO_IMAGE_URL, 'disk').catch(() => {});
@@ -47,6 +47,11 @@ function PaginationDots({ count, activeIndex }) {
 
 export default function IntroScreen({ navigation, onDone }) {
   const insets = useSafeAreaInsets();
+  // Math.max(insets.bottom, 12) guards against insets.bottom reading as 0 on
+  // some Android edge-to-edge/gesture-nav configurations, which was leaving
+  // the CTA footer with almost no bottom clearance — same fix already used
+  // by BottomActionBar/useBottomBarInset elsewhere in this app.
+  const bottomInset = useBottomBarInset(12);
   const { width, height } = useWindowDimensions();
   // 768 — matches the breakpoint used across the rest of the pre-auth flow
   // (Login, OTP) so a 600–767px device gets the same compact treatment
@@ -131,9 +136,6 @@ export default function IntroScreen({ navigation, onDone }) {
               </Text>
               <Text style={styles.wordmarkSub}>PARTNER APP</Text>
             </Pressable>
-            <Pressable onPress={() => handleContinue('Skip')} hitSlop={12} style={styles.skipBtn}>
-              <Text style={styles.skipText}>Skip</Text>
-            </Pressable>
           </View>
 
           <Text style={[styles.heading, { fontSize: rf(isTablet ? 32 : shortDevice ? 21 : 25), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
@@ -170,12 +172,18 @@ export default function IntroScreen({ navigation, onDone }) {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + rs(12) }]}>
+      <View style={[styles.footer, { paddingBottom: bottomInset }]}>
         <View style={{ width: '100%', maxWidth: contentWidth, alignSelf: 'center' }}>
+          {/* style must stay a plain array here, NOT a `({pressed}) => [...]`
+              function — NativeWind's JSX interop silently drops a function
+              style on a Pressable entirely (no background, no sizing), which
+              is what made this button invisible (just its unstyled text/icon
+              children rendering). Pressed-state dimming dropped as a result;
+              not worth reintroducing the same trap for it. */}
           <Pressable
             onPress={() => handleContinue('Get Started')}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.cta, isTablet && { minHeight: rs(62) }, pressed && { opacity: 0.92 }]}
+            style={[styles.cta, isTablet && { minHeight: rs(62) }]}
           >
             <Text style={[styles.ctaText, isTablet && { fontSize: rf(18) }]}>Get Started</Text>
             <ArrowRight size={rs(isTablet ? 20 : 18)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
@@ -196,7 +204,6 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: rs(20),
   },
@@ -212,15 +219,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.4,
     color: MUTED_TEXT,
-  },
-  skipBtn: {
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(8),
-  },
-  skipText: {
-    fontSize: rf(14),
-    fontWeight: '700',
-    color: DARK_GREEN,
   },
   heading: {
     textAlign: 'center',

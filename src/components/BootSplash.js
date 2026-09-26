@@ -38,11 +38,11 @@ const TEXT_SECONDARY = 'rgba(255,255,255,0.80)';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-function TrustItem({ icon, label }) {
+function TrustItem({ icon, label, labelFont }) {
   return (
     <View style={styles.trustItem}>
       {icon}
-      <Text style={styles.trustLabel}>{label}</Text>
+      <Text style={[styles.trustLabel, { fontSize: labelFont, lineHeight: labelFont * 1.32 }]}>{label}</Text>
     </View>
   );
 }
@@ -50,29 +50,54 @@ function TrustItem({ icon, label }) {
 export default function BootSplash() {
   const { width, height } = useWindowDimensions();
   const isTablet = width >= 600;
-  const shortDevice = height < 700;
   const contentWidth = isTablet ? Math.min(width * 0.62, 460) : Math.min(width, 460);
 
-  // Previously this screen used `justifyContent: 'space-between'` to spread
-  // sections down the full height — on any screen taller than the design
-  // reference that dumps ALL of the slack into a single gap between whatever
-  // two sections happen to be adjacent, which is exactly what produced a
-  // shrunken-looking logo up top, a large dead zone in the middle, and
-  // everything else pushed toward the bottom. Fixed below by centering the
-  // whole content block as one unit (`safe` styles) and sizing every gap
-  // explicitly, scaled by how tall the screen actually is (`vScale`) so nothing
-  // needs a ScrollView and nothing overflows on a short device either.
-  const vScale = clamp(height / 812, 0.78, 1.2);
-  const gap = (n) => rs(n) * vScale;
+  // Three height tiers instead of one continuous scale — every dimension
+  // below picks its own value per tier (logo/hero/fonts/gaps all tuned
+  // separately, not just multiplied by one factor), so a short screen
+  // compresses gaps first and only shrinks the hero image / fonts as far as
+  // it actually needs to. This replaces the previous single `vScale` clamp,
+  // which could still let the total content height exceed a short screen's
+  // available space (content is centered, not scrollable, so overflow used
+  // to clip at both edges — "Keep Devices Moving" cut off at the bottom).
+  const isSmallHeight = height < 700;
+  const isMediumHeight = height >= 700 && height < 850;
+  // tier(small, medium, large) — picks by height bucket; isTablet overrides
+  // are applied separately per-element below where the tablet target differs
+  // from just "the large-height phone value".
+  const tier = (small, medium, large) => (isSmallHeight ? small : isMediumHeight ? medium : large);
 
-  const logoSize = clamp(width * (shortDevice ? 0.2 : 0.26), 72, isTablet ? 120 : 132);
-  const deviceWidth = Math.min(contentWidth * (shortDevice ? 0.72 : 0.84), shortDevice ? 260 : 340);
-  const progressWidth = Math.min(contentWidth * 0.66, 260);
+  // Gaps compress first (priority #1 in a short-screen squeeze), on their own
+  // scale independent of font/image sizing.
+  const gapScale = tier(0.62, 0.82, 1);
+  const gap = (n) => rs(n) * gapScale;
+
+  const logoSize = isTablet ? clamp(width * 0.13, 90, 112) : tier(74, 86, 96);
+  const titleFont = isTablet ? 60 : tier(46, 52, 58);
+  const bylineFont = isTablet ? 17 : tier(14, 15, 16);
+  const servicesFont = isTablet ? 18 : tier(15, 16, 17);
+  const taglineFont = isTablet ? 27 : tier(21, 24, 26);
+  const loadingLabelFont = isTablet ? 18 : tier(15, 16, 17);
+  const trustLabelFont = isTablet ? 15 : tier(12, 13, 14);
+  const trustIconSize = isTablet ? 34 : tier(26, 28, 30);
+  const scriptFont = isTablet ? 28 : tier(21, 24, 27);
+
+  const progressWidth = Math.min(contentWidth * tier(0.7, 0.68, 0.66), isTablet ? 500 : 260);
 
   // Device.png's real aspect ratio isn't known ahead of time — read it off the
   // image that's actually rendering (expo-image's onLoad) so the hero art
   // never stretches, with a sane fallback before it resolves.
   const [deviceRatio, setDeviceRatio] = useState(0.62);
+
+  // The hero image is the single biggest reason a short screen could
+  // overflow, so it gets TWO caps and takes whichever is smaller: a width cap
+  // (same idea as before — a % of the content column) AND a height cap (a %
+  // of the actual window height). On a short/wide-aspect device the height
+  // cap wins and the image shrinks well below its width-only size instead of
+  // pushing the trust row / "Keep Devices Moving" off screen.
+  const heroWidthCap = contentWidth * tier(0.78, 0.8, 0.8);
+  const heroHeightCap = height * tier(0.2, 0.235, 0.26);
+  const deviceWidth = Math.min(heroWidthCap, heroHeightCap / deviceRatio);
 
   const logoAnim = useRef(new Animated.Value(0)).current;
   const textAnim = useRef(new Animated.Value(0)).current;
@@ -116,17 +141,19 @@ export default function BootSplash() {
           >
             <Image
               source={require('../../assets/logo.png')}
-              style={{ width: logoSize, height: logoSize, marginBottom: rs(14) }}
+              style={{ width: logoSize, height: logoSize, marginBottom: gap(14) }}
               resizeMode="contain"
             />
           </Animated.View>
 
           <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(8) }}>
-            <Text style={[styles.wordmark, { fontSize: rf(shortDevice ? 34 : 40) }]}>
+            <Text style={[styles.wordmark, { fontSize: rf(titleFont) }]}>
               GG<Text style={{ color: BRIGHT_GREEN }}>FIX</Text>
             </Text>
-            <Text style={styles.byline}>BY GLOBO GREEN</Text>
-            <Text style={styles.services}>Repair  •  Pickup  •  Buy  •  Sell</Text>
+            <Text style={[styles.byline, { fontSize: rf(bylineFont), marginTop: gap(6) }]}>BY GLOBO GREEN</Text>
+            <Text style={[styles.services, { fontSize: rf(servicesFont), marginTop: gap(10) }]}>
+              Repair  •  Pickup  •  Buy  •  Sell
+            </Text>
           </Animated.View>
 
           <Animated.View
@@ -152,8 +179,10 @@ export default function BootSplash() {
           </Animated.View>
 
           <View style={{ alignItems: 'center', marginTop: gap(18) }}>
-            <Text style={styles.tagline}>ALL YOUR TECH NEEDS,{'\n'}COVERED.</Text>
-            <View style={styles.taglineUnderline} />
+            <Text style={[styles.tagline, { fontSize: rf(taglineFont), lineHeight: rf(taglineFont) * 1.4 }]}>
+              ALL YOUR TECH NEEDS,{'\n'}COVERED.
+            </Text>
+            <View style={[styles.taglineUnderline, { marginTop: gap(10) }]} />
           </View>
 
           <View style={{ width: progressWidth, marginTop: gap(22), alignItems: 'center' }}>
@@ -165,23 +194,26 @@ export default function BootSplash() {
                 ]}
               />
             </View>
-            <Text style={styles.loadingLabel}>LOADING...</Text>
+            <Text style={[styles.loadingLabel, { fontSize: rf(loadingLabelFont), marginTop: gap(10) }]}>
+              LOADING...
+            </Text>
           </View>
 
           <View style={[styles.trustRow, { marginTop: gap(24) }]}>
-            <TrustItem icon={<ShieldCheck size={rs(20)} color={MINT} strokeWidth={2} />} label={'TRUSTED\nSERVICE'} />
+            <TrustItem icon={<ShieldCheck size={rs(trustIconSize)} color={MINT} strokeWidth={2} />} label={'TRUSTED\nSERVICE'} labelFont={rf(trustLabelFont)} />
             <View style={styles.divider} />
             <TrustItem
-              icon={<Users size={rs(20)} color={MINT} strokeWidth={2} />}
+              icon={<Users size={rs(trustIconSize)} color={MINT} strokeWidth={2} />}
               label={'THOUSANDS\nOF HAPPY CUSTOMERS'}
+              labelFont={rf(trustLabelFont)}
             />
             <View style={styles.divider} />
-            <TrustItem icon={<MapPin size={rs(20)} color={MINT} strokeWidth={2} />} label={'ACROSS\nINDIA'} />
+            <TrustItem icon={<MapPin size={rs(trustIconSize)} color={MINT} strokeWidth={2} />} label={'ACROSS\nINDIA'} labelFont={rf(trustLabelFont)} />
           </View>
 
           <View style={{ alignItems: 'center', marginTop: gap(16) }}>
-            <Text style={styles.script}>Keep Devices Moving</Text>
-            <View style={styles.scriptUnderline} />
+            <Text style={[styles.script, { fontSize: rf(scriptFont) }]}>Keep Devices Moving</Text>
+            <View style={[styles.scriptUnderline, { marginTop: gap(6) }]} />
           </View>
         </View>
       </SafeAreaView>
@@ -193,7 +225,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG_FALLBACK },
   // justifyContent: 'center' treats the whole splash as one block and centers
   // it — extra space on a tall screen is split evenly above and below instead
-  // of being dumped into one gap partway down (see the note above `vScale`).
+  // of being dumped into one gap partway down. Kept deliberately over
+  // `space-between`: every element's size/gap above is now tiered so the
+  // block's natural height already fits a short screen, and `space-between`
+  // is what previously produced a shrunken logo up top with a large dead
+  // zone in the middle — switching back to it would reintroduce that.
   safe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     width: '100%',
@@ -205,32 +241,25 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
   },
   byline: {
-    marginTop: rs(6),
-    fontSize: rf(11),
     fontWeight: '700',
     letterSpacing: 2.4,
     color: TEXT_SECONDARY,
   },
   services: {
-    marginTop: rs(10),
-    fontSize: rf(13),
     fontWeight: '500',
     color: TEXT_SECONDARY,
     letterSpacing: 0.3,
   },
   tagline: {
     textAlign: 'center',
-    fontSize: rf(15),
     fontWeight: '700',
     letterSpacing: 1.4,
-    lineHeight: rf(21),
     color: TEXT_PRIMARY,
   },
   taglineUnderline: {
     width: rs(40),
     height: rs(3),
     borderRadius: rs(2),
-    marginTop: rs(10),
     backgroundColor: HIGHLIGHT_GREEN,
   },
   progressTrack: {
@@ -246,28 +275,26 @@ const styles = StyleSheet.create({
     backgroundColor: BRIGHT_GREEN,
   },
   loadingLabel: {
-    marginTop: rs(10),
-    fontSize: rf(11),
     fontWeight: '600',
     letterSpacing: 2,
     color: TEXT_SECONDARY,
   },
   trustRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: rs(16),
+    alignItems: 'flex-start',
+    justifyContent: 'space-around',
+    width: '100%',
   },
   trustItem: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'flex-start',
     gap: rs(6),
-    maxWidth: rs(96),
+    maxWidth: rs(110),
   },
   trustLabel: {
     textAlign: 'center',
-    fontSize: rf(9.5),
     fontWeight: '600',
-    lineHeight: rf(12.5),
     color: TEXT_SECONDARY,
   },
   divider: {
@@ -276,7 +303,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   script: {
-    fontSize: rf(20),
     fontStyle: 'italic',
     fontWeight: '600',
     color: MINT,
@@ -285,7 +311,6 @@ const styles = StyleSheet.create({
     width: rs(90),
     height: rs(2),
     borderRadius: rs(1),
-    marginTop: rs(6),
     backgroundColor: HIGHLIGHT_GREEN,
   },
 });
