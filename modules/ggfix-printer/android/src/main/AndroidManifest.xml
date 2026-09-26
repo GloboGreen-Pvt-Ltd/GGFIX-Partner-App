@@ -1,6 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- No permissions declared here: BLUETOOTH_CONNECT needs a runtime prompt
-       (not install-time), so it lives in app.config.js alongside the app's
-       other user-facing permissions, requested from JS before this module's
-       functions are called (see src/services/printer/bluetoothPermissions.js). -->
+  <!-- No Bluetooth permissions declared here: BLUETOOTH_CONNECT needs a
+       runtime prompt (not install-time), so it lives in app.config.js
+       alongside the app's other user-facing permissions, requested from JS
+       before this module's functions are called (see
+       src/services/printer/bluetoothPermissions.js). USB, unlike Bluetooth,
+       has no install-time <uses-permission> at all — access is granted
+       per-device via UsbManager.requestPermission()'s own runtime dialog
+       (handled natively in GgfixPrinterModule.kt), so nothing to declare for
+       it here either beyond marking the hardware feature optional (a phone
+       with no USB host support/OTG can still install and run the app; only
+       the USB transport is simply unavailable — isUsbAvailable() reflects
+       that already). -->
+  <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 </manifest>
