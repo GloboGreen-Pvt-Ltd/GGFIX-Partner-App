@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- No permissions declared here: BLUETOOTH_CONNECT needs a runtime prompt
+       (not install-time), so it lives in app.config.js alongside the app's
+       other user-facing permissions, requested from JS before this module's
+       functions are called (see src/services/printer/bluetoothPermissions.js). -->
+</manifest>
