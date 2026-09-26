@@ -33,7 +33,7 @@ const InputBase = forwardRef(function Input(
         onBlur={(e) => { setFocused(false); onBlur?.(e); }}
         onEndEditing={(e) => { setFocused(false); onEndEditing?.(e); }}
         className={cn(
-          'bg-card rounded-2xl px-4 py-3 text-base text-text',
+          'bg-card rounded-2xl px-3.5 py-2.5 text-base text-text',
           callerSuppressesBorder ? '' : 'border',
           callerSuppressesBorder ? '' : (focused ? 'border-primary' : 'border-border'),
           className,
@@ -52,7 +52,7 @@ const InputBase = forwardRef(function Input(
   return (
     <View
       className={cn(
-        'flex-row items-center bg-card rounded-2xl px-3 py-2.5 border',
+        'flex-row items-center bg-card rounded-2xl px-3 py-2 border',
         focused ? 'border-primary' : 'border-border',
         containerClassName,
       )}
@@ -84,7 +84,7 @@ export const Input = memo(InputBase);
 
 export function Label({ className, children, required }) {
   return (
-    <Text className={cn('text-[13px] font-bold text-text mb-2', className)}>
+    <Text className={cn('text-[13px] font-bold text-text mb-1.5', className)}>
       {children}
       {required ? <Text className="text-danger"> *</Text> : null}
     </Text>
@@ -93,7 +93,7 @@ export function Label({ className, children, required }) {
 
 export function FormField({ label, required, error, hint, children, className }) {
   return (
-    <View className={cn('mb-4', className)}>
+    <View className={cn('mb-3', className)}>
       {label ? <Label required={required}>{label}</Label> : null}
       {children}
       {error ? (

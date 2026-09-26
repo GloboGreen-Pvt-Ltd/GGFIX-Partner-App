@@ -554,13 +554,13 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     const price = priceNum != null && priceNum > 0 ? priceNum.toLocaleString('en-IN') : null;
 
     return (
-      <TouchableOpacity activeOpacity={0.85} onPress={() => openDetail(item)} className="bg-white rounded-2xl p-4 mb-3" style={cardShadow}>
+      <TouchableOpacity activeOpacity={0.85} onPress={() => openDetail(item)} className="bg-white rounded-2xl p-3 mb-2.5" style={cardShadow}>
         <View className="flex-row items-start">
-          <View style={{ position: 'relative', marginRight: 12 }}>
-            <View className="w-[70px] h-[70px] rounded-2xl overflow-hidden items-center justify-center" style={{ backgroundColor: '#F0F8EF' }}>
+          <View style={{ position: 'relative', marginRight: 10 }}>
+            <View className="w-[56px] h-[56px] rounded-2xl overflow-hidden items-center justify-center" style={{ backgroundColor: '#F0F8EF' }}>
               {item.productImage ? (
-                <Image source={{ uri: item.productImage }} style={{ width: 70, height: 70 }} resizeMode="cover" />
-              ) : isSpare ? <Wrench size={24} color={GREEN_DARK} /> : <Smartphone size={26} color={GREEN_DARK} />}
+                <Image source={{ uri: item.productImage }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+              ) : isSpare ? <Wrench size={21} color={GREEN_DARK} /> : <Smartphone size={22} color={GREEN_DARK} />}
             </View>
             <View
               style={{
@@ -622,7 +622,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View className="my-3" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }} />
+        <View className="my-2" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }} />
 
         <View className="flex-row">
           <TouchableOpacity

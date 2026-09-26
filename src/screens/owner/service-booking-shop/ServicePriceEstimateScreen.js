@@ -26,6 +26,8 @@ import {
   Pause,
   Trash2,
   Eraser,
+  Wrench,
+  HelpCircle,
 } from 'lucide-react-native';
 import { Select } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
@@ -52,10 +54,11 @@ const ACCENT_12 = 'rgba(0, 76, 64, 0.12)';
 const ACCENT_30 = 'rgba(0, 76, 64, 0.30)';
 
 const SCREEN_BG = '#FFFFFF';
+const MINT = '#E8F7F2';
 /** One height for every single-line field, so the rows line up across sections. */
 const FIELD_H = 42;   // pass through rs() at each use site
 const SOFT = '#F8F8F8';
-const LINE = '#E2E8E2';
+const LINE = '#DCE7E2';
 
 const DURATIONS = [1, 2, 3, 4, 5, 6, 8, 12, 24, 48].map((h) => ({ value: h, label: `${h} hr` }));
 
@@ -419,7 +422,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 
   // Tablets get a capped, centred column; a 1024pt-wide bill row is unreadable.
   const colStyle = r.isTablet
-    ? { width: '100%', maxWidth: 700, alignSelf: 'center' }
+    ? { width: '100%', maxWidth: 900, alignSelf: 'center' }
     : null;
 
   return (
@@ -469,26 +472,34 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={colStyle}>
-          {/* ── Device summary ─────────────────────────────────────────── */}
-          <View style={{ paddingHorizontal: rs(16) }}>
-            <View style={[card, { padding: rs(12) }]}>
+          {/* ── Device summary — soft mint accent behind the image well,
+              optional brand text, and a trailing chevron. ────────────────── */}
+          <View style={{ paddingHorizontal: rs(14) }}>
+            <View style={[card, { padding: rs(11), backgroundColor: MINT, borderColor: 'rgba(0,76,64,0.14)' }]}>
               <View className="flex-row items-center">
                 <View
                   style={{
-                    height: rs(64), width: rs(64), borderRadius: rs(14), backgroundColor: SOFT,
-                    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: rs(12),
+                    height: rs(48), width: rs(48), borderRadius: rs(14), backgroundColor: '#FFFFFF',
+                    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: rs(10),
                   }}
                 >
                   {params.imageUrl ? (
                     <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                   ) : (
-                    <Smartphone size={rf(26)} color="#8FA08F" strokeWidth={2} />
+                    <Smartphone size={rf(21)} color={ACCENT} strokeWidth={2} />
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-text" style={{ fontSize: rf(17), fontWeight: '700' }} numberOfLines={1}>
-                    {params.modelName || 'Device'}
-                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className="flex-1 text-text" style={{ fontSize: rf(17), fontWeight: '700' }} numberOfLines={1}>
+                      {params.modelName || 'Device'}
+                    </Text>
+                    {params.brandName ? (
+                      <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', marginLeft: rs(6) }} numberOfLines={1}>
+                        {params.brandName}
+                      </Text>
+                    ) : null}
+                  </View>
                   <Text className="text-text-muted" style={{ fontSize: rf(12.5), marginTop: rs(2) }} numberOfLines={1}>
                     {[params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ')}
                   </Text>
@@ -502,31 +513,72 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                       </View>
                     ) : null}
                     <View style={chip}>
-                      <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT }}>
+                      <Wrench size={rf(10)} color={ACCENT} strokeWidth={2.5} />
+                      <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>
                         {services.length} service{services.length === 1 ? '' : 's'} added
                       </Text>
                     </View>
                   </View>
                 </View>
+                <ChevronRight size={rf(16)} color="#B8C4BE" strokeWidth={2} style={{ marginLeft: rs(4) }} />
               </View>
             </View>
           </View>
 
-          {/* ── Bill details ───────────────────────────────────────────── */}
-          <SectionHeader icon={ReceiptText} label="Bill Details" />
+          {/* ── Bill details ───────────────────────────────────────────────
+              "N item(s)" is real data (services.length). "+ Add Service"
+              and per-row delete are NOT added — this screen has no
+              add/remove-service capability of its own (it only ever reads
+              `params.services`, set on the previous screen); wiring a fake
+              button or building new local remove-state here would change
+              what actually reaches `total`/`onContinue`, which the brief
+              explicitly rules out. See the final report for the full note. */}
+          <SectionHeader
+            icon={ReceiptText}
+            label="Bill Details"
+            subtitle="Services selected for this device"
+            right={(
+              <View
+                className="items-center"
+                style={{ borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
+              >
+                <Text style={{ fontSize: rf(10.5), fontWeight: '700', color: ACCENT }}>
+                  {services.length} item{services.length === 1 ? '' : 's'}
+                </Text>
+              </View>
+            )}
+          />
           <View style={{ paddingHorizontal: rs(16) }}>
             <View style={[card, { padding: rs(10) }]}>
               {services.map((s, i) => (
-                <View key={i} className="flex-row items-center" style={{ marginBottom: rs(10) }}>
+                <View
+                  key={i}
+                  className="flex-row items-center"
+                  style={{
+                    paddingVertical: rs(6),
+                    borderTopWidth: i === 0 ? 0 : 1,
+                    borderTopColor: '#F2F5F3',
+                  }}
+                >
                   <View
                     style={{
-                      height: rs(24), width: rs(24), borderRadius: rs(7), backgroundColor: ACCENT_12,
+                      height: rs(30), width: rs(30), borderRadius: rs(9), backgroundColor: MINT,
                       alignItems: 'center', justifyContent: 'center', marginRight: rs(10),
                     }}
                   >
-                    <Text style={{ fontSize: rf(12), fontWeight: '700', color: ACCENT }}>{i + 1}</Text>
+                    <Wrench size={rf(13)} color={ACCENT} strokeWidth={2} />
                   </View>
-                  <Text className="flex-1 text-text" style={{ fontSize: rf(13.5) }} numberOfLines={1}>{s.serviceName}</Text>
+                  <View className="flex-1">
+                    <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '600' }} numberOfLines={1}>{s.serviceName}</Text>
+                    {/* Real data only — warranty, when the service carries
+                        one; no fabricated issue-description subtitle (that
+                        field doesn't exist on this object). */}
+                    {s.warranty ? (
+                      <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(1) }} numberOfLines={1}>
+                        Warranty: {s.warranty}
+                      </Text>
+                    ) : null}
+                  </View>
                   <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '700' }}>₹{formatINR(s.price)}</Text>
                 </View>
               ))}
@@ -536,36 +588,53 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 </View>
               ) : null}
 
-              <View style={{ marginVertical: rs(10), borderTopWidth: 1, borderColor: LINE, borderStyle: 'dashed' }} />
-
-              <View className="flex-row items-center">
-                <Tag size={rf(14)} color={ACCENT} strokeWidth={2} />
-                <Text className="flex-1 text-text" style={{ fontSize: rf(14.5), fontWeight: '700', marginLeft: rs(7) }}>
-                  Estimated Total
+              <View
+                style={{
+                  marginTop: rs(10), borderRadius: rs(12), padding: rs(10),
+                  backgroundColor: MINT,
+                }}
+              >
+                <View className="flex-row items-center">
+                  <Tag size={rf(14)} color={ACCENT} strokeWidth={2} />
+                  <Text className="flex-1 text-text" style={{ fontSize: rf(14.5), fontWeight: '700', marginLeft: rs(7) }}>
+                    Estimated Total
+                  </Text>
+                  <Text style={{ fontSize: rf(18), fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
+                </View>
+                <Text className="text-text-muted" style={{ fontSize: rf(11.5), marginTop: rs(3) }}>
+                  Final amount may vary slightly based on parts availability.
                 </Text>
-                <Text style={{ fontSize: rf(18), fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
               </View>
-              <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(3) }}>
-                Final amount may vary slightly based on parts availability.
-              </Text>
             </View>
           </View>
 
           {/* ── Device IMEI ────────────────────────────────────────────── */}
-          <SectionHeader icon={ScanLine} label="Device IMEI" />
+          <SectionHeader
+            icon={ScanLine}
+            label="Device IMEI"
+            right={(
+              <View className="flex-row items-center">
+                <HelpCircle size={rf(12)} color="#8FA08F" strokeWidth={2} />
+                <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', marginLeft: rs(4) }}>
+                  Where to find IMEI?
+                </Text>
+              </View>
+            )}
+          />
           <View style={{ paddingHorizontal: rs(16) }}>
             {/* Scan sits BESIDE the field, not inside its border — inside, the
                 pill ate the right third of a 15-digit number on a 360pt phone. */}
             <View className="flex-row items-center">
               <View
-                className="flex-1"
+                className="flex-1 flex-row items-center"
                 style={{
-                  borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                  borderWidth: 1, borderColor: LINE, borderRadius: rs(14),
                   backgroundColor: SCREEN_BG, paddingHorizontal: rs(12), marginRight: rs(8),
                 }}
               >
+                <ScanLine size={rf(15)} color="#8FA08F" strokeWidth={2} style={{ marginRight: rs(6) }} />
                 <TextInput
-                  className="text-text"
+                  className="text-text flex-1"
                   placeholder="Enter 15-digit IMEI"
                   placeholderTextColor="#8FA08F"
                   value={imei}
@@ -579,7 +648,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 onPress={() => navigation.navigate('ScanImei', { onScan: (value) => setImei(value) })}
                 className="flex-row items-center justify-center active:opacity-80"
                 style={{
-                  height: rs(FIELD_H), backgroundColor: ACCENT_08, borderRadius: rs(12),
+                  height: rs(FIELD_H), backgroundColor: MINT, borderRadius: rs(14),
                   paddingHorizontal: rs(14),
                 }}
                 accessibilityRole="button"
@@ -589,9 +658,17 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 <Text style={{ fontSize: rf(13), fontWeight: '600', color: ACCENT, marginLeft: rs(5) }}>Scan</Text>
               </Pressable>
             </View>
-            <Text className="text-text-muted" style={{ fontSize: rf(11.5), marginTop: rs(6), lineHeight: rf(16) }}>
-              Tip: dial <Text className="text-text" style={{ fontWeight: '700' }}>*#06#</Text> on the device to display IMEI as a barcode.
-            </Text>
+            {/* Same tip text as before, always visible — now a soft mint
+                info strip instead of plain muted text below the field. */}
+            <View
+              className="flex-row items-center"
+              style={{ marginTop: rs(8), borderRadius: rs(10), padding: rs(9), backgroundColor: MINT }}
+            >
+              <HelpCircle size={rf(13)} color={ACCENT} strokeWidth={2} />
+              <Text className="text-text" style={{ fontSize: rf(11.5), marginLeft: rs(7), lineHeight: rf(16), flex: 1 }}>
+                Tip: dial <Text style={{ fontWeight: '700' }}>*#06#</Text> on the device to display IMEI as a barcode.
+              </Text>
+            </View>
           </View>
 
           {/* ── Issue description ──────────────────────────────────────── */}
@@ -608,16 +685,26 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               textAlignVertical="top"
               style={{
                 minHeight: rs(78), fontSize: rf(13.5), lineHeight: rf(19),
-                borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                borderWidth: 1, borderColor: LINE, borderRadius: rs(14),
                 paddingHorizontal: rs(12), paddingTop: rs(10), paddingBottom: rs(10),
               }}
             />
+            {/* Display-only counter — no maxLength was added to the input
+                above, so this never blocks or truncates typing; it's purely
+                informational, same as the rest of this pass. */}
+            <Text className="text-text-muted" style={{ fontSize: rf(10.5), textAlign: 'right', marginTop: rs(4) }}>
+              {complaint.length}/500
+            </Text>
           </View>
 
-          {/* Voice note — a row, not a card. Its own #F8F8F8 fill is what makes
-              it read as tappable now that the card is gone. */}
+          {/* Voice note — the only quick-action card on this screen now
+              ("Add Photos" removed per explicit request; real device-photo
+              capture stays on DeviceInformationScreen, untouched). Full
+              width again since there's no second card to share the row
+              with. Expand/collapse logic (`voiceOpen`) and every control
+              below it are byte-for-byte unchanged. */}
           <View style={{ paddingHorizontal: rs(16), marginTop: rs(8) }}>
-            <View style={{ backgroundColor: SOFT, borderRadius: rs(12), padding: rs(10) }}>
+            <View style={[card, { padding: rs(12) }]}>
               <Pressable
                 onPress={() => setVoiceOpen((v) => !v)}
                 className="flex-row items-center active:opacity-70"
@@ -626,18 +713,15 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               >
                 <View
                   style={{
-                    height: rs(34), width: rs(34), borderRadius: rs(9), backgroundColor: SCREEN_BG,
+                    height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: MINT,
                     alignItems: 'center', justifyContent: 'center', marginRight: rs(10),
                   }}
                 >
-                  <Mic size={rf(16)} color={isRecording ? '#DC2626' : ACCENT} strokeWidth={2} />
+                  <Mic size={rf(18)} color={isRecording ? '#DC2626' : ACCENT} strokeWidth={2} />
                 </View>
                 <View className="flex-1">
-                  <Text
-                    className="text-text-muted"
-                    style={{ fontSize: rf(11), fontWeight: '600', letterSpacing: 1.2 }}
-                  >
-                    VOICE NOTE
+                  <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '700' }}>
+                    Record Voice Note
                   </Text>
                   <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(1) }} numberOfLines={1}>
                     {voiceHint}
@@ -648,7 +732,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   : <ChevronRight size={rf(18)} color="#8FA08F" strokeWidth={2} />}
               </Pressable>
 
-              {voiceExpanded ? (
+            {voiceExpanded ? (
                 <View style={{ marginTop: rs(10) }}>
                   {isRecording ? (
                     <View
@@ -723,44 +807,77 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                     </Pressable>
                   )}
                 </View>
-              ) : null}
+            ) : null}
             </View>
           </View>
 
-          {/* ── Estimated delivery ─────────────────────────────────────── */}
-          <SectionHeader icon={Truck} label="Estimated Delivery" />
+          {/* ── Estimated delivery — a horizontal 3-segment mini-timeline
+              (Received → Duration → Ready By) with small connector arrows,
+              replacing the previous "two fields in a row, one field below"
+              layout. Every interactive element (the Duration Select, the
+              Ready By editor Pressable) is the exact same component/handler
+              as before — only the surrounding layout changed. ────────────── */}
+          {/* Edit moved into the section header's right slot per this pass's
+              explicit request — same `openReadyEditor` handler as the
+              standalone Edit row used to call, just repositioned. */}
+          <SectionHeader
+            icon={Truck}
+            label="Estimated Delivery"
+            right={(
+              <Pressable
+                onPress={openReadyEditor}
+                className="flex-row items-center active:opacity-70"
+                accessibilityRole="button"
+                accessibilityLabel="Edit ready-by time"
+              >
+                <Pencil size={rf(12)} color={ACCENT} strokeWidth={2} />
+                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>Edit</Text>
+              </Pressable>
+            )}
+          />
           <View style={{ paddingHorizontal: rs(16) }}>
-            <View>
-              <View className="flex-row">
-                <View className="flex-1" style={{ marginRight: rs(10) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1.2, marginBottom: rs(6) }}>
-                    RECEIVED ON
-                  </Text>
-                  <View
-                    className="justify-center"
-                    style={{ height: rs(FIELD_H), borderRadius: rs(12), paddingHorizontal: rs(10), backgroundColor: ACCENT_08 }}
-                  >
-                    <View className="flex-row items-center">
-                      <Calendar size={rf(14)} color={ACCENT} strokeWidth={2} />
-                      <Text className="flex-1 text-text" style={{ fontSize: rf(12), fontWeight: '600', marginLeft: rs(6) }} numberOfLines={1}>
-                        {dateLabel} – {timeLabel}
-                      </Text>
-                    </View>
-                  </View>
+            {/* Each card is icon-LEFT / content-RIGHT, with the icon in a
+                fixed-width column vertically centred against the WHOLE
+                3-line text stack (label + date + time) — not just centred
+                against the label's own row, which is what still read as
+                "icon floating above the content" even after the icon was
+                already technically inline with the caption. `items-stretch`
+                on the row (not `items-center`) is what keeps all 3 cards the
+                same height regardless of label-wrap differences. */}
+            <View className="flex-row items-stretch">
+              {/* Received */}
+              <View
+                className="flex-1 flex-row items-center"
+                style={{ borderRadius: rs(12), backgroundColor: MINT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
+              >
+                <View style={{ width: rs(20), alignItems: 'center' }}>
+                  <Calendar size={rf(15)} color={ACCENT} strokeWidth={2} />
                 </View>
+                <View style={{ flex: 1, marginLeft: rs(6) }}>
+                  <Text className="text-text-muted" style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>RECEIVED</Text>
+                  <Text className="text-text" style={{ fontSize: rf(11), fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{dateLabel}</Text>
+                  <Text className="text-text-muted" style={{ fontSize: rf(10), marginTop: rs(1) }} numberOfLines={1}>{timeLabel}</Text>
+                </View>
+              </View>
 
-                <View style={{ width: rs(120) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1.2, marginBottom: rs(6) }}>
-                    DURATION
-                  </Text>
-                  <View style={{ height: rs(FIELD_H), borderRadius: rs(12), overflow: 'hidden', backgroundColor: ACCENT_08 }}>
-                    {/* twMerge means these classes beat Select's own defaults —
-                        without `bg-transparent` its `bg-card` paints white over
-                        the tinted well. */}
-                    {/* With an override in force there is no matching option,
-                        so Select falls back to `displayValue` — the derived
-                        span. Choosing an hour from the list clears the
-                        override, which is what puts the two back in sync. */}
+              <ChevronRight size={rf(14)} color="#B8C4BE" strokeWidth={2.5} style={{ marginHorizontal: rs(4), alignSelf: 'center' }} />
+
+              {/* Duration — same Select, same handler, now the middle
+                  segment of the timeline instead of a separate side field. */}
+              <View
+                className="flex-1 flex-row items-center"
+                style={{ borderRadius: rs(12), backgroundColor: MINT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
+              >
+                <View style={{ width: rs(20), alignItems: 'center' }}>
+                  <Timer size={rf(15)} color={ACCENT} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1, marginLeft: rs(6) }}>
+                  <Text className="text-text-muted" style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>DURATION</Text>
+                  {/* With an override in force there is no matching option,
+                      so Select falls back to `displayValue` — the derived
+                      span. Choosing an hour from the list clears the
+                      override, which is what puts the two back in sync. */}
+                  <View style={{ marginTop: rs(3), alignSelf: 'flex-start' }}>
                     <Select
                       value={readyOverride ? null : duration}
                       displayValue={spanLabel}
@@ -768,66 +885,50 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                       menuWidth={rs(150)}
                       menuTitle="DURATION"
                       onChange={(v) => { setDuration(v); setReadyOverride(null); }}
-                      className="h-full py-0 px-3 bg-transparent border-0 rounded-xl"
+                      className="py-0 px-0 bg-transparent border-0"
                     />
                   </View>
                 </View>
               </View>
 
-              {/* Ready by — the same tinted well as Received on, so the three
-                  delivery fields read as one set instead of two fields plus a
-                  banner. The whole row is the edit target. */}
-              <View style={{ marginTop: rs(10) }}>
-                <View className="flex-row items-center" style={{ marginBottom: rs(6) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1.2 }}>
-                    READY BY
-                  </Text>
-                  <View className="flex-1" />
-                  <View
-                    className="flex-row items-center"
-                    style={{ borderRadius: rs(999), paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
-                  >
-                    <ShieldCheck size={rf(11)} color={ACCENT} strokeWidth={2} />
-                    <Text style={{ fontSize: rf(10), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>ON TIME</Text>
-                  </View>
+              <ChevronRight size={rf(14)} color="#B8C4BE" strokeWidth={2.5} style={{ marginHorizontal: rs(4), alignSelf: 'center' }} />
+
+              {/* Ready by — same Pressable/openReadyEditor as before. */}
+              <Pressable
+                onPress={openReadyEditor}
+                className="flex-1 flex-row items-center active:opacity-80"
+                style={{ borderRadius: rs(12), backgroundColor: ACCENT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
+                accessibilityRole="button"
+                accessibilityLabel={'Ready by ' + deliveryDateLabel + ' ' + deliveryTimeLabel + '. Edit.'}
+              >
+                <View style={{ width: rs(20), alignItems: 'center' }}>
+                  <ShieldCheck size={rf(15)} color="#fff" strokeWidth={2} />
                 </View>
+                <View style={{ flex: 1, marginLeft: rs(6) }}>
+                  <Text style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>READY BY</Text>
+                  <Text className="text-white" style={{ fontSize: rf(11), fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{deliveryDateLabel}</Text>
+                  <Text style={{ fontSize: rf(10), color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>{deliveryTimeLabel}</Text>
+                </View>
+              </Pressable>
+            </View>
 
-                <Pressable
-                  onPress={openReadyEditor}
-                  className="flex-row items-center active:opacity-80"
-                  style={{
-                    minHeight: rs(FIELD_H), borderRadius: rs(12), paddingLeft: rs(10), paddingRight: rs(5),
-                    paddingVertical: rs(4), backgroundColor: ACCENT_08,
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={'Ready by ' + deliveryDateLabel + ' ' + deliveryTimeLabel + '. Edit.'}
-                >
-                  <Timer size={rf(14)} color={ACCENT} strokeWidth={2} />
-                  <Text
-                    className="flex-1 text-text"
-                    style={{ fontSize: rf(12), fontWeight: '600', marginLeft: rs(6) }}
-                    numberOfLines={1}
-                  >
-                    {deliveryDateLabel} – {deliveryTimeLabel}
-                  </Text>
-                  <View
-                    className="flex-row items-center"
-                    style={{
-                      borderRadius: rs(999), paddingHorizontal: rs(10), paddingVertical: rs(6),
-                      backgroundColor: SCREEN_BG,
-                    }}
-                  >
-                    <Pencil size={rf(12)} color={ACCENT} strokeWidth={2} />
-                    <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>Edit</Text>
-                  </View>
-                </Pressable>
-
-                {readyOverride ? (
-                  <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(5) }}>
-                    Set manually · {spanLabel} from now
-                  </Text>
-                ) : null}
+            <View className="flex-row items-center" style={{ marginTop: rs(8) }}>
+              <View
+                className="flex-row items-center"
+                style={{ borderRadius: rs(999), paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
+              >
+                <ShieldCheck size={rf(11)} color={ACCENT} strokeWidth={2} />
+                <Text style={{ fontSize: rf(10), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>ON TIME</Text>
               </View>
+            </View>
+
+            {readyOverride ? (
+              <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(5) }}>
+                Set manually · {spanLabel} from now
+              </Text>
+            ) : null}
+
+            <View style={{ marginTop: rs(10) }}>
 
               {/* Customer approval */}
               <Pressable
@@ -879,6 +980,13 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               elevation: 6,
             }}
           >
+            <View
+              className="items-center justify-center"
+              style={{ height: rs(38), width: rs(38), borderRadius: rs(12), backgroundColor: MINT, marginRight: rs(10) }}
+            >
+              <ReceiptText size={rf(17)} color={ACCENT} strokeWidth={2} />
+            </View>
+
             <View className="flex-1">
               <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', letterSpacing: 1 }}>
                 ESTIMATED TOTAL
@@ -1144,17 +1252,18 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════════════════════════════════
-function SectionHeader({ icon: Icon, label, subtitle }) {
+function SectionHeader({ icon: Icon, label, subtitle, right }) {
   return (
     <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16), paddingBottom: rs(8) }}>
       <View className="flex-row items-center">
         <Icon size={rf(15)} color={ACCENT} strokeWidth={2} />
         <Text
           className="text-text"
-          style={{ fontSize: rf(12.5), fontWeight: '700', marginLeft: rs(7) }}
+          style={{ fontSize: rf(12.5), fontWeight: '700', marginLeft: rs(7), flex: right ? 1 : undefined }}
         >
           {label}
         </Text>
+        {right}
       </View>
       {subtitle ? (
         <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(6), marginLeft: rs(22) }}>

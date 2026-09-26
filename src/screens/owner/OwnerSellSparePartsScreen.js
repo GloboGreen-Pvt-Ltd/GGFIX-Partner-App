@@ -49,7 +49,7 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
     const key = `${groupKey}/${slotId}`;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
@@ -148,7 +148,7 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
     return (
       <View
         style={{
-          height: 114, borderRadius: 14,
+          height: 98, borderRadius: 14,
           borderWidth: 1.5, borderStyle: url ? 'solid' : 'dashed',
           borderColor: url ? g.accent : g.border,
           backgroundColor: url ? '#FFFFFF' : g.slotBg,
@@ -196,24 +196,24 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       {/* Header */}
       <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EFF5EE' }}>
-        <View style={{ paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' }}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E6F7E3', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="chevron-back" size={22} color="#004C40" />
+        <View style={{ paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E6F7E3', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="chevron-back" size={19} color="#004C40" />
           </Pressable>
-          <Text style={{ flex: 1, textAlign: 'center', fontSize: 20, fontWeight: '800', color: '#172117', marginRight: 44 }}>Spare Parts</Text>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#172117', marginRight: 36 }}>Spare Parts</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
         {PRESET_GROUPS.map((g) => {
           const customList = added[g.key] || [];
           const selectedCount = items.filter((it) => it.groupKey === g.key).length;
           return (
-            <View key={g.key} style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 12, marginBottom: 12, shadowColor: '#172117', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
+            <View key={g.key} style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 10, marginBottom: 10, shadowColor: '#172117', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
               {/* Group header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: g.tint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                  <Ionicons name={g.icon} size={17} color={g.accent} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: g.tint, alignItems: 'center', justifyContent: 'center', marginRight: 9 }}>
+                  <Ionicons name={g.icon} size={16} color={g.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '800', color: '#172117' }}>{g.label}</Text>
@@ -273,8 +273,8 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
       </ScrollView>
 
       {/* Bottom Sell Now bar */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12) + 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#EFF5EE', shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
-        <Pressable onPress={onSellNow} disabled={disabled} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? '#8FA08F' : '#004C40', borderRadius: 999, paddingVertical: 16, opacity: pressed ? 0.9 : 1 })}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#EFF5EE', shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+        <Pressable onPress={onSellNow} disabled={disabled} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? '#8FA08F' : '#004C40', borderRadius: 999, paddingVertical: 13, opacity: pressed ? 0.9 : 1 })}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', marginRight: 6 }}>Sell Now{totalSelected ? ` (${totalSelected})` : ''}</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" />
         </Pressable>

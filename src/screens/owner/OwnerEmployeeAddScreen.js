@@ -127,7 +127,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <View style={styles.newStaffIconWrap}>
-            <Ionicons name="people" size={28} color="#16BB05" />
+            <Ionicons name="people" size={24} color="#16BB05" />
           </View>
           <Text style={styles.newStaffTitle}>New Staff</Text>
           <Text style={styles.newStaffSubtitle}>Add a new employee to your shop</Text>
@@ -266,28 +266,28 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   scroll: { flex: 1 },
-  content: { padding: 14, paddingBottom: 32 },
+  content: { padding: 12, paddingBottom: 24 },
 
   newStaffCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     alignItems: 'center',
   },
   newStaffIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F0F8EF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   newStaffTitle: { fontSize: 15, fontWeight: '700', color: '#172117' },
   newStaffSubtitle: { fontSize: 12, color: '#667066', marginTop: 2 },
 
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 10 },
   line: { flex: 1, height: 1, backgroundColor: '#CBD5CB' },
   dividerText: { marginHorizontal: 10, fontSize: 11, color: '#667066', fontWeight: '500' },
 
@@ -308,14 +308,14 @@ const styles = StyleSheet.create({
   resultCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 10,
-    marginTop: 10,
+    padding: 9,
+    marginTop: 8,
   },
   resultMain: { flexDirection: 'row', alignItems: 'flex-start' },
   resultAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F0F8EF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   blockBtn: { backgroundColor: '#DC2626' },
   workBtn: { backgroundColor: '#087A0A' },
 
-  emptyWrap: { alignItems: 'center', paddingVertical: 40 },
+  emptyWrap: { alignItems: 'center', paddingVertical: 28 },
   emptyTitle: { marginTop: 10, fontSize: 13, fontWeight: '700', color: '#172117' },
   emptySub: { marginTop: 4, fontSize: 11, color: '#667066', textAlign: 'center', paddingHorizontal: 24 },
 });

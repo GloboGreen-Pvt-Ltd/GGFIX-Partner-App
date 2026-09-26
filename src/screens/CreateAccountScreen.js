@@ -78,18 +78,18 @@ export default function CreateAccountScreen({ navigation }) {
         >
           <View
             style={{
-              height: 72,
-              width: 72,
-              borderRadius: 22,
+              height: 56,
+              width: 56,
+              borderRadius: 18,
               backgroundColor: '#FFFFFF',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 16,
+              marginBottom: 12,
               borderWidth: 1,
               borderColor: '#E6F7E3',
             }}
           >
-            <UserPlus size={32} color={GREEN} />
+            <UserPlus size={26} color={GREEN} />
           </View>
 
           <Text style={{ fontSize: 22, fontWeight: '800', color: '#172117', letterSpacing: -0.4 }}>
@@ -132,7 +132,7 @@ export default function CreateAccountScreen({ navigation }) {
             onPress={goBack}
             fullWidth
             size="lg"
-            style={{ marginTop: 24, height: 54, borderRadius: 16 }}
+            style={{ marginTop: 16, height: 46, borderRadius: 16 }}
             textClassName="text-[15px] font-extrabold tracking-wide"
           >
             Back to sign in

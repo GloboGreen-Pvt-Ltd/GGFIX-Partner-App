@@ -138,7 +138,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
   return (
     <View className="flex-1 bg-background">
       <ScreenHeader title="Sell your Gadget" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 130 }}>
         <View className="bg-success/10 px-4 py-2 rounded-full self-center mb-3">
           <Text className="text-success text-[12px] font-extrabold tracking-widest">SELL NOW FOR AMAZING PRICE</Text>
         </View>
@@ -197,7 +197,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
             </View>
           </>
         ) : (
-          <View className="bg-card border border-border rounded-2xl p-4 items-center" style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+          <View className="bg-card border border-border rounded-2xl p-3 items-center" style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
             {device.imageUrl ? (
               <Image source={{ uri: device.imageUrl }} style={{ width: 110, height: 130, marginBottom: 8 }} resizeMode="contain" />
             ) : (
@@ -226,11 +226,11 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
         )}
       </ScrollView>
 
-      <View className="absolute left-0 right-0 bottom-0 p-4 bg-card border-t border-border" style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+      <View className="absolute left-0 right-0 bottom-0 p-3 bg-card border-t border-border" style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
         <Pressable
           onPress={() => setConfirming(true)}
           disabled={isSparePartsMode ? pricedPartsCount === 0 : priceNum <= 0}
-          className={`rounded-2xl py-3.5 items-center ${(isSparePartsMode ? pricedPartsCount > 0 : priceNum > 0) ? 'bg-success active:opacity-80' : 'bg-success/40'}`}
+          className={`rounded-2xl py-3 items-center ${(isSparePartsMode ? pricedPartsCount > 0 : priceNum > 0) ? 'bg-success active:opacity-80' : 'bg-success/40'}`}
         >
           <Text className="text-white text-[15px] font-extrabold">
             {isSparePartsMode ? `Submit (${pricedPartsCount})` : 'Submit'}
@@ -241,7 +241,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
       {/* Confirm Sale modal */}
       {confirming ? (
         <View className="absolute inset-0 bg-black/50 items-center justify-center px-6">
-          <View className="bg-card rounded-3xl p-5 w-full" style={{ maxWidth: 420 }}>
+          <View className="bg-card rounded-3xl p-4 w-full" style={{ maxWidth: 420 }}>
             <View className="items-center mb-2">
               <View className="bg-success rounded-full p-1.5 mb-1">
                 <Ionicons name="checkmark" size={22} color="#fff" />

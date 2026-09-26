@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import {
   AUTH_BASE,
   MASTER_BASE,
@@ -11,8 +10,11 @@ import {
   ORDER_BASE,
   USER_BASE,
   SUBSCRIPTION_BASE,
+  VISUAL_SEARCH_BASE,
 } from './config';
 import { getToken, clearSession, notifyAuthExpired } from '../auth/session';
+import { Platform } from 'react-native';
+import { File, UploadType } from 'expo-file-system';
 
 // RN's fetch has NO default timeout. Against this 12-service backend a single
 // down/hung service would otherwise leave every awaiting screen stuck on a
@@ -110,35 +112,82 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
   return json;
 }
 
-// Multipart file upload. Does NOT set Content-Type so fetch can add the
-// multipart boundary itself. `file` is an expo-image-picker asset { uri }.
-async function uploadRequest(baseUrlOrNull, path, { uri, name, type, fields } = {}) {
+// Multipart file upload. `file` is an expo-image-picker asset { uri, name,
+// type } (or an equivalent object built elsewhere, e.g. an expo-av
+// recording).
+//
+// History of what NOT to do here, because both attempts already shipped and
+// both broke KYC/media uploads in a different way:
+//   1. `form.append('file', { uri, name, type })` — the bridge-era RN
+//      shorthand FormData part. The New Architecture's rewritten Networking
+//      module (this app runs newArchEnabled=true, RN 0.86) doesn't recognise
+//      it and throws "Unsupported FormDataPart implementation" before a
+//      request is even made.
+//   2. `fetch(uri).blob()`, optionally re-wrapped as `new Blob([blob],
+//      {type})`, appended to FormData. Expo SDK 56+ installs `expo/fetch` as
+//      the global native fetch, and its Response.blob() falls back to
+//      round-tripping the bytes through React Native's OWN Blob module via
+//      base64 (the "may be slow... add expo-blob" warning) — and that module
+//      is itself still bridge-era (its own source has a "TODO: use
+//      turbomodules" comment, never done) and unreliable through that path:
+//      the server received bytes that failed magic-byte format detection
+//      every time, regardless of what Content-Type was attached.
+//
+// expo-file-system's `File` is Expo's own New-Architecture-native
+// implementation, with a purpose-built multipart upload task — no JS
+// FormData/Blob bridging at all. `mimeType` is set explicitly rather than
+// left to whatever a blob happened to infer, and `parameters` covers the
+// extra form fields (`folder`/`slot`) the old FormData `fields` did.
+// `name` is accepted but not sent: File.upload() has no filename override,
+// only the name its own uri already carries, and every caller ends up
+// server-renamed anyway (S3 keys are generated from the owner/shop, not the
+// upload's filename) — so there's nothing for a caller-supplied name to fix.
+async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fields, headers: extraHeaders } = {}) {
   const base = resolveBase(baseUrlOrNull);
   const urlString = new URL(joinUrl(base, path)).toString();
 
-  const form = new FormData();
-  const filename = name || 'upload.jpg';
-  if (Platform.OS === 'web') {
-    // On web the picker gives a blob:/data: URI — fetch it into a real Blob so
-    // FormData produces a valid multipart body (RN's { uri } shape is native-only).
-    const blob = await (await fetch(uri)).blob();
-    form.append('file', blob, filename);
-  } else {
-    form.append('file', { uri, name: filename, type: type || 'image/jpeg' });
-  }
-  if (fields) Object.entries(fields).forEach(([k, v]) => { if (v != null) form.append(k, String(v)); });
+  const parameters = {};
+  if (fields) Object.entries(fields).forEach(([k, v]) => { if (v != null) parameters[k] = String(v); });
 
   const token = await getToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
-  let res;
+  let result;
   try {
-    res = await fetch(urlString, {
-      method: 'POST',
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: form,
-      signal: controller.signal,
-    });
+    if (Platform.OS === 'web') {
+      // expo-file-system's `File`/`.upload()` (below) is native-only — its web
+      // shim doesn't implement `validatePath`, so it throws immediately on
+      // every web upload. The browser's own fetch/Blob/FormData never touches
+      // React Native's bridge at all, so the native pitfalls documented above
+      // (the old FormData part shorthand, RN's own unreliable Blob module)
+      // don't apply here — this is the standard, reliable way to POST a
+      // multipart file from a real browser.
+      const blob = await fetch(uri).then((r) => r.blob());
+      const form = new FormData();
+      form.append('file', blob, _name || 'upload');
+      Object.entries(parameters).forEach(([k, v]) => form.append(k, v));
+      const res = await fetch(urlString, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(extraHeaders || {}) },
+        body: form,
+        signal: controller.signal,
+      });
+      result = { status: res.status, body: await res.text() };
+    } else {
+      const file = new File(uri);
+      result = await file.upload(urlString, {
+        httpMethod: 'POST',
+        uploadType: UploadType.MULTIPART,
+        fieldName: 'file',
+        // The server validates the file's own magic bytes, not this header —
+        // but an absent/wrong Content-Type still trips its declared-vs-actual
+        // cross-check, so this needs to be the real type, not a guess.
+        mimeType: type || 'image/jpeg',
+        parameters,
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(extraHeaders || {}) },
+        signal: controller.signal,
+      });
+    }
   } catch (e) {
     const timedOut = e?.name === 'AbortError';
     const msg = timedOut
@@ -152,15 +201,15 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name, type, fields } = 
     clearTimeout(timer);
   }
 
-  const text = await res.text();
+  const { status, body: text } = result;
   let json;
   try { json = text ? JSON.parse(text) : null; } catch { json = null; }
-  if (!res.ok) {
+  if (status < 200 || status >= 300) {
     // Same rule as request(): only an auth-service 401 ends the session.
-    if (res.status === 401 && token && base === AUTH_BASE) { await clearSession(); notifyAuthExpired(); }
-    const message = (json && (json.message || json.error)) || text || `HTTP ${res.status}`;
+    if (status === 401 && token && base === AUTH_BASE) { await clearSession(); notifyAuthExpired(); }
+    const message = (json && (json.message || json.error)) || text || `HTTP ${status}`;
     const err = new Error(message);
-    err.status = res.status;
+    err.status = status;
     throw err;
   }
   return json;
@@ -179,6 +228,9 @@ function createClient(baseUrl) {
 
 export const authApi = createClient(AUTH_BASE);
 export const masterApi = createClient(MASTER_BASE);
+// Only meaningfully usable when VISUAL_SEARCH_BASE is actually set — see
+// api/masterData.js's `visualSearch`, which checks that before calling this.
+export const visualSearchApi = createClient(VISUAL_SEARCH_BASE);
 export const ticketApi = createClient(TICKET_BASE);
 export const technicianApi = createClient(TECHNICIAN_BASE);
 export const shopApi = createClient(SHOP_BASE);

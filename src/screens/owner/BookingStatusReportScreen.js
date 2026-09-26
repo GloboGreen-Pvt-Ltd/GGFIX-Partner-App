@@ -235,8 +235,8 @@ export default function BookingStatusReportScreen({ navigation, route }) {
         style={{
           backgroundColor: '#FFFFFF',
           paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
+          paddingBottom: 12,
+          paddingHorizontal: 14,
           borderBottomWidth: 1,
           borderBottomColor: '#E2E8E2',
         }}
@@ -245,10 +245,11 @@ export default function BookingStatusReportScreen({ navigation, route }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center mr-2.5"
             style={{ backgroundColor: '#EFF5EE' }}
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Booking Status Report
@@ -281,13 +282,13 @@ export default function BookingStatusReportScreen({ navigation, route }) {
       >
         {/* Status hero card with gradient — single source of truth for what the
             user is looking at, mirroring the tile color they came from. */}
-        <View className="px-4 mt-4">
-          <View style={[cardShadow, { borderRadius: 22, overflow: 'hidden' }]}>
+        <View className="px-4 mt-3">
+          <View style={[cardShadow, { borderRadius: 20, overflow: 'hidden' }]}>
             <LinearGradient
               colors={gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ padding: 16, position: 'relative' }}
+              style={{ padding: 13, position: 'relative' }}
             >
               {/* Decorative blobs */}
               <View
@@ -312,14 +313,14 @@ export default function BookingStatusReportScreen({ navigation, route }) {
               <View className="flex-row items-center">
                 <View
                   style={{
-                    width: 52, height: 52, borderRadius: 16,
+                    width: 44, height: 44, borderRadius: 14,
                     backgroundColor: 'rgba(255,255,255,0.22)',
                     alignItems: 'center', justifyContent: 'center',
-                    marginRight: 14,
+                    marginRight: 12,
                     borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
                   }}
                 >
-                  <Icon size={26} color="#FFFFFF" strokeWidth={2.3} />
+                  <Icon size={22} color="#FFFFFF" strokeWidth={2.3} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-white/85 text-[10.5px] font-bold tracking-wider">
@@ -531,17 +532,17 @@ function TicketCard({ ticket, index, accent, tint, onViewDetails, onHistory, onI
 
   return (
     <View
-      className="bg-white rounded-2xl mb-3"
-      style={[softShadow, { padding: 14 }]}
+      className="bg-white rounded-2xl mb-2.5"
+      style={[softShadow, { padding: 11 }]}
     >
       <View className="flex-row items-start">
         {/* Numbered chip */}
         <View
           style={{
-            width: 40, height: 40, borderRadius: 12,
+            width: 36, height: 36, borderRadius: 11,
             backgroundColor: tint || '#E6F7E3',
             alignItems: 'center', justifyContent: 'center',
-            marginRight: 12,
+            marginRight: 10,
           }}
         >
           <Text

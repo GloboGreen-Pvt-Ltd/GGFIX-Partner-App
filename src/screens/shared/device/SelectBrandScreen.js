@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Pencil, Plus, Search, ArrowLeft, X } from 'lucide-react-native';
 import { EmptyState, Loader, ScreenHeader } from '../../../components/rnr';
+import { ResponsiveModal } from '../../../components/responsive';
 import DeviceImage from '../../../components/DeviceImage';
 import { resolveDeviceImageSource } from '../../../utils/images';
 import { PICKER_PAD, PICKER_GAP, pickerMetrics } from './pickerGrid';
@@ -57,10 +58,29 @@ export default function SelectBrandScreen({ navigation, route }) {
     || null;
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  // Square logo box, equal on every card — see pickerGrid.
-  // 0.66: a brand logo carries no detail that needs the full card width, and
-  // a full-width square was what made these rows ~115pt tall.
-  const { cardWidth, imageSize: logoBox } = pickerMetrics(screenWidth, { dense: false, cardPadding: 6, imageRatio: 0.66 });
+  // Square logo box, equal on every card — see pickerGrid. 0.56 (down from
+  // an earlier 0.66) + more internal padding is what makes these cards read
+  // as "smaller, more elegant" per the current design pass, without touching
+  // the shared column-count math other pickers (Model, Variant) also use.
+  //
+  // Below 600pt this screen forces exactly 4 columns instead of following
+  // pickerGrid's shared ladder (which drops to 3 under 400pt) — brand rows
+  // read as uneven at 3-per-row on a normal phone. Computed the same way
+  // pickerMetrics does internally, just with a fixed column count, so it
+  // stays responsive to the live width rather than a hardcoded screen size.
+  // Only this screen's column count changes; Category/Series/Model/Variant
+  // still use the shared ladder untouched.
+  // A higher image ratio (0.87, not 0.56) on the forced 4-column path — the
+  // narrower per-card width at 4 columns needs it to land the logo in the
+  // requested 48–56dp range instead of shrinking to ~35dp. cardPadding
+  // stays 9 to match the card's own hardcoded `padding: 9` below.
+  const { cardWidth, imageSize: logoBox } = screenWidth >= 600
+    ? pickerMetrics(screenWidth, { dense: false, cardPadding: 9, imageRatio: 0.56 })
+    : (() => {
+        const numColumns = 4;
+        const cw = Math.floor((screenWidth - PICKER_PAD * 2 - PICKER_GAP * (numColumns - 1)) / numColumns);
+        return { cardWidth: cw, imageSize: Math.max(28, Math.round((cw - 9 * 2) * 0.87)) };
+      })();
 
   useEffect(() => {
     (async () => {
@@ -242,21 +262,24 @@ export default function SelectBrandScreen({ navigation, route }) {
                   <Pressable
                     key={b.id}
                     onPress={() => onPick(b)}
-                    className={`bg-card border rounded-2xl active:opacity-80 ${isCurrent ? 'border-primary' : 'border-border'}`}
+                    className="rounded-2xl active:opacity-80"
                     style={{
                       width: cardWidth,
-                      padding: 6,
+                      padding: 9,
                       alignItems: 'center',
+                      backgroundColor: isCurrent ? '#EAF7F1' : '#FFFFFF',
+                      borderWidth: isCurrent ? 1.5 : 1,
+                      borderColor: isCurrent ? ACCENT : '#E2E8E2',
                       shadowColor: '#172117',
-                      shadowOpacity: 0.04,
+                      shadowOpacity: isCurrent ? 0 : 0.04,
                       shadowRadius: 8,
                       shadowOffset: { width: 0, height: 2 },
-                      elevation: 1,
+                      elevation: isCurrent ? 0 : 1,
                     }}
                   >
                     <View
                       className="rounded-lg items-center justify-center overflow-hidden"
-                      style={{ height: logoBox, width: logoBox, marginBottom: 4 }}
+                      style={{ height: logoBox, width: logoBox, marginBottom: 6 }}
                     >
                       {logo ? (
                         <DeviceImage
@@ -277,10 +300,14 @@ export default function SelectBrandScreen({ navigation, route }) {
                     >
                       {b.name}
                     </Text>
+                    {/* Check badge, top-right corner — replaces the previous
+                        inline "Current" pill below the name. */}
                     {isCurrent ? (
-                      <View className="flex-row items-center bg-primary/10 rounded-full px-1.5 mt-1">
-                        <Check size={10} color="#004C40" />
-                        <Text className="text-[9.5px] font-extrabold text-primary ml-1">Current</Text>
+                      <View
+                        className="items-center justify-center"
+                        style={{ position: 'absolute', top: 6, right: 6, height: 18, width: 18, borderRadius: 9, backgroundColor: ACCENT }}
+                      >
+                        <Check size={11} color="#fff" strokeWidth={3} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -320,45 +347,47 @@ export default function SelectBrandScreen({ navigation, route }) {
         </ScrollView>
       )}
 
-      {/* Type-in sheet for a brand the catalogue doesn't carry. */}
-      {otherOpen ? (
-        <View className="absolute inset-0 items-center justify-center px-6" style={{ backgroundColor: 'rgba(23, 33, 23, 0.55)' }}>
-          <View className="w-full bg-card rounded-2xl p-5">
-            <Text className="text-[15px] font-extrabold text-text">Other brand</Text>
-            <Text className="text-[12px] text-text-muted mt-1 leading-4">
-              Type the brand as it appears on the device. It is saved on this booking only —
-              it is not added to the catalogue.
-            </Text>
-            <TextInput
-              autoFocus
-              value={otherName}
-              onChangeText={setOtherName}
-              placeholder="e.g. Lava"
-              placeholderTextColor="#8FA08F"
-              className="mt-3 rounded-xl px-3 py-2.5 text-text text-[14px]"
-              style={{ backgroundColor: '#EFF5EE' }}
-              returnKeyType="done"
-              onSubmitEditing={onPickOther}
-            />
-            <View className="flex-row justify-end mt-4">
-              <Pressable
-                onPress={() => { setOtherOpen(false); setOtherName(''); }}
-                className="px-4 py-2 active:opacity-70"
-              >
-                <Text className="text-[13px] font-bold text-text-muted">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onPickOther}
-                disabled={!otherName.trim()}
-                className="px-4 py-2 rounded-xl bg-primary active:opacity-80"
-                style={{ opacity: otherName.trim() ? 1 : 0.5 }}
-              >
-                <Text className="text-[13px] font-extrabold text-white">Continue</Text>
-              </Pressable>
-            </View>
-          </View>
+      {/* Type-in sheet for a brand the catalogue doesn't carry — same
+          bottom-sheet-on-phone/dialog-on-tablet pattern used elsewhere in
+          this flow (e.g. Customer Details' category picker), which also
+          gets keyboard-avoidance for free (the previous raw centered overlay
+          had none, so the input could sit behind the keyboard on a real
+          device). */}
+      <ResponsiveModal visible={otherOpen} onClose={() => { setOtherOpen(false); setOtherName(''); }} maxWidth={420}>
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
+        <Text className="text-[15px] font-extrabold text-text">Other brand</Text>
+        <Text className="text-[12px] text-text-muted mt-1 leading-4">
+          Type the brand as it appears on the device. It is saved on this booking only —
+          it is not added to the catalogue.
+        </Text>
+        <TextInput
+          autoFocus
+          value={otherName}
+          onChangeText={setOtherName}
+          placeholder="e.g. Lava"
+          placeholderTextColor="#8FA08F"
+          className="mt-3 rounded-xl px-3 py-2.5 text-text text-[14px]"
+          style={{ backgroundColor: '#EFF5EE' }}
+          returnKeyType="done"
+          onSubmitEditing={onPickOther}
+        />
+        <View className="flex-row justify-end mt-4">
+          <Pressable
+            onPress={() => { setOtherOpen(false); setOtherName(''); }}
+            className="px-4 py-2 active:opacity-70"
+          >
+            <Text className="text-[13px] font-bold text-text-muted">Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={onPickOther}
+            disabled={!otherName.trim()}
+            className="px-4 py-2 rounded-xl bg-primary active:opacity-80"
+            style={{ opacity: otherName.trim() ? 1 : 0.5 }}
+          >
+            <Text className="text-[13px] font-extrabold text-white">Continue</Text>
+          </Pressable>
         </View>
-      ) : null}
+      </ResponsiveModal>
     </View>
   );
 }

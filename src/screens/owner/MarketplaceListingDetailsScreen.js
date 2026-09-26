@@ -18,8 +18,8 @@ function SellHeader({ onBack }) {
       style={{
         backgroundColor: '#FFFFFF',
         paddingTop: insets.top + 6,
-        paddingBottom: 14,
-        paddingHorizontal: 16,
+        paddingBottom: 12,
+        paddingHorizontal: 14,
         borderBottomWidth: 1,
         borderBottomColor: '#E2E8E2',
       }}
@@ -28,10 +28,11 @@ function SellHeader({ onBack }) {
         <TouchableOpacity
           onPress={onBack}
           activeOpacity={0.7}
-          className="w-10 h-10 rounded-2xl items-center justify-center mr-3"
+          hitSlop={6}
+          className="w-9 h-9 rounded-2xl items-center justify-center mr-2.5"
           style={{ backgroundColor: '#EFF5EE' }}
         >
-          <Ionicons name="chevron-back" size={22} color="#172117" />
+          <Ionicons name="chevron-back" size={20} color="#172117" />
         </TouchableOpacity>
         <Text className="flex-1 text-[19px] font-extrabold" style={{ color: '#172117' }} numberOfLines={1}>
           Sell Device Details

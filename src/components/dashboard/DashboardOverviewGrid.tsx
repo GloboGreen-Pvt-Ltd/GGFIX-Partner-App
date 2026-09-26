@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, useWindowDimensions } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import type { OverviewStatItem } from '../../types/dashboard';
 import { getSizeClass } from './theme';
 import { DashboardOverviewCard } from './DashboardOverviewCard';
@@ -17,7 +18,7 @@ const CARD_MAX_W = 158;
 
 function itemGap(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 15 : cls === 'large' ? 12 : 10;
+  return cls === 'tablet' ? 15 : cls === 'large' ? 12 : 8;
 }
 
 /**
@@ -35,15 +36,24 @@ function itemGap(width: number): number {
  * a single-row grid would.
  */
 export function DashboardOverviewGrid({ items, pad }: DashboardOverviewGridProps) {
-  const { width } = useWindowDimensions();
+  const { width: winW } = useWindowDimensions();
+  // `useWindowDimensions()` is only a first-frame estimate — the ScrollView's
+  // own measured layout width is the true visible viewport (accounts for any
+  // parent-level insets useWindowDimensions can't see), and is what actually
+  // decides whether 4 cards fit without a slice of the 5th bleeding onscreen.
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const width = measuredWidth > 0 ? measuredWidth : winW;
   const gap = itemGap(width);
   const cardWidth = useMemo(() => {
     const inner = width - pad * 2;
-    // Phone: 4 full cards visible, plus a peek of the 5th to hint the rail
-    // scrolls — width-only, so it applies identically on Android and iOS.
-    const visibleTarget = width >= 768 ? 5.5 : width >= 430 ? 3.4 : 4.0;
+    // Phone (any width under the tablet cutoff): exactly 3 full cards in the
+    // row. Tablet still gets more columns.
+    const visibleTarget = width >= 768 ? 5.5 : 3.0;
     const raw = (inner - gap * (visibleTarget - 1)) / visibleTarget;
-    const capped = Math.round(Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, raw)));
+    // Floor (not round) at every step — rounding up here is what let the
+    // 4-card row's total width creep past `inner` and clip/overflow the
+    // last card instead of landing flush with the screen edge.
+    const capped = Math.floor(Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, raw)));
 
     const count = Math.max(items.length, 1);
     const neededAtCap = capped * count + gap * (count - 1);
@@ -58,6 +68,7 @@ export function DashboardOverviewGrid({ items, pad }: DashboardOverviewGridProps
   return (
     <ScrollView
       horizontal
+      onLayout={(e: LayoutChangeEvent) => setMeasuredWidth(e.nativeEvent.layout.width)}
       showsHorizontalScrollIndicator={false}
       decelerationRate="fast"
       snapToInterval={cardWidth + gap}

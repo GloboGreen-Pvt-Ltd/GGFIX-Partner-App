@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { UserPlus, User, Mail, ChevronDown, ChevronLeft, UploadCloud, Save, MapPin, Search, Check, X } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { UserPlus, User, Mail, ChevronLeft, ChevronRight as ChevronRightIcon, UploadCloud, Save, MapPin, Search, Check, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, Label, Select } from '../../../components/rnr';
@@ -33,9 +33,7 @@ const normalizeMobile = (value) => {
   return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
 };
 
-// Comfortable, consistent field height + readable text across the whole form.
-const INPUT_CLS = 'py-3 text-[15px]';
-// Hoisted so their identity is stable across renders — required for the
+// Hoisted so its identity is stable across renders — required for the
 // memoized <Input> to skip re-rendering when a sibling field changes.
 // `textAlignVertical:center` + `includeFontPadding:false` keep the text and the
 // caret sitting dead-centre in the box on Android (the default font padding is
@@ -104,6 +102,23 @@ function orderCategories(list) {
   });
 }
 
+// One soft pastel per category, matched the same way `categoryRank` matches
+// (code first, then name) — a "device image gallery" tile reads as generic
+// grey-on-grey without a colour identity per category.
+const CAT_TILE_PASTELS = {
+  MOBILE: '#EAF3FF', TABLET: '#F1ECFF', LAPTOP: '#E9F9F1', SMARTWATCH: '#E9FBEF', AUDIO: '#FFF1E8',
+};
+function categoryTileColor(c) {
+  const code = String(c?.code || '').toUpperCase();
+  const name = String(c?.name || '').toUpperCase();
+  if (code.includes('MOBILE') || code.includes('SMARTPHONE') || name.includes('MOBILE')) return CAT_TILE_PASTELS.MOBILE;
+  if (code.includes('TABLET') || name.includes('TABLET')) return CAT_TILE_PASTELS.TABLET;
+  if (code.includes('LAPTOP') || name.includes('LAPTOP')) return CAT_TILE_PASTELS.LAPTOP;
+  if (code.includes('WATCH') || name.includes('WATCH')) return CAT_TILE_PASTELS.SMARTWATCH;
+  if (code.includes('AUDIO') || name.includes('AUDIO')) return CAT_TILE_PASTELS.AUDIO;
+  return '#F1F5F3';
+}
+
 /**
  * Save & Continue used to `replace()` straight onto the ChooseDevice screen,
  * i.e. a whole screen push just to pick one of five categories. It now saves
@@ -117,8 +132,8 @@ function orderCategories(list) {
 
 function Field({ label, required, children, half = false, className }) {
   return (
-    <View className={`${half ? 'flex-1' : ''} mb-2.5 ${className || ''}`}>
-      <Label className="text-[12px] mb-1">
+    <View className={`${half ? 'flex-1' : ''} mb-2 ${className || ''}`}>
+      <Label className="text-[11.5px] mb-1">
         {label}{required ? <Text className="text-danger"> *</Text> : null}
       </Label>
       {children}
@@ -152,6 +167,17 @@ function FormTextInput({ icon, className, style, ...props }) {
 
 export default function CustomerDetailsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
+  // Tighter end of the spec's recommended ranges on a short phone screen;
+  // looser end otherwise — both stay within "compact", neither is cramped.
+  const compact = winH < 760;
+  const isTablet = winW >= 600;
+  const formMaxWidth = isTablet ? 760 : undefined;
+  // Input height ~40-44dp compact / ~44-46dp roomier — both within the
+  // recommended range, stays a stable string (so the memoized <Input>/
+  // <FormTextInput> below still skip re-render on an unrelated keystroke)
+  // as long as `compact` itself hasn't changed.
+  const inputCls = compact ? 'py-2 text-[14px]' : 'py-2.5 text-[14.5px]';
   const initial = route?.params?.initial || {};
   // The picker passes the resolved customer in `existing`; the ticket-service
   // CustomerResponse now carries structured address fields (state/city/
@@ -186,6 +212,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
 
   // A customer can exist BOTH shop-side and platform-side under the same
   // phone. Collapse on name+phone and prefer the shop row: booking needs a
@@ -205,12 +232,21 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(async () => {
-      if (!q.trim()) { setResults([]); return; }
+      if (!q.trim()) { setResults([]); setSearchError(false); return; }
       setSearching(true);
+      setSearchError(false);
       try {
         const d = await ticketApi.get('/customers', { query: { q: q.trim() } });
         if (!cancelled) setResults(Array.isArray(d) ? d : []);
-      } catch (_) { if (!cancelled) setResults([]); }
+      } catch (_) {
+        // A failed lookup is NOT the same as "no matching customer" — the
+        // customer may well exist; the request just didn't complete. Showing
+        // the generic "will create a new one" copy here would risk a
+        // duplicate customer row. Keep whatever results were last shown
+        // (don't wipe a previous successful search) and flag the failure
+        // distinctly instead.
+        if (!cancelled) setSearchError(true);
+      }
       finally { if (!cancelled) setSearching(false); }
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
@@ -290,7 +326,6 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   const onAddressLine = useCallback((v) => set('addressLine', v), [set]);
   const onPincode     = useCallback((v) => set('pincode', v), [set]);
 
-
   // Pick an ID-proof image from the camera or gallery, enforce the 1MB cap
   // shown on the box, upload it to /media/upload, and remember the hosted URL.
   const pickIdProof = async (fromCamera = false) => {
@@ -302,7 +337,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
       return;
     }
     try {
-      const opts = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.7 };
+      const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
       const result = fromCamera
         ? await ImagePicker.launchCameraAsync(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
@@ -442,21 +477,22 @@ export default function CustomerDetailsScreen({ navigation, route }) {
       {/* Header on the plain page: the soft corner circle is gone and the strip
           no longer paints its own card fill. */}
       <View
-        style={{ paddingTop: insets.top + 10 }}
-        className="px-4 pb-4"
+        style={{ paddingTop: insets.top + (compact ? 6 : 8), paddingBottom: compact ? 6 : 10 }}
+        className="px-4"
       >
         <View className="flex-row items-center">
           <Pressable
             onPress={() => navigation.goBack()}
-            className="h-11 w-11 items-center justify-center rounded-2xl active:opacity-70"
-            style={{ marginLeft: -8 }}
+            hitSlop={6}
+            className="h-9 w-9 items-center justify-center rounded-2xl active:opacity-70"
+            style={{ marginLeft: -6 }}
           >
-            <ChevronLeft size={22} color={ACCENT} />
+            <ChevronLeft size={20} color={ACCENT} />
           </Pressable>
           <View className="flex-1 items-center px-2">
-            <Text className="text-[19px] font-extrabold text-text">Customer Details</Text>
+            <Text className="text-[18px] font-extrabold text-text">Customer Details</Text>
           </View>
-          <View className="h-11 w-11" />
+          <View className="h-9 w-9" />
         </View>
       </View>
       <KeyboardAvoidingView
@@ -464,10 +500,17 @@ export default function CustomerDetailsScreen({ navigation, route }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
       <ScrollView
-        contentContainerStyle={{ padding: 14, paddingBottom: 28 }}
+        contentContainerStyle={{
+          padding: compact ? 10 : 12,
+          paddingBottom: compact ? 16 : 20,
+          alignItems: isTablet ? 'center' : undefined,
+        }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
+        {/* Width-capped + centered on tablet/large screens (section 8) — plain
+            View wrapper, phone gets full width (maxWidth undefined). */}
+        <View style={{ width: '100%', maxWidth: formMaxWidth }}>
 
         {/* ── Find an existing customer ──────────────────────────────────
             Type a name or a mobile number; hits fill the form below. Typing
@@ -519,7 +562,11 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             </Pressable>
           ))}
 
-          {!searching && q.trim() && dedupedResults.length === 0 ? (
+          {!searching && q.trim() && searchError ? (
+            <Text className="text-[12px] text-center py-3" style={{ color: '#B45309' }}>
+              Couldn&apos;t check for an existing customer. Check your connection and try again.
+            </Text>
+          ) : !searching && q.trim() && dedupedResults.length === 0 ? (
             <Text className="text-[12px] text-text-muted text-center py-3">
               No matching customer — the details below will create a new one.
             </Text>
@@ -538,29 +585,24 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           </View>
 
           <Field label="Customer Name" required>
-            <FormTextInput icon={USER_ICON} placeholder="Enter customer name" value={data.name} onChangeText={onName} className={INPUT_CLS} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" />
+            <FormTextInput icon={USER_ICON} placeholder="Enter customer name" value={data.name} onChangeText={onName} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" />
           </Field>
 
           <Field label="Mobile Number" required>
-            <View className="flex-row">
-              <Pressable className="bg-card border border-border rounded-2xl px-3 py-2.5 mr-2 flex-row items-center">
-                <Text className="text-[16px] mr-1">🇮🇳</Text>
-                <Text className="text-[15px] text-text font-semibold mr-1">+91</Text>
-                <ChevronDown size={14} color="#667066" />
-              </Pressable>
-              <View className="flex-1">
-                <Input
-                  className={INPUT_CLS}
-                  placeholder="10-digit number"
-                  keyboardType="number-pad"
-                  maxLength={10}
-                  value={data.phone}
-                  onChangeText={onPhone}
-                  style={INPUT_STYLE}
-                  cursorColor={ACCENT}
-                />
-              </View>
-            </View>
+            {/* No visible +91/flag prefix — the number is still normalized to
+                a plain 10-digit value on submit (normalizeMobile, unchanged)
+                and the API payload is untouched; this only removes UI that
+                was purely decorative. */}
+            <Input
+              className={inputCls}
+              placeholder="Enter mobile number"
+              keyboardType="number-pad"
+              maxLength={10}
+              value={data.phone}
+              onChangeText={onPhone}
+              style={INPUT_STYLE}
+              cursorColor={ACCENT}
+            />
             {existing ? (
               <View className="flex-row items-center mt-2">
                 <View className="h-5 w-5 rounded-full bg-success items-center justify-center mr-1.5">
@@ -574,7 +616,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           </Field>
 
           <Field label="Email Address" className="mb-0">
-            <FormTextInput icon={MAIL_ICON} placeholder="email@example.com" autoCapitalize="none" keyboardType="email-address" value={data.email} onChangeText={onEmail} className={INPUT_CLS} style={INPUT_STYLE} cursorColor={ACCENT} />
+            <FormTextInput icon={MAIL_ICON} placeholder="email@example.com" autoCapitalize="none" keyboardType="email-address" value={data.email} onChangeText={onEmail} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
           </Field>
         </View>
 
@@ -610,7 +652,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             </View>
             <View className="px-1.5 flex-1">
               <Field label="Area" half>
-                <FormTextInput placeholder="Area" value={data.area} onChangeText={onArea} className={INPUT_CLS} style={INPUT_STYLE} cursorColor={ACCENT} />
+                <FormTextInput placeholder="Area" value={data.area} onChangeText={onArea} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
               </Field>
             </View>
           </View>
@@ -618,12 +660,12 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           <View className="flex-row -mx-1.5">
             <View className="px-1.5 flex-1">
               <Field label="Door no. / Street" half className="mb-0">
-                <FormTextInput placeholder="Door No. / Street" value={data.addressLine} onChangeText={onAddressLine} className={INPUT_CLS} style={INPUT_STYLE} cursorColor={ACCENT} />
+                <FormTextInput placeholder="Door No. / Street" value={data.addressLine} onChangeText={onAddressLine} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
               </Field>
             </View>
             <View className="px-1.5 flex-1">
               <Field label="Pin Code" half className="mb-0">
-                <FormTextInput placeholder="Pincode" keyboardType="number-pad" maxLength={6} value={data.pincode} onChangeText={onPincode} className={INPUT_CLS} style={INPUT_STYLE} cursorColor={ACCENT} />
+                <FormTextInput placeholder="Pincode" keyboardType="number-pad" maxLength={6} value={data.pincode} onChangeText={onPincode} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
               </Field>
             </View>
           </View>
@@ -631,7 +673,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
 
         {/* Upload ID Proof */}
         {idProofUploading ? (
-          <View className="border border-dashed rounded-3xl py-4 items-center mb-3" style={{ borderColor: ACCENT_40, backgroundColor: ACCENT_05 }}>
+          <View className="border border-dashed rounded-3xl py-3 items-center mb-3" style={{ borderColor: ACCENT_40, backgroundColor: ACCENT_05 }}>
             <ActivityIndicator color={ACCENT} />
             <Text className="font-semibold text-[13px] mt-2" style={{ color: ACCENT }}>Uploading…</Text>
           </View>
@@ -655,10 +697,10 @@ export default function CustomerDetailsScreen({ navigation, route }) {
         ) : (
           <Pressable
             onPress={promptPickIdProof}
-            className="border border-dashed rounded-3xl py-4 items-center active:opacity-80 mb-3" style={{ borderColor: ACCENT_40, backgroundColor: ACCENT_05 }}
+            className="border border-dashed rounded-3xl py-3 items-center active:opacity-80 mb-3" style={{ borderColor: ACCENT_40, backgroundColor: ACCENT_05 }}
           >
-            <View className="h-11 w-11 rounded-full items-center justify-center" style={{ backgroundColor: ACCENT_10 }}>
-              <UploadCloud size={20} color={ACCENT} />
+            <View className="h-10 w-10 rounded-full items-center justify-center" style={{ backgroundColor: ACCENT_10 }}>
+              <UploadCloud size={18} color={ACCENT} />
             </View>
             <Text className="font-extrabold text-[14px] mt-1.5" style={{ color: ACCENT }}>Upload ID Proof</Text>
             <Text className="text-[11px] text-text-muted mt-0.5">Optional · Max 1MB</Text>
@@ -694,6 +736,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             </>
           )}
         </Pressable>
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
 
@@ -716,55 +759,79 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             No device categories published yet.
           </Text>
         ) : (
-          // THREE across, so the five categories sit 3 + 2.
+          // 3 across on phone (five categories sit 3 + 2); 5 across on
+          // tablet, where `ResponsiveModal` already widens this sheet.
           //
           // The tiles carry no border. On the sheet's white surface a white
           // tile with no border would be invisible, so the fill is the soft
           // grey the rest of the app uses for exactly this — the tile is read
           // by its fill rather than by a box drawn around it.
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -CAT_TILE_GAP / 2 }}>
-            {cats.map((c) => (
-              <View
-                key={c.id}
-                style={{ width: '33.333%', paddingHorizontal: CAT_TILE_GAP / 2, marginBottom: CAT_TILE_GAP }}
-              >
-                <Pressable
-                  onPress={() => pickCategory(c)}
-                  accessibilityRole="button"
-                  accessibilityLabel={c.name}
-                  className="items-center rounded-xl active:opacity-70"
-                  // Comfortably past the 48dp Android / 44pt iOS touch floor.
-                  style={{ backgroundColor: CAT_TILE_BG, paddingVertical: 12, paddingHorizontal: 6, minHeight: 88 }}
+            {cats.map((c) => {
+              const pastel = categoryTileColor(c);
+              return (
+                <View
+                  key={c.id}
+                  style={{ width: `${100 / (isTablet ? 5 : 3)}%`, paddingHorizontal: CAT_TILE_GAP / 2, marginBottom: CAT_TILE_GAP }}
                 >
-                  <View
-                    className="rounded-lg items-center justify-center overflow-hidden"
-                    style={{ height: 36, width: 36, backgroundColor: '#FFFFFF', marginBottom: 6 }}
+                  <Pressable
+                    onPress={() => pickCategory(c)}
+                    accessibilityRole="button"
+                    accessibilityLabel={c.name}
+                    className="items-center rounded-2xl active:opacity-70"
+                    // Comfortably past the 48dp Android / 44pt iOS touch floor.
+                    style={{
+                      backgroundColor: pastel,
+                      paddingVertical: 11,
+                      paddingHorizontal: 6,
+                      minHeight: 96,
+                      shadowColor: '#0B1F14',
+                      shadowOpacity: 0.06,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 3 },
+                      elevation: 1,
+                    }}
                   >
-                    {c.imageUrl || c.imageBase64 ? (
-                      <DeviceImage
-                        url={c.imageUrl}
-                        base64={c.imageBase64}
-                        style={{ width: '100%', height: '100%' }}
-                        contentFit="contain"
-                      />
-                    ) : (
-                      <Smartphone size={18} color={ACCENT} strokeWidth={2} />
-                    )}
-                  </View>
-                  {/* Two lines plus shrink: "Audio Device" and "Smartwatch" do
-                      not fit one line in a third of a phone-width sheet. */}
-                  <Text
-                    className="text-[12px] font-medium text-text"
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                    style={{ textAlign: 'center', width: '100%' }}
-                  >
-                    {c.name}
-                  </Text>
-                </Pressable>
-              </View>
-            ))}
+                    <View
+                      className="rounded-xl items-center justify-center overflow-hidden"
+                      style={{ height: 48, width: 48, backgroundColor: '#FFFFFF', marginBottom: 6 }}
+                    >
+                      {c.imageUrl || c.imageBase64 ? (
+                        <DeviceImage
+                          url={c.imageUrl}
+                          base64={c.imageBase64}
+                          style={{ width: '100%', height: '100%' }}
+                          contentFit="contain"
+                        />
+                      ) : (
+                        <Smartphone size={24} color={ACCENT} strokeWidth={2} />
+                      )}
+                    </View>
+                    {/* Two lines plus shrink: "Audio Device" and "Smartwatch" do
+                        not fit one line in a third of a phone-width sheet. */}
+                    <Text
+                      className="text-[12px] font-semibold text-text"
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{ textAlign: 'center', width: '100%' }}
+                    >
+                      {c.name}
+                    </Text>
+                    {/* Decorative affordance only — this sheet is tap-to-
+                        navigate (picking a category opens SelectBrand
+                        immediately), so there's no persisted "selected"
+                        state to highlight; this just signals "opens next". */}
+                    <View
+                      className="items-center justify-center"
+                      style={{ position: 'absolute', top: 8, right: 8, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.85)' }}
+                    >
+                      <ChevronRightIcon size={12} color={ACCENT} strokeWidth={2.5} />
+                    </View>
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
         )}
       </ResponsiveModal>

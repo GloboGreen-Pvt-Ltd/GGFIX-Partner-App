@@ -212,8 +212,8 @@ export default function OwnerCartScreen({ navigation }) {
         <View
           style={{
             backgroundColor: '#FFFFFF',
-            paddingTop: 10,
-            paddingBottom: 16,
+            paddingTop: 8,
+            paddingBottom: 12,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
             borderBottomWidth: 1,
@@ -260,9 +260,9 @@ export default function OwnerCartScreen({ navigation }) {
           }
           contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
           ListEmptyComponent={
-            <View className="items-center pt-20 px-8">
-              <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#E6F7E3' }}>
-                <ShoppingCart size={32} color={GREEN_DARK} />
+            <View className="items-center pt-12 px-8">
+              <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
+                <ShoppingCart size={28} color={GREEN_DARK} />
               </View>
               <Text className="text-[13.5px] font-extrabold text-gray-700">Your cart is empty</Text>
               <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">

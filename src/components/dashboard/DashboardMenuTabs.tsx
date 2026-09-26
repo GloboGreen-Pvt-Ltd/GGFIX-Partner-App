@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import type { LucideIcon } from 'lucide-react-native';
 import type { DashboardTool } from '../../types/dashboard';
 import { C, PINE, R } from './theme';
 import { DashboardToolsGrid } from './DashboardToolsGrid';
@@ -8,6 +9,8 @@ import { DashboardToolsGrid } from './DashboardToolsGrid';
 export interface DashboardMenuTab {
   label: string;
   items: DashboardTool[];
+  /** Optional icon rendered before the label. */
+  icon?: LucideIcon;
 }
 
 export interface DashboardMenuTabsProps {
@@ -27,8 +30,10 @@ export interface DashboardMenuTabsProps {
 
 const TAB_ACTIVE_TEXT = '#FFFFFF';
 const TAB_INACTIVE = C.label2;
+const TAB_ICON_INACTIVE = '#5F6B7A';
 const TAB_PILL_BG = PINE;
 const SEGMENT_PAD = 4;
+const TAB_ICON_SIZE = 20;
 
 /**
  * Services / Employee / Reports as one premium segmented control over a
@@ -96,6 +101,7 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
         />
         {tabs.map((tab, index) => {
           const isActive = index === active;
+          const TabIcon = tab.icon;
           return (
             <Pressable
               key={tab.label}
@@ -104,8 +110,11 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.label}
-              style={{ flex: 1, alignItems: 'center', paddingVertical: 9 }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, gap: 6 }}
             >
+              {TabIcon ? (
+                <TabIcon size={TAB_ICON_SIZE} color={isActive ? TAB_ACTIVE_TEXT : TAB_ICON_INACTIVE} strokeWidth={2} />
+              ) : null}
               <Text style={{ fontSize: 14, fontWeight: isActive ? '700' : '600', color: isActive ? TAB_ACTIVE_TEXT : TAB_INACTIVE }}>
                 {tab.label}
               </Text>

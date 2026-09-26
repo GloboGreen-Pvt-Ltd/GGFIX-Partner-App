@@ -25,18 +25,17 @@ import {
   CalendarClock,
   BadgeCheck,
   Phone,
+  Mail,
   ArrowLeftRight,
   X,
   Check,
   ChevronRight,
   ScrollText,
-  Lock,
   HelpCircle,
   Headphones,
   LogOut,
   Crown,
-  CreditCard,
-  CircleCheck,
+  ShieldCheck,
   Fingerprint,
   Plus,
 } from 'lucide-react-native';
@@ -50,41 +49,50 @@ import {
 import { showLimitPopup } from '../../subscription/limitPopup';
 import { getOwnerKycDocuments } from '../../api/shops';
 import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } from '../../auth/appLock';
+import { rf, rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-// Swiggy / Zomato green palette — shared with the rest of the owner app.
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN     = '#087A0A';
-const DANGER           = '#DC2626';
+// GGFIX palette — same values used across the rest of the app's redesigned screens.
+const ACCENT = '#004C40';       // Dark Green
+const PRIMARY = '#006B57';      // Primary Green
+const BRIGHT = '#00A86B';       // Bright Green
+const MINT = '#E8F7F2';
+const SOFT_MINT = '#F4FBF8';
+const PAGE_BG = '#F8FAF9';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#DCE7E2';
+const TEXT_PRIMARY = '#111827';
+const TEXT_SECONDARY = '#667085';
+const DANGER = '#DC2626';
+const ICON_STROKE = 2; // ONE weight for every icon on the screen.
 
-// Icon system — lifted verbatim from the Home screen (owner/DashboardScreen.js)
-// so Home and My Account read as one app rather than two.
-//
-// PINE is the brand's deep pine at luminance 0.055, i.e. DARK: ~10:1 as a
-// foreground on the white cards here and 9.4:1 on the PINE_TINT tile. If it
-// ever moves, the thing to check is that the replacement is still dark — a
-// light value silently breaks every foreground use while fills keep working.
-//
-// ICON_STROKE is ONE weight for every icon on the screen. These had drifted to
-// per-call-site values (none, 2.2, 2.3), which is why the rows, the switcher
-// and the header never quite looked like one set.
-const PINE       = '#004C40';
-const PINE_TINT  = 'rgba(0,76,64,0.10)';  // the single icon-tile fill
-const ICON_STROKE = 2;
+// Icon-tile colour tones. One small named palette, assigned once per row
+// below, so a call site picks a NAME instead of inventing a bg/fg pair —
+// matches the reference design's colour-coded categories (KYC purple, pickup
+// orange, team pink, …) while staying centralised the same way the old
+// single-tint system was.
+const TONE = {
+  green:  { bg: MINT,          fg: ACCENT },
+  amber:  { bg: '#FDF0DC',     fg: '#B45309' },
+  blue:   { bg: '#E7F0FF',     fg: '#2563EB' },
+  purple: { bg: '#F1EBFF',     fg: '#9333EA' },
+  orange: { bg: '#FFEADC',     fg: '#F59E0B' },
+  pink:   { bg: '#FDE7EF',     fg: '#DB2777' },
+};
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
+  shadowColor: '#0B1F14',
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
   elevation: 4,
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#0B1F14',
   shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
   elevation: 2,
 };
 
@@ -104,6 +112,13 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   // Same rule as the Home header: the only reviewed, admin-approved signal
   // is the owner's KYC status, which is owner-wide (not per-shop).
   const [kycStatus, setKycStatus] = useState(null);
+
+  // The app's single responsive system (see theme/responsive.js). Tablets get
+  // a capped, centred column so this settings list doesn't stretch edge to
+  // edge — the same rule OwnerPersonalInfoScreen applies to its form.
+  const r = useResponsive();
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 920) : undefined;
+  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   const reloadSession = async () => {
     // Prefer live /auth/me so the screen reflects DB state (shopName, shops,
@@ -155,11 +170,14 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
   const ownerName = user?.name || 'Shop Owner';
   const shopName = user?.shopName || activeShopObj?.name || '';
+  const shopSlug = activeShopObj?.slug || '';
   const shopMobile = activeShopObj?.mobile || activeShopObj?.mobilePrimary || activeShopObj?.phone || '';
   const shopFrontImage = activeShopObj?.frontImageUrl || '';
 
   const displayName = isShopLogin ? (shopName || 'Your Shop') : ownerName;
   const displayPhone = isShopLogin ? shopMobile : (user?.phone || '');
+  // Owner-only — a shop-scoped login has no personal inbox to show here.
+  const displayEmail = isShopLogin ? '' : (user?.email || '');
   // Falls back to the shop's front image, same as the Home header — an owner
   // who hasn't set a personal photo was showing a blank avatar here while
   // Home showed the shop image, which read as a broken image on this screen.
@@ -177,6 +195,10 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   // or a shop to add.
   const canOpenSwitcher = !isShopLogin && (hasMultipleShops || canAddShop);
   const initials = useMemo(() => initialsOf(displayName), [displayName]);
+
+  // The brand's small uppercase kicker above the page title — the active
+  // shop's own name (real data), not a fixed brand string.
+  const brandKicker = (shopName || 'GGFIX').toUpperCase();
 
   /**
    * Same plan gate the home screen applies: at the subscription's shop ceiling
@@ -208,39 +230,131 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     }
   };
 
-  return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+  // "My Profile" — the 6 rows the reference screenshot shows (fewer for a
+  // shop-scoped login, which has no personal identity or KYC of its own).
+  // Built as data, not inline JSX conditionals, so the rendered rows and the
+  // "N Options" pill count can never drift apart.
+  const profileRows = [
+    !isShopLogin && {
+      key: 'personal',
+      tone: 'green',
+      Icon: User,
+      label: 'Personal Information',
+      sub: 'Name, mobile, email',
+      onPress: () => navigation?.navigate?.('OwnerPersonalInfo'),
+    },
+    {
+      key: 'subscription',
+      tone: 'amber',
+      Icon: Crown,
+      label: 'Subscription',
+      sub: isShopLogin ? 'View current plan' : 'View your plan & upgrade',
+      onPress: () => navigation?.navigate?.('OwnerSubscription'),
+    },
+    {
+      key: 'qr',
+      tone: 'blue',
+      Icon: QrCode,
+      label: 'My QR Code',
+      sub: 'Share your shop instantly',
+      onPress: () => navigation?.navigate?.('OwnerQrCode'),
+    },
+    {
+      key: 'shop',
+      tone: 'green',
+      Icon: Store,
+      label: 'Shop Information',
+      sub: 'Address, opening hours, GST',
+      onPress: () => navigation?.navigate?.('OwnerShopInfo'),
+    },
+    !isShopLogin && {
+      key: 'kyc',
+      tone: 'purple',
+      Icon: FileText,
+      label: 'KYC Documents',
+      sub: 'Aadhar, PAN, GST / Udyam',
+      onPress: () => navigation?.navigate?.(hasKycDocs ? 'OwnerKycView' : 'OwnerKycIntro'),
+    },
+    {
+      key: 'pickup',
+      tone: 'orange',
+      Icon: Truck,
+      label: 'Pickup Service',
+      sub: 'Turn pickup on/off, slot timings & zones',
+      onPress: () => navigation?.navigate?.('OwnerPickupSlots'),
+    },
+  ].filter(Boolean);
 
-      {/* Slim white header — back/title row + small badge. Subtitle and big copy
-          have been moved into the content area so the header band stays short. */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            paddingTop: 6,
-            paddingBottom: 14,
-            paddingHorizontal: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
-          }}
-        >
-          <View className="flex-row items-center">
-            <Text className="flex-1 text-text text-[24px] font-extrabold" numberOfLines={1}>
-              My Account
-            </Text>
-            <View
-              className="flex-row items-center px-2.5 py-1 rounded-full bg-surface-muted"
-            >
-              {isShopLogin
-                ? <Store size={11} color={PINE} strokeWidth={ICON_STROKE} />
-                : <Crown size={11} color={PINE} strokeWidth={ICON_STROKE} />}
-              <Text
-                className="ml-1 text-text text-[10.5px] font-extrabold"
-                style={{ letterSpacing: 0.6 }}
-              >
-                {isShopLogin ? 'SHOP' : 'OWNER'}
-              </Text>
+  // A second, un-numbered group for the rows the reference doesn't picture —
+  // kept exactly as they were (same routes, same visibility rule: always
+  // shown regardless of login type), just moved out of the "6 Options" count
+  // so that pill stays accurate to what the reference actually shows.
+  const moreToolsRows = [
+    {
+      key: 'orders',
+      tone: 'blue',
+      Icon: ShoppingBag,
+      label: 'My Orders',
+      sub: 'View your orders & history',
+      onPress: () => navigation?.navigate?.('MarketplaceOrders'),
+    },
+    {
+      key: 'employees',
+      tone: 'pink',
+      Icon: Users,
+      label: 'Employee Management',
+      sub: 'Add, edit & track your team',
+      onPress: () => navigation?.navigate?.('OwnerEmployeeList'),
+    },
+    {
+      key: 'leave',
+      tone: 'green',
+      Icon: CalendarClock,
+      label: 'Leave Requests',
+      sub: 'Approve or reject leave',
+      onPress: () => navigation?.navigate?.('OwnerLeaveRequests'),
+    },
+  ];
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PAGE_BG }}>
+        {/* Header — decorative mint leaf shapes behind the title block, same
+            low-risk plain-View approximation used elsewhere in this app (no
+            new SVG dependency). */}
+        <View style={{ paddingHorizontal: rs(16), paddingTop: rs(5), paddingBottom: rs(6), overflow: 'hidden' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
+          <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(30), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
+
+          <View style={capStyle}>
+            <View className="flex-row items-start justify-between">
+              <View style={{ flex: 1 }}>
+                <Text className="uppercase font-extrabold" style={{ fontSize: rf(10.5), letterSpacing: 1.4, color: BRIGHT }} numberOfLines={1}>
+                  {brandKicker}
+                </Text>
+                <Text className="font-extrabold" style={{ fontSize: rf(28), color: ACCENT, marginTop: rs(2) }} numberOfLines={1}>
+                  My Account
+                </Text>
+                <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                  Manage your profile, shop and preferences
+                </Text>
+              </View>
+
+              <View style={{ alignItems: 'flex-end' }}>
+                <View
+                  className="flex-row items-center rounded-full"
+                  style={{ paddingHorizontal: rs(12), paddingVertical: rs(7), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, ...softShadow }}
+                >
+                  {isShopLogin
+                    ? <Store size={rf(12)} color={ACCENT} strokeWidth={ICON_STROKE} />
+                    : <Crown size={rf(12)} color={ACCENT} strokeWidth={ICON_STROKE} />}
+                  <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: rs(5), letterSpacing: 0.5 }}>
+                    {isShopLogin ? 'SHOP' : 'OWNER'}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -248,140 +362,142 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 28, paddingTop: 14 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={capStyle}>
         {/* Identity card */}
         <View
-          className="bg-white rounded-3xl p-4"
-          style={cardShadow}
+          style={{ backgroundColor: CARD_BG, borderRadius: rs(18), padding: rs(9), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
         >
-          <View className="flex-row items-center">
-            <Pressable
-              onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
-              style={{ position: 'relative' }}
-            >
+          <Pressable
+            onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
+            className="flex-row items-center"
+            hitSlop={4}
+          >
+            <View style={{ position: 'relative' }}>
               <View
                 style={{
-                  padding: 3,
-                  borderRadius: 36,
+                  padding: 2,
+                  borderRadius: rs(31),
                   backgroundColor: '#FFFFFF',
                   borderWidth: 2,
-                  borderColor: '#E6F7E3',
+                  borderColor: MINT,
                 }}
               >
                 <View
                   style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    backgroundColor: BRAND_GREEN_DARK,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    width: rs(50), height: rs(50), borderRadius: rs(25),
+                    backgroundColor: ACCENT,
+                    alignItems: 'center', justifyContent: 'center',
                     overflow: 'hidden',
                   }}
                 >
                   {displayAvatar ? (
                     <Image
                       source={{ uri: displayAvatar }}
-                      style={{ width: 56, height: 56, borderRadius: 28 }}
+                      style={{ width: rs(50), height: rs(50), borderRadius: rs(25) }}
                       resizeMode="cover"
                     />
                   ) : (
-                    <Text
-                      className="text-white font-extrabold"
-                      style={{ fontSize: 19, letterSpacing: 1 }}
-                    >
+                    <Text className="text-white font-extrabold" style={{ fontSize: rf(16.5), letterSpacing: 1 }}>
                       {initials}
                     </Text>
                   )}
                 </View>
               </View>
-              {/* Camera badge — tap the avatar to edit profile / photo */}
+              {/* Camera badge — the whole row now navigates to profile/photo
+                  editing, this is just the visual affordance for it. */}
               <View
                 style={{
-                  position: 'absolute', right: -1, bottom: -1,
-                  width: 22, height: 22, borderRadius: 11,
-                  backgroundColor: BRAND_GREEN_DARK,
+                  position: 'absolute', right: -rs(1), bottom: -rs(1),
+                  width: rs(18), height: rs(18), borderRadius: rs(9),
+                  backgroundColor: ACCENT,
                   alignItems: 'center', justifyContent: 'center',
                   borderWidth: 2, borderColor: '#FFFFFF',
                 }}
               >
-                <Camera size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+                <Camera size={rf(9)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
               </View>
-            </Pressable>
+            </View>
             <View className="flex-1 ml-3">
               <View className="flex-row items-center flex-wrap">
-                <Text className="text-[16px] font-extrabold text-gray-900 mr-2" numberOfLines={1}>
+                <Text className="font-extrabold mr-2" style={{ fontSize: rf(16), color: TEXT_PRIMARY }} numberOfLines={1}>
                   {displayName}
                 </Text>
                 {isVerified ? (
-                  <View
-                    className="flex-row items-center px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: '#E6F7E3' }}
-                  >
-                    <BadgeCheck size={10} color={PINE} strokeWidth={ICON_STROKE} />
-                    <Text
-                      className="ml-0.5 text-[8.5px] font-extrabold"
-                      style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.4 }}
-                    >
+                  <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(6), paddingVertical: rs(2), backgroundColor: MINT }}>
+                    <BadgeCheck size={rf(10)} color={ACCENT} strokeWidth={ICON_STROKE} />
+                    <Text className="font-extrabold" style={{ fontSize: rf(8.5), color: ACCENT, marginLeft: rs(2), letterSpacing: 0.4 }}>
                       VERIFIED
                     </Text>
                   </View>
                 ) : null}
               </View>
               {displayPhone ? (
-                <View className="flex-row items-center mt-1.5">
-                  <Phone size={11} color="#667066" strokeWidth={ICON_STROKE} />
-                  <Text className="ml-1 text-[12px] font-semibold text-gray-500">
+                <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+                  <Phone size={rf(10)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
+                  <Text className="font-semibold" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={1}>
                     {displayPhone}
                   </Text>
                 </View>
               ) : null}
+              {displayEmail ? (
+                <View className="flex-row items-center" style={{ marginTop: rs(1) }}>
+                  <Mail size={rf(10)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
+                  <Text className="font-semibold" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={1}>
+                    {displayEmail}
+                  </Text>
+                </View>
+              ) : null}
             </View>
-          </View>
+            <ChevronRight size={rf(17)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
+          </Pressable>
 
-          {/* Active shop pill — hidden for shop-scoped logins (single shop) */}
+          {/* Active shop card — hidden for shop-scoped logins (single shop) */}
           {!isShopLogin ? (
           <Pressable
             onPress={() => canOpenSwitcher && setShowSwitcher(true)}
             disabled={!canOpenSwitcher}
-            className="mt-3.5 flex-row items-center rounded-2xl px-3 py-2.5"
+            className="flex-row items-center"
+            hitSlop={4}
             style={{
-              backgroundColor: canOpenSwitcher ? '#F0F8EF' : '#F7FAF7',
+              marginTop: rs(7), borderRadius: rs(14), padding: rs(7),
+              backgroundColor: canOpenSwitcher ? MINT : SOFT_MINT,
               borderWidth: 1,
-              borderColor: canOpenSwitcher ? '#C8EEBF' : '#E2E8E2',
+              borderColor: canOpenSwitcher ? BRIGHT : BORDER,
             }}
           >
             <View
               style={{
-                width: 32, height: 32, borderRadius: 10,
+                width: rs(32), height: rs(32), borderRadius: rs(10),
                 backgroundColor: '#FFFFFF',
                 alignItems: 'center', justifyContent: 'center',
-                marginRight: 10,
-                borderWidth: 1, borderColor: '#C8EEBF',
+                marginRight: rs(8),
               }}
             >
-              <Store size={14} color={PINE} strokeWidth={ICON_STROKE} />
+              <Store size={rf(14)} color={ACCENT} strokeWidth={ICON_STROKE} />
             </View>
             <View className="flex-1">
-              <Text
-                className="text-[9.5px] font-extrabold"
-                style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-              >
+              <Text className="font-extrabold" style={{ fontSize: rf(9), color: PRIMARY, letterSpacing: 1 }}>
                 ACTIVE SHOP
               </Text>
-              <Text className="text-[13.5px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: TEXT_PRIMARY, marginTop: 0 }} numberOfLines={1}>
                 {shopName || 'No shop linked'}
               </Text>
+              {shopSlug ? (
+                <Text className="font-semibold" style={{ fontSize: rf(10), color: TEXT_SECONDARY, marginTop: 0 }} numberOfLines={1}>
+                  Shop ID: #{shopSlug.toUpperCase()}
+                </Text>
+              ) : null}
             </View>
             {hasMultipleShops ? (
               <View
-                className="flex-row items-center px-2.5 py-1.5 rounded-full"
-                style={{ backgroundColor: BRAND_GREEN_DARK }}
+                className="flex-row items-center rounded-full"
+                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: ACCENT, ...cardShadow, shadowOpacity: 0.18 }}
               >
-                <ArrowLeftRight size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="ml-1 text-white text-[10.5px] font-extrabold">
+                <ArrowLeftRight size={rf(11)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+                <Text className="text-white font-extrabold" style={{ fontSize: rf(11), marginLeft: rs(5) }}>
                   Switch ({shops.length})
                 </Text>
               </View>
@@ -389,11 +505,11 @@ export default function MyAccountScreen({ onLogout, navigation }) {
               // One shop and nothing to switch between — the pill still opens
               // the sheet, so it advertises what it actually does from here.
               <View
-                className="flex-row items-center px-2.5 py-1.5 rounded-full"
-                style={{ backgroundColor: BRAND_GREEN_DARK }}
+                className="flex-row items-center rounded-full"
+                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: ACCENT }}
               >
-                <Plus size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="ml-1 text-white text-[10.5px] font-extrabold">
+                <Plus size={rf(11)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+                <Text className="text-white font-extrabold" style={{ fontSize: rf(11), marginLeft: rs(5) }}>
                   Add Shop
                 </Text>
               </View>
@@ -402,119 +518,81 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           ) : null}
         </View>
 
-        {/* My Profile group */}
-        <SectionLabel>My Profile</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
-          {!isShopLogin ? (
-            <MenuRow
-              Icon={User}
-              label="Personal Information"
-              sub="Name, mobile, email"
-              onPress={() => navigation?.navigate?.('OwnerPersonalInfo')}
-            />
-          ) : null}
-          <MenuRow
-            Icon={CircleCheck}
-            label="Subscription"
-            sub={isShopLogin ? 'View current plan' : 'View your plan & upgrade'}
-            onPress={() => navigation?.navigate?.('OwnerSubscription')}
-          />
-          <MenuRow
-            Icon={QrCode}
-            label="My QR Code"
-            sub="Share your shop instantly"
-            onPress={() => navigation?.navigate?.('OwnerQrCode')}
-          />
-          <MenuRow
-            Icon={Store}
-            label="Shop Information"
-            sub="Address, opening hours, GST"
-            onPress={() => navigation?.navigate?.('OwnerShopInfo')}
-          />
-          {!isShopLogin ? (
-            <MenuRow
-              Icon={FileText}
-              label="KYC Documents"
-              sub="Aadhar, PAN, GST / Udyam"
-              onPress={() => navigation?.navigate?.(hasKycDocs ? 'OwnerKycView' : 'OwnerKycIntro')}
-            />
-          ) : null}
-          <MenuRow
-            Icon={Truck}
-            label="Pickup Service"
-            sub="Turn pickup on/off, slot timings & zones"
-            onPress={() => navigation?.navigate?.('OwnerPickupSlots')}
-          />
-          <MenuRow
-            Icon={ShoppingBag}
-            label="My Orders"
-            sub="View your orders & history"
-            onPress={() => navigation?.navigate?.('MarketplaceOrders')}
-          />
-          <MenuRow
-            Icon={Users}
-            label="Employee Management"
-            sub="Add, edit & track your team"
-            onPress={() => navigation?.navigate?.('OwnerEmployeeList')}
-          />
-          <MenuRow
-            Icon={CalendarClock}
-            label="Leave Requests"
-            sub="Approve or reject leave"
-            onPress={() => navigation?.navigate?.('OwnerLeaveRequests')}
-            last
-          />
-        </View>
+        {/* My Profile group — the reference's 6 (or fewer, for a shop login)
+            core rows, each its own standalone premium card. */}
+        <SectionLabel subtitle="Manage your personal and shop details" count={profileRows.length} countIcon={User}>
+          My Profile
+        </SectionLabel>
+        {profileRows.map(({ key, ...row }, i) => (
+          <MenuRow key={key} {...row} last={i === profileRows.length - 1} standalone />
+        ))}
+
+        {/* More tools — same rows as before, just no longer counted in the
+            "My Profile" pill above so that count stays true to what the
+            reference actually shows. */}
+        <SectionLabel subtitle="Orders, team and time off">More Tools</SectionLabel>
+        {moreToolsRows.map(({ key, ...row }, i) => (
+          <MenuRow key={key} {...row} last={i === moreToolsRows.length - 1} standalone />
+        ))}
 
         {/* Security group */}
-        <SectionLabel>Security</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
+        <SectionLabel subtitle="Keep your account safe and secure">Security</SectionLabel>
+        <View style={{ backgroundColor: CARD_BG, borderRadius: rs(14), paddingHorizontal: rs(12), borderWidth: 1, borderColor: BORDER, ...softShadow, marginBottom: rs(8) }}>
           <AppLockRow />
         </View>
 
         {/* More group */}
-        <SectionLabel>More</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
-          <MenuRow
-            Icon={ScrollText}
-            label="Terms & Conditions"
-            sub="Platform usage rules"
-          />
-          <MenuRow
-            Icon={Lock}
-            label="Privacy Policy"
-            sub="How we handle your data"
-          />
-          <MenuRow
-            Icon={HelpCircle}
-            label="FAQs"
-            sub="Common questions answered"
-          />
-          <MenuRow
-            Icon={Headphones}
-            label="Help & Support"
-            sub="Talk to the GGfix team"
-            last
-          />
-        </View>
+        <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
+        <MenuRow tone="blue" Icon={ScrollText} label="Terms & Conditions" sub="Platform usage rules" standalone />
+        <MenuRow tone="green" Icon={ShieldCheck} label="Privacy Policy" sub="How we handle your data" standalone />
+        <MenuRow tone="purple" Icon={HelpCircle} label="FAQs" sub="Common questions answered" standalone />
+        <MenuRow tone="orange" Icon={Headphones} label="Help & Support" sub="Talk to the GGfix team" last standalone />
 
         {/* Logout */}
         {onLogout ? (
           <Pressable
             onPress={onLogout}
-            className="mt-4 flex-row items-center justify-center rounded-2xl py-3.5 bg-white"
+            className="flex-row items-center justify-center"
+            hitSlop={4}
             style={{
+              marginTop: rs(3), borderRadius: rs(14), paddingVertical: rs(8),
+              backgroundColor: '#FDECEE',
               borderWidth: 1,
-              borderColor: '#FEE2E2',
-              ...softShadow,
+              borderColor: '#F8C9CF',
             }}
           >
-            <LogOut size={16} color={DANGER} strokeWidth={ICON_STROKE} />
-            <Text className="ml-2 text-[14px] font-extrabold" style={{ color: DANGER }}>
+            <LogOut size={rf(16)} color={DANGER} strokeWidth={ICON_STROKE} />
+            <Text className="font-extrabold" style={{ fontSize: rf(14), color: DANGER, marginLeft: rs(8) }}>
               Log Out
             </Text>
           </Pressable>
         ) : null}
+
+        {/* Trust footer — reassurance only, no state or navigation. */}
+        <View
+          className="flex-row items-center"
+          style={{ borderRadius: rs(14), marginTop: rs(5), padding: rs(8), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
+        >
+          <View
+            style={{
+              width: rs(28), height: rs(28), borderRadius: rs(14),
+              backgroundColor: ACCENT,
+              alignItems: 'center', justifyContent: 'center',
+              marginRight: rs(9),
+            }}
+          >
+            <ShieldCheck size={rf(13)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+          </View>
+          <View className="flex-1">
+            <Text className="font-extrabold" style={{ fontSize: rf(12), color: ACCENT }}>
+              Your data is safe with us
+            </Text>
+            <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: 0, lineHeight: rf(13) }}>
+              We follow industry-standard security practices to protect your information.
+            </Text>
+          </View>
+        </View>
+        </View>
       </ScrollView>
 
       {/* Shop switcher modal */}
@@ -526,7 +604,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
       >
         <Pressable
           onPress={() => setShowSwitcher(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.55)', justifyContent: 'flex-end' }}
+          style={{ flex: 1, backgroundColor: 'rgba(16, 32, 27, 0.55)', justifyContent: 'flex-end' }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
@@ -542,22 +620,22 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             <View
               style={{
                 alignSelf: 'center', width: 44, height: 5,
-                borderRadius: 999, backgroundColor: '#E2E8E2',
+                borderRadius: 999, backgroundColor: BORDER,
                 marginBottom: 12,
               }}
             />
             <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-[17px] font-extrabold text-gray-900">Switch Shop</Text>
+              <Text className="text-[17px] font-extrabold" style={{ color: TEXT_PRIMARY }}>Switch Shop</Text>
               <Pressable
                 onPress={() => setShowSwitcher(false)}
                 hitSlop={8}
                 className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
+                style={{ backgroundColor: SOFT_MINT }}
               >
-                <X size={14} color="#172117" strokeWidth={ICON_STROKE} />
+                <X size={14} color={TEXT_PRIMARY} strokeWidth={ICON_STROKE} />
               </Pressable>
             </View>
-            <Text className="text-[12px] text-gray-500 mb-3">
+            <Text className="text-[12px] mb-3" style={{ color: TEXT_SECONDARY }}>
               {canAddShop
                 ? 'Choose which of your shops to manage, or add a new one.'
                 : 'Choose which of your shops to manage.'}
@@ -581,37 +659,34 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                   style={{
                     paddingVertical: 12,
                     paddingHorizontal: 12,
-                    backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
-                    borderColor: active ? BRAND_GREEN : '#E2E8E2',
+                    backgroundColor: active ? MINT : '#FFFFFF',
+                    borderColor: active ? BRIGHT : BORDER,
                   }}
                 >
                   <View
                     className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                    style={{ backgroundColor: active ? BRAND_GREEN : '#E6F7E3' }}
+                    style={{ backgroundColor: active ? ACCENT : MINT }}
                   >
-                    <Store size={16} color={active ? '#FFFFFF' : PINE} strokeWidth={ICON_STROKE} />
+                    <Store size={16} color={active ? '#FFFFFF' : ACCENT} strokeWidth={ICON_STROKE} />
                   </View>
                   <View className="flex-1">
                     <Text
                       className="text-[14px] font-extrabold"
-                      style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
+                      style={{ color: active ? ACCENT : TEXT_PRIMARY }}
                       numberOfLines={1}
                     >
                       {s.name}
                     </Text>
-                    <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
+                    <Text className="text-[11px] mt-0.5" style={{ color: TEXT_SECONDARY }} numberOfLines={1}>
                       {s.slug}
                     </Text>
                   </View>
                   {active ? (
-                    <View
-                      className="w-7 h-7 rounded-full items-center justify-center"
-                      style={{ backgroundColor: '#E6F7E3' }}
-                    >
-                      <Check size={16} color={PINE} strokeWidth={ICON_STROKE} />
+                    <View className="w-7 h-7 rounded-full items-center justify-center" style={{ backgroundColor: MINT }}>
+                      <Check size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
                     </View>
                   ) : (
-                    <ChevronRight size={16} color="#8FA08F" strokeWidth={ICON_STROKE} />
+                    <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
                   )}
                 </Pressable>
               );
@@ -628,37 +703,30 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                   paddingVertical: 12,
                   paddingHorizontal: 12,
                   backgroundColor: '#FFFFFF',
-                  borderColor: '#C8EEBF',
+                  borderColor: BRIGHT,
                   borderStyle: 'dashed',
                   opacity: switching ? 0.5 : 1,
                 }}
               >
-                <View
-                  className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                  style={{ backgroundColor: '#E6F7E3' }}
-                >
-                  <Plus size={16} color={PINE} strokeWidth={ICON_STROKE} />
+                <View className="w-9 h-9 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: MINT }}>
+                  <Plus size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
                 </View>
                 <View className="flex-1">
-                  <Text
-                    className="text-[14px] font-extrabold"
-                    style={{ color: BRAND_GREEN_DARK }}
-                    numberOfLines={1}
-                  >
+                  <Text className="text-[14px] font-extrabold" style={{ color: ACCENT }} numberOfLines={1}>
                     Add Shop
                   </Text>
-                  <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
+                  <Text className="text-[11px] mt-0.5" style={{ color: TEXT_SECONDARY }} numberOfLines={1}>
                     Open another business location
                   </Text>
                 </View>
-                <ChevronRight size={16} color={PINE} strokeWidth={ICON_STROKE} />
+                <ChevronRight size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
               </Pressable>
             ) : null}
             </ScrollView>
             {switching ? (
               <View className="flex-row items-center justify-center mt-2">
-                <ActivityIndicator color={BRAND_GREEN_DARK} />
-                <Text className="ml-2 text-[12px] text-gray-500">Switching…</Text>
+                <ActivityIndicator color={ACCENT} />
+                <Text className="ml-2 text-[12px]" style={{ color: TEXT_SECONDARY }}>Switching…</Text>
               </View>
             ) : null}
           </Pressable>
@@ -668,15 +736,24 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   );
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, subtitle, count, countIcon: CountIcon }) {
   return (
-    <View className="mt-4 mb-1 ml-1">
-      <Text
-        className="text-[11px] font-extrabold uppercase"
-        style={{ color: BRAND_GREEN_DARK, letterSpacing: 1.2 }}
-      >
-        {children}
-      </Text>
+    <View className="flex-row items-center" style={{ marginTop: rs(8), marginBottom: rs(4) }}>
+      <View style={{ width: 3, height: rs(16), borderRadius: 2, backgroundColor: BRIGHT, marginRight: rs(7) }} />
+      <View style={{ flex: 1 }}>
+        <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY }}>{children}</Text>
+        {subtitle ? (
+          <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: 0 }}>{subtitle}</Text>
+        ) : null}
+      </View>
+      {typeof count === 'number' ? (
+        <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT }}>
+          {CountIcon ? <CountIcon size={rf(11)} color={ACCENT} strokeWidth={ICON_STROKE} /> : null}
+          <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: CountIcon ? rs(4) : 0 }}>
+            {count} Option{count === 1 ? '' : 's'}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -696,60 +773,78 @@ function AppLockRow() {
     await setAppLockEnabled(next);
     setOn(next);
   };
+  const tone = TONE.blue;
   return (
-    <View className="flex-row items-center px-3 py-3.5">
-      <View className="h-10 w-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: PINE_TINT }}>
-        <Fingerprint size={18} color={PINE} strokeWidth={ICON_STROKE} />
+    <View className="flex-row items-center" style={{ paddingVertical: rs(5) }}>
+      <View
+        style={{ height: rs(37), width: rs(37), borderRadius: rs(11), backgroundColor: tone.bg }}
+        className="items-center justify-center mr-3"
+      >
+        <Fingerprint size={rf(18)} color={tone.fg} strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
-        <Text className="text-[14px] font-extrabold text-gray-900">App Lock</Text>
-        <Text className="text-[11.5px] text-gray-500 mt-0.5">Require fingerprint / pattern / PIN to open</Text>
+        <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY }}>App Lock</Text>
+        <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: 0 }}>Require fingerprint / pattern / PIN to open</Text>
       </View>
       <Switch
         value={on}
         onValueChange={toggle}
         disabled={!ready}
-        trackColor={{ true: ACCENT_GREEN, false: '#CBD5CB' }}
+        trackColor={{ true: PRIMARY, false: BORDER }}
         thumbColor="#FFFFFF"
       />
     </View>
   );
 }
-// Every row draws the SAME pine glyph on the SAME tint. The per-row `tint` /
-// `accent` props are gone: they encoded a colour hierarchy (amber for KYC, red
-// for Leave Requests, grey for the More group) that no longer survives a
-// single-colour icon set, and leaving them would let call sites drift back.
-function MenuRow({ Icon, label, sub, onPress, last }) {
+
+// Each row picks a tone NAME from the shared TONE palette above instead of an
+// ad-hoc colour pair, so the colour-coding (green/amber/blue/purple/orange/
+// pink) stays centralised and can't drift call-site by call-site.
+// `standalone` renders it as its own rounded card with a bottom margin
+// (the reference's individual menu-card look); omitting it keeps the old
+// grouped-list-row look for anywhere still using it.
+function MenuRow({ Icon, label, sub, onPress, last, tone = 'green', standalone }) {
+  const t = TONE[tone] || TONE.green;
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: '#F7FAF7' }}
+      android_ripple={{ color: SOFT_MINT }}
       className="flex-row items-center"
-      style={{
-        paddingVertical: 11,
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: '#EFF5EE',
-      }}
+      hitSlop={4}
+      style={
+        standalone
+          ? {
+              backgroundColor: CARD_BG, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rs(5),
+              minHeight: rs(50),
+              borderWidth: 1, borderColor: BORDER, marginBottom: last ? 0 : rs(5),
+              ...softShadow,
+            }
+          : {
+              paddingVertical: rs(5),
+              borderBottomWidth: last ? 0 : 1,
+              borderBottomColor: '#EFF5EE',
+            }
+      }
     >
       <View
         style={{
-          width: 36, height: 36, borderRadius: 12,
-          backgroundColor: PINE_TINT,
+          width: rs(37), height: rs(37), borderRadius: rs(11),
+          backgroundColor: t.bg,
           alignItems: 'center', justifyContent: 'center',
-          marginRight: 12,
+          marginRight: rs(10),
         }}
       >
-        <Icon size={17} color={PINE} strokeWidth={ICON_STROKE} />
+        <Icon size={rf(18)} color={t.fg} strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
-        <Text className="text-[13.5px] font-extrabold text-gray-900">{label}</Text>
+        <Text className="font-bold" style={{ fontSize: rf(14), color: TEXT_PRIMARY, lineHeight: rf(16.5) }}>{label}</Text>
         {sub ? (
-          <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
+          <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: 0, lineHeight: rf(13.5) }} numberOfLines={1}>
             {sub}
           </Text>
         ) : null}
       </View>
-      <ChevronRight size={16} color="#8FA08F" strokeWidth={ICON_STROKE} />
+      <ChevronRight size={rf(16)} color={ACCENT} strokeWidth={ICON_STROKE} />
     </Pressable>
   );
 }

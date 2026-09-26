@@ -109,6 +109,14 @@ export default function OwnerSearchScreen({ navigation, route }) {
     }
   }, [launched, unavailable, navigation]);
 
+  // ScanSearchScreen hands off here (a "multiple matches" or "single device"
+  // scan result) with a query already known — land on the real result list
+  // instead of an empty search box the owner has to retype.
+  const prefillQuery = route?.params?.prefillQuery;
+  useEffect(() => {
+    if (prefillQuery) setQuery(prefillQuery);
+  }, [prefillQuery]);
+
   // Catalogue up front so the first keystroke already has something to match.
   useEffect(() => {
     let cancelled = false;

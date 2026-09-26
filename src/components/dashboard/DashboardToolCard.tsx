@@ -20,19 +20,19 @@ const PRESS_SCALE = 0.97;
 // of the icon and its card drifting out of ratio independently.
 function iconSize(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 22 : cls === 'large' ? 21 : 20;
+  return cls === 'tablet' ? 20 : cls === 'large' ? 19 : 18;
 }
 function iconBoxSize(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 44 : cls === 'large' ? 40 : 38;
+  return cls === 'tablet' ? 38 : cls === 'large' ? 36 : 34;
 }
 function cardMinHeight(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 104 : cls === 'large' ? 98 : 92;
+  return cls === 'tablet' ? 88 : cls === 'large' ? 84 : 80;
 }
 function labelFontSize(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 14 : cls === 'large' ? 13 : 12;
+  return cls === 'tablet' ? 13 : cls === 'large' ? 12.5 : 12;
 }
 
 function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCardProps) {
@@ -77,13 +77,13 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
         style={[
           {
             minHeight,
-            borderRadius: 18,
+            borderRadius: 16,
             backgroundColor: C.card,
             borderWidth: HAIRLINE,
             borderColor: C.separator,
             alignItems: 'center',
             justifyContent: 'center',
-            paddingVertical: 10,
+            paddingVertical: 8,
             paddingHorizontal: 6,
             shadowColor: '#0B1F14',
             shadowOpacity: 0.04,
@@ -121,7 +121,7 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
             minHeight: (fontSize + 4) * 2,
             fontWeight: '600',
             color: C.label,
-            marginTop: 8,
+            marginTop: 6,
             letterSpacing: -0.1,
             textAlign: 'center',
           }}

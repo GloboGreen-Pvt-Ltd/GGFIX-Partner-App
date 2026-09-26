@@ -71,3 +71,28 @@ export const MASTER_BASE = trimSlash(
 export const MEDIA_UPLOAD_PATH = isDirectServiceOrigin(MASTER_BASE)
   ? '/media/upload'
   : '/master/media/upload';
+
+// The Visual Device Scanner's image-to-image matching (see
+// ggfix-visual-search-service/, a sibling repo/service, and
+// api/masterData.js's `visualSearch`). This does NOT live on
+// master-data-service — it's a standalone Python/CLIP microservice that
+// reads the real GGFIX catalog over the SAME public /master/brands and
+// /master/models endpoints the app itself calls, and keeps its own local
+// vector index rather than touching production Postgres/AWS credentials
+// this app was never given. See that service's README.md for the
+// pgvector/production-deployment migration path.
+//
+// EXPO_PUBLIC_VISUAL_SEARCH_BASE points at wherever that service is
+// actually running. Falling back to EXPO_PUBLIC_API_HOST (the same "this PC
+// on the LAN" dev variable every other direct-service base already uses)
+// means a phone on the same Wi-Fi as the dev machine needs no extra config.
+// Empty when neither is set — there is no public deployment of this service
+// yet, and callers must treat that as "not configured", never silently fall
+// back to another service's base.
+export const VISUAL_SEARCH_BASE = (() => {
+  const explicit = (process.env.EXPO_PUBLIC_VISUAL_SEARCH_BASE || '').trim();
+  if (explicit) return trimSlash(explicit);
+  if (host) return `http://${host}:8199`;
+  return '';
+})();
+export const VISUAL_SEARCH_PATH = '/visual-search/device';

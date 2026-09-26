@@ -1,5 +1,5 @@
-import { masterApi } from './client';
-import { MEDIA_UPLOAD_PATH } from './config';
+import { masterApi, visualSearchApi } from './client';
+import { MEDIA_UPLOAD_PATH, VISUAL_SEARCH_BASE, VISUAL_SEARCH_PATH } from './config';
 
 function unwrap(list) {
   return Array.isArray(list) ? list : (list?.content ?? list?.data ?? []);
@@ -63,6 +63,61 @@ export async function uploadMedia(asset, folder = 'sell', { slot } = {}) {
     fields: { folder, slot },
   });
   return res?.url || null;
+}
+
+// Image-to-image device lookup for the Lens/Visual scanner
+// (screens/owner/ScanSearchScreen.js via utils/scanSearch.js's
+// `runVisualSearch`). This is a REAL, running service — see
+// ggfix-visual-search-service/ (sibling repo): a standalone Python/CLIP
+// microservice that indexes the actual GGFIX device catalogue's own product
+// photos and does genuine image-embedding similarity search, not a mock.
+// It is NOT part of the Spring backend/master-data-service — this app has
+// no credentials for that service's real database or AWS account, so this
+// keeps its own local vector index built from the same public catalogue API
+// the app already calls. See that service's README.md to run it and for the
+// production/pgvector migration path.
+//
+// `VISUAL_SEARCH_BASE` is empty when the service isn't configured for this
+// build (no default public deployment exists) — that must surface as a
+// distinct "not configured" state, never a silent request to the wrong
+// service.
+function normalizeMatch(m) {
+  return {
+    id: m.id,
+    displayName: [m.brand, m.model].filter(Boolean).join(' ') || m.model || 'Unknown device',
+    brand: m.brand ?? null,
+    modelName: m.model ?? null,
+    modelCode: m.modelCode ?? (m.modelNumbers || [])[0] ?? null,
+    modelNumbers: m.modelNumbers ?? [],
+    colors: m.colors ?? [],
+    imageUrl: m.imageUrl ?? null,
+    similarity: typeof m.similarity === 'number' ? m.similarity : null,
+    confidence: m.confidence ?? null,
+    matchedBy: m.matchedBy ?? 'visual',
+    categoryName: m.categoryName ?? null,
+  };
+}
+
+export async function visualSearch(asset, { limit = 5, ocrText, barcode } = {}) {
+  if (!VISUAL_SEARCH_BASE) {
+    const err = new Error('Visual search service is not configured for this build.');
+    err.notConfigured = true;
+    throw err;
+  }
+  if (!asset?.uri) return { confidence: 'low', bestMatch: null, matches: [] };
+  const name = asset.fileName || asset.name || asset.uri.split('/').pop() || 'scan.jpg';
+  const type = asset.mimeType || asset.type || mimeFromName(name);
+  const res = await visualSearchApi.upload(VISUAL_SEARCH_PATH, {
+    uri: asset.uri,
+    name,
+    type,
+    fields: { limit, ocrText: ocrText || undefined, barcode: barcode || undefined },
+  });
+  return {
+    confidence: res?.confidence || 'low',
+    bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
+    matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
+  };
 }
 
 // Existing

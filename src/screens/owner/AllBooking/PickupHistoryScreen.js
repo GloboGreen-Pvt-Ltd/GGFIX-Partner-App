@@ -97,9 +97,9 @@ function splitTrackingId(id) {
 
 function SectionHeader({ icon: Icon, label }) {
   return (
-    <View className="flex-row items-center mb-3">
-      <View className="w-7 h-7 rounded-full items-center justify-center mr-2" style={{ backgroundColor: '#E6F7E3' }}>
-        <Icon size={14} color={BRAND_GREEN_DARK} />
+    <View className="flex-row items-center mb-2.5">
+      <View className="w-6 h-6 rounded-full items-center justify-center mr-2" style={{ backgroundColor: '#E6F7E3' }}>
+        <Icon size={13} color={BRAND_GREEN_DARK} />
       </View>
       <Text className="text-[11px] font-extrabold tracking-widest text-gray-900" style={{ letterSpacing: 1.2 }}>
         {label}
@@ -128,7 +128,7 @@ function EventRow({ event, first, last }) {
         />
         <View style={{ width: 2, flex: 1, backgroundColor: last ? 'transparent' : '#E6F7E3' }} />
       </View>
-      <View className="flex-1 pb-4">
+      <View className="flex-1 pb-3">
         <Text className="text-[13px] font-extrabold text-gray-900">{labelFor(event.status)}</Text>
         {event.note ? (
           <Text className="text-[11.5px] text-gray-600 mt-0.5">{event.note}</Text>
@@ -193,8 +193,8 @@ export default function PickupHistoryScreen({ route }) {
         style={{
           backgroundColor: '#FFFFFF',
           paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
+          paddingBottom: 12,
+          paddingHorizontal: 14,
           borderBottomWidth: 1,
           borderBottomColor: '#E2E8E2',
         }}
@@ -203,9 +203,10 @@ export default function PickupHistoryScreen({ route }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Pickup History
@@ -234,11 +235,11 @@ export default function PickupHistoryScreen({ route }) {
       >
         <View style={{ width: contentW, alignSelf: 'center' }}>
           {/* Current stage */}
-          <View className="px-4" style={{ marginTop: 12 }}>
-            <View className="bg-white rounded-2xl p-4" style={cardShadow}>
+          <View className="px-4" style={{ marginTop: 10 }}>
+            <View className="bg-white rounded-2xl p-3" style={cardShadow}>
               <View className="flex-row items-center">
-                <View className="w-12 h-12 rounded-full items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
-                  <Radio size={20} color={BRAND_GREEN_DARK} />
+                <View className="w-10 h-10 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: '#E6F7E3' }}>
+                  <Radio size={18} color={BRAND_GREEN_DARK} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
@@ -248,7 +249,7 @@ export default function PickupHistoryScreen({ route }) {
                     {currentLabel || 'Pickup Requested'}
                   </Text>
                 </View>
-                <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: '#E6F7E3' }}>
+                <View className="w-7 h-7 rounded-full items-center justify-center" style={{ backgroundColor: '#E6F7E3' }}>
                   <Text className="text-[13px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                     {events.length}
                   </Text>
@@ -256,7 +257,7 @@ export default function PickupHistoryScreen({ route }) {
               </View>
 
               {data?.pickupPersonName ? (
-                <View className="mt-3 pt-3 flex-row items-center" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
+                <View className="mt-2.5 pt-2.5 flex-row items-center" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
                   <UserCheck size={12} color="#8FA08F" />
                   <Text className="ml-1.5 text-[11px] text-gray-500">Pickup By</Text>
                   <Text className="ml-2 text-[11.5px] font-extrabold text-gray-900" numberOfLines={1}>
@@ -265,7 +266,7 @@ export default function PickupHistoryScreen({ route }) {
                 </View>
               ) : null}
 
-              <View className="mt-3 pt-3 flex-row items-center" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
+              <View className="mt-2.5 pt-2.5 flex-row items-center" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
                 <RotateCw size={11} color="#8FA08F" />
                 <Text className="ml-1.5 text-[10.5px] text-gray-500">
                   {events.length} event{events.length === 1 ? '' : 's'} • Updated live • Pull to refresh
@@ -275,7 +276,7 @@ export default function PickupHistoryScreen({ route }) {
           </View>
 
           {error ? (
-            <View className="px-4 mt-4">
+            <View className="px-4 mt-3">
               <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}>
                 <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
               </View>
@@ -283,8 +284,8 @@ export default function PickupHistoryScreen({ route }) {
           ) : null}
 
           {/* Timeline */}
-          <View className="px-4" style={{ marginTop: 12 }}>
-            <View className="bg-white rounded-2xl p-4" style={cardShadow}>
+          <View className="px-4" style={{ marginTop: 10 }}>
+            <View className="bg-white rounded-2xl p-3" style={cardShadow}>
               <SectionHeader icon={History} label="PICKUP TIMELINE" />
               {events.length === 0 ? (
                 <Text className="text-[12.5px] text-gray-500">

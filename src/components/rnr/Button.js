@@ -46,17 +46,17 @@ const textVariantClasses = {
 };
 
 const sizeClasses = {
-  default: 'py-3.5 px-6',
-  sm: 'py-2.5 px-4',
-  lg: 'py-4 px-8',
-  pill: 'py-3.5 px-6',
-  icon: 'h-11 w-11',
+  default: 'py-2.5 px-5',
+  sm: 'py-2 px-3.5',
+  lg: 'py-3 px-6',
+  pill: 'py-2.5 px-5',
+  icon: 'h-10 w-10',
 };
 
 const sizeRadii = {
-  default: 18,
-  sm: 14,
-  lg: 18,
+  default: 16,
+  sm: 12,
+  lg: 16,
   pill: 999,
   icon: 999,
 };

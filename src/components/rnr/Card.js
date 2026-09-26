@@ -9,10 +9,10 @@ export function Card({ className, children, padded = true, elevated = true, styl
       {...rest}
       className={cn(
         'bg-card border border-border',
-        padded && 'p-4',
+        padded && 'p-3',
         className,
       )}
-      style={[{ borderRadius: 18 }, elevated && shadows.card, style]}
+      style={[{ borderRadius: 16 }, elevated && shadows.card, style]}
     >
       {children}
     </View>

@@ -81,7 +81,7 @@ export default function DeviceInformationScreen({ route, navigation }) {
   return (
     <ScreenContainer>
       <AppHeader title="Device Information" subtitle={ticket?.deviceLabel || undefined} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 96 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 96 }}>
         {error ? <ErrorState description={error} onRetry={load} className="py-6" /> : null}
 
         <Card>

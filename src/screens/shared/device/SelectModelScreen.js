@@ -17,6 +17,22 @@ import { PICKER_PAD, PICKER_GAP, pickerMetrics } from './pickerGrid';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Display-only shortening for the grid card's name label — never applied to
+// `m.name` itself, which still goes to `onPick`/navigation/search untouched.
+// "iPad (10th generation) Wi‑Fi" → "iPad 10"; "...Wi‑Fi + Cellular" →
+// "iPad 10 Cell". Anything that doesn't match passes through unchanged and
+// just wraps (numberOfLines=2) instead.
+function shortModelLabel(name) {
+  if (!name) return '';
+  let s = String(name).replace(/‑/g, '-'); // normalize non-breaking hyphen
+  s = s.replace(/\((\d+)(?:st|nd|rd|th)\s+generation\)/i, '$1');
+  s = s.replace(/wi-fi\s*\+\s*cellular/i, 'Cell');
+  // Plain "Wi-Fi" with nothing after it is the base/default variant — drop
+  // the suffix entirely rather than spelling it out.
+  s = s.replace(/\s*wi-fi\s*$/i, '');
+  return s.trim();
+}
+
 // Canonical "Select Product" picker used by all flows. Series chips at the top
 // FILTER the full model grid below (Cashify-style). Search is a header icon that
 // opens a full-screen results list (no persistent search box). Routes to
@@ -156,9 +172,21 @@ export default function SelectModelScreen({ navigation, route }) {
   );
 
   const { width: screenWidth } = useWindowDimensions();
-  // Square image box, identical on every card, so rows keep equal heights.
-  const { cardWidth, imageSize: imgBox } = pickerMetrics(screenWidth, { dense: true, cardPadding: 6 });
-  const imgInner = imgBox;
+  // Used for the series-filter chip row below (untouched by this change).
+  const { cardWidth } = pickerMetrics(screenWidth, { dense: true, cardPadding: 6 });
+  // Product grid — forces exactly 4 columns on phone widths, same override
+  // approach as SelectBrandScreen (pickerGrid's shared ladder drops to 3
+  // below 400pt, which is what "large vertical list card" was replacing,
+  // not what's being fixed now — this is a separate, dedicated metric so it
+  // doesn't disturb the series-chip `cardWidth` above). Tablet still uses
+  // the shared ladder, which already scales columns up past 4 there.
+  const { cardWidth: productCardWidth, imageSize: productImageSize } = screenWidth >= 600
+    ? pickerMetrics(screenWidth, { dense: true, cardPadding: 8, imageRatio: 0.75 })
+    : (() => {
+        const numColumns = 4;
+        const cw = Math.floor((screenWidth - PICKER_PAD * 2 - PICKER_GAP * (numColumns - 1)) / numColumns);
+        return { cardWidth: cw, imageSize: Math.max(28, Math.round((cw - 8 * 2) * 0.75)) };
+      })();
 
   useEffect(() => {
     let cancelled = false;
@@ -340,13 +368,13 @@ export default function SelectModelScreen({ navigation, route }) {
                 <Pressable
                   key={m.id}
                   onPress={() => handleSelect(m)}
-                  className="flex-row items-center px-4 py-2.5 border-b border-border active:bg-primary/5"
+                  className="flex-row items-center px-4 py-2 border-b border-border active:bg-primary/5"
                 >
-                  <View className="h-14 w-14 rounded-lg overflow-hidden items-center justify-center mr-3">
+                  <View className="h-12 w-12 rounded-lg overflow-hidden items-center justify-center mr-2.5">
                     {hasImg ? (
-                      <DeviceImage url={m.imageUrl} base64={m.imageBase64} style={{ width: 56, height: 56 }} contentFit="contain" />
+                      <DeviceImage url={m.imageUrl} base64={m.imageBase64} style={{ width: 48, height: 48 }} contentFit="contain" />
                     ) : (
-                      <Smartphone size={26} color="#004C40" />
+                      <Smartphone size={22} color="#004C40" />
                     )}
                   </View>
                   <Text className="flex-1 text-[14px] text-text" numberOfLines={1}>{m.name}</Text>
@@ -460,6 +488,11 @@ export default function SelectModelScreen({ navigation, route }) {
               description="No models published for this selection yet."
             />
           ) : (
+            // Compact 4-column grid — the whole card selects the product
+            // (`handleSelect`); the image itself keeps its own nested tap
+            // target for the existing pinch-zoom preview (`openPreview`),
+            // exactly as the previous row layout also had two separate
+            // tap targets stacked on top of each other.
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
               {gridModels.map((m) => {
                 const isCurrent = isEditing && m.id === currentModelId;
@@ -468,46 +501,59 @@ export default function SelectModelScreen({ navigation, route }) {
                   <Pressable
                     key={m.id}
                     onPress={() => handleSelect(m)}
-                    className={`bg-card border rounded-2xl active:opacity-80 ${isCurrent ? 'border-primary' : 'border-border'}`}
+                    className="items-center active:opacity-80"
                     style={{
-                      width: cardWidth,
-                      padding: 6,
-                      alignItems: 'center',
+                      width: productCardWidth,
+                      borderRadius: 14,
+                      padding: 8,
+                      backgroundColor: isCurrent ? '#EAF7F1' : '#FFFFFF',
+                      borderWidth: isCurrent ? 1.5 : 1,
+                      borderColor: isCurrent ? '#004C40' : '#E2E8E2',
                       shadowColor: '#172117',
-                      shadowOpacity: 0.04,
-                      shadowRadius: 8,
+                      shadowOpacity: isCurrent ? 0 : 0.04,
+                      shadowRadius: 6,
                       shadowOffset: { width: 0, height: 2 },
-                      elevation: 1,
+                      elevation: isCurrent ? 0 : 1,
                     }}
                   >
                     <Pressable
                       onPress={() => openPreview(m)}
                       disabled={!hasImg}
-                      className="rounded-xl items-center justify-center overflow-hidden"
-                      style={{ height: imgBox, width: imgBox, marginBottom: 5 }}
+                      className="rounded-lg items-center justify-center overflow-hidden"
+                      style={{ height: productImageSize, width: productImageSize, backgroundColor: '#F8F8F8', marginBottom: 6 }}
                     >
                       {hasImg ? (
                         <DeviceImage
                           url={m.imageUrl}
                           base64={m.imageBase64}
-                          style={{ width: imgInner, height: imgInner }}
+                          style={{ width: productImageSize, height: productImageSize }}
                           contentFit="contain"
                         />
                       ) : (
-                        <Smartphone size={Math.round(imgBox * 0.4)} color="#004C40" />
+                        <Smartphone size={Math.round(productImageSize * 0.5)} color="#004C40" />
                       )}
                     </Pressable>
+
                     <Text
-                      className="text-[11px] font-medium text-text"
+                      className="text-[11.5px] font-semibold text-text"
                       numberOfLines={2}
                       style={{ textAlign: 'center', width: '100%' }}
                     >
-                      {m.name}
+                      {shortModelLabel(m.name)}
                     </Text>
+                    {/* Model-number chip intentionally not shown here per
+                        explicit request — the underlying value is untouched:
+                        `onPick`/`handleSelect` below still call
+                        `parseModelNumbers(m.modelNumber)` independently and
+                        forward it (`modelNumber`, `modelNumbers`) through
+                        navigation exactly as before. */}
+
                     {isCurrent ? (
-                      <View className="flex-row items-center bg-primary/10 border border-primary/30 rounded-full px-2 py-0.5 mt-1.5">
-                        <Check size={10} color="#004C40" />
-                        <Text className="text-[9.5px] font-extrabold text-primary ml-1">Current</Text>
+                      <View
+                        className="items-center justify-center"
+                        style={{ position: 'absolute', top: 6, right: 6, height: 18, width: 18, borderRadius: 9, backgroundColor: '#004C40' }}
+                      >
+                        <Check size={11} color="#fff" strokeWidth={3} />
                       </View>
                     ) : null}
                   </Pressable>

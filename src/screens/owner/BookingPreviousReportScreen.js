@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
+  ChevronDown,
   History,
   Calendar,
   TrendingUp,
@@ -24,15 +25,31 @@ import {
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { EmptyState } from '../../components/rnr';
+import { rf, rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+// GGFIX palette — same values used across the rest of the app's redesigned screens.
+const ACCENT = '#004C40';
+const PRIMARY = '#006B57';
+const BRIGHT = '#00A86B';
+const ACTIVE_GREEN = '#16A34A';
+const MINT = '#E8F7F2';
+const SOFT_MINT = '#F4FBF8';
+const PAGE_BG = '#F8FCFA';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#DCE7E2';
+const TEXT_PRIMARY = '#111827';
+const TEXT_SECONDARY = '#667085';
+const INACTIVE_TEXT = '#8A9694';
+const INACTIVE_BG = '#F1F5F3';
+const AMBER = '#F59E0B';
+const AMBER_BG = '#FFF3E0';
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
+  shadowColor: '#0B1F14',
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
   elevation: 4,
 };
 
@@ -56,11 +73,13 @@ function pad2(n) {
 }
 
 const STATUS_BUCKETS = [
-  { key: 'CREATED',     label: 'Accepted',    icon: ClipboardCheck, accent: '#16BB05', tint: '#E6F7E3' },
-  { key: 'IN_PROGRESS', label: 'In Service',  icon: Wrench,         accent: '#16BB05', tint: '#F0F8EF' },
-  { key: 'READY',       label: 'Ready',       icon: CheckCircle2,   accent: BRAND_GREEN_DARK, tint: '#E6F7E3' },
-  { key: 'DELIVERED',   label: 'Delivered',   icon: PackageCheck,   accent: '#087A0A', tint: '#E6F7E3' },
-  { key: 'PENDING',     label: 'Pending',     icon: AlertTriangle,  accent: '#B91C1C', tint: '#FEE2E2' },
+  { key: 'CREATED',     label: 'Accepted',    icon: ClipboardCheck },
+  { key: 'IN_PROGRESS', label: 'In Service',  icon: Wrench },
+  { key: 'READY',       label: 'Ready',       icon: CheckCircle2 },
+  { key: 'DELIVERED',   label: 'Delivered',   icon: PackageCheck },
+  // Pending gets its own amber accent when active — every other bucket
+  // shares the same active-green / inactive-grey rule.
+  { key: 'PENDING',     label: 'Pending',     icon: AlertTriangle, amber: true },
 ];
 
 const STATUS_TO_BUCKET = {
@@ -115,6 +134,8 @@ function buildMonthlySnapshots(tickets) {
 
 export default function BookingPreviousReportScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 900), alignSelf: 'center' } : null;
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -141,140 +162,142 @@ export default function BookingPreviousReportScreen({ navigation }) {
 
   const months = useMemo(() => buildMonthlySnapshots(tickets), [tickets]);
   const grandTotal = useMemo(() => months.reduce((s, m) => s + m.total, 0), [months]);
+  const windowRange = months.length
+    ? `${months[months.length - 1].label.split(' ')[0]} – ${months[0].label.split(' ')[0]}`
+    : '';
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
 
-      <View
-        style={{
-          backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
-        }}
-      >
-        <View className="flex-row items-center">
+      {/* Header — decorative mint leaf shapes, same low-risk plain-View
+          approximation used elsewhere in this app. */}
+      <View style={{ paddingHorizontal: rs(16), paddingTop: insets.top + rs(8), paddingBottom: rs(14), overflow: 'hidden' }}>
+        <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
+        <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(40), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
+
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3"
-            style={{ backgroundColor: '#EFF5EE' }}
+            hitSlop={6}
+            style={{
+              height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
+              alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+              borderWidth: 1, borderColor: BORDER,
+            }}
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="font-extrabold flex-1" style={{ fontSize: rf(21), color: TEXT_PRIMARY }} numberOfLines={1}>
             Previous Reports
           </Text>
           <View
-            className="px-2.5 py-1 rounded-full flex-row items-center"
-            style={{ backgroundColor: '#EFF5EE' }}
+            className="flex-row items-center rounded-full"
+            style={{ paddingHorizontal: rs(12), paddingVertical: rs(8), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT }}
           >
-            <History size={12} color="#172117" />
-            <Text className="text-text text-[11px] font-extrabold ml-1" numberOfLines={1}>
+            <History size={rf(13)} color={ACCENT} />
+            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: ACCENT }} numberOfLines={1}>
               {MONTHS_TO_SHOW} months
             </Text>
+            <ChevronDown size={rf(13)} color={ACCENT} style={{ marginLeft: rs(3) }} />
           </View>
         </View>
       </View>
 
       <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: insets.bottom + rs(28) }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => load(true)}
-            tintColor={BRAND_GREEN_DARK}
-            colors={[BRAND_GREEN_DARK]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={ACCENT} colors={[ACCENT]} />
         }
       >
-        {/* Compact title row */}
-        <View className="px-5 mt-4 mb-3">
-          <View className="flex-row items-center">
-            <Calendar size={12} color={BRAND_GREEN_DARK} />
-            <Text
-              className="ml-1 text-[10.5px] font-bold"
-              style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-            >
-              LAST {MONTHS_TO_SHOW} MONTHS
+        <View style={capStyle}>
+          {/* Intro */}
+          <View style={{ marginBottom: rs(14) }}>
+            <View className="flex-row items-center">
+              <Calendar size={rf(12)} color={ACCENT} />
+              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11.5), color: ACCENT, letterSpacing: 1 }}>
+                LAST {MONTHS_TO_SHOW} MONTHS
+              </Text>
+            </View>
+            <Text className="font-extrabold" style={{ fontSize: rf(26), color: TEXT_PRIMARY, marginTop: rs(4) }}>
+              Monthly status snapshots
+            </Text>
+            <Text style={{ fontSize: rf(13), color: TEXT_SECONDARY, marginTop: rs(4), lineHeight: rf(19) }}>
+              A quick overview of your bookings and their status for the last {MONTHS_TO_SHOW} months.
             </Text>
           </View>
-          <Text className="text-[18px] font-extrabold text-gray-900 mt-0.5" style={{ letterSpacing: -0.3 }}>
-            Monthly status snapshots
-          </Text>
-        </View>
 
-        {/* Summary card */}
-        <View className="px-4">
-          <View className="bg-white rounded-2xl p-4 flex-row items-center" style={cardShadow}>
-            <View
-              style={{
-                width: 44, height: 44, borderRadius: 14,
-                backgroundColor: '#E6F7E3',
-                alignItems: 'center', justifyContent: 'center',
-                marginRight: 12,
-              }}
-            >
-              <TrendingUp size={22} color={BRAND_GREEN_DARK} />
+          {/* Summary card */}
+          <View
+            className="flex-row items-center"
+            style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(13), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
+          >
+            <View className="items-center justify-center" style={{ width: rs(46), height: rs(46), borderRadius: rs(15), backgroundColor: MINT, marginRight: rs(12) }}>
+              <TrendingUp size={rf(20)} color={ACCENT} />
             </View>
             <View className="flex-1">
-              <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
+              <Text className="uppercase font-bold" style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, letterSpacing: 0.7 }}>
                 Total in window
               </Text>
-              <Text className="text-[20px] font-extrabold text-gray-900 mt-0.5">
+              <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY, marginTop: rs(1) }}>
                 {grandTotal} bookings
               </Text>
             </View>
-            <Text className="text-[11px] text-gray-500">
-              {months.length > 0 ? months[months.length - 1].label.split(' ')[0] : ''} – {months[0]?.label.split(' ')[0] || ''}
-            </Text>
+            {windowRange ? (
+              <>
+                <View style={{ width: 1, height: rs(28), backgroundColor: BORDER, marginHorizontal: rs(10) }} />
+                <View className="flex-row items-center">
+                  <Calendar size={rf(12)} color={TEXT_SECONDARY} />
+                  <Text style={{ marginLeft: rs(5), fontSize: rf(11.5), color: TEXT_SECONDARY }} numberOfLines={1}>
+                    {windowRange}
+                  </Text>
+                </View>
+              </>
+            ) : null}
           </View>
+
+          {error ? (
+            <View style={{ marginTop: rs(14) }}>
+              <View
+                className="rounded-2xl"
+                style={{ paddingHorizontal: rs(14), paddingVertical: rs(11), backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
+              >
+                <Text className="font-semibold" style={{ fontSize: rf(12.5), color: '#B91C1C' }}>{error}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {loading ? (
+            <View className="items-center" style={{ paddingVertical: rs(40) }}>
+              <ActivityIndicator size="large" color={ACCENT} />
+            </View>
+          ) : months.every((m) => m.total === 0) ? (
+            <View style={{ marginTop: rs(20) }}>
+              <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
+                <EmptyState
+                  icon={<History size={rf(28)} color={ACCENT} />}
+                  title="No history yet"
+                  description="Once bookings start flowing in, you'll see monthly snapshots here."
+                  className="py-10"
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={{ marginTop: rs(18) }}>
+              {months.map((m, idx) => (
+                <MonthCard
+                  key={m.key}
+                  month={m}
+                  isCurrent={idx === 0}
+                  onTap={() => navigation.navigate('OwnerTabs', { screen: 'Bookings' })}
+                />
+              ))}
+            </View>
+          )}
         </View>
-
-        {error ? (
-          <View className="px-4 mt-4">
-            <View
-              className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
-            >
-              <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>
-                {error}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {loading ? (
-          <View className="py-10 items-center">
-            <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
-          </View>
-        ) : months.every((m) => m.total === 0) ? (
-          <View className="px-4 mt-6">
-            <View className="bg-white rounded-2xl" style={cardShadow}>
-              <EmptyState
-                icon={<History size={28} color={BRAND_GREEN_DARK} />}
-                title="No history yet"
-                description="Once bookings start flowing in, you'll see monthly snapshots here."
-                className="py-10"
-              />
-            </View>
-          </View>
-        ) : (
-          <View className="px-4 mt-5">
-            {months.map((m, idx) => (
-              <MonthCard
-                key={m.key}
-                month={m}
-                isCurrent={idx === 0}
-                onTap={() => navigation.navigate('OwnerTabs', { screen: 'Bookings' })}
-              />
-            ))}
-          </View>
-        )}
       </ScrollView>
     </View>
   );
@@ -284,79 +307,69 @@ function MonthCard({ month, isCurrent, onTap }) {
   return (
     <Pressable
       onPress={onTap}
-      android_ripple={{ color: '#EFF5EE' }}
-      className="bg-white rounded-2xl mb-3"
-      style={[cardShadow, { padding: 14 }]}
+      android_ripple={{ color: SOFT_MINT }}
+      style={{
+        backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(14), marginBottom: rs(12),
+        borderWidth: 1, borderColor: BORDER, ...cardShadow,
+      }}
     >
       {/* Header row */}
-      <View className="flex-row items-center mb-3">
+      <View className="flex-row items-center" style={{ marginBottom: rs(12) }}>
         <View
-          style={{
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: isCurrent ? '#E6F7E3' : '#EFF5EE',
-            alignItems: 'center', justifyContent: 'center',
-            marginRight: 12,
-          }}
+          className="items-center justify-center"
+          style={{ width: rs(40), height: rs(40), borderRadius: rs(14), backgroundColor: MINT, marginRight: rs(11) }}
         >
-          <Calendar size={18} color={isCurrent ? BRAND_GREEN_DARK : '#667066'} />
+          <Calendar size={rf(17)} color={ACCENT} />
         </View>
         <View className="flex-1">
-          <View className="flex-row items-center">
-            <Text className="text-[14.5px] font-extrabold text-gray-900">
+          <View className="flex-row items-center flex-wrap">
+            <Text className="font-extrabold" style={{ fontSize: rf(15.5), color: TEXT_PRIMARY }}>
               {month.label}
             </Text>
             {isCurrent ? (
               <View
-                className="ml-2 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: '#E6F7E3' }}
+                className="rounded-full"
+                style={{ marginLeft: rs(8), paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT }}
               >
-                <Text
-                  className="text-[9.5px] font-extrabold"
-                  style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.4 }}
-                >
+                <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: ACCENT, letterSpacing: 0.4 }}>
                   CURRENT
                 </Text>
               </View>
             ) : null}
           </View>
-          <Text className="text-[11px] text-gray-500 mt-0.5">
+          <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(1) }}>
             {month.total} total booking{month.total === 1 ? '' : 's'}
           </Text>
         </View>
-        <Text
-          className="text-[22px] font-extrabold"
-          style={{ color: BRAND_GREEN_DARK, letterSpacing: -0.5 }}
+        <View
+          className="items-center justify-center rounded-2xl"
+          style={{ minWidth: rs(48), paddingHorizontal: rs(10), paddingVertical: rs(7), backgroundColor: SOFT_MINT }}
         >
-          {pad2(month.total)}
-        </Text>
+          <Text className="font-extrabold" style={{ fontSize: rf(19), color: ACCENT }}>
+            {pad2(month.total)}
+          </Text>
+        </View>
       </View>
 
-      {/* Status bucket chips */}
-      <View className="flex-row flex-wrap -mx-1">
+      {/* Status bucket pills */}
+      <View className="flex-row flex-wrap" style={{ marginHorizontal: -rs(3) }}>
         {STATUS_BUCKETS.map((b) => {
           const v = month.buckets[b.key] || 0;
+          const active = v > 0;
           const Icon = b.icon;
+          const fg = active ? (b.amber ? AMBER : ACTIVE_GREEN) : INACTIVE_TEXT;
+          const bg = active ? (b.amber ? AMBER_BG : MINT) : INACTIVE_BG;
           return (
             <View
               key={b.key}
-              className="flex-row items-center px-2 py-1.5 rounded-full m-1"
-              style={{
-                backgroundColor: v > 0 ? b.tint : '#F7FAF7',
-                borderWidth: 1,
-                borderColor: v > 0 ? b.tint : '#E2E8E2',
-              }}
+              className="flex-row items-center rounded-full"
+              style={{ paddingHorizontal: rs(11), paddingVertical: rs(8), margin: rs(3), backgroundColor: bg }}
             >
-              <Icon size={11} color={v > 0 ? b.accent : '#8FA08F'} />
-              <Text
-                className="ml-1 text-[10.5px] font-extrabold"
-                style={{ color: v > 0 ? b.accent : '#8FA08F' }}
-              >
+              <Icon size={rf(13)} color={fg} />
+              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11.5), color: fg }}>
                 {b.label}
               </Text>
-              <Text
-                className="ml-1.5 text-[10.5px] font-extrabold"
-                style={{ color: v > 0 ? b.accent : '#8FA08F' }}
-              >
+              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: fg }}>
                 {v}
               </Text>
             </View>
@@ -364,11 +377,13 @@ function MonthCard({ month, isCurrent, onTap }) {
         })}
       </View>
 
-      <View className="flex-row items-center mt-3">
-        <Text className="text-[11px] font-bold" style={{ color: BRAND_GREEN_DARK }}>
+      <View style={{ height: 1, backgroundColor: SOFT_MINT, marginTop: rs(10), marginBottom: rs(9) }} />
+
+      <View className="flex-row items-center">
+        <Text className="font-extrabold" style={{ fontSize: rf(12), color: ACCENT }}>
           View bookings
         </Text>
-        <ChevronRight size={12} color={BRAND_GREEN_DARK} />
+        <ChevronRight size={rf(14)} color={ACCENT} />
       </View>
     </Pressable>
   );

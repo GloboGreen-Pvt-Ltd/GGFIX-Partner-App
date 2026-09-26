@@ -8,7 +8,7 @@ import { getSellOrderQuotations, chooseSellQuotation } from '../../../api/orders
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#fff', marginHorizontal: 12, marginTop: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 11, backgroundColor: '#fff', marginHorizontal: 12, marginTop: 7, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   bottom: { padding: 12, backgroundColor: '#fff', borderTopColor: colors.border, borderTopWidth: 1 },
 });
 

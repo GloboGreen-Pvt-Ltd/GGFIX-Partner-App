@@ -44,6 +44,7 @@ import OwnerBuyListingScreen from '../screens/owner/OwnerBuyListingScreen';
 import OwnerCartScreen from '../screens/owner/OwnerCartScreen';
 import OwnerNotificationsScreen from '../screens/owner/OwnerNotificationsScreen';
 import OwnerSearchScreen from '../screens/owner/OwnerSearchScreen';
+import ScanSearchScreen from '../screens/owner/ScanSearchScreen';
 import TicketDetailScreen from '../screens/owner/AllBooking/TicketDetailScreen';
 import DeviceDetailScreen from '../screens/owner/AllBooking/DeviceDetailScreen';
 import BookingSummaryScreen from '../screens/owner/AllBooking/BookingSummaryScreen';
@@ -435,6 +436,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerCart" component={OwnerCartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerNotifications" component={OwnerNotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSearch" component={OwnerSearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ScanSearch" component={ScanSearchScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerBuyListingDetails" component={OwnerBuyListingDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellMobile" component={OwnerSellMobileChoiceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellSpareParts" component={OwnerSellSparePartsScreen} options={{ headerShown: false }} />
@@ -445,7 +447,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SelectBrand" component={SelectBrandScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SelectSeries" component={SelectSeriesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SelectModel" component={SelectModelScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="SelectVariant" component={SelectVariantScreen} options={{ title: 'Your Device' }} />
+      <Stack.Screen name="SelectVariant" component={SelectVariantScreen} options={{ headerShown: false }} />
       {/* Shared sell-flow screens (also registered in the customer stack). */}
       <Stack.Screen name="SellScreening" component={SellScreeningScreen} options={{ title: 'Screening Question' }} />
       <Stack.Screen name="SellScreenCondition" component={SellScreenConditionScreen} options={{ title: 'Screen' }} />
@@ -472,7 +474,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerPersonalInfo" component={OwnerPersonalInfoScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerShopInfo" component={OwnerShopInfoScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerKycIntro" component={OwnerKycIntroScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OwnerKycUpload" component={OwnerKycUploadScreen} options={{ title: 'KYC Documents' }} />
+      <Stack.Screen name="OwnerKycUpload" component={OwnerKycUploadScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerKycReview" component={OwnerKycReviewScreen} options={{ title: 'KYC Documents' }} />
       <Stack.Screen name="OwnerKycPending" component={OwnerKycPendingScreen} options={{ title: 'KYC Status' }} />
       <Stack.Screen name="OwnerKycView" component={OwnerKycViewScreen} options={{ headerShown: false }} />

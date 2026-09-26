@@ -1,47 +1,44 @@
 /**
- * GGFix palette, budgeted 60 / 30 / 10. Mirrors src/theme/colors.js — the two
- * MUST stay in step, since roughly half the app styles with className strings
- * and the other half with StyleSheet objects reading `tokens`.
+ * GGFix palette — 2026 refresh. Mirrors src/theme/colors.js — the two MUST
+ * stay in step, since roughly half the app styles with className strings and
+ * the other half with StyleSheet objects reading `tokens`. Key names are
+ * unchanged from before (every existing `bg-primary` / `tokens.x` call site
+ * across the app keeps working, including the ~114 sites `bg-primary` alone
+ * covers); only the hex values move to the current brand sheet — see the
+ * header comment in theme/colors.js for the full before/after mapping.
  *
- *   60%  BACKGROUND + SURFACE — page wash #F7FAF7, cards/inputs #FFFFFF.
- *   30%  GREEN — #16BB05 and #087A0A plus their tints.
- *   10%  ACCENT — lime #7ED957, attention #F59E0B, danger #DC2626.
+ *   Deep Green (primary):    #004C40 — unchanged.
+ *   Primary Green (mid):     #008F72 — `primary-bright` / `primary-light`.
+ *   Accent Green:            #16A36A — `accent-dark` (white-text-safe).
+ *   Light Green Background:  #EAF8F3 — `primary-soft` / `accent-soft`.
+ *   Page Background:         #F7F9F8 — `background`, distinct from `card`.
+ *   Border:                  #E4EBE8
  *
- * ── One departure from the brand sheet's labels, on purpose ────────────────
- * The sheet calls #16BB05 "Primary" and #087A0A "Secondary". Here the token
- * named `primary` is #087A0A, and #16BB05 is `primary-bright`.
- *
- * Why: white on #16BB05 is 2.6:1 — under the 3:1 floor even for large bold
- * text — so it cannot carry a button label, and at 2.6:1 against white it
- * cannot be body text or an icon either. It is a FILL: large areas, active
- * tab bars, gradients, progress, icon circles. Every interactive surface
- * needs #087A0A (white on it is 5.6:1; it is 5.6:1 on white).
- *
- * Since `bg-primary` is what Button and Badge default to, binding `primary` to
- * the readable green is what keeps 114 existing call sites correct. Reach for
- * `primary-bright` deliberately, when nothing white sits on top.
- *
- * `accent` is the brand lime and takes DARK text (white on it is 1.9:1).
- * `attention` is the pending/warning amber — likewise dark text (white 2.1:1).
- * It is a separate token rather than a reuse of `accent` because this codebase
- * already had an accent role meaning "in progress / pickup", and collapsing the
- * two would make `bg-accent` mean lime in one file and amber in the next.
+ * `accent`/`accent-light` are still the lighter lime tints and stay
+ * DARK-text-only (white on them is under the 3:1 floor). `accent-dark` is the
+ * new, darker Accent Green and IS white-text-safe — reach for it on filled
+ * buttons/badges instead of the lime. `attention` (amber, pending/warning)
+ * is unchanged and also DARK-text-only.
  */
 
 // Green ramp. 400/500/600 are the brand's three greens verbatim; the rest are
 // tints and shades of the same hue, needed because screens use -50/-200 steps.
 const green = {
-  50: '#F0F8EF',
-  100: '#E6F7E3',
+  50: '#EAF8F3',
+  100: '#EAF8F3',
   200: '#C8EEBF',
   300: '#A6E58C',
-  400: '#7ED957', // Accent — Fresh Lime Green
-  500: '#16BB05', // Primary — GGFix Green
-  600: '#004C40', // Secondary — Deep Green (was #087A0A)
+  400: '#7ED957', // Light lime tint — dark-text-only badges/highlights
+  500: '#008F72', // Primary Green (mid) — large fills, gradients, progress
+  600: '#004C40', // Deep Green — the interactive/primary green
   700: '#076808',
   800: '#065C07',
   900: '#044504',
 };
+
+// Accent Green — genuinely distinct from the primary-bright mid-green above,
+// so it isn't folded into the ramp (which only has room for one value per step).
+const accentDarkGreen = '#16A36A';
 
 // Attention ramp — pending / warning states.
 const amber = {
@@ -115,10 +112,13 @@ module.exports = {
         },
         // Accent — brand lime. Highlights, badges, success emphasis.
         // Pair with `text-text`, never `text-white`.
+        // `dark` is the newer Accent Green (#16A36A) — unlike the lime
+        // DEFAULT/light, it IS white-text-safe; use it for filled
+        // buttons/badges instead of the lime.
         accent: {
           DEFAULT: green[400],
           light: green[200],
-          dark: green[500],
+          dark: accentDarkGreen,
           soft: green[50],
           ...green,
         },
@@ -141,8 +141,11 @@ module.exports = {
           ...green,
         },
         // Surfaces
-        // Mirrors theme/colors.js — the two must stay in step.
-        background: '#FFFFFF',
+        // Mirrors theme/colors.js — the two must stay in step. `background`
+        // is the page wash — a soft mint-white, distinct from pure-white
+        // `card`/`surface` — matching the app's own established convention of
+        // a tinted page behind white cards.
+        background: '#F7F9F8',
         card: '#FFFFFF',
         surface: {
           DEFAULT: '#FFFFFF',
@@ -150,13 +153,13 @@ module.exports = {
         },
         // Text
         text: {
-          DEFAULT: '#172117',
-          muted: '#667066',
+          DEFAULT: '#102A2E',
+          muted: '#667875',
           subtle: '#8FA08F',
         },
         // Lines
         border: {
-          DEFAULT: '#E2E8E2',
+          DEFAULT: '#E4EBE8',
           strong: '#CBD5CB',
         },
         // Status

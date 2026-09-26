@@ -170,19 +170,19 @@ export default function BillingScreen({ navigation }) {
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id })}
-        className="bg-white rounded-2xl p-4 mb-3"
+        className="bg-white rounded-2xl p-3 mb-2.5"
         style={cardShadow}
       >
         {/* Top row: device thumb + name + tracking + status + amount */}
         <View className="flex-row items-start">
           <View
-            className="w-14 h-14 rounded-2xl items-center justify-center mr-3 overflow-hidden"
+            className="w-12 h-12 rounded-2xl items-center justify-center mr-2.5 overflow-hidden"
             style={{ backgroundColor: '#F0F8EF' }}
           >
             {item._modelImage ? (
-              <Image source={{ uri: item._modelImage }} style={{ width: 56, height: 56 }} />
+              <Image source={{ uri: item._modelImage }} style={{ width: 48, height: 48 }} />
             ) : (
-              <Smartphone size={26} color={BRAND_GREEN_DARK} />
+              <Smartphone size={22} color={BRAND_GREEN_DARK} />
             )}
           </View>
           <View className="flex-1 pr-2">
@@ -236,7 +236,7 @@ export default function BillingScreen({ navigation }) {
 
         {/* Dashed divider */}
         <View
-          className="my-3"
+          className="my-2"
           style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }}
         />
 
@@ -317,8 +317,8 @@ export default function BillingScreen({ navigation }) {
         <View
           style={{
             backgroundColor: '#FFFFFF',
-            paddingTop: insets.top + 12,
-            paddingBottom: 28,
+            paddingTop: insets.top + 8,
+            paddingBottom: 14,
             paddingHorizontal: 16,
             borderBottomWidth: 1,
             borderBottomColor: '#E2E8E2',
@@ -339,8 +339,8 @@ export default function BillingScreen({ navigation }) {
       <View
         style={{
           backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 12,
-          paddingBottom: 56,
+          paddingTop: insets.top + 8,
+          paddingBottom: 14,
           paddingHorizontal: 16,
           borderBottomWidth: 1,
           borderBottomColor: '#E2E8E2',
@@ -357,16 +357,16 @@ export default function BillingScreen({ navigation }) {
             </Text>
           </View>
           <View
-            className="w-11 h-11 rounded-full items-center justify-center"
+            className="w-9 h-9 rounded-full items-center justify-center"
             style={{ backgroundColor: '#EFF5EE' }}
           >
-            <Receipt size={20} color="#172117" />
+            <Receipt size={18} color="#172117" />
           </View>
         </View>
       </View>
 
-      {/* Floating search bar below the hero */}
-      <View className="px-4" style={{ marginTop: 12 }}>
+      {/* Search bar below the hero */}
+      <View className="px-4" style={{ marginTop: 10 }}>
         <View
           className="bg-white rounded-2xl flex-row items-center px-3 py-2.5"
           style={cardShadow}

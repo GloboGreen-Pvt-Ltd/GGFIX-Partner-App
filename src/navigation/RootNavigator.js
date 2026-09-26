@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { getSession, clearSession, setAuthExpiredHandler } from '../auth/session';
+import { hasSeenIntro, markIntroSeen } from '../auth/onboarding';
 import { logout } from '../api/auth';
 import { setSession, clearSession as clearAuth } from '../store/authSlice';
+import IntroScreen from '../screens/IntroScreen';
 import LoginScreen from '../screens/LoginScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -15,8 +17,16 @@ import TechnicianNavigator from './TechnicianNavigator';
 import AppLockGate from '../components/AppLockGate';
 import BootSplash from '../components/BootSplash';
 import colors from '../theme/colors';
+import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
 
 const Stack = createNativeStackNavigator();
+
+// BootSplash stays up at least this long even if the session read finishes
+// sooner, so the brand moment actually registers instead of flashing by —
+// runs in parallel with session loading, never stacked after it. To show the
+// splash for 10 seconds instead, change this single value to 10000.
+const MIN_BOOT_SPLASH_MS = 5000;
+const BOOT_FADE_MS = 220;
 
 // Decide which app shell a session may enter. The shop app only serves shop
 // OWNERS (multi-shop or single-shop login) and in-shop TECHNICIANS. Every other
@@ -60,13 +70,26 @@ function UnsupportedRoleScreen({ onLogout }) {
 export default function RootNavigator() {
   const dispatch = useDispatch();
   const [session, setSessionState] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // Whether the pre-login Intro screen has already been shown once — read
+  // once, alongside the session, so the unauthenticated stack's
+  // initialRouteName is already known correctly the first time it mounts.
+  const [introSeen, setIntroSeen] = useState(true);
+  const hasLoadedSession = useRef(false);
 
   useEffect(() => {
-    getSession().then((s) => {
+    // StrictMode/Fast-Refresh-safe: effects can re-run, this must not
+    // re-request the stored session or reset state a second time.
+    if (hasLoadedSession.current) return;
+    hasLoadedSession.current = true;
+    console.log('[BOOT] Session check started @', since()); // TEMP DEBUG — remove once verified
+    Promise.all([getSession(), hasSeenIntro()]).then(([s, seenIntro]) => {
+      console.log('[BOOT] Session check finished @', since()); // TEMP DEBUG
+      console.log('[BOOT] Onboarding state (hasSeenIntro):', seenIntro); // TEMP DEBUG — remove once verified
       setSessionState(s);
+      setIntroSeen(seenIntro);
       dispatch(setSession(s));
-      setLoading(false);
+      setSessionLoading(false);
     });
   }, [dispatch]);
 
@@ -90,13 +113,61 @@ export default function RootNavigator() {
     dispatch(clearAuth());
   };
 
-  if (loading) {
-    return <BootSplash />;
-  }
+  // Runs once, independently of the session read, so both are genuinely in
+  // parallel: BootSplash clears only once BOTH are true, whichever finishes
+  // last. Deliberately not reset on logout — only the very first boot should
+  // ever show BootSplash; signing out later goes straight to Login.
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.log('[BOOT] Min splash time elapsed @', since()); // TEMP DEBUG — remove once verified
+      setMinTimeElapsed(true);
+    }, MIN_BOOT_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (!session?.accessToken) {
-    return (
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+  const [showBootOverlay, setShowBootOverlay] = useState(true);
+  const bootFade = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!sessionLoading && minTimeElapsed && showBootOverlay) {
+      console.log('[BOOT] Fade start @', since()); // TEMP DEBUG
+      Animated.timing(bootFade, {
+        toValue: 0,
+        duration: BOOT_FADE_MS,
+        useNativeDriver: true,
+      }).start(() => {
+        console.log('[BOOT] Fade done, overlay unmounted @', since()); // TEMP DEBUG
+        setShowBootOverlay(false);
+      });
+    }
+  }, [sessionLoading, minTimeElapsed, showBootOverlay, bootFade]);
+
+  const hasLoggedDestination = useRef(false);
+  useEffect(() => {
+    if (sessionLoading || hasLoggedDestination.current) return;
+    hasLoggedDestination.current = true;
+    console.log('[BOOT] Destination determined @', since(), '->', session?.accessToken ? 'App' : 'Login'); // TEMP DEBUG — remove once verified
+  }, [sessionLoading, session]);
+
+  // `mainContent` stays null until the session read resolves — BootSplash
+  // below is the ONLY thing on screen until then. It's declared once, in a
+  // single JSX position, and rendered through the same overlay branch below
+  // for the whole boot sequence (loading AND post-load) so it is one
+  // continuous component instance — never unmounted and remounted into a
+  // second element, which would restart its entrance animation mid-hold.
+  let mainContent = null;
+  if (sessionLoading) {
+    // no-op — mainContent stays null; the overlay below is the only thing visible
+  } else if (!session?.accessToken) {
+    mainContent = (
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={introSeen ? 'Login' : 'Intro'}>
+        {/* Intro is always registered so it stays reachable, but only shown
+            first when the device hasn't seen it — initialRouteName is read
+            once at mount, which is safe here since this Navigator only ever
+            mounts after introSeen has already resolved (see above). */}
+        <Stack.Screen name="Intro" options={{ contentStyle: { backgroundColor: '#FFFFFF' } }}>
+          {(props) => <IntroScreen {...props} onDone={markIntroSeen} />}
+        </Stack.Screen>
         {/* Login sits on pure white, not the app's #F7FAF7 wash — override the
             navigator card too so the wash can't flash behind it mid-transition
             or on an overscroll bounce. */}
@@ -111,18 +182,41 @@ export default function RootNavigator() {
         </Stack.Screen>
       </Stack.Navigator>
     );
-  }
-
-  const role = getRoleFromSession(session);
-
-  let content;
-  if (role === 'TECHNICIAN') {
-    content = <TechnicianNavigator session={session} onLogout={handleLogout} />;
-  } else if (role === 'SHOP_OWNER') {
-    content = <OwnerNavigator session={session} onLogout={handleLogout} />;
   } else {
-    content = <UnsupportedRoleScreen onLogout={handleLogout} />;
+    const role = getRoleFromSession(session);
+    let roleContent;
+    if (role === 'TECHNICIAN') {
+      roleContent = <TechnicianNavigator session={session} onLogout={handleLogout} />;
+    } else if (role === 'SHOP_OWNER') {
+      roleContent = <OwnerNavigator session={session} onLogout={handleLogout} />;
+    } else {
+      roleContent = <UnsupportedRoleScreen onLogout={handleLogout} />;
+    }
+    mainContent = <AppLockGate onLogout={handleLogout}>{roleContent}</AppLockGate>;
   }
 
-  return <AppLockGate onLogout={handleLogout}>{content}</AppLockGate>;
+  if (!showBootOverlay) {
+    return mainContent;
+  }
+
+  // While sessionLoading is true, mainContent is still null, so this is the
+  // exact same BootSplash element (same JSX position, same component
+  // instance) that was already on screen before the session resolved — it
+  // is never unmounted/remounted, so its animation never restarts. Once the
+  // session resolves, mainContent mounts underneath (and is free to do its
+  // own first-load fetching) while BootSplash keeps sitting on top at full
+  // opacity until the minimum display time is up, then fades exactly once,
+  // revealing a destination that's already ready — one timer, one fade, one
+  // navigation.
+  return (
+    <View style={{ flex: 1 }}>
+      {mainContent}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { opacity: bootFade }]}
+        pointerEvents={minTimeElapsed ? 'none' : 'auto'}
+      >
+        <BootSplash />
+      </Animated.View>
+    </View>
+  );
 }

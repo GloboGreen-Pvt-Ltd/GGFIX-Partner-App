@@ -21,8 +21,7 @@ import {
   IndianRupee,
   LayoutGrid,
   Package,
-  Tag,
-  Users,
+  EllipsisVertical,
 } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -33,11 +32,23 @@ import { resolveDeviceImageSource } from '../../utils/images';
 import { tintFor } from '../shared/categoryTints';
 import { selectShopId, selectUserId } from '../../store/authSlice';
 
-// Mirrors the customer SellHomeScreen palette + layout so both apps speak the
-// same visual language for the "Sell" flow. Routes into the OWNER_LIST flow
-// (SelectBrand) and swaps the customer's notification chip for "My Listings".
-const GREEN       = '#004C40';
-const GREEN_DARK  = '#004C40';
+// GGFIX palette — same values used across the rest of the app's redesigned screens.
+const ACCENT = '#004C40';
+const PRIMARY = '#006B57';
+const BRIGHT = '#00A86B';
+const MINT = '#E8F7F2';
+const SOFT_MINT = '#F4FBF8';
+const PAGE_BG = '#F8FAF9';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#DCE7E2';
+const TEXT_PRIMARY = '#111827';
+const TEXT_SECONDARY = '#667085';
+const ACTIVE_FG = '#B45309';
+const ACTIVE_BG = '#FFF3CD';
+// Kept for the parts of this file untouched by the redesign (device-category
+// meta/emoji lookups) — no behavioural meaning, just a legacy name.
+const GREEN       = ACCENT;
+const GREEN_DARK  = ACCENT;
 
 const CODE_META = {
   MOBILE:        { emoji: '📱', sub: 'Smartphones' },
@@ -90,25 +101,28 @@ function bannerImage(b) {
 }
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#0B1F14',
   shadowOpacity: 0.06,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 5 },
   elevation: 2,
 };
 
-// Top trust strip (icon-left cards).
+// Benefit strip below the hero.
 const TOP_TRUST = [
-  { icon: Gauge,       title: 'Quick Listing',  sub: 'List in less than 1 minute',    color: GREEN_DARK, bg: '#E6F7E3' },
-  { icon: ShieldCheck, title: 'Trusted Buyers', sub: '100% verified buyers',          color: '#B45309',  bg: '#FEF3C7' },
-  { icon: ScanSearch,  title: 'Best Price',     sub: 'Get the best value for device', color: GREEN_DARK, bg: '#E6F7E3' },
+  { icon: Gauge,       title: 'Quick Listing',  sub: 'List in less than 1 minute',    color: ACCENT, bg: MINT },
+  { icon: ShieldCheck, title: 'Trusted Buyers', sub: '100% verified buyers',          color: ACTIVE_FG, bg: ACTIVE_BG },
+  { icon: ScanSearch,  title: 'Best Price',     sub: 'Get the best value for device', color: ACCENT, bg: MINT },
 ];
 
-// Hero fallback steps (shown when no "Sell" banner is published yet).
-const HERO_STEPS = [
-  { icon: Tag,         label: 'List Device' },
-  { icon: Users,       label: 'Get Offers' },
-  { icon: IndianRupee, label: 'Get Paid' },
+// Purely decorative, static promotional copy for the fallback hero — the
+// user supplied this exact wording; nothing here is business data, so
+// there's nothing to fabricate.
+const HERO_BENEFITS = [
+  { title: 'Best Price', sub: 'Get top value' },
+  { title: 'Quick & Easy', sub: 'List in minutes' },
+  { title: 'Safe & Secure', sub: 'Trusted buyers' },
+  { title: 'Trusted Platform', sub: 'Thousands of happy customers' },
 ];
 
 export default function OwnerSellHomeScreen({ navigation, route }) {
@@ -119,8 +133,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const padH = isTablet ? 24 : 16;
   // Tablet/iPad content centers under a width cap instead of every section
   // stretching edge-to-edge across a much wider screen.
-  const maxContentWidth = isTablet ? 900 : undefined;
-  const heroTitleF = isSmall ? 19 : isTablet ? 24 : 22;
+  const maxContentWidth = isTablet ? 1000 : undefined;
 
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +168,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
             return Number.isNaN(t) ? -Infinity : t;
           };
           mine.sort((a, b) => ts(b) - ts(a));
-          if (!cancelled) setListings(mine.slice(0, 3));
+          if (!cancelled) setListings(mine.slice(0, 4));
         } catch (_) {
           if (!cancelled) setListings([]);
         }
@@ -220,26 +233,25 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
       editSellOrderId: route?.params?.editSellOrderId,
     });
 
+  // Same real destination the whole hero (and every listing row) already
+  // opens with — "Sell Now" just gives that same action a dedicated button.
+  const startSelling = () => { if (filtered.length) goPickCategory(filtered[0]); };
 
-  const CHIP_SIZE = isSmall ? 72 : isTablet ? 112 : 86;
-  const CHIP_IMG_SIZE = isSmall ? 48 : isTablet ? 76 : 58;
-  const CHIP_ICON_SIZE = isSmall ? 24 : isTablet ? 38 : 30;
-  const CHIP_LABEL_F = isSmall ? 10 : isTablet ? 13 : 11;
+  const CHIP_SIZE = isSmall ? 78 : isTablet ? 118 : 92;
+  const CHIP_IMG_SIZE = isSmall ? 52 : isTablet ? 80 : 62;
+  const CHIP_ICON_SIZE = isSmall ? 26 : isTablet ? 40 : 32;
+  const CHIP_LABEL_F = isSmall ? 10.5 : isTablet ? 13.5 : 11.5;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ── Header: same card chrome as OwnerBuyListingScreen (rounded
-          bottom, plain grey circular icon buttons) — right icon is a
-          listing/document icon here, since Sell has "My Listings" where
-          Buy has a cart. ─────────────────────────────────────────── */}
+      {/* Header */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View
           style={{
-            backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16,
-            borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-            borderBottomWidth: 1, borderBottomColor: '#E2E8E2',
+            backgroundColor: '#FFFFFF', paddingTop: 8, paddingBottom: 12,
+            borderBottomWidth: 1, borderBottomColor: BORDER,
           }}
         >
           <View style={{ paddingHorizontal: padH }}>
@@ -247,21 +259,23 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
               <View className="flex-row items-center">
                 <Pressable
                   onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-                  hitSlop={10}
-                  className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
+                  hitSlop={8}
+                  className="items-center justify-center"
+                  style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
                 >
-                  <ChevronLeft size={20} color="#172117" />
+                  <ChevronLeft size={19} color={TEXT_PRIMARY} />
                 </Pressable>
                 <View className="flex-1 items-center">
-                  <Text className="text-text text-[15px] font-extrabold" numberOfLines={1}>Sell on GGFIX</Text>
-                  <Text className="text-text-muted text-[11px] font-medium mt-0.5" numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on GGFIX</Text>
+                  <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
                 <Pressable
                   onPress={() => navigation.navigate('MarketplaceOrders')}
-                  hitSlop={10}
-                  className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
+                  hitSlop={8}
+                  className="items-center justify-center"
+                  style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
                 >
-                  <FileText size={18} color="#172117" />
+                  <FileText size={17} color={ACCENT} />
                 </Pressable>
               </View>
             </View>
@@ -274,13 +288,11 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
       ) : (
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         <View style={{ width: '100%', maxWidth: maxContentWidth, alignSelf: 'center' }}>
-          {/* ── Category selector — compact horizontal strip, same method
-              as OwnerBuyListingScreen's category chips: "All" first, then
-              each real category. "All" opens My Listings (this screen's
-              equivalent of "see everything"); a real category still opens
-              the SelectBrand flow to start a new listing for it — tapping
-              a category here was never a list filter, so that behaviour
-              is unchanged, only how the chips look and where they sit. ── */}
+          {/* ── Category selector — "All" first, then every real, active
+              category (however many the admin has published — not forced to
+              exactly 3). Tapping a real category still opens SelectBrand to
+              start a new listing for it; "All" still opens My Listings. Same
+              behaviour as before, bigger premium tiles. ── */}
           {filtered.length === 0 ? (
             <View style={{ paddingHorizontal: padH, marginTop: 16 }}>
               <EmptyState
@@ -301,13 +313,17 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   if (c.all) {
                     return (
                       <Pressable onPress={() => navigation.navigate('MarketplaceOrders')} className="items-center active:opacity-80" style={{ width: CHIP_SIZE }}>
+                        {/* "All" is always the default/opening view of this
+                            screen (there's no real stateful filter to track),
+                            so it's shown with a permanent active outline
+                            rather than fabricating selectable-filter state. */}
                         <View
                           className="items-center justify-center"
-                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: '#E6F7E3', ...cardShadow }}
+                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: MINT, borderWidth: 1.5, borderColor: BRIGHT, ...cardShadow }}
                         >
-                          <LayoutGrid size={CHIP_ICON_SIZE} color={GREEN_DARK} />
+                          <LayoutGrid size={CHIP_ICON_SIZE} color={ACCENT} />
                         </View>
-                        <Text className="text-center mt-1" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, fontWeight: '600', color: '#172117' }}>All</Text>
+                        <Text className="text-center mt-1.5 font-bold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: ACCENT }}>All</Text>
                       </Pressable>
                     );
                   }
@@ -317,11 +333,11 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     <Pressable onPress={() => goPickCategory(c)} className="items-center active:opacity-80" style={{ width: CHIP_SIZE }}>
                       <View
                         className="items-center justify-center overflow-hidden"
-                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: tintFor(c.code), ...cardShadow }}
+                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: tintFor(c.code), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
                       >
                         {uri ? <Image source={{ uri }} style={{ width: CHIP_IMG_SIZE, height: CHIP_IMG_SIZE }} resizeMode="contain" /> : <Text style={{ fontSize: CHIP_ICON_SIZE }}>{meta.emoji}</Text>}
                       </View>
-                      <Text className="text-center mt-1" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, fontWeight: '600', color: '#172117' }}>{c.name}</Text>
+                      <Text className="text-center mt-1.5 font-semibold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: TEXT_PRIMARY }}>{c.name}</Text>
                     </Pressable>
                   );
                 }}
@@ -329,7 +345,10 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* ── Hero: "Sell" banner carousel (or designed fallback) ── */}
+          {/* ── Hero: "Sell" banner carousel (admin-controlled image — its
+              content is out of this redesign's reach, only the surrounding
+              chrome/pagination is restyled) or the designed fallback below,
+              shown only when no banner is published. ── */}
           {banners.length > 0 ? (
             <View style={{ marginTop: 16 }}>
               <ScrollView
@@ -343,11 +362,11 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   const uri = bannerImage(b);
                   return (
                     <View key={b.id} style={{ width: winW, paddingHorizontal: padH }}>
-                      <Pressable onPress={() => { if (filtered.length) goPickCategory(filtered[0]); }} className="rounded-3xl overflow-hidden active:opacity-95" style={cardShadow}>
+                      <Pressable onPress={startSelling} className="rounded-3xl overflow-hidden active:opacity-95" style={{ borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
                         {uri ? (
-                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: '#E6F7E3' }} resizeMode="cover" />
+                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: MINT }} resizeMode="cover" />
                         ) : (
-                          <View style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: '#E6F7E3' }} />
+                          <View style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: MINT }} />
                         )}
                       </Pressable>
                     </View>
@@ -357,74 +376,115 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
               {banners.length > 1 ? (
                 <View className="flex-row items-center justify-center" style={{ marginTop: 10 }}>
                   {banners.map((b, i) => (
-                    <View key={b.id} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? GREEN : '#CBD5CB' }} />
+                    <View key={b.id} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? ACCENT : BORDER }} />
                   ))}
                 </View>
               ) : null}
             </View>
           ) : (
             <View style={{ paddingHorizontal: padH, marginTop: 16 }}>
-              <View className="rounded-3xl overflow-hidden" style={cardShadow}>
-                <LinearGradient colors={['#E6F7E3', '#E6F7E3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
-                  {/* Headline + box */}
+              <View className="rounded-3xl overflow-hidden flex-row" style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: '#FFFFFF', ...cardShadow }}>
+                {/* Left — brand, headline, trust items, Sell Now */}
+                <View style={{ flex: isSmall ? 1.3 : 1, padding: isSmall ? 14 : 18 }}>
                   <View className="flex-row items-center">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-text font-extrabold" style={{ fontSize: heroTitleF, lineHeight: heroTitleF + 4 }}>Get the best value</Text>
-                      <Text className="font-extrabold" style={{ fontSize: heroTitleF, lineHeight: heroTitleF + 4, color: GREEN_DARK }}>for your device</Text>
-                      <Text className="text-text-muted" style={{ fontSize: 12.5, marginTop: 6 }}>Sell in 3 simple steps</Text>
+                    <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: ACCENT, marginRight: 9 }}>
+                      <Text className="text-white font-extrabold" style={{ fontSize: 15 }}>G</Text>
                     </View>
-                    <Text style={{ fontSize: isSmall ? 50 : 60 }}>📦</Text>
+                    <View>
+                      <Text className="font-extrabold" style={{ fontSize: 14, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
+                      <Text style={{ fontSize: 7, color: TEXT_SECONDARY, letterSpacing: 0.5 }}>SMART DEVICES. SMARTER CHOICE.</Text>
+                    </View>
                   </View>
-                  {/* Steps — full width so they always fit */}
-                  <View className="flex-row items-start" style={{ marginTop: 16 }}>
-                    {HERO_STEPS.map((s, i) => {
-                      const Icon = s.icon;
-                      return (
-                        <React.Fragment key={s.label}>
-                          <View className="items-center" style={{ flex: 1 }}>
-                            <View className="h-11 w-11 rounded-full items-center justify-center" style={{ backgroundColor: GREEN }}>
-                              <Icon size={20} color="#FFFFFF" strokeWidth={2.2} />
-                            </View>
-                            <Text className="text-text font-bold text-center" style={{ fontSize: 10.5, marginTop: 5 }} numberOfLines={1}>{s.label}</Text>
-                          </View>
-                          {i < HERO_STEPS.length - 1 ? <ChevronRight size={16} color={GREEN_DARK} style={{ marginTop: 12 }} /> : null}
-                        </React.Fragment>
-                      );
-                    })}
+
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: TEXT_PRIMARY, marginTop: 12 }}>
+                    Sell Your Devices
+                  </Text>
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: ACCENT }}>
+                    Get the Best Value
+                  </Text>
+                  <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 3 }} numberOfLines={1}>
+                    Quick Evaluation · Instant Offers · Secure Payments
+                  </Text>
+
+                  {/* 4 trust items, each with its own sub-copy */}
+                  <View className="flex-row flex-wrap" style={{ marginTop: 12 }}>
+                    {HERO_BENEFITS.map((b) => (
+                      <View key={b.title} className="flex-row items-start" style={{ width: '50%', paddingRight: 6, marginBottom: 8 }}>
+                        <ShieldCheck size={12} color={ACCENT} style={{ marginTop: 1 }} />
+                        <View style={{ marginLeft: 5, flex: 1 }}>
+                          <Text className="font-extrabold" style={{ fontSize: 10, color: TEXT_PRIMARY }} numberOfLines={1}>{b.title}</Text>
+                          <Text style={{ fontSize: 8.5, color: TEXT_SECONDARY }} numberOfLines={1}>{b.sub}</Text>
+                        </View>
+                      </View>
+                    ))}
                   </View>
+
+                  {/* Sell Now — same real destination the banner tap / first
+                      listing row already use. */}
+                  <Pressable
+                    onPress={startSelling}
+                    className="flex-row items-center active:opacity-90"
+                    style={{ marginTop: 6, borderRadius: 999, backgroundColor: ACCENT, paddingVertical: 6, paddingLeft: 18, paddingRight: 6, alignSelf: 'flex-start', ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.3 }}
+                  >
+                    <Text className="text-white font-extrabold" style={{ fontSize: 13.5 }}>Sell Now</Text>
+                    <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: '#FFFFFF', marginLeft: 10 }}>
+                      <ChevronRight size={15} color={ACCENT} />
+                    </View>
+                  </Pressable>
+                </View>
+
+                {/* Right — device collage (icon-based stand-in for a full
+                    illustration graphic; no image asset was supplied), the
+                    instant-payment badge, and the decorative handwritten
+                    closing line. */}
+                <LinearGradient
+                  colors={[BRIGHT, ACCENT]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ width: isSmall ? 96 : 118, padding: 10, justifyContent: 'space-between' }}
+                >
+                  <View className="items-center justify-center rounded-full" style={{ alignSelf: 'flex-end', width: 46, height: 46, backgroundColor: 'rgba(255,255,255,0.16)' }}>
+                    <IndianRupee size={14} color="#FFFFFF" />
+                    <Text className="text-white font-extrabold" style={{ fontSize: 6, marginTop: 1, textAlign: 'center' }}>INSTANT{'\n'}PAYMENT</Text>
+                  </View>
+                  <View className="items-center" style={{ marginVertical: 8 }}>
+                    <Package size={isSmall ? 40 : 48} color="rgba(255,255,255,0.9)" strokeWidth={1.4} />
+                  </View>
+                  <Text className="italic text-white text-right" style={{ fontSize: 8.5, lineHeight: 11, opacity: 0.9 }}>
+                    Turn Your Device{'\n'}into Value
+                  </Text>
                 </LinearGradient>
               </View>
             </View>
           )}
 
-          {/* ── Top trust cards ──────────────────────────────── */}
-          <View className="flex-row" style={{ paddingHorizontal: padH, marginTop: 16 }}>
+          {/* ── Benefit cards ──────────────────────────────── */}
+          <View className="flex-row" style={{ paddingHorizontal: padH, marginTop: 14 }}>
             {TOP_TRUST.map((t, i) => {
               const Icon = t.icon;
               return (
                 <View
                   key={t.title}
-                  className="bg-white"
-                  style={{ flex: 1, marginLeft: i === 0 ? 0 : 8, borderRadius: 14, padding: 10, borderWidth: 1, borderColor: '#EFF5EE' }}
+                  style={{ flex: 1, marginLeft: i === 0 ? 0 : 8, backgroundColor: CARD_BG, borderRadius: 16, padding: 10, borderWidth: 1, borderColor: BORDER, ...cardShadow }}
                 >
-                  <View className="h-8 w-8 rounded-full items-center justify-center mb-2" style={{ backgroundColor: t.bg }}>
-                    <Icon size={16} color={t.color} strokeWidth={2.2} />
+                  <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: t.bg, marginBottom: 6 }}>
+                    <Icon size={15} color={t.color} strokeWidth={2.2} />
                   </View>
-                  <Text className="font-extrabold text-text" style={{ fontSize: 11.5 }} numberOfLines={1}>{t.title}</Text>
-                  <Text className="text-text-muted" style={{ fontSize: 9.5, marginTop: 2, lineHeight: 13 }} numberOfLines={2}>{t.sub}</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 12, color: TEXT_PRIMARY }} numberOfLines={1}>{t.title}</Text>
+                  <Text style={{ fontSize: 9.5, color: TEXT_SECONDARY, marginTop: 3, lineHeight: 13 }} numberOfLines={2}>{t.sub}</Text>
                 </View>
               );
             })}
           </View>
 
           {/* ── Your listed products ─────────────────────────────
-              Sits where the trust strip used to. Hidden entirely when there is
-              nothing listed: an empty card here would push the categories up
-              the screen for a shop that has never sold anything. */}
+              Hidden entirely when there is nothing listed: an empty card
+              here would push the categories up the screen for a shop that
+              has never sold anything. */}
           {listings.length > 0 ? (
-            <View style={{ paddingHorizontal: padH, marginTop: 18 }}>
-              <View className="flex-row items-center justify-between" style={{ marginBottom: 10 }}>
-                <Text className="text-text font-extrabold" style={{ fontSize: 15 }}>
+            <View style={{ paddingHorizontal: padH, marginTop: 16 }}>
+              <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
+                <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY }}>
                   Your listed products
                 </Text>
                 <Pressable
@@ -432,69 +492,83 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   className="flex-row items-center active:opacity-70"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text className="font-extrabold" style={{ fontSize: 12, color: GREEN_DARK }}>View all</Text>
-                  <ChevronRight size={14} color={GREEN_DARK} />
+                  <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT }}>View all</Text>
+                  <ChevronRight size={15} color={ACCENT} />
                 </Pressable>
               </View>
 
-              {listings.map((p) => {
-                const img = resolveDeviceImageSource({ url: p.imageUrl });
-                const price = p.price != null ? `₹${Number(p.price).toLocaleString('en-IN')}` : '—';
-                const created = p.createdAt ? new Date(p.createdAt) : null;
-                const when = created
-                  ? created.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
-                  : '';
-                const status = String(p.status || '').toUpperCase();
-                const sold = status === 'SOLD' || status === 'COMPLETED';
-                const cancelled = status === 'CANCELLED' || status === 'CANCELED';
-                const pill = sold
-                  ? { label: 'Sold', ink: GREEN_DARK, bg: '#E6F7E3' }
-                  : cancelled
-                    ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
-                    : { label: 'Active', ink: '#B45309', bg: '#FEF3C7' };
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => navigation.navigate('MarketplaceOrders')}
-                    className="bg-white flex-row items-center active:opacity-90"
-                    style={{
-                      borderRadius: 14,
-                      padding: 10,
-                      marginBottom: 8,
-                      borderWidth: 1,
-                      borderColor: '#EFF5EE',
-                      ...cardShadow,
-                    }}
-                  >
-                    <View
-                      className="items-center justify-center"
-                      style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#F0F8EF', overflow: 'hidden' }}
-                    >
-                      {img ? (
-                        <Image source={img} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-                      ) : (
-                        <Package size={20} color={GREEN_DARK} />
-                      )}
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-                      <Text className="text-text font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>
-                        {p.title || 'Listing'}
-                      </Text>
-                      <View className="flex-row items-center" style={{ marginTop: 3 }}>
-                        <View style={{ backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-                          <Text className="font-extrabold" style={{ fontSize: 9.5, color: pill.ink }}>{pill.label}</Text>
+              {/* 2-column grid, wrapping flex rather than FlatList's
+                  numColumns — this list is capped at 4 items and already
+                  lives inside the page's own ScrollView, so a second
+                  scrollable list isn't needed here. */}
+              <View className="flex-row flex-wrap" style={{ marginHorizontal: -5 }}>
+                {listings.map((p) => {
+                  const img = resolveDeviceImageSource({ url: p.imageUrl });
+                  const price = p.price != null ? `₹${Number(p.price).toLocaleString('en-IN')}` : '—';
+                  const status = String(p.status || '').toUpperCase();
+                  const sold = status === 'SOLD' || status === 'COMPLETED';
+                  const cancelled = status === 'CANCELLED' || status === 'CANCELED';
+                  const pill = sold
+                    ? { label: 'Sold', ink: ACCENT, bg: MINT }
+                    : cancelled
+                      ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
+                      : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: ACTIVE_FG, bg: ACTIVE_BG };
+                  // Real fields (same ones the My Listings screen already
+                  // reads) — not the fabricated view/like counts the
+                  // reference showed, which nothing in this app tracks.
+                  const spec = [p.storageLabel, p.ramLabel].filter(Boolean).join(' / ');
+                  return (
+                    <View key={p.id} style={{ width: '50%', paddingHorizontal: 5, marginBottom: 10 }}>
+                      <Pressable
+                        onPress={() => navigation.navigate('MarketplaceOrders')}
+                        className="active:opacity-90"
+                        style={{
+                          backgroundColor: CARD_BG, borderRadius: 18, padding: 10,
+                          borderWidth: 1, borderColor: BORDER, ...cardShadow,
+                        }}
+                      >
+                        <View style={{ position: 'relative' }}>
+                          <View
+                            className="items-center justify-center"
+                            style={{ width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: MINT, overflow: 'hidden' }}
+                          >
+                            {img ? (
+                              <Image source={img} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                            ) : (
+                              <Package size={28} color={ACCENT} />
+                            )}
+                          </View>
+                          {/* Same real destination as the whole card — a
+                              decorative affordance, not a second, fabricated
+                              actions menu. */}
+                          <Pressable
+                            onPress={() => navigation.navigate('MarketplaceOrders')}
+                            hitSlop={8}
+                            className="items-center justify-center"
+                            style={{ position: 'absolute', top: 4, right: 4, height: 24, width: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.9)' }}
+                          >
+                            <EllipsisVertical size={14} color={TEXT_SECONDARY} />
+                          </Pressable>
                         </View>
-                        {when ? (
-                          <Text className="text-text-muted" style={{ fontSize: 10.5, marginLeft: 6 }}>{when}</Text>
+                        <View style={{ backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 8 }}>
+                          <Text className="font-extrabold" style={{ fontSize: 9, color: pill.ink }}>{pill.label}</Text>
+                        </View>
+                        <Text className="font-bold" style={{ fontSize: 12.5, color: TEXT_PRIMARY, marginTop: 5 }} numberOfLines={2}>
+                          {p.title || 'Listing'}
+                        </Text>
+                        {spec ? (
+                          <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>
+                            ({spec})
+                          </Text>
                         ) : null}
-                      </View>
+                        <Text className="font-extrabold" style={{ fontSize: 15, color: ACCENT, marginTop: 5 }}>
+                          {price}
+                        </Text>
+                      </Pressable>
                     </View>
-                    <Text className="font-extrabold" style={{ fontSize: 13, color: GREEN_DARK, marginLeft: 8 }}>
-                      {price}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
           ) : null}
         </View>

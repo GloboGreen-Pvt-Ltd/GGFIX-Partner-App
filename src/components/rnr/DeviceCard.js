@@ -3,14 +3,15 @@ import { View, Text, Pressable, Image, Dimensions } from 'react-native';
 import { cn } from './cn';
 import { tokens, shadows } from '../../theme/colors';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-
 /**
  * Compute the per-card width for a 2-column responsive grid so cards never
- * overflow on small phones. Uses the gutter + outer padding passed in.
+ * overflow on small phones. Uses the gutter + outer padding passed in. Reads
+ * the window width fresh on every call (not a value frozen at module load),
+ * so a caller re-invoking this on resize/rotation gets a current answer.
  */
 export function gridCardWidth({ columns = 2, gutter = 12, outer = 16 } = {}) {
-  const available = SCREEN_W - outer * 2 - gutter * (columns - 1);
+  const { width: screenW } = Dimensions.get('window');
+  const available = screenW - outer * 2 - gutter * (columns - 1);
   return Math.floor(available / columns);
 }
 
