@@ -47,23 +47,28 @@ function patchFontScaling(Component) {
   Component.__ggfixFontPatched = true;
 
   Component.render = function ggfixScaledRender(props, ref) {
-    const element = originalRender.call(this, props, ref);
+    // Disable OS font scaling by feeding it in as an INPUT prop (unless the
+    // caller already set one explicitly) so Text/TextInput's own
+    // implementation handles it. We used to force it onto the OUTPUT element
+    // via cloneElement below, but on web `originalRender` (react-native-web's
+    // Text) already returns the fully-resolved host element (a plain
+    // div/span/a) — that doesn't understand RN-only props like
+    // `allowFontScaling` and React warns "does not recognize the
+    // `allowFontScaling` prop on a DOM element" (and, under some style
+    // shapes, throws outright while cloning).
+    const scaledProps =
+      props.allowFontScaling === undefined ? { ...props, allowFontScaling: false } : props;
+    const element = originalRender.call(this, scaledProps, ref);
     if (!React.isValidElement(element)) return element;
 
     const flat = StyleSheet.flatten(element.props.style);
-    let style = element.props.style;
-    if (flat && typeof flat.fontSize === 'number') {
-      style = { ...flat, fontSize: scaleFont(flat.fontSize) };
-      if (typeof flat.lineHeight === 'number') {
-        style.lineHeight = Math.round(flat.lineHeight * FONT_SCALE);
-      }
-    }
+    if (!flat || typeof flat.fontSize !== 'number') return element;
 
-    return React.cloneElement(element, {
-      // Respect an explicit per-instance choice; otherwise disable OS scaling.
-      allowFontScaling: element.props.allowFontScaling ?? false,
-      style,
-    });
+    const style = { ...flat, fontSize: scaleFont(flat.fontSize) };
+    if (typeof flat.lineHeight === 'number') {
+      style.lineHeight = Math.round(flat.lineHeight * FONT_SCALE);
+    }
+    return React.cloneElement(element, { style });
   };
 }
 
