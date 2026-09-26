@@ -1,0 +1,294 @@
+import React, { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowRight, ShieldCheck, Star, TrendingUp, Users } from 'lucide-react-native';
+import { tokens } from '../theme/colors';
+import { rf, rs } from '../utils/responsive';
+import { resetOnboardingForTesting } from '../auth/onboarding';
+
+/**
+ * Pre-login intro/onboarding screen. Shown once (see RootNavigator, which
+ * decides the unauthenticated stack's `initialRouteName` from
+ * `hasSeenIntro()`) — Skip and Get Started are deliberately the same action
+ * here (there is nowhere else to send a signed-out user but Login); both
+ * persist "seen" via the `onDone` prop before moving on.
+ */
+const INTRO_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Intro-image.png';
+ExpoImage.prefetch(INTRO_IMAGE_URL, 'disk').catch(() => {});
+
+const WHITE = '#FFFFFF';
+const MINT = '#E8FFF6';
+const LIGHT_GREEN = '#CFFFF0';
+const PRIMARY_GREEN = '#00796B';
+const DARK_GREEN = '#005C4B';
+const BRIGHT_GREEN = '#00C781';
+const DARK_TEXT = tokens.text;
+const MUTED_TEXT = tokens.textMuted;
+
+function BenefitItem({ icon, label, tablet }) {
+  return (
+    <View style={styles.benefitItem}>
+      <View style={[styles.benefitIconWrap, tablet && { width: rs(58), height: rs(58), borderRadius: rs(29) }]}>{icon}</View>
+      <Text style={[styles.benefitLabel, tablet && { fontSize: rf(12), lineHeight: rf(15) }]}>{label}</Text>
+    </View>
+  );
+}
+
+function PaginationDots({ count, activeIndex }) {
+  return (
+    <View style={styles.dotsRow}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.dot, i === activeIndex && styles.dotActive]} />
+      ))}
+    </View>
+  );
+}
+
+export default function IntroScreen({ navigation, onDone }) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  // 768 — matches the breakpoint used across the rest of the pre-auth flow
+  // (Login, OTP) so a 600–767px device gets the same compact treatment
+  // everywhere instead of switching per screen.
+  const isTablet = width >= 768;
+  const shortDevice = height < 700;
+  // Was capped at 560 — on a big tablet that left the card floating in a
+  // mostly-empty page. Widened, and every element inside it below is scaled
+  // up for `isTablet` too, so the screen reads as designed for the larger
+  // canvas instead of a phone layout centred in empty space.
+  const contentWidth = isTablet ? Math.min(width * 0.78, 680) : width;
+
+  // Intro-image.png's real aspect ratio isn't known ahead of time — read it
+  // off the actual rendering image (expo-image's onLoad) so it never
+  // stretches, with a sane fallback before it resolves.
+  const [heroRatio, setHeroRatio] = useState(0.85);
+  const heroWidth = Math.min(contentWidth * (isTablet ? 0.56 : 0.8), isTablet ? 460 : 320);
+  const heroHeight = heroWidth * heroRatio;
+
+  useEffect(() => console.log('[INTRO] IntroScreen mounted'), []); // TEMP DEBUG — remove once verified
+
+  const handleContinue = async (source) => {
+    console.log(`[INTRO] ${source} pressed`); // TEMP DEBUG — remove once verified
+    try {
+      await onDone();
+      console.log('[INTRO] Onboarding saved'); // TEMP DEBUG
+    } catch (_) {}
+    console.log('[INTRO] Navigating to Login'); // TEMP DEBUG
+    navigation.replace('Login');
+  };
+
+  // DEV-ONLY — long-press the wordmark to clear the "onboarding completed"
+  // flag and see this screen again on the next app reload, without
+  // reinstalling or clearing all app storage. Inert in a release build
+  // (resetOnboardingForTesting() no-ops when `__DEV__` is false), and there is
+  // no UI affordance hinting at it — it's for local testing only.
+  const handleDevResetLongPress = __DEV__
+    ? async () => {
+        await resetOnboardingForTesting();
+        console.log('[INTRO][DEV] Onboarding flag cleared — reload the app to see Intro again');
+      }
+    : undefined;
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
+
+      {/* Decorative only — soft mint shapes, never intercept touches. */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+        <View style={[styles.blob, { width: rs(220), height: rs(220), top: -rs(70), left: -rs(80), backgroundColor: MINT }]} />
+        <View
+          style={[
+            styles.blob,
+            { width: rs(170), height: rs(170), top: height * 0.34, left: -rs(90), backgroundColor: LIGHT_GREEN, opacity: 0.7 },
+          ]}
+        />
+        <View style={[styles.blob, { width: rs(240), height: rs(240), bottom: -rs(90), right: -rs(100), backgroundColor: MINT }]} />
+      </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: insets.top + rs(10),
+          paddingBottom: rs(16),
+          paddingHorizontal: rs(24),
+          alignItems: 'center',
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* No `flex: 1` anywhere in here — a flexed child inside ScrollView
+            content is a known RN pitfall: the content's measured height can
+            go ambiguous, so what paints on screen stops matching where the
+            touch responder thinks elements are (this is what made Get
+            Started render correctly but not respond to taps). The CTA is a
+            fixed footer below the ScrollView instead — see the end of this
+            component — so nothing in the scrollable area needs to flex. */}
+        <View style={{ width: '100%', maxWidth: contentWidth }}>
+          <View style={styles.headerRow}>
+            <Pressable onLongPress={handleDevResetLongPress} disabled={!__DEV__}>
+              <Text style={styles.wordmark}>
+                GG<Text style={{ color: BRIGHT_GREEN }}>FIX</Text>
+              </Text>
+              <Text style={styles.wordmarkSub}>PARTNER APP</Text>
+            </Pressable>
+            <Pressable onPress={() => handleContinue('Skip')} hitSlop={12} style={styles.skipBtn}>
+              <Text style={styles.skipText}>Skip</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.heading, { fontSize: rf(isTablet ? 32 : shortDevice ? 21 : 25), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
+            <Text style={{ color: PRIMARY_GREEN }}>Manage Repairs, Pickups, Buy &amp; Sell </Text>
+            <Text style={{ color: DARK_TEXT }}>Devices — All in One Place</Text>
+          </Text>
+
+          <Text style={[styles.description, isTablet && { fontSize: rf(16), lineHeight: rf(24), marginTop: rs(18) }]}>
+            Grow your business with GGFIX. Handle service orders, manage pickups, buy and sell devices, and serve more
+            customers — faster and easier.
+          </Text>
+
+          <View style={{ width: heroWidth, height: heroHeight, alignSelf: 'center', marginTop: rs(shortDevice ? 18 : 26) }}>
+            <ExpoImage
+              source={INTRO_IMAGE_URL}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="contain"
+              cachePolicy="disk"
+              onLoad={(e) => {
+                const { width: w, height: h } = e?.source || {};
+                if (w > 0 && h > 0) setHeroRatio(h / w);
+              }}
+            />
+          </View>
+
+          <View style={[styles.benefitsRow, { marginTop: rs(isTablet ? 34 : shortDevice ? 20 : 28) }]}>
+            <BenefitItem icon={<ShieldCheck size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'Trusted\nPlatform'} tablet={isTablet} />
+            <BenefitItem icon={<Users size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'More\nCustomers'} tablet={isTablet} />
+            <BenefitItem icon={<TrendingUp size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'Grow\nYour Business'} tablet={isTablet} />
+            <BenefitItem icon={<Star size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'All Your Tech\nNeeds, Covered'} tablet={isTablet} />
+          </View>
+
+          <PaginationDots count={4} activeIndex={0} />
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + rs(12) }]}>
+        <View style={{ width: '100%', maxWidth: contentWidth, alignSelf: 'center' }}>
+          <Pressable
+            onPress={() => handleContinue('Get Started')}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.cta, isTablet && { minHeight: rs(62) }, pressed && { opacity: 0.92 }]}
+          >
+            <Text style={[styles.ctaText, isTablet && { fontSize: rf(18) }]}>Get Started</Text>
+            <ArrowRight size={rs(isTablet ? 20 : 18)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#FAFFFD' },
+  blob: { position: 'absolute', borderRadius: 999 },
+  footer: {
+    paddingHorizontal: rs(24),
+    paddingTop: rs(10),
+    backgroundColor: '#FAFFFD',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: rs(20),
+  },
+  wordmark: {
+    fontSize: rf(20),
+    fontWeight: '800',
+    color: DARK_GREEN,
+    letterSpacing: -0.3,
+  },
+  wordmarkSub: {
+    marginTop: rs(2),
+    fontSize: rf(9),
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    color: MUTED_TEXT,
+  },
+  skipBtn: {
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(8),
+  },
+  skipText: {
+    fontSize: rf(14),
+    fontWeight: '700',
+    color: DARK_GREEN,
+  },
+  heading: {
+    textAlign: 'center',
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  description: {
+    marginTop: rs(12),
+    textAlign: 'center',
+    fontSize: rf(13),
+    lineHeight: rf(19),
+    color: MUTED_TEXT,
+  },
+  benefitsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  benefitItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: rs(6),
+    paddingHorizontal: rs(2),
+  },
+  benefitIconWrap: {
+    width: rs(44),
+    height: rs(44),
+    borderRadius: rs(22),
+    backgroundColor: MINT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitLabel: {
+    fontSize: rf(9.5),
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: rf(12),
+    color: DARK_TEXT,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: rs(6),
+    marginTop: rs(20),
+  },
+  dot: {
+    width: rs(7),
+    height: rs(7),
+    borderRadius: rs(4),
+    backgroundColor: '#D9E5E1',
+  },
+  dotActive: {
+    width: rs(20),
+    backgroundColor: DARK_GREEN,
+  },
+  cta: {
+    width: '100%',
+    minHeight: rs(56),
+    borderRadius: rs(30),
+    backgroundColor: DARK_GREEN,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: rs(20),
+  },
+  ctaText: {
+    color: '#FFFFFF',
+    fontSize: rf(16),
+    fontWeight: '800',
+  },
+});
