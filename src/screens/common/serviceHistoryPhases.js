@@ -149,22 +149,31 @@ export function labelForStatus(statusKey) {
   return LABEL_BY_KEY[String(statusKey || '').toUpperCase()] || null;
 }
 
-const SUCCESS = '#16BB05';      // green dot / line for completed steps
-const BRAND_GREEN_DARK = '#087A0A';
-const DOT_BORDER = '#CBD5CB';   // gray ring around upcoming steps
-const LINE_PENDING = '#E2E8E2'; // connector between unreached steps
+// GGFIX palette — same values used across the rest of the booking flow.
+const ACCENT = '#004C40';       // Dark Green
+const PRIMARY = '#006B57';      // Primary Green
+const MINT = '#E8F7F2';
+const BORDER = '#DCE7E2';
+const SUCCESS = '#16A34A';      // dot / line / tint for completed steps
+const BRAND_GREEN_DARK = ACCENT; // kept as an alias — same constant name used throughout this file's JSX below
+const DOT_BORDER = BORDER;      // ring around upcoming steps
+const LINE_PENDING = BORDER;    // connector between unreached steps
 const DANGER = '#DC2626';       // Return Device branch — dots, rail and header
 const DANGER_TINT = '#FEE2E2';
+const PENDING_TINT = '#FEF3C7';
+const PENDING_FG = '#B45309';
+const UPCOMING_BG = '#DBEAFE';  // light blue "Upcoming" badge
+const UPCOMING_FG = '#1D4ED8';
 
 // Per-stage chrome for the five SERVICE groups. `layout` drives the renderer:
 // 'full' stacks down the page at full width; the two 'branch' stages are laid
 // out side by side in one row, left then right.
 const SERVICE_GROUP_META = {
-  [G_ACCEPTED]:  { title: 'Service Accepted', icon: ClipboardCheck, accent: BRAND_GREEN_DARK, tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
-  [G_PROCESS]:   { title: 'In Process',       icon: Wrench,         accent: '#16BB05',        tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
-  [G_PENDING]:   { title: 'Working Pending',  icon: Clock,          accent: '#B45309',        tint: '#FEF3C7', done: SUCCESS, layout: 'branch' },
-  [G_RETURN]:    { title: 'Return Device',    icon: RotateCcw,      accent: DANGER,           tint: DANGER_TINT, done: DANGER, layout: 'branch' },
-  [G_COMPLETED]: { title: 'Completed',        icon: CheckCircle2,   accent: BRAND_GREEN_DARK, tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
+  [G_ACCEPTED]:  { title: 'Service Accepted', icon: ClipboardCheck, accent: ACCENT,  tint: MINT,         done: SUCCESS, layout: 'full' },
+  [G_PROCESS]:   { title: 'In Process',       icon: Wrench,         accent: PRIMARY, tint: MINT,         done: SUCCESS, layout: 'full' },
+  [G_PENDING]:   { title: 'Working Pending',  icon: Clock,          accent: PENDING_FG, tint: PENDING_TINT, done: SUCCESS, layout: 'branch' },
+  [G_RETURN]:    { title: 'Return Device',    icon: RotateCcw,      accent: DANGER,  tint: DANGER_TINT,  done: DANGER,  layout: 'branch' },
+  [G_COMPLETED]: { title: 'Completed',        icon: CheckCircle2,   accent: ACCENT,  tint: MINT,         done: SUCCESS, layout: 'full' },
 };
 
 const PHASE_META = {
@@ -172,15 +181,15 @@ const PHASE_META = {
     title: 'Pickup Service',
     subtitle: 'Doorstep pickup by our pickup person',
     icon: Truck,
-    tint: '#E6F7E3',
-    accent: '#16BB05',
+    tint: MINT,
+    accent: PRIMARY,
   },
   SERVICE: {
     title: 'Shop Service',
     subtitle: 'Booking + repair lifecycle at the shop',
     icon: Wrench,
-    tint: '#E6F7E3',
-    accent: BRAND_GREEN_DARK,
+    tint: MINT,
+    accent: ACCENT,
   },
 };
 
@@ -269,19 +278,28 @@ function StageHeader({ groupKey, compact }) {
  * global green.
  */
 function StepRow({ opt, ev, completed, isCurrent, isLast, lineCompleted, doneColor, compact }) {
-  const dot = compact ? 12 : 16;
+  const dot = compact ? 26 : 32;
   const danger = doneColor === DANGER;
   return (
     <View className="flex-row">
-      <View className="items-center" style={{ width: compact ? 14 : 20, marginRight: compact ? 7 : 12 }}>
+      {/* Fixed-width node column — every dot in this rail lands on the same
+          x position, whatever the row's own content wraps to. */}
+      <View className="items-center" style={{ width: compact ? 26 : 32, marginRight: compact ? 8 : 12 }}>
         <View
+          className="items-center justify-center"
           style={{
             width: dot, height: dot, borderRadius: dot / 2,
-            backgroundColor: completed ? doneColor : '#FFFFFF',
-            borderWidth: completed ? 0 : 2, borderColor: DOT_BORDER,
-            marginTop: 2,
+            backgroundColor: completed ? doneColor : (isCurrent ? '#FFFFFF' : '#FFFFFF'),
+            borderWidth: completed ? 0 : (isCurrent ? 2.5 : 1.5),
+            borderColor: completed ? 'transparent' : (isCurrent ? doneColor : DOT_BORDER),
           }}
-        />
+        >
+          {completed ? (
+            <CheckCircle2 size={compact ? 13 : 16} color="#FFFFFF" strokeWidth={2.5} />
+          ) : isCurrent ? (
+            <View style={{ width: compact ? 8 : 10, height: compact ? 8 : 10, borderRadius: 6, backgroundColor: doneColor }} />
+          ) : null}
+        </View>
         {!isLast ? (
           lineCompleted ? (
             <View className="flex-1 my-1" style={{ width: 2, backgroundColor: doneColor }} />
@@ -293,38 +311,48 @@ function StepRow({ opt, ev, completed, isCurrent, isLast, lineCompleted, doneCol
           )
         ) : null}
       </View>
-      <View className="flex-1" style={{ paddingBottom: compact ? 12 : 16 }}>
+      <View
+        className="flex-1 rounded-2xl"
+        style={{
+          marginBottom: isLast ? 0 : 10,
+          padding: compact ? 8 : 11,
+          backgroundColor: completed ? MINT : (isCurrent ? (danger ? DANGER_TINT : MINT) : '#F7FAF9'),
+          borderWidth: isCurrent ? 1.5 : 1,
+          borderColor: isCurrent ? doneColor : (completed ? 'transparent' : BORDER),
+        }}
+      >
         <View className="flex-row items-start justify-between">
           <Text
-            className={`flex-1 pr-1 ${completed ? 'font-extrabold text-text' : 'font-bold text-text-muted'}`}
-            style={{ fontSize: compact ? 11.5 : 13 }}
+            className={`flex-1 pr-1 ${completed || isCurrent ? 'font-extrabold' : 'font-bold'}`}
+            style={{ fontSize: compact ? 11.5 : 13, color: completed || isCurrent ? '#111827' : '#667085' }}
           >
             {opt.label}
           </Text>
           {isCurrent ? (
             <View
               className="rounded-full ml-1"
-              style={{
-                backgroundColor: danger ? DANGER_TINT : '#E6F7E3',
-                paddingHorizontal: 7, paddingVertical: 1.5,
-              }}
+              style={{ backgroundColor: danger ? DANGER : doneColor, paddingHorizontal: 7, paddingVertical: 2 }}
             >
-              <Text
-                className="font-extrabold"
-                style={{ color: danger ? DANGER : BRAND_GREEN_DARK, fontSize: 9 }}
-              >
-                NEW
-              </Text>
+              <Text className="font-extrabold" style={{ color: '#FFFFFF', fontSize: 9 }}>Current</Text>
+            </View>
+          ) : !completed ? (
+            <View
+              className="rounded-full ml-1"
+              style={{ backgroundColor: UPCOMING_BG, paddingHorizontal: 7, paddingVertical: 2 }}
+            >
+              <Text className="font-extrabold" style={{ color: UPCOMING_FG, fontSize: 9 }}>Upcoming</Text>
             </View>
           ) : null}
         </View>
         {ev?.createdAt ? (
-          <Text className="text-text-muted mt-1" style={{ fontSize: compact ? 9.5 : 10 }}>
+          <Text style={{ color: '#667085', marginTop: 4, fontSize: compact ? 9.5 : 10.5 }}>
             {fmt(ev.createdAt)}
           </Text>
+        ) : !completed && !isCurrent ? (
+          <Text style={{ color: '#9CA3AF', marginTop: 4, fontSize: compact ? 9.5 : 10.5 }}>--</Text>
         ) : null}
         {ev?.note && ev.note !== opt.label ? (
-          <Text className="text-text mt-0.5" style={{ fontSize: compact ? 10 : 11 }}>
+          <Text className="mt-0.5" style={{ color: '#111827', fontSize: compact ? 10 : 11 }}>
             {ev.note}
           </Text>
         ) : null}
@@ -508,19 +536,10 @@ function fmt(v) {
   });
 }
 
-/**
- * Render the shop-side booking timeline.
- *
- * Caller passes the events list ({ status, note, createdAt, actor }) and the
- * booking's current macro-status. A row lights up when a matching event exists;
- * the most-recent one gets the "NEW" badge.
- *
- * The SERVICE phase renders as five stages rather than one flat rail. Working
- * Pending and Return Device are the two possible endings, so they sit side by
- * side — left and right of a fork — and both are always drawn, greyed out until
- * reached, so the shop can see which way the job went and which way it didn't.
- */
-export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
+// Shared by ServiceHistoryTimeline and getServiceProgress below — one place
+// that decides which rows apply and which of them are completed, so the rail
+// and the "Step X / Y" summary can never disagree.
+function computeRowCompletion(events, phaseFilter) {
   // Index events by status key. Keep the FIRST occurrence so the displayed
   // timestamp is when that state was entered, not when it was re-emitted.
   const eventByStatus = {};
@@ -550,7 +569,43 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
     return true;
   };
 
-  // The "current" step (NEW badge) is the event with the most recent createdAt
+  return { eventByStatus, visibleOptions, returnPathActive, rowCompleted };
+}
+
+/**
+ * A dynamic "Step X / Y" summary for the current-status hero card — X and Y
+ * are always computed from the SAME rowCompleted logic the rail itself uses,
+ * never a fixed number. Y only counts the branch the booking actually took
+ * (or Working Pending, the default/common ending, before either branch is
+ * reached) so a fork that hasn't happened yet isn't double-counted.
+ */
+export function getServiceProgress(events, phaseFilter) {
+  const { visibleOptions, returnPathActive, rowCompleted } = computeRowCompletion(events, phaseFilter);
+  const applicable = visibleOptions.filter((o) => {
+    if (o.group === G_RETURN) return returnPathActive;
+    if (o.group === G_PENDING) return !returnPathActive;
+    return true;
+  });
+  const completed = applicable.filter(rowCompleted).length;
+  return { completed, total: applicable.length };
+}
+
+/**
+ * Render the shop-side booking timeline.
+ *
+ * Caller passes the events list ({ status, note, createdAt, actor }) and the
+ * booking's current macro-status. A row lights up when a matching event exists;
+ * the most-recent one gets the "Current" badge.
+ *
+ * The SERVICE phase renders as five stages rather than one flat rail. Working
+ * Pending and Return Device are the two possible endings, so they sit side by
+ * side — left and right of a fork — and both are always drawn, greyed out until
+ * reached, so the shop can see which way the job went and which way it didn't.
+ */
+export function ServiceHistoryTimeline({ events, status, phaseFilter, visibleStageLimit }) {
+  const { eventByStatus, visibleOptions, returnPathActive, rowCompleted } = computeRowCompletion(events, phaseFilter);
+
+  // The "current" step (Current badge) is the event with the most recent createdAt
   // — not the highest fixed-list index — so the latest action the technician
   // took gets the indicator, even when an auto-emitted macro-status event like
   // IN_REPAIR sits further down the list. When that status has a copy under
@@ -673,6 +728,15 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
     );
   }
 
+  // Optional collapse — Service History's "View All" toggle. Undefined (the
+  // default, and every other caller) renders every stage exactly as before;
+  // a number caps how many of the top-level blocks render, so the screen can
+  // start compact and expand to the same full rail on tap, without this
+  // component's own stage/branch/fork logic changing at all.
+  const visibleBlocks = typeof visibleStageLimit === 'number'
+    ? blocks.slice(0, Math.max(1, visibleStageLimit))
+    : blocks;
+
   return (
     <View>
       {showPickup ? (
@@ -691,7 +755,7 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
           }
         >
           <PhaseHeader phaseKey={SERVICE} anyDone={anyServiceDone} />
-          {blocks}
+          {visibleBlocks}
         </View>
       ) : null}
     </View>

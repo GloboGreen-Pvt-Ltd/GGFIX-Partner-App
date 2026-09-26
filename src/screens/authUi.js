@@ -22,15 +22,23 @@ export const FIELD_BORDER = '#E2E8E2';
 
 /** Standard auth layout shell: gradient header, optional back arrow, centered scroll content. */
 export function AuthShell({ onBack, children }) {
-  const { width } = useWindowDimensions();
-  const isWide = width >= 600;
+  const { width, height } = useWindowDimensions();
+  // 768 (not 600) — matches the breakpoint used across the rest of the
+  // pre-auth flow (Intro, Login, OTP) so a 600–767px device gets the same
+  // compact/phone treatment everywhere instead of switching per screen.
+  const isWide = width >= 768;
+  // On a tablet the 440-wide card used to float in a mostly-blank page —
+  // widen the card and scale the decorative gradient with the screen height
+  // instead of a flat 320, so the layout reads as designed for the bigger
+  // canvas rather than a phone screen centred in empty space.
+  const gradientHeight = isWide ? Math.min(height * 0.55, 460) : 320;
   return (
     <View style={{ flex: 1, backgroundColor: SCREEN_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#E6F7E3" />
       <LinearGradient
         colors={['#E6F7E3', '#F0F8EF', SCREEN_BG]}
         locations={[0, 0.45, 1]}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 320 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: gradientHeight }}
       />
       {onBack ? (
         <Pressable
@@ -68,10 +76,10 @@ export function AuthShell({ onBack, children }) {
             style={{
               flex: isWide ? undefined : 1,
               width: '100%',
-              maxWidth: isWide ? 440 : undefined,
+              maxWidth: isWide ? 560 : undefined,
               alignSelf: 'center',
-              paddingHorizontal: isWide ? 32 : 22,
-              paddingTop: Platform.OS === 'ios' ? 96 : 72,
+              paddingHorizontal: isWide ? 48 : 22,
+              paddingTop: Platform.OS === 'ios' ? (isWide ? 64 : 96) : (isWide ? 48 : 72),
             }}
           >
             {children}
@@ -102,9 +110,9 @@ export function ErrorBox({ msg }) {
 }
 
 export const authStyles = {
-  h1: { fontSize: 24, fontWeight: '800', color: INK, letterSpacing: -0.4 },
-  sub: { fontSize: 13.5, color: MUTED, marginTop: 6, lineHeight: 20 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: INK, marginBottom: 6, marginTop: 18, marginLeft: 2 },
+  h1: { fontSize: 22, fontWeight: '800', color: INK, letterSpacing: -0.4 },
+  sub: { fontSize: 13.5, color: MUTED, marginTop: 5, lineHeight: 19 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: INK, marginBottom: 5, marginTop: 14, marginLeft: 2 },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -113,7 +121,7 @@ export const authStyles = {
     borderWidth: 1,
     borderColor: FIELD_BORDER,
     paddingHorizontal: 14,
-    height: 50,
+    height: 46,
   },
   fieldInput: { fontSize: 15, color: INK, height: '100%', paddingVertical: 0 },
   ccChip: {

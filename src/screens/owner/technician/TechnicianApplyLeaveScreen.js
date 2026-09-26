@@ -107,11 +107,11 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#172117' },
-  content: { padding: 16, paddingBottom: 32 },
-  label: { fontSize: 14, color: '#8FA08F', marginBottom: 6 },
-  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 12, fontSize: 16, color: '#F7FAF7', marginBottom: 16 },
-  textArea: { minHeight: 80, textAlignVertical: 'top' },
-  submitBtn: { backgroundColor: '#087A0A', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  content: { padding: 12, paddingBottom: 24 },
+  label: { fontSize: 14, color: '#8FA08F', marginBottom: 5 },
+  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 11, fontSize: 15, color: '#F7FAF7', marginBottom: 12 },
+  textArea: { minHeight: 70, textAlignVertical: 'top' },
+  submitBtn: { backgroundColor: '#087A0A', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 6 },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
 });

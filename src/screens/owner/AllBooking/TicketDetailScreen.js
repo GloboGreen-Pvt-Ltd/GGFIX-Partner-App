@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, Modal, Linking, Platform } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, Modal, Linking, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import ViewShot, { captureRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 import {
   ArrowLeft,
   Smartphone,
@@ -29,7 +27,6 @@ import {
   Zap,
   Calendar,
   Wrench,
-  MessageSquare,
   ChevronRight,
   ScanLine,
   Plus,
@@ -44,7 +41,10 @@ import { ticketApi } from '../../../api/client';
 import { getModelsByBrand } from '../../../api/masterData';
 // The receipt lives in its own module so the Bookings list can share the same
 // one from its actions sheet.
-import { ReceiptCard, priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
+import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
+// Share Image sheet — same component the Bookings list uses, so the
+// experience (and the receipt it renders) is identical everywhere.
+import { ShareReceiptSheet } from './BookingActionSheets';
 
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
 const BRAND_GREEN = '#16BB05';
@@ -188,7 +188,6 @@ export default function TicketDetailScreen({ route, navigation }) {
   }, [ticket, route?.params?.autoEdit]);
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(null);
-  const receiptRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -332,6 +331,18 @@ export default function TicketDetailScreen({ route, navigation }) {
     setImeiModalOpen(true);
   }, [ticket]);
 
+  // Device Details' "+ Add IMEI" arrives here with ?autoImei=true rather than
+  // duplicating the capture sheet on that (deliberately read-only) screen —
+  // same precedent as autoEdit above: fire the SAME existing entry point once
+  // the ticket has loaded, instead of making the owner tap the IMEI row again.
+  const autoImeiFired = useRef(false);
+  useEffect(() => {
+    if (!route?.params?.autoImei || !ticket || autoImeiFired.current) return;
+    autoImeiFired.current = true;
+    openImeiEntry();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket, route?.params?.autoImei]);
+
   const saveImeiAndContinue = useCallback(async () => {
     const imei = normaliseImei(imeiInput);
     if (!imei) {
@@ -354,76 +365,21 @@ export default function TicketDetailScreen({ route, navigation }) {
     }
   }, [imeiInput, ticketId, submitProgress]);
 
-  const buildMessage = () => {
-    const lineItems = priceItemsFromTicket(ticket);
-    const total = ticket.estimatedPrice || lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-    return (
-      `🧾 GGFix Booking Receipt\n\n` +
-      `Tracking ID: ${ticket.trackingId || ticket.id}\n` +
-      `Customer: ${ticket.customerName || '-'}\n` +
-      `Mobile: ${ticket.customerPhone || '-'}\n` +
-      `Device: ${ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || '-'}\n` +
-      `Status: ${ticket.status || '-'}\n\n` +
-      `Services:\n` +
-      lineItems.map((i) => `  • ${i.label} — ₹${i.amount}`).join('\n') +
-      `\n\nEstimated Total: ₹${total}\n\n` +
-      `Track your repair in the GGFix app.`
-    );
-  };
-
-  // Option 1 — capture the hidden receipt View as a PNG and open the system
-  // share sheet so WhatsApp (and others) attach the receipt image. Falls back
-  // to a plain-text share on any capture / sharing failure.
-  const shareImage = async () => {
-    setShareOpen(false);
-    if (!ticket) return;
-    try {
-      const uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-    } catch (_) { /* fall through to text share */ }
-    try {
-      await Share.share({ message: buildMessage(), title: `Booking ${ticket.trackingId || ticket.id}` });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open share sheet');
-    }
-  };
-
-  // Option 2 — share the booking details as text. The bare `sms:` URL scheme
-  // doesn't reliably pre-fill the body on Android (Samsung Messages drops it),
-  // so we use Share.share — the text is the payload, so it always lands in the
-  // SMS body (or WhatsApp text, etc.) when the user picks an app.
-  const shareSms = async () => {
-    setShareOpen(false);
-    if (!ticket) return;
-    try {
-      await Share.share({ message: buildMessage() });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.');
-    }
-  };
-
   if (loading && !ticket) {
     return (
       <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <View
           className="border-b border-border"
-          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 20, paddingHorizontal: 16 }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 14 }}
         >
           <View className="flex-row items-center">
             <Pressable
               onPress={() => navigation.goBack()}
-              className="h-10 w-10 rounded-full items-center justify-center mr-3 active:opacity-70 bg-surface-muted"
+              hitSlop={6}
+              className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
             >
-              <ArrowLeft size={20} color="#172117" />
+              <ArrowLeft size={19} color="#172117" />
             </Pressable>
             <Text className="flex-1 text-text text-[17px] font-extrabold">Booking Details</Text>
           </View>
@@ -595,41 +551,13 @@ export default function TicketDetailScreen({ route, navigation }) {
     <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ── Hidden printable receipt — captured by view-shot when the user
-          taps Share Receipt. Kept off-screen at left:-9999 so it lays out at
-          real pixel sizes (ViewShot needs a non-collapsed measured view) but
-          never shows. The visible Quick Actions tile triggers handleShare(),
-          which calls captureRef(receiptRef) → Sharing.shareAsync(png).      */}
-      <View
-        pointerEvents="none"
-        style={{ position: 'absolute', left: -9999, top: 0, width: 360 }}
-      >
-        <ViewShot
-          ref={receiptRef}
-          options={{ format: 'png', quality: 1 }}
-          collapsable={false}
-          style={{ width: 360, backgroundColor: '#FFFFFF' }}
-        >
-          <ReceiptCard
-            ticket={ticket}
-            lineItems={priceItemsFromTicket(ticket)}
-            estimatedTotal={
-              ticket.estimatedPrice != null
-                ? ticket.estimatedPrice
-                : priceItemsFromTicket(ticket).reduce((s, i) => s + (Number(i.amount) || 0), 0)
-            }
-            technicianName={technician?.name || null}
-          />
-        </ViewShot>
-      </View>
-
       {/* ── White header (replaces native white nav header) ── */}
       <View
         style={{
           backgroundColor: '#FFFFFF',
           paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
+          paddingBottom: 12,
+          paddingHorizontal: 14,
           borderBottomWidth: 1,
           borderBottomColor: '#E2E8E2',
         }}
@@ -637,9 +565,10 @@ export default function TicketDetailScreen({ route, navigation }) {
         <View className="flex-row items-center">
           <Pressable
             onPress={() => navigation.goBack()}
-            className="h-10 w-10 rounded-full items-center justify-center mr-3 active:opacity-70 bg-surface-muted"
+            hitSlop={6}
+            className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={19} color="#172117" />
           </Pressable>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Booking Details
@@ -1157,58 +1086,14 @@ export default function TicketDetailScreen({ route, navigation }) {
         </Pressable>
       </View>
 
-      {/* ── Share Receipt chooser ───────────────────────────────── */}
-      <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)}>
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.5)', justifyContent: 'flex-end' }}
-          onPress={() => setShareOpen(false)}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingHorizontal: 16,
-              paddingTop: 12,
-              paddingBottom: insets.bottom + 16,
-            }}
-          >
-            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
-            <Text className="text-[15px] font-extrabold text-gray-900 mb-3">Share Receipt</Text>
-
-            <Pressable
-              onPress={shareImage}
-              className="flex-row items-center rounded-2xl p-3 mb-2.5 active:opacity-80"
-              style={{ borderWidth: 1, borderColor: '#E2E8E2' }}
-            >
-              <View className="w-10 h-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
-                <Share2 size={18} color={BRAND_GREEN_DARK} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-[13.5px] font-extrabold text-gray-900">Send image to WhatsApp</Text>
-                <Text className="text-[11px] text-gray-500 mt-0.5">Share the receipt image (WhatsApp & more)</Text>
-              </View>
-              <ChevronRight size={16} color="#CBD5CB" />
-            </Pressable>
-
-            <Pressable
-              onPress={shareSms}
-              className="flex-row items-center rounded-2xl p-3 active:opacity-80"
-              style={{ borderWidth: 1, borderColor: '#E2E8E2' }}
-            >
-              <View className="w-10 h-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
-                <MessageSquare size={18} color="#16BB05" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-[13.5px] font-extrabold text-gray-900">Send details by SMS</Text>
-                <Text className="text-[11px] text-gray-500 mt-0.5">Share the booking details as a message</Text>
-              </View>
-              <ChevronRight size={16} color="#CBD5CB" />
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* ── Share Image sheet — same component BookingHistoryScreen uses,
+          so the experience is identical wherever it is reached from. ── */}
+      <ShareReceiptSheet
+        visible={shareOpen}
+        ticket={ticket}
+        technicianName={technician?.name || null}
+        onClose={() => setShareOpen(false)}
+      />
 
       {/* ── Update Status sheet — jumps the booking to any lifecycle stage ── */}
       <Modal visible={statusOpen} transparent animationType="fade" onRequestClose={() => setStatusOpen(false)}>

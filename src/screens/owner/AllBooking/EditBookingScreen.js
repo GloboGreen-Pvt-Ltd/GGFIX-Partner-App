@@ -205,9 +205,10 @@ export default function EditBookingScreen({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
           <Text className="text-text text-[15px] font-extrabold">Edit Booking</Text>
           <View
@@ -256,7 +257,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {ticket ? (
           <View className="px-4" style={{ marginTop: 12 }}>
             <View
-              className="bg-white rounded-2xl p-4 flex-row items-center"
+              className="bg-white rounded-2xl p-3 flex-row items-center"
               style={cardShadow}
             >
               <View
@@ -283,7 +284,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* Price Summary */}
         <View className="px-4" style={{ marginTop: 14 }}>
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
@@ -340,7 +341,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* IMEI + Notes */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Hash} label="IMEI & NOTES" />
@@ -367,7 +368,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* Estimated Times */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={CalendarClock} label="ESTIMATED TIMES" tint="#FEF3C7" accent="#B45309" />

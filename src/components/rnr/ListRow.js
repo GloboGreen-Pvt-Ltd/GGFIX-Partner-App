@@ -18,10 +18,10 @@ export function ListRow({
   return (
     <Wrapper
       onPress={onPress}
-      className={cn('flex-row items-center bg-card px-4 py-3 active:opacity-80', className)}
+      className={cn('flex-row items-center bg-card px-3.5 py-2 active:opacity-80', className)}
     >
       {icon ? (
-        <View className={cn('h-10 w-10 rounded-full items-center justify-center mr-3', iconBg)}>
+        <View className={cn('h-9 w-9 rounded-full items-center justify-center mr-2.5', iconBg)}>
           {icon}
         </View>
       ) : null}
@@ -34,7 +34,7 @@ export function ListRow({
         ) : null}
       </View>
       {right}
-      {showChevron && onPress ? <ChevronRight size={18} color="#8FA08F" /> : null}
+      {showChevron && onPress ? <ChevronRight size={16} color="#8FA08F" /> : null}
     </Wrapper>
   );
 }

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
+  ArrowLeft,
   Smartphone,
   Cpu,
   HardDrive,
@@ -11,6 +14,16 @@ import {
   Skull,
   Pencil,
 } from 'lucide-react-native';
+import { rf, rs } from '../../../utils/responsive';
+
+// Header-only constants, matching the custom white header already used by
+// this flow's sibling screens (DeviceMissingPartsScreen, DeviceInformationScreen)
+// — this screen previously had no header of its own and relied on the plain
+// native-stack title, which looked flatter than its siblings.
+const HEADER_WHITE = '#FFFFFF';
+const HEADER_LINE = '#E2E8E2';
+const HEADER_INK = '#172117';
+const HEADER_SOFT = '#F8F8F8';
 
 const sellConditionsFor = (deviceLabel) => [
   { key: 'WORKING', label: `Working ${deviceLabel}`, sub: 'Turns on · No major issues', icon: Smartphone, color: '#004C40', bg: 'bg-success/10', activeBg: 'bg-success/15', border: 'border-success' },
@@ -27,15 +40,33 @@ import {
 import { getModelOptions } from '../../../api/masterData';
 import { createSavedDevice, updateSavedDevice } from '../../../api/customer';
 
+// Each name maps to its OWN distinct, semantically-matched hex — previously
+// "blue", "green", "pink" and "purple" all resolved to the same bright green,
+// and "midnight"/"cosmic" resolved to a dark green instead of navy/dark blue,
+// so e.g. a device listed as "Cosmic Blue" or "Rose Gold" rendered a green
+// swatch dot.
 const COLOR_SWATCHES = {
-  black: '#172117', white: '#F7FAF7', silver: '#CBD5CB', gold: '#FDE68A',
-  rose: '#E6F7E3', blue: '#16BB05', red: '#DC2626', green: '#16BB05',
-  purple: '#7ED957', pink: '#16BB05', graphite: '#667066', midnight: '#087A0A',
-  starlight: '#FFFBEB', sierra: '#CBD5CB', alpine: '#667066', sky: '#C8EEBF',
-  phantom: '#667066', cosmic: '#087A0A',
+  black: '#1A1A1A', white: '#F7FAF7', silver: '#C7CDD1', gold: '#E6C384',
+  rose: '#E8B4B8', blue: '#3B82F6', red: '#DC2626', green: '#16A34A',
+  purple: '#8B5CF6', pink: '#EC4899', graphite: '#4B5563', midnight: '#1E293B',
+  starlight: '#F5F1E6', sierra: '#9DB4C0', alpine: '#2F6B4F', sky: '#BFDBFE',
+  phantom: '#374151', cosmic: '#1E3A5F',
+};
+// A handful of real, well-known TWO-WORD device colour names checked as exact
+// phrases before the single-word fallback above — plain substring matching
+// alone gets these wrong (e.g. "Rose Gold".includes('gold') is true, and
+// "gold" alone would win since it's a shorter/earlier match than "rose", even
+// though Rose Gold is a pink-toned colour, not plain gold).
+const COMPOUND_COLOR_SWATCHES = {
+  'rose gold': '#E8B4B8',
+  'space gray': '#5B5F62',
+  'space grey': '#5B5F62',
+  'midnight green': '#1E293B',
+  'pacific blue': '#1E3A5F',
 };
 function swatchFor(name) {
-  const n = (name || '').toLowerCase();
+  const n = (name || '').toLowerCase().trim();
+  if (COMPOUND_COLOR_SWATCHES[n]) return COMPOUND_COLOR_SWATCHES[n];
   for (const key of Object.keys(COLOR_SWATCHES)) {
     if (n.includes(key)) return COLOR_SWATCHES[key];
   }
@@ -43,6 +74,7 @@ function swatchFor(name) {
 }
 
 export default function SelectVariantScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const flow = route?.params?.flow || 'PROFILE';
   const isEdit = !!route?.params?.deviceId;
   const modelId = route?.params?.modelId;
@@ -202,7 +234,46 @@ export default function SelectVariantScreen({ navigation, route }) {
     }
   };
 
-  if (loading) return <Loader label="Loading variants..." />;
+  // Same header as the loaded state below (not just the bare Loader) — the
+  // native-stack header is hidden for this route, so without this the back
+  // button would be missing for the brief moment this screen is loading.
+  if (loading) {
+    return (
+      <View className="flex-1" style={{ backgroundColor: HEADER_WHITE }}>
+        <View
+          style={{
+            backgroundColor: HEADER_WHITE,
+            paddingTop: insets.top + rs(10),
+            paddingBottom: rs(14),
+            paddingHorizontal: rs(16),
+            borderBottomWidth: 1,
+            borderBottomColor: HEADER_LINE,
+          }}
+        >
+          <View className="flex-row items-center">
+            <Pressable
+              onPress={() => navigation.goBack()}
+              className="items-center justify-center active:opacity-70"
+              style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: HEADER_SOFT }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <ArrowLeft size={rf(20)} color={HEADER_INK} strokeWidth={2} />
+            </Pressable>
+            <Text
+              className="flex-1 text-text text-center"
+              style={{ fontSize: rf(16), fontWeight: '700', paddingHorizontal: rs(8) }}
+              numberOfLines={1}
+            >
+              Your Device
+            </Text>
+            <View style={{ width: rs(40) }} />
+          </View>
+        </View>
+        <Loader label="Loading variants..." />
+      </View>
+    );
+  }
 
   const ready =
     color &&
@@ -215,7 +286,43 @@ export default function SelectVariantScreen({ navigation, route }) {
     : 'Continue';
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1" style={{ backgroundColor: HEADER_WHITE }}>
+      {/* Custom white header — matches DeviceMissingParts/DeviceInformation,
+          this flow's other screens. The native-stack header is hidden for
+          this route (OwnerNavigator's SelectVariant registration) so this is
+          the only header shown. */}
+      <View
+        style={{
+          backgroundColor: HEADER_WHITE,
+          paddingTop: insets.top + rs(10),
+          paddingBottom: rs(14),
+          paddingHorizontal: rs(16),
+          borderBottomWidth: 1,
+          borderBottomColor: HEADER_LINE,
+        }}
+      >
+        <View className="flex-row items-center">
+          <Pressable
+            onPress={() => navigation.goBack()}
+            className="items-center justify-center active:opacity-70"
+            style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: HEADER_SOFT }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={rf(20)} color={HEADER_INK} strokeWidth={2} />
+          </Pressable>
+          <Text
+            className="flex-1 text-text text-center"
+            style={{ fontSize: rf(16), fontWeight: '700', paddingHorizontal: rs(8) }}
+            numberOfLines={1}
+          >
+            Your Device
+          </Text>
+          {/* Balances the back button so the title stays optically centred. */}
+          <View style={{ width: rs(40) }} />
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
 
         {isEditingSellOrder ? (
@@ -230,25 +337,59 @@ export default function SelectVariantScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {/* Device summary */}
-        <View className="bg-card border border-border rounded-2xl p-3 mb-3 flex-row items-center"
-              style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
-          <View className="h-14 w-14 rounded-2xl bg-primary/10 items-center justify-center mr-3 overflow-hidden">
-            {modelImageUrl ? (
-              <Image source={{ uri: modelImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-            ) : (
-              <Smartphone size={26} color="#004C40" />
-            )}
+        {/* Device hero — larger image + soft mint gradient, matching the
+            "premium device profile" direction (same gradient technique as
+            Device Information's hero). */}
+        <LinearGradient
+          colors={['#EAF7F1', '#FFFFFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ borderRadius: 20, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8E2' }}
+        >
+          <View className="flex-row items-center">
+            <View className="h-20 w-20 rounded-2xl items-center justify-center mr-3.5 overflow-hidden" style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(0,76,64,0.10)' }}>
+              {modelImageUrl ? (
+                <Image source={{ uri: modelImageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              ) : (
+                <Smartphone size={30} color="#004C40" />
+              )}
+            </View>
+            <View className="flex-1">
+              <Text className="text-[11px] text-text-muted uppercase tracking-widest">Your Device</Text>
+              <Text className="text-[16px] font-extrabold text-text mt-0.5" numberOfLines={2}>{modelName}</Text>
+              {brandName ? (
+                <Text className="text-[11.5px] text-text-muted mt-0.5">{brandName}</Text>
+              ) : null}
+            </View>
+            {ready ? <Badge variant="softSuccess">READY</Badge> : null}
           </View>
-          <View className="flex-1">
-            <Text className="text-[11px] text-text-muted uppercase tracking-widest">Your Device</Text>
-            <Text className="text-[15px] font-extrabold text-text mt-0.5" numberOfLines={2}>{modelName}</Text>
-            {brandName ? (
-              <Text className="text-[11px] text-text-muted mt-0.5">{brandName}</Text>
+        </LinearGradient>
+
+        {/* Device Details — a real summary table of what THIS screen
+            actually collects (Brand / Model / Storage / Color / IMEI).
+            Deliberately does NOT include "Selected Issue" / "Selected
+            Services" / "Device Condition (missing/damaged)" / "Files" rows —
+            this screen runs BEFORE any of those exist in the booking flow
+            (they're set on later screens: DeviceServicesScreen,
+            ServicePriceEstimateScreen, DeviceMissingPartsScreen,
+            DeviceInformationScreen), so showing them here would mean
+            fabricating data this screen has no access to. */}
+        {(brandName || storage?.label || color?.name || (flow === 'SELL' && !noImei)) ? (
+          <View className="bg-card border border-border rounded-2xl mb-3 overflow-hidden">
+            <Text className="text-[10.5px] font-extrabold text-text-muted tracking-widest px-3 pt-3 pb-2">DEVICE DETAILS</Text>
+            {brandName ? <DetailRow label="Brand" value={brandName} /> : null}
+            <DetailRow label="Model" value={modelName} />
+            {storage?.label ? <DetailRow label={specsStorageOnly ? 'Storage' : 'RAM · Storage'} value={[ram?.label, storage.label].filter(Boolean).join(' · ')} /> : null}
+            {color?.name ? (
+              <DetailRow
+                label="Color"
+                value={color.name}
+                leading={<View className="h-3.5 w-3.5 rounded-full border border-border" style={{ backgroundColor: swatchFor(color.name) }} />}
+              />
             ) : null}
+            {flow === 'SELL' && !noImei ? <DetailRow label="IMEI" value={imei ? imei.replace(/./g, '•').slice(0, 15) || imei : '—'} last /> : null}
           </View>
-          {ready ? <Badge variant="softSuccess">READY</Badge> : null}
-        </View>
+        ) : null}
 
         {/* Selection summary chips */}
         {(ram || storage || color) ? (
@@ -474,6 +615,22 @@ export default function SelectVariantScreen({ navigation, route }) {
         loading={saving}
         disabled={!ready}
       />
+    </View>
+  );
+}
+
+/** One label/value row in the "Device Details" summary table. */
+function DetailRow({ label, value, leading, last }) {
+  return (
+    <View
+      className="flex-row items-center px-3"
+      style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}
+    >
+      <Text className="text-[12.5px] text-text-muted" style={{ width: 92 }}>{label}</Text>
+      <View className="flex-1 flex-row items-center" style={{ gap: 6 }}>
+        {leading}
+        <Text className="text-[13px] font-bold text-text flex-1" numberOfLines={1}>{value}</Text>
+      </View>
     </View>
   );
 }

@@ -563,7 +563,7 @@ function BoxCard({ box, query }) {
   const groups = groupModelsByBrand(models);
 
   return (
-    <View className="bg-card rounded-2xl p-4 mb-2.5" style={CARD_SHADOW}>
+    <View className="bg-card rounded-2xl p-3 mb-2" style={CARD_SHADOW}>
       {/* Box on the left, its totals on the right. */}
       <View className="flex-row items-center">
         {box.referenceImageUrl ? (
@@ -747,7 +747,7 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
         {specs.length || colors.length ? (
           <>
             <SectionLabel icon={Boxes} text="Variants on record" className="mt-6" />
-            <View className="bg-card rounded-2xl p-4" style={CARD_SHADOW}>
+            <View className="bg-card rounded-2xl p-3" style={CARD_SHADOW}>
               {specs.length ? (
                 <View className="mb-1">
                   <Text className="text-[10px] font-extrabold uppercase text-text-subtle mb-2" style={{ letterSpacing: 0.8 }}>

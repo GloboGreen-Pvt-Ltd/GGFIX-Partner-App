@@ -338,7 +338,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
       if (!perm.granted) return;
       const r = fromCamera
         ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.8, mediaTypes: ImagePicker.MediaTypeOptions.Images });
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.8, mediaTypes: 'images' });
       if (r.canceled || !r.assets?.[0]) return;
       const url = await uploadMedia(r.assets[0], 'chat');
       if (url) await send('', { url, type: 'IMAGE' });
@@ -378,10 +378,11 @@ export default function ShopChatThreadScreen({ navigation, route }) {
         <View className="flex-row items-center px-3 py-2 border-b border-border" style={{ backgroundColor: '#FFFFFF' }}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="h-10 w-10 rounded-full items-center justify-center active:opacity-80"
+            hitSlop={6}
+            className="h-9 w-9 rounded-full items-center justify-center active:opacity-80"
             style={{ backgroundColor: '#EFF5EE' }}
           >
-            <ChevronLeft size={20} color="#172117" />
+            <ChevronLeft size={19} color="#172117" />
           </Pressable>
           <View className="h-10 w-10 rounded-full items-center justify-center ml-2" style={{ backgroundColor: '#E6F7E3' }}>
             {head?.counterpartAvatarUrl ? (

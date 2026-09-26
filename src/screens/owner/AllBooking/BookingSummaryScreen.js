@@ -190,9 +190,10 @@ export default function BookingSummaryScreen({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
           <View
             className="flex-row items-center px-3 py-1.5 rounded-full bg-surface-muted"
@@ -266,7 +267,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Customer Details */}
         <View className="px-4" style={{ marginTop: 14 }}>
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={User} label="CUSTOMER DETAILS" />
@@ -280,7 +281,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Device & Repair */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Smartphone} label="DEVICE & REPAIR" />
@@ -292,7 +293,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Service Information */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Activity} label="SERVICE INFORMATION" />

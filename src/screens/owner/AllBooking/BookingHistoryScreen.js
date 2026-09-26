@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Sharing from 'expo-sharing';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import {
   Smartphone,
   Filter,
@@ -48,7 +46,6 @@ import {
   ShareReceiptSheet,
   TechnicianPickerSheet,
 } from './BookingActionSheets';
-import { ReceiptCard, buildReceiptMessage } from './ReceiptCard';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#16BB05';
@@ -308,11 +305,11 @@ export default function BookingHistoryScreen({ navigation, route }) {
   const [imeiGateOpen, setImeiGateOpen] = useState(false);
   const [scannedImei, setScannedImei] = useState(null);
   const [preparing, setPreparing] = useState(false);
-  // Full ticket for the hidden receipt. List rows carry only the card fields —
-  // the receipt needs services, prices and the address, so it is fetched on
-  // demand when Share Receipt is tapped.
+  // Full ticket for the receipt preview. List rows carry only the card
+  // fields — the receipt needs services, prices and the address, so it is
+  // fetched on demand when Share Image is tapped. ShareReceiptSheet renders
+  // and captures the receipt itself now (see BookingActionSheets.js).
   const [receiptTicket, setReceiptTicket] = useState(null);
-  const receiptRef = useRef(null);
 
   const closeSheets = useCallback(() => {
     setTechPickerOpen(false);
@@ -448,6 +445,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // what this list is for is looking a booking up, and Device Details is the
   // read-only view of it. Booking Details is still reachable from there.
   const goDetailsFor = useCallback((b) => {
+    console.log('[BookingHistory][DEBUG] goDetailsFor, b.id =', b?.id, 'b.trackingId =', b?.trackingId);
     if (!b?.id) return;
     closeSheets();
     navigation.navigate('DeviceDetail', { ticketId: b.id });
@@ -483,10 +481,10 @@ export default function BookingHistoryScreen({ navigation, route }) {
     setTechPickerOpen(true);
   }, []);
 
-  // Share Receipt opens a chooser (image vs SMS) rather than sharing straight
-  // away. The full ticket is fetched while that sheet is up: a list row carries
-  // only the card fields, but both options need the services and prices, so
-  // they stay disabled until it lands.
+  // Share Image opens the receipt preview sheet rather than sharing straight
+  // away. The full ticket is fetched while that sheet is up: a list row
+  // carries only the card fields, but the receipt needs services, prices and
+  // the address, so the sheet shows a loading state until it lands.
   const openShareFor = useCallback(async (b) => {
     if (!b?.id) return;
     setActionBooking(b);
@@ -500,59 +498,6 @@ export default function BookingHistoryScreen({ navigation, route }) {
       setPreparing(false);
     }
   }, []);
-
-  // Option 1 — capture the hidden receipt as a PNG and hand it to the system
-  // share sheet so WhatsApp (and others) attach the image. The ViewShot lives
-  // on this screen, not inside a modal: a view inside a closed Modal isn't
-  // mounted and captureRef would fail on it.
-  const shareImage = useCallback(async () => {
-    const ticket = receiptTicket || actionBooking;
-    if (!ticket) return;
-    setShareOpen(false);
-    try {
-      // The receipt only mounts once receiptTicket is set, so the first capture
-      // can land before it has laid out. Retry with a longer wait rather than
-      // dropping straight to the text share — a silent downgrade to plain text
-      // looks like the image share is broken.
-      let uri = null;
-      for (const wait of [80, 300]) {
-        await new Promise((resolve) => setTimeout(resolve, wait));
-        try {
-          uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
-          break;
-        } catch (_) { /* not laid out yet — retry, then fall back */ }
-      }
-
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-      await Share.share({
-        message: buildReceiptMessage(ticket),
-        title: `Booking ${ticket.trackingId || ticket.id}`,
-      });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
-    }
-  }, [receiptTicket, actionBooking]);
-
-  // Option 2 — share the booking details as text. A bare `sms:` URL doesn't
-  // reliably pre-fill the body on Android, so the text goes through Share.share
-  // and lands in whichever app the user picks.
-  const shareSms = useCallback(async () => {
-    const ticket = receiptTicket || actionBooking;
-    if (!ticket) return;
-    setShareOpen(false);
-    try {
-      await Share.share({ message: buildReceiptMessage(ticket) });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
-    }
-  }, [receiptTicket, actionBooking]);
 
   // Keep `load` stable (deps []) by reading the live query from a ref, so the
   // focus effect doesn't re-create load and re-fire a fetch on every keystroke.
@@ -880,10 +825,10 @@ export default function BookingHistoryScreen({ navigation, route }) {
         // Without this the card still dims on touch, which reads as "that did
         // nothing" rather than "that isn't a button".
         disabled={!onCardPress}
-        className="bg-card rounded-2xl mb-3 active:opacity-90"
+        className="bg-card rounded-2xl mb-2 active:opacity-90"
         style={{
           flex: numCols > 1 ? 1 : undefined,
-          padding: 12,
+          padding: 10,
           borderWidth: 1,
           borderColor: '#E2E8E2',
           shadowColor: '#172117',
@@ -895,11 +840,11 @@ export default function BookingHistoryScreen({ navigation, route }) {
       >
         {/* Top: image + info (left) + status/date/time (right) */}
         <View className="flex-row items-start">
-          <View className="h-16 w-16 rounded-2xl bg-success/10 items-center justify-center mr-3 overflow-hidden">
+          <View className="h-12 w-12 rounded-2xl bg-success/10 items-center justify-center mr-2.5 overflow-hidden">
             {deviceImage ? (
-              <Image source={{ uri: deviceImage }} style={{ width: 64, height: 64 }} resizeMode="cover" />
+              <Image source={{ uri: deviceImage }} style={{ width: 48, height: 48 }} resizeMode="cover" />
             ) : (
-              <Smartphone size={26} color={ACCENT_GREEN} />
+              <Smartphone size={22} color={ACCENT_GREEN} />
             )}
           </View>
 
@@ -921,7 +866,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
             {/* right meta column: status pill, then date + time */}
             <View className="items-end" style={{ maxWidth: 118 }}>
               <View
-                className="rounded-full px-2.5 py-1"
+                className="rounded-full px-2 py-0.5"
                 style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}
               >
                 <Text className="text-[9px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>
@@ -929,7 +874,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </Text>
               </View>
               {dateStr ? (
-                <View className="flex-row items-center mt-2">
+                <View className="flex-row items-center mt-1.5">
                   <Calendar size={11} color="#667066" />
                   <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
                 </View>
@@ -942,7 +887,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
         </View>
 
         {/* Divider + detail rows */}
-        <View className="h-px bg-border my-2.5" />
+        <View className="h-px bg-border my-2" />
         <Row icon={<User size={11} color="#667066" />} label="Customer" value={customerName} />
         {phone ? <Row icon={<Phone size={11} color="#667066" />} label="Mobile" value={phone} /> : null}
 
@@ -964,7 +909,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
             card itself is inert. On the Re-Estimated mount, where it isn't,
             these stay nested Pressables: RN hands the responder to the inner
             one, so a button tap doesn't also fire the card's own destination. */}
-        <View className="flex-row items-center mt-2 pt-2 border-t border-border">
+        <View className="flex-row items-center mt-1.5 pt-1.5 border-t border-border">
           {/* Re-Estimated list only, and deliberately first: there the card tap
               already opens the edit wizard, but nothing on the card SAID so —
               the "View details" chevron is suppressed above for that very
@@ -1044,14 +989,15 @@ export default function BookingHistoryScreen({ navigation, route }) {
       {/* ── White header: back + title + Filters button ──────────── */}
       <View
         className="border-b border-border"
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 16, paddingHorizontal: 16 }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14 }}
       >
         <View className="flex-row items-center">
           <Pressable
             onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-            className="h-10 w-10 rounded-full bg-surface-muted items-center justify-center mr-3 active:opacity-70"
+            hitSlop={6}
+            className="h-9 w-9 rounded-full bg-surface-muted items-center justify-center mr-2.5 active:opacity-70"
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={19} color="#172117" />
           </Pressable>
           <View className="flex-1">
             <Text className="text-text-muted text-[11px] font-bold tracking-widest">{eyebrowText}</Text>
@@ -1082,7 +1028,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
       </View>
 
       {/* ── Full-width search bar ────────────────────────────────── */}
-      <View className="px-4" style={{ marginTop: 12 }}>
+      <View className="px-4" style={{ marginTop: 10 }}>
         <SearchBar
           value={query}
           onChangeText={setQuery}
@@ -1108,7 +1054,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
       <View
         style={{
           paddingHorizontal: 10,
-          paddingTop: 8,
+          paddingTop: 6,
           flexDirection: 'row',
           flexWrap: 'wrap',
         }}
@@ -1117,12 +1063,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
           const Icon = s.icon;
           const active = scope.key === s.key;
           return (
-            <View key={s.key} style={{ width: `${100 / chipCols}%`, padding: 3 }}>
+            <View key={s.key} style={{ width: `${100 / chipCols}%`, padding: 2.5 }}>
               <Pressable
                 onPress={() => selectScope(s.key)}
                 className="flex-row items-center rounded-xl active:opacity-80"
                 style={{
-                  paddingVertical: 5,
+                  paddingVertical: 4,
                   paddingHorizontal: isSmall ? 7 : 8,
                   backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
                   borderWidth: 1,
@@ -1348,13 +1294,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onScanRequest={openImeiScannerFor}
       />
 
-      {/* ── Share Receipt chooser (image vs SMS) ───────────────────────── */}
+      {/* ── Share Image sheet ───────────────────────────────────────────── */}
       <ShareReceiptSheet
         visible={shareOpen}
         preparing={preparing}
+        ticket={receiptTicket || actionBooking}
         onClose={closeSheets}
-        onShareImage={shareImage}
-        onShareSms={shareSms}
       />
 
       {/* ── Pickup sheets (from the pickup card's action row) ──────────────
@@ -1376,24 +1321,6 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onAssigned={loadPickups}
       />
 
-      {/* ── Hidden printable receipt ───────────────────────────────────────
-          Held off-screen at left:-9999 so it lays out at real pixel sizes
-          (ViewShot needs a measured, non-collapsed view) but never shows.
-          openShareFor() populates receiptTicket, then "Send image to WhatsApp"
-          captures this to a PNG. Mounted on the screen rather than inside a
-          sheet because a view inside a closed Modal isn't mounted to capture. */}
-      {receiptTicket ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: -9999, top: 0, width: 360 }}>
-          <ViewShot
-            ref={receiptRef}
-            options={{ format: 'png', quality: 1 }}
-            collapsable={false}
-            style={{ width: 360, backgroundColor: '#FFFFFF' }}
-          >
-            <ReceiptCard ticket={receiptTicket} />
-          </ViewShot>
-        </View>
-      ) : null}
     </View>
   );
 }

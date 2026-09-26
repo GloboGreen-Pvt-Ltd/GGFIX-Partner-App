@@ -128,8 +128,8 @@ export default function OwnerNotificationsScreen({ navigation }) {
         <View
           style={{
             backgroundColor: '#FFFFFF',
-            paddingTop: 10,
-            paddingBottom: 16,
+            paddingTop: 8,
+            paddingBottom: 12,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
             borderBottomWidth: 1,
@@ -180,9 +180,9 @@ export default function OwnerNotificationsScreen({ navigation }) {
           contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
           ListEmptyComponent={
             error ? (
-              <View className="items-center pt-24 px-8">
-                <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#FEE2E2' }}>
-                  <Bell size={32} color="#DC2626" />
+              <View className="items-center pt-14 px-8">
+                <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#FEE2E2' }}>
+                  <Bell size={28} color="#DC2626" />
                 </View>
                 <Text className="text-[15px] font-extrabold text-gray-700">Couldn't load notifications</Text>
                 <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">{error}</Text>
@@ -191,9 +191,9 @@ export default function OwnerNotificationsScreen({ navigation }) {
                 </Pressable>
               </View>
             ) : (
-              <View className="items-center pt-24 px-8">
-                <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#E6F7E3' }}>
-                  <Bell size={32} color={GREEN_DARK} />
+              <View className="items-center pt-14 px-8">
+                <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
+                  <Bell size={28} color={GREEN_DARK} />
                 </View>
                 <Text className="text-[15px] font-extrabold text-gray-700">You're all caught up</Text>
                 <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">

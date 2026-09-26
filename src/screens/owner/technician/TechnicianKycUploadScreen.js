@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, Alert, Platform, Image, Dimensions,
+  View, Text, ScrollView, Pressable, Alert, Platform, Image, useWindowDimensions,
 } from 'react-native';
 import { Upload, Check, X, ShieldCheck, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,10 +13,17 @@ import { uploadMedia } from '../../../api/masterData';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 
-const { width: SCREEN_W } = Dimensions.get('window');
 const GUTTER = 12;
 const OUTER = 16;
-const CARD_W = Math.floor((SCREEN_W - OUTER * 2 - GUTTER) / 2);
+
+// Live per the current window width (not a value frozen at module load), so
+// the grid recalculates on rotation/resize instead of leaving stale-sized
+// cards. 3 columns once there's room for them (tablet-width+); 2 on phone.
+function useDocCardWidth() {
+  const { width } = useWindowDimensions();
+  const columns = width >= 700 ? 3 : 2;
+  return Math.floor((width - OUTER * 2 - GUTTER * (columns - 1)) / columns);
+}
 
 // Per memory: technician/employee KYC = Aadhar (front+back) + PAN. No business proof.
 const DOCS = [
@@ -25,11 +32,11 @@ const DOCS = [
   { key: 'pan',         title: 'PAN Card',     required: true, icon: FileText },
 ];
 
-function DocCard({ doc, file, onPick, onRemove }) {
+function DocCard({ doc, file, onPick, onRemove, cardW }) {
   const isUploaded = !!file;
   const Icon = doc.icon;
   return (
-    <View style={{ width: CARD_W, marginBottom: GUTTER }}>
+    <View style={{ width: cardW, marginBottom: GUTTER }}>
       <Card padded={false} elevated>
         <View className="flex-row items-center px-3 py-2 border-b border-border">
           <Icon size={14} color={tokens.primary} />
@@ -79,6 +86,7 @@ export default function TechnicianKycUploadScreen({ navigation, route }) {
   const [files, setFiles] = useState(initialFiles);
   const [submitting, setSubmitting] = useState(false);
   const insetBottom = useBottomBarInset();
+  const cardW = useDocCardWidth();
 
   const pickImage = async (key, fromCamera = false) => {
     try {
@@ -167,6 +175,7 @@ export default function TechnicianKycUploadScreen({ navigation, route }) {
               file={files[doc.key]}
               onPick={() => promptUpload(doc.key)}
               onRemove={() => remove(doc.key)}
+              cardW={cardW}
             />
           ))}
         </View>

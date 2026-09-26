@@ -10,7 +10,7 @@ import { uploadMedia } from '../../../api/masterData';
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   row: { flexDirection: 'row', flexWrap: 'wrap' },
-  slot: { width: '46%', margin: '2%', height: 120, borderColor: '#7FB8AE', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7FAF7', overflow: 'hidden' },
+  slot: { width: '46%', margin: '2%', height: 100, borderColor: '#7FB8AE', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7FAF7', overflow: 'hidden' },
   slotImg: { ...StyleSheet.absoluteFillObject },
   slotLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 6, textAlign: 'center' },
   slotLabelOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.92)', paddingVertical: 4, fontSize: 12, fontWeight: '700', color: colors.text, textAlign: 'center' },
@@ -59,7 +59,7 @@ export default function SellImagesScreen({ navigation, route }) {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [3, 4],
         quality: 0.7,

@@ -1,15 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, Modal, Share, Linking, NativeModules, Platform,
+  View, Text, Image, ScrollView, Pressable, Modal, Share, Linking, NativeModules, Platform,
 } from 'react-native';
 import { TurboModuleRegistry } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenHeader } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
 import { getSession } from '../../../auth/session';
 import { paymentAcrossTickets } from '../AllBooking/ReceiptCard';
+import { rf, rs } from '../../../utils/responsive';
+import { useResponsive } from '../../../theme/responsive';
+
+const ACCENT = '#004C40';       // Dark Green
+const PRIMARY = '#006B57';      // Primary Green
+const MINT = '#E7F7F1';
+const BORDER = '#DCE7E2';
+const TEXT_PRIMARY = '#0E1F1A';
+const TEXT_SECONDARY = '#667085';
+const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';
+
+const cardShadow = {
+  shadowColor: '#0B1F14',
+  shadowOpacity: 0.06,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 3,
+};
 
 export default function BookingThankYouScreen({ navigation, route }) {
   const { customer = {}, devices = [], tickets = [] } = route?.params || {};
@@ -200,67 +220,170 @@ export default function BookingThankYouScreen({ navigation, route }) {
     }
   };
 
+  // `expo-clipboard` is already a project dependency (used nowhere in this
+  // file before) — a real copy, not a decorative icon with no handler.
+  const copyTrackingId = async () => {
+    try {
+      await Clipboard.setStringAsync(trackingId);
+      notify('Copied', `Tracking ID #${trackingId} copied.`);
+    } catch (e) {
+      notify('Copy failed', e?.message || 'Could not copy the tracking ID.');
+    }
+  };
+
+  // Same destination the "Assign Technician" action tile already uses — the
+  // confirmation banner is a second, larger entry point to it, not a new one.
+  const goToAssignTechnician = () => navigation.navigate('AssignTechnician', { tickets, customer, devices });
+
+  const r = useResponsive();
+  // Tablet / large-screen: cap the column and centre it, same convention as
+  // the other booking-flow screens.
+  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null;
+
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: '#F8FAF9' }}>
       {/* popToTop() only unwinds to the top of the BOOKING stack, which lands on
           the first wizard step — Back from a finished booking would restart the
           one just completed. Go to Home instead: the booking is done, so the
-          wizard is not somewhere to return to. */}
+          wizard is not somewhere to return to.
+          Transparent so it blends into the mint hero below, with a small
+          subtle brand line in the existing `right` slot. */}
       <ScreenHeader
         title=""
+        transparent
         onBack={() => navigation.navigate('OwnerTabs', { screen: 'Home' })}
-      />
-      <ScrollView contentContainerClassName="px-4 pt-2 pb-12">
-        {/* Hero card — wrapped so Share Receipt can capture it as a PNG */}
-        <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }}>
-        {/* No card. The white background is EXPLICIT rather than inherited:
-            ViewShot captures this view for the shared receipt PNG, and without a
-            fill the capture comes out transparent — which renders as black in
-            most chat apps. */}
-        {/* px-4, not px-1. ViewShot crops to exactly this view, so the capture
-            inherits its padding — at px-1 the receipt's headings and grey boxes
-            sat hard against the image edge, which reads as a badly cropped
-            screenshot in a chat thread. Even margins on all four sides. */}
-        <View className="px-4 py-5 mb-4" style={{ backgroundColor: '#FFFFFF' }}>
-          <View className="items-center mb-5">
-            <View className="rounded-full p-1.5 mb-2" style={{ backgroundColor: ACCENT_10 }}>
-              <Ionicons name="checkmark-circle" size={56} color={ACCENT} />
-            </View>
-            <Text className="text-2xl font-extrabold" style={{ color: ACCENT }}>Thank You!</Text>
-            <Text className="text-text-muted text-[12px] mt-1">Your booking has been placed.</Text>
-            <View className="px-3 py-1 rounded-full mt-2" style={{ backgroundColor: ACCENT_10 }}>
-              <Text className="text-[11px] font-extrabold" style={{ color: ACCENT }}>#{trackingId}</Text>
-            </View>
+        right={(
+          <View className="items-end">
+            <Text style={{ fontSize: rf(8.5), fontWeight: '800', letterSpacing: 1, color: ACCENT }}>REPAIR TODAY</Text>
+            <Text style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>A BRIGHTER TOMORROW</Text>
           </View>
+        )}
+      />
+      <ScrollView contentContainerStyle={{ paddingBottom: rs(48) }}>
+        {/* Hero card — wrapped so Share Receipt can capture it as a PNG.
+            Everything inside ViewShot is what gets shared; the confirmation
+            banner and action tiles below stay outside it on purpose. */}
+        <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }}>
+        {/* No transparency anywhere in this tree — ViewShot captures this
+            view for the shared receipt PNG, and a transparent fill renders
+            as black in most chat apps. The mint gradient is a real opaque
+            fill, so that constraint still holds. */}
+        <LinearGradient
+          colors={['#E7F7F1', '#FFFFFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{ paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(20) }}
+        >
+          <View style={colStyle}>
+            <View className="items-center" style={{ marginBottom: rs(20) }}>
+              <View style={{ width: rs(96), height: rs(96) }}>
+                {/* Small sparkle accents — restrained, not an animated
+                    confetti system (spec explicitly asks to avoid heavy
+                    animation). */}
+                <Ionicons name="sparkles" size={rf(14)} color="#F59E0B" style={{ position: 'absolute', left: -rs(6), top: rs(6) }} />
+                <Ionicons name="sparkles" size={rf(10)} color={ACCENT} style={{ position: 'absolute', right: -rs(2), top: rs(2) }} />
+                <Ionicons name="sparkles-outline" size={rf(11)} color="#00A86B" style={{ position: 'absolute', right: rs(2), bottom: rs(2) }} />
+                <View
+                  className="items-center justify-center"
+                  style={{ position: 'absolute', left: rs(8), top: rs(8), height: rs(80), width: rs(80), borderRadius: rs(40), backgroundColor: MINT }}
+                >
+                  <View
+                    className="items-center justify-center"
+                    style={{
+                      height: rs(62), width: rs(62), borderRadius: rs(31), backgroundColor: ACCENT,
+                      shadowColor: ACCENT, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 5,
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={rf(32)} color="#FFFFFF" />
+                  </View>
+                </View>
+              </View>
+              <Text className="font-extrabold" style={{ fontSize: rf(27), color: ACCENT, marginTop: rs(12) }}>Thank You!</Text>
+              <Text style={{ fontSize: rf(12.5), color: TEXT_SECONDARY, marginTop: rs(3) }}>Your booking has been placed.</Text>
+              <Pressable
+                onPress={copyTrackingId}
+                className="flex-row items-center active:opacity-80"
+                style={{
+                  borderRadius: 999, paddingHorizontal: rs(14), paddingVertical: rs(8), marginTop: rs(12),
+                  backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER,
+                  shadowColor: '#0B1F14', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+                }}
+              >
+                <Ionicons name="pricetag-outline" size={rf(13)} color={ACCENT} />
+                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: ACCENT, marginLeft: rs(6) }}>#{trackingId}</Text>
+                <View style={{ width: 1, height: rs(14), backgroundColor: BORDER, marginHorizontal: rs(8) }} />
+                <Ionicons name="copy-outline" size={rf(13)} color={TEXT_SECONDARY} />
+              </Pressable>
+            </View>
 
-          <Section label="Customer Details">
-            <SectionRow label="Shop Name" value={shopName || 'Your Shop'} />
-            <SectionRow label="Customer Name" value={customer.name} />
-            <SectionRow label="Mobile Number" value={customer.phone} />
-            <SectionRow label="Address" value={customer.address} />
+          <Section label="Customer Details" right="OUR VALUED CUSTOMER">
+            <SectionRow icon="storefront-outline" label="Shop Name" value={shopName || 'Your Shop'} />
+            {/* Hardcoded per explicit instruction ("for now display this
+                exact shop number") — not derived from any session/customer
+                data, and intentionally a separate row from the customer's
+                own Mobile Number below. */}
+            <SectionRow icon="call-outline" label="Shop Number" value="9500824814" />
+            <SectionRow icon="person-outline" label="Customer Name" value={customer.name} />
+            <SectionRow icon="call-outline" label="Mobile Number" value={customer.phone} />
+            <SectionRow icon="location-outline" label="Address" value={customer.address} />
           </Section>
 
-          <Section label="Device & Repair Details">
-            <View className="flex-row mb-1">
-              <Text className="flex-1 text-text-muted text-[10px] uppercase tracking-widest">Device</Text>
-              <Text className="flex-1 text-text-muted text-[10px] uppercase tracking-widest">Repair Services</Text>
-            </View>
+          <Section label="Device & Repair Details" right="GETTING YOU FIXED">
             {devices.map((d, i) => (
-              <View key={i} className="flex-row mb-1">
-                <Text className="flex-1 text-text text-[12px]" numberOfLines={2}>{i + 1}. {d.modelName}</Text>
-                <Text className="flex-1 text-text text-[12px]" numberOfLines={2}>
-                  {(d.services || []).map((s) => s.serviceName).join(', ')}
-                </Text>
+              <View
+                key={i}
+                className="flex-row items-center"
+                style={{ marginBottom: i === devices.length - 1 ? 0 : rs(10), paddingBottom: i === devices.length - 1 ? 0 : rs(10), borderBottomWidth: i === devices.length - 1 ? 0 : 1, borderBottomColor: BORDER }}
+              >
+                <View className="flex-1">
+                  <Text style={{ fontSize: rf(9.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>DEVICE</Text>
+                  <View className="flex-row items-center" style={{ marginTop: rs(4) }}>
+                    <View
+                      className="items-center justify-center overflow-hidden"
+                      style={{ height: rs(34), width: rs(34), borderRadius: rs(10), marginRight: rs(8), backgroundColor: MINT }}
+                    >
+                      {d.imageUrl ? (
+                        <Image source={{ uri: d.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <Ionicons name="phone-portrait-outline" size={rf(15)} color={ACCENT} />
+                      )}
+                    </View>
+                    <Text className="flex-1 text-text font-bold" style={{ fontSize: rf(12.5) }} numberOfLines={1}>
+                      {devices.length > 1 ? `${i + 1}. ` : ''}{d.modelName || 'Device'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ width: 1, height: rs(38), backgroundColor: BORDER, marginHorizontal: rs(12) }} />
+                <View className="flex-1">
+                  <View className="flex-row items-center">
+                    <Ionicons name="build-outline" size={rf(11)} color={ACCENT} />
+                    <Text style={{ fontSize: rf(9.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY, marginLeft: rs(4) }}>REPAIR SERVICES</Text>
+                  </View>
+                  <Text className="text-text font-bold" style={{ fontSize: rf(12.5), marginTop: rs(4) }} numberOfLines={2}>
+                    {(d.services || []).map((s) => s.serviceName).join(', ') || '—'}
+                  </Text>
+                </View>
               </View>
             ))}
           </Section>
 
-          <Section label="Service Information" noMargin>
-            <SectionRow label="Tracking ID" value={`#${trackingId}`} />
-            <SectionRow label="Service Status" value="Order Placed" />
+          <Section label="Service Information" right="TRACK YOUR REPAIR" noMargin>
+            <SectionRow icon="pricetag-outline" label="Tracking ID" value={`#${trackingId}`} bold />
+            <View className="flex-row items-center" style={{ marginBottom: rs(11) }}>
+              <View className="flex-row items-center" style={{ width: rs(112) }}>
+                <Ionicons name="time-outline" size={rf(13)} color={ACCENT} style={{ marginRight: rs(6) }} />
+                <Text style={{ fontSize: rf(10.5), fontWeight: '600', color: TEXT_SECONDARY }}>Status</Text>
+              </View>
+              <View style={{ flex: 1, alignItems: 'flex-start' }}>
+                <View className="rounded-full" style={{ paddingHorizontal: rs(10), paddingVertical: rs(4), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}>
+                  <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT }}>Order Placed</Text>
+                </View>
+              </View>
+            </View>
             <SectionRow
+              icon="cash-outline"
               label="Estimated Repair Price"
-              value={`₹ ${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+              value={`₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
             />
             {/* Only when a payment was actually recorded — the same rule the
                 Device Details Price Summary follows, so the receipt and the
@@ -268,34 +391,70 @@ export default function BookingThankYouScreen({ navigation, route }) {
             {payment ? (
               <>
                 <SectionRow
+                  icon="checkmark-done-outline"
                   label={payment.label}
-                  value={`₹ ${payment.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                  value={`₹${payment.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                 />
                 <SectionRow
+                  icon="wallet-outline"
                   label="Balance Amount"
-                  value={`₹ ${payment.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                  value={`₹${payment.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                  last
                 />
               </>
             ) : null}
           </Section>
-        </View>
+          </View>
+        </LinearGradient>
         </ViewShot>
 
+        {/* ── Confirmation banner — same destination as the "Assign
+            Technician" tile below, not a new route. ────────────────────── */}
+        <View style={{ paddingHorizontal: rs(16), marginTop: rs(14) }}>
+          <View style={colStyle}>
+            <Pressable
+              onPress={goToAssignTechnician}
+              className="flex-row items-center active:opacity-85"
+              style={{
+                borderRadius: rs(16), padding: rs(11), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER,
+                shadowColor: '#0B1F14', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+              }}
+            >
+              <View
+                className="items-center justify-center"
+                style={{ height: rs(38), width: rs(38), borderRadius: rs(13), marginRight: rs(11), backgroundColor: ACCENT }}
+              >
+                <Ionicons name="checkmark-circle-outline" size={rf(19)} color="#FFFFFF" />
+              </View>
+              <View className="flex-1">
+                <Text className="font-extrabold" style={{ fontSize: rf(13), color: ACCENT }}>Booking confirmed!</Text>
+                <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>
+                  Your request is ready for technician assignment.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={rf(18)} color={ACCENT} />
+            </Pressable>
+          </View>
+        </View>
+
         {/* Action tiles */}
-        <View className="flex-row justify-between mt-2 px-1">
+        <View className="flex-row justify-between" style={[{ paddingHorizontal: rs(16), marginTop: rs(14) }, colStyle]}>
           <ActionTile
             icon="construct-outline"
             label="Assign Technician"
-            onPress={() => navigation.navigate('AssignTechnician', { tickets, customer, devices })}
+            sub="HANDOVER TO EXPERT"
+            onPress={goToAssignTechnician}
           />
           <ActionTile
             icon="share-social-outline"
             label="Share Receipt"
+            sub="SHARE BOOKING DETAILS"
             onPress={() => setShareOpen(true)}
           />
           <ActionTile
             icon="qr-code-outline"
             label="Barcode Print"
+            sub="PRINT BOOKING SLIP"
             onPress={() => {
               const tid = tickets[0]?.id;
               if (tid) navigation.navigate('BarcodePrint', { ticketId: tid });
@@ -354,43 +513,84 @@ export default function BookingThankYouScreen({ navigation, route }) {
   );
 }
 
-const ACCENT = '#004C40';
-const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';
-const SOFT = '#F8F8F8';
-
-function Section({ label, children, noMargin }) {
+function Section({ label, right, children, noMargin }) {
   return (
-    <View className={noMargin ? '' : 'mb-4'}>
-      <Text className="text-text font-bold text-[13px] mb-2">{label}</Text>
-      {/* Was `bg-text-muted/20` — a translucent light wash designed to read on
-          the dark hero. On white it turns into a grey box. */}
-      <View className="rounded-xl p-3" style={{ backgroundColor: SOFT }}>{children}</View>
-    </View>
-  );
-}
-
-function SectionRow({ label, value }) {
-  return (
-    <View className="flex-row mb-1">
-      <Text className="flex-1 text-text-muted text-[11px]">{label}</Text>
-      <Text className="flex-1 text-[12px] text-text font-semibold">{value || '-'}</Text>
-    </View>
-  );
-}
-
-function ActionTile({ icon, label, onPress }) {
-  return (
-    <Pressable className="items-center flex-1 mx-1 active:opacity-80" onPress={onPress}>
-      {/* One colour for all three. The per-tile #7ED957/#16BB05 split had no
-          meaning, and each tile's shadow was tinted to its own fill — a coloured
-          glow that reads as a leftover once the fill is a single deep green. */}
-      <View
-        style={{ backgroundColor: ACCENT }}
-        className="rounded-2xl w-14 h-14 items-center justify-center"
-      >
-        <Ionicons name={icon} size={26} color="#fff" />
+    <View style={{ marginBottom: noMargin ? 0 : rs(18) }}>
+      <View className="flex-row items-center" style={{ marginBottom: rs(9) }}>
+        <View style={{ width: rs(3), height: rs(13), borderRadius: 2, backgroundColor: ACCENT, marginRight: rs(7) }} />
+        <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: TEXT_PRIMARY }}>{label}</Text>
+        <View className="flex-1" />
+        {right ? (
+          <View className="rounded-full" style={{ paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: MINT }}>
+            <Text style={{ fontSize: rf(8.5), fontWeight: '800', letterSpacing: 0.6, color: ACCENT }} numberOfLines={1}>
+              {right}
+            </Text>
+          </View>
+        ) : null}
       </View>
-      <Text className="text-text text-[11px] font-bold mt-2 text-center" numberOfLines={2}>{label}</Text>
+      <View
+        style={{
+          borderRadius: rs(16), padding: rs(11), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, ...cardShadow,
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
+// Fixed-width LEFT column (icon + label) and a `flex: 1` RIGHT column for the
+// value, both top-aligned. Previously the label carried `flex: 1` itself,
+// which made it (not the value) claim the row's free space — squeezing a long
+// value like an address down to a sliver and forcing it to wrap into tiny
+// awkward lines. A true two-column split fixes that: the value column always
+// gets the full remaining width to wrap into, no matter how long it is.
+function SectionRow({ icon, label, value, bold, last }) {
+  return (
+    <View className="flex-row" style={{ alignItems: 'flex-start', marginBottom: last ? 0 : rs(11) }}>
+      <View className="flex-row items-center" style={{ width: rs(112) }}>
+        {icon ? <Ionicons name={icon} size={rf(13)} color={ACCENT} style={{ marginRight: rs(6) }} /> : null}
+        <Text style={{ flex: 1, fontSize: rf(10.5), fontWeight: '600', color: TEXT_SECONDARY, lineHeight: rf(14) }} numberOfLines={2}>
+          {label}
+        </Text>
+      </View>
+      <Text
+        style={{ flex: 1, fontSize: rf(12.5), color: TEXT_PRIMARY, fontWeight: bold ? '800' : '700', textAlign: 'left', lineHeight: rf(17) }}
+      >
+        {value || '—'}
+      </Text>
+    </View>
+  );
+}
+
+function ActionTile({ icon, label, sub, onPress }) {
+  return (
+    <Pressable style={{ flex: 1, marginHorizontal: rs(4) }} className="active:opacity-85" onPress={onPress}>
+      <LinearGradient
+        colors={[PRIMARY, ACCENT]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: rs(18), paddingVertical: rs(14), paddingHorizontal: rs(8), alignItems: 'center',
+          shadowColor: ACCENT, shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+        }}
+      >
+        <View
+          className="items-center justify-center"
+          style={{ height: rs(38), width: rs(38), borderRadius: rs(13), backgroundColor: 'rgba(255,255,255,0.18)' }}
+        >
+          <Ionicons name={icon} size={rf(19)} color="#fff" />
+        </View>
+        <Text className="text-white font-extrabold text-center" style={{ fontSize: rf(11.5), marginTop: rs(8) }} numberOfLines={1}>
+          {label}
+        </Text>
+        {sub ? (
+          <Text style={{ fontSize: rf(8), fontWeight: '700', letterSpacing: 0.3, color: 'rgba(255,255,255,0.75)', marginTop: rs(2) }} numberOfLines={1}>
+            {sub}
+          </Text>
+        ) : null}
+        <Ionicons name="chevron-forward" size={rf(13)} color="rgba(255,255,255,0.75)" style={{ marginTop: rs(4) }} />
+      </LinearGradient>
     </Pressable>
   );
 }

@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
@@ -9,16 +11,27 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight } from 'lucide-react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Android needs this flag before LayoutAnimation does anything (iOS supports
+// it out of the box). Guarded — the API was removed on Android's New
+// Architecture, where it's already enabled unconditionally.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+import { Image as ExpoImage } from 'expo-image';
+import { ArrowLeft, ArrowRight, Headset, MessageSquare, ShieldCheck, Smartphone, Users } from 'lucide-react-native';
 import { login, requestOtp, requestShopLoginOtp } from '../api/auth';
 import { clearSession } from '../auth/session';
 import { AUTH_BASE } from '../api/config';
 import { Button } from '../components/rnr';
 import { tokens } from '../theme/colors';
 import { rf, rlh, rs } from '../utils/responsive';
+import { resetOnboardingForTesting } from '../auth/onboarding';
 
 /**
  * Shop sign-in: mobile number → OTP. Both steps live in this one screen (rather
@@ -54,19 +67,40 @@ const TEXT = tokens.text;
 const MUTED = tokens.textMuted;
 const SUBTLE = tokens.textSubtle;
 const BORDER = tokens.border;
-const AMBER = tokens.attention;
 const DANGER = tokens.danger;
 
-// Sign-in is the one screen that sits on pure white rather than the app's
-// #F7FAF7 page wash: the brand logo PNG has an opaque white background, so any
-// tinted wash draws a visible square around it.
-const PAGE_BG = '#FFFFFF';
-// Fixed 5px — deliberately NOT rs(), so the logo's corner radius is identical
-// on every device instead of drifting 4.4–5.6px with the width scale.
-const LOGO_RADIUS = 10;
+// Screen-specific brand palette (matches the BootSplash/Intro premium
+// redesign) — kept local rather than added to the shared theme, same as
+// those two screens, since it's a look for this pre-auth trio specifically.
+const DARK_GREEN = tokens.primary; // '#004C40' — already the app's primary
+const EMERALD = '#009B72';
+const MINT = '#E8F8F2';
+const MINT_2 = '#F4FCF9';
+
+// Hero illustration between the welcome copy and the mobile-number card.
+// Same pattern as BootSplash/IntroScreen's remote art: prefetched to disk at
+// module load (before this screen ever mounts) and rendered via expo-image
+// for its disk cache, so a cold Login mount doesn't pop the image in late.
+const LOGIN_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Login-Image.png';
+ExpoImage.prefetch(LOGIN_IMAGE_URL, 'disk').catch(() => {});
 
 export default function LoginScreen({ onLogin, navigation }) {
+  useEffect(() => console.log('[LOGIN] Login mounted'), []); // TEMP DEBUG — remove once verified
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isLargeTablet = width >= 1024;
+  const isShortScreen = height < 760;
+  const isLandscape = width > height;
+  // Hero column and login card now share one width — per an explicit
+  // "don't let the card be narrower than the column above it" requirement
+  // (was 540/580, floating narrower than the 640/720 hero column it sat
+  // under). OTP's own container keeps its own, separately-tuned cap.
+  const contentWidth = isLargeTablet ? 760 : isTablet ? 720 : width;
+  const cardWidth = contentWidth;
+  const illustrationWidth = isLargeTablet ? 460 : isTablet ? 420 : contentWidth;
+  const otpWidth = isLargeTablet ? 560 : isTablet ? 520 : contentWidth;
+
   const [step, setStep] = useState('MOBILE'); // MOBILE | OTP
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -74,7 +108,21 @@ export default function LoginScreen({ onLogin, navigation }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Drives both steps' "normal" vs "compact keyboard" layout below —
+  // tracked from the keyboard's discrete show/hide events (not every
+  // re-render), so typing a digit never itself shifts the layout; only the
+  // keyboard actually opening or closing does.
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const animateNext = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const onShow = Keyboard.addListener(showEvt, () => { animateNext(); setKeyboardVisible(true); });
+    const onHide = Keyboard.addListener(hideEvt, () => { animateNext(); setKeyboardVisible(false); });
+    return () => { onShow.remove(); onHide.remove(); };
+  }, []);
   const otpRef = useRef(null);
+  const scrollRef = useRef(null);
   // Guards the auto-submit that fires when the 6th digit lands, so a slow
   // request can't be double-sent by another keystroke (or by paste + tap).
   const verifyingRef = useRef(false);
@@ -203,17 +251,38 @@ export default function LoginScreen({ onLogin, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.page}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+    <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        // Android now relies on the native `softwareKeyboardLayoutMode:
+        // 'resize'` window config (app.config.js) to shrink the root view
+        // itself — layering KeyboardAvoidingView's own 'height' behavior on
+        // top of that double-compensated and was part of what pushed/cropped
+        // the login card. `undefined` here means "let Android's own resize
+        // handle it."
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+      <StatusBar barStyle="dark-content" backgroundColor={step === 'MOBILE' ? MINT : '#FFFFFF'} />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + rs(24), paddingBottom: insets.bottom + rs(28) },
+          { paddingBottom: keyboardVisible ? rs(16) : rs(24) },
+          // The OTP step's content is short relative to a tall screen (esp.
+          // iPad) — centering it here (only for that step, via the shared
+          // ScrollView's own contentContainerStyle rather than a flexed
+          // child — see IntroScreen's note on why a flexed ScrollView child
+          // is a touch-target footgun) removes the dead space below it when
+          // the keyboard is closed. Gated on `keyboardVisible` (a discrete
+          // show/hide event), not just `step` — centering unconditionally
+          // while typing fought with the keyboard's own resize animation
+          // every frame, which read as the OTP boxes "flying"/jumping while
+          // entering digits.
+          step === 'OTP' && !keyboardVisible && { justifyContent: 'center' },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
       >
         {step === 'MOBILE' ? (
@@ -224,6 +293,15 @@ export default function LoginScreen({ onLogin, navigation }) {
             error={error}
             onSubmit={sendOtp}
             onCreateAccount={() => navigation?.navigate('CreateAccount')}
+            insets={insets}
+            contentWidth={contentWidth}
+            cardWidth={cardWidth}
+            illustrationWidth={illustrationWidth}
+            isTablet={isTablet}
+            keyboardVisible={keyboardVisible}
+            isShortScreen={isShortScreen}
+            isLandscape={isLandscape}
+            scrollRef={scrollRef}
           />
         ) : (
           <OtpStep
@@ -238,54 +316,167 @@ export default function LoginScreen({ onLogin, navigation }) {
             loading={loading}
             error={error}
             note={note}
+            insets={insets}
+            contentWidth={otpWidth}
+            isTablet={isTablet}
+            keyboardVisible={keyboardVisible}
+            isShortScreen={isShortScreen}
+            isLandscape={isLandscape}
           />
         )}
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 /* ------------------------------------------------------------------ step 1 */
 
-function MobileStep({ mobile, setMobile, loading, error, onSubmit, onCreateAccount }) {
+function MobileStep({
+  mobile, setMobile, loading, error, onSubmit, onCreateAccount, insets, contentWidth, cardWidth, illustrationWidth, isTablet,
+  keyboardVisible, isShortScreen, isLandscape, scrollRef,
+}) {
+  // Two independent knobs, not one: `compact` (keyboard actually open) HIDES
+  // the decorative sections outright. `tight` (short device or landscape,
+  // keyboard or not) only SHRINKS spacing/illustration size — a short phone
+  // at rest still shows the full design, just denser; conflating the two
+  // used to permanently strip a short phone's screen down to the compact
+  // layout even with the keyboard closed.
+  const compact = keyboardVisible;
+  const tight = isShortScreen || isLandscape;
+  // DEV-ONLY — long-press the wordmark to clear the "onboarding completed"
+  // flag and see IntroScreen again on the next app reload. Mirrors the same
+  // affordance on IntroScreen's wordmark, so it's reachable from wherever you
+  // land — inert in a release build (resetOnboardingForTesting() no-ops when
+  // `__DEV__` is false), no visible hint that it exists.
+  const handleDevResetLongPress = __DEV__
+    ? async () => {
+        await resetOnboardingForTesting();
+        console.log('[LOGIN][DEV] Onboarding flag cleared — reload the app to see Intro again');
+      }
+    : undefined;
+
+  // Login-Image.png's real aspect ratio isn't known ahead of time — read it
+  // off the actual rendering image (expo-image's onLoad) so the reserved
+  // space already matches before the image finishes loading, and it never
+  // stretches or crops once it does. Fallback (~2.1:1) only holds the layout
+  // for the first frame, on a cold cache, before onLoad fires.
+  const [loginImageRatio, setLoginImageRatio] = useState(1 / 2.1);
+
+  // Hero illustration height — spec'd ranges: phone normal 150–190, phone +
+  // keyboard 80–110; tight (short/landscape, keyboard closed) sits between
+  // the two instead of jumping straight to the compact size.
+  const heroImgMaxHeight = compact
+    ? (isTablet ? 140 : 95)
+    : tight
+      ? (isTablet ? 200 : 160)
+      : (isTablet ? 280 : 180);
+  const hideHeroImage = compact && isShortScreen;
+
   return (
     <View>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="cover" />
+      <View style={[styles.hero, { paddingTop: rs(compact ? 10 : tight ? 14 : 18) }]}>
+        <View style={{ width: '100%', maxWidth: contentWidth, alignItems: 'center' }}>
+          <Pressable onLongPress={handleDevResetLongPress} disabled={!__DEV__} style={{ alignItems: 'center' }}>
+            <Text style={[styles.wordmark, isTablet && { fontSize: rf(22) }]}>
+              GG<Text style={{ color: EMERALD }}>FIX</Text>
+            </Text>
+            {!compact ? (
+              <>
+                <Text style={styles.wordmarkSub}>PARTNER APP</Text>
+                <Text style={styles.tagline}>Repair &nbsp;|&nbsp; Pickup &nbsp;|&nbsp; Buy &nbsp;|&nbsp; Sell</Text>
+              </>
+            ) : null}
+          </Pressable>
 
-      <Text style={styles.h1}>Login with{'\n'}mobile number</Text>
-      <Text style={styles.sub}>Welcome to your shop dashboard !</Text>
+          {!compact ? (
+            <Image source={require('../../assets/logo.png')} style={[styles.heroLogo, isTablet && { width: rs(76), height: rs(76) }, tight && { width: rs(48), height: rs(48), marginTop: rs(10) }]} resizeMode="contain" />
+          ) : null}
 
-      <View style={styles.inputRow}>
-        <View style={styles.numberCard}>
+          <Text style={[styles.welcome, isTablet && { fontSize: rf(32) }, compact && { fontSize: rf(19), marginTop: rs(8) }]}>Welcome Back</Text>
+          <Text style={[styles.welcomeSub, isTablet && { fontSize: rf(15) }]}>Let&apos;s keep your business moving!</Text>
+          {!compact ? (
+            <Text style={[styles.welcomeDesc, isTablet && { fontSize: rf(15), lineHeight: rlh(21) }, tight && { marginTop: rs(3) }]}>
+              All your device service, pickup, buy and sell operations in one place.
+            </Text>
+          ) : null}
+
+          {!hideHeroImage ? (
+            <View style={[styles.loginImageWrap, { maxWidth: illustrationWidth, maxHeight: rs(heroImgMaxHeight), aspectRatio: 1 / loginImageRatio }]}>
+              <ExpoImage
+                source={LOGIN_IMAGE_URL}
+                style={styles.loginImage}
+                contentFit="contain"
+                cachePolicy="disk"
+                onLoad={(e) => {
+                  const { width: w, height: h } = e?.source || {};
+                  if (w > 0 && h > 0) setLoginImageRatio(h / w);
+                }}
+              />
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.card,
+          { maxWidth: cardWidth, borderRadius: rs(30) },
+          isTablet
+            ? { paddingHorizontal: rs(30), paddingTop: rs(26), paddingBottom: rs(26) }
+            : { paddingHorizontal: rs(22), paddingTop: rs(compact ? 16 : tight ? 18 : 22), paddingBottom: rs(compact ? 14 : tight ? 18 : 22) },
+        ]}
+      >
+        <Text style={[styles.cardTitle, isTablet && { fontSize: rf(19) }]}>Enter Mobile Number</Text>
+        <Text style={[styles.cardDesc, isTablet && { fontSize: rf(14) }]}>
+          We&apos;ll send you a secure OTP to sign in or create your partner account.
+        </Text>
+
+        <View style={[styles.numberCard, { height: rs(isTablet ? 62 : 58) }]}>
+          <Text style={styles.countryCode}>+91</Text>
+          <View style={styles.inputDivider} />
           <TextInput
             value={mobile}
             onChangeText={(v) => setMobile(v.replace(/[^0-9]/g, '').slice(0, MOBILE_DIGITS))}
-            placeholder="9876543210"
+            placeholder="Enter your mobile number"
             placeholderTextColor={SUBTLE}
-            keyboardType="number-pad"
+            // Kept platform-conditional (not the spec's flat "phone-pad") —
+            // "phone-pad" and the bare "number-pad" both surfaced a
+            // comma/dot row on Android in real-device testing; this is the
+            // already-verified fix for that, not a regression.
+            keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
             maxLength={MOBILE_DIGITS}
             autoFocus
             returnKeyType="done"
+            onFocus={() => scrollRef?.current?.scrollTo({ y: 0, animated: true })}
             onSubmitEditing={onSubmit}
             style={styles.numberInput}
           />
         </View>
+
+        <ErrorBox msg={error} />
+
+        <PrimaryButton label="Send OTP" loading={loading} onPress={onSubmit} isTablet={isTablet} style={{ height: rs(isTablet ? 60 : 56) }} />
+
+        <View style={styles.signupRow}>
+          <Text style={styles.signupMuted}>New to GGFix? </Text>
+          <Pressable onPress={onCreateAccount} hitSlop={8}>
+            <Text style={styles.signupLink}>Create account</Text>
+          </Pressable>
+        </View>
       </View>
 
-      <ErrorBox msg={error} />
+      {!compact ? (
+        <>
+          <View style={[styles.trustRow, { maxWidth: contentWidth, alignSelf: 'center' }, tight && { marginTop: rs(10) }]}>
+            <TrustItem icon={<ShieldCheck size={rs(18)} color={EMERALD} strokeWidth={2} />} label={'Trusted\nPlatform'} />
+            <TrustItem icon={<Users size={rs(18)} color={EMERALD} strokeWidth={2} />} label={'10K+\nPartners'} />
+            <TrustItem icon={<Headset size={rs(18)} color={EMERALD} strokeWidth={2} />} label={'Dedicated\nSupport'} />
+          </View>
 
-      <PrimaryButton label="LOGIN" loading={loading} onPress={onSubmit} />
-
-      <View style={styles.signupRow}>
-        <Text style={styles.signupMuted}>New to GGFix? </Text>
-        <Pressable onPress={onCreateAccount} hitSlop={8}>
-          <Text style={styles.signupLink}>Create account</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.footnote}>
-        GGFIX Partner — for shop owners and in-shop technicians.
-      </Text>
+          <Text style={[styles.footnote, tight && { marginTop: rs(8) }]}>GGFIX Partner — for shop owners and in-shop technicians.</Text>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -293,30 +484,68 @@ function MobileStep({ mobile, setMobile, loading, error, onSubmit, onCreateAccou
 /* ------------------------------------------------------------------ step 2 */
 
 function OtpStep({
-  mobile, otp, otpRef, onOtpChange, onSubmit, onBack, onResend, seconds, loading, error, note,
+  mobile, otp, otpRef, onOtpChange, onSubmit, onBack, onResend, seconds, loading, error, note, insets, contentWidth, isTablet,
+  keyboardVisible, isShortScreen,
 }) {
   const boxes = Array.from({ length: OTP_LENGTH });
   const canResend = seconds <= 0 && !loading;
+  // Fixed, bounded box size instead of `flex:1` — on the widened tablet
+  // container those used to stretch edge-to-edge into 6 oversized boxes.
+  const boxW = isTablet ? rs(59) : rs(49);
+  const boxH = isTablet ? rs(63) : rs(54);
+  const boxGap = isTablet ? rs(11) : rs(9);
+  // Compact mode shrinks/hides only the decorative illustration and footer —
+  // "Verify OTP", the phone number, all 6 boxes, the timer, the resend card
+  // and the Verify button stay visible no matter what.
+  const compact = keyboardVisible;
 
   return (
-    <View>
-      <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
-        <ArrowLeft size={rs(20)} color={TEXT} />
-      </Pressable>
+    <View style={[styles.otpPage, { maxWidth: contentWidth, alignSelf: 'center', paddingTop: rs(compact ? 6 : 8) }]}>
+      <View style={styles.otpHeader}>
+        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
+          <ArrowLeft size={rs(20)} color={TEXT} />
+        </Pressable>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.otpWordmark}>
+            GG<Text style={{ color: EMERALD }}>FIX</Text>
+          </Text>
+          {!compact ? <Text style={styles.otpWordmarkSub}>For Our Partner</Text> : null}
+        </View>
+        <View style={{ width: rs(36) }} />
+      </View>
 
-      <Text style={styles.h1Center}>Verify Phone</Text>
-      <Text style={styles.subCenter}>Code is sent to {mobile}</Text>
+      {!(compact && isShortScreen) ? (
+        <View style={[styles.otpHeroWrap, compact && { marginTop: rs(10), width: rs(56), height: rs(56) }]}>
+          <View style={[styles.otpHeroHalo, compact && { width: rs(56), height: rs(56), borderRadius: rs(28) }]} />
+          <Smartphone size={rs(compact ? 20 : 30)} color={DARK_GREEN} strokeWidth={1.6} />
+          <View style={[styles.otpHeroBadge, compact && { width: rs(20), height: rs(20), borderRadius: rs(10) }]}>
+            <ShieldCheck size={rs(compact ? 11 : 17)} color="#FFFFFF" strokeWidth={2.4} />
+          </View>
+        </View>
+      ) : null}
+
+      <Text style={[styles.h1Center, isTablet && { fontSize: rf(26), lineHeight: rlh(32) }, compact && { marginTop: rs(10) }]}>Verify OTP</Text>
+      <Text style={[styles.subCenter, isTablet && { fontSize: rf(14.5) }]}>We&apos;ve sent a 6-digit code to</Text>
+      <Text style={[styles.mobileBold, isTablet && { fontSize: rf(16.5) }]}>{mobile}</Text>
 
       {/* The visible boxes are display-only; one transparent input sits on top
           of the whole row so backspace, paste and SMS autofill all behave like
           a normal single field instead of six that fight over focus. */}
-      <Pressable onPress={() => otpRef.current?.focus()} style={styles.otpRow}>
+      {/* Sized to its own content and centered via `alignSelf`, not stretched
+          to the full row width with `justifyContent: 'center'` — the latter
+          left an unexplained lopsided gap (more empty space on the right
+          than the left) on some devices. Centering a content-sized block is
+          unambiguous regardless of screen width. */}
+      <Pressable onPress={() => otpRef.current?.focus()} style={[styles.otpRow, { alignSelf: 'center' }]}>
         {boxes.map((_, i) => {
           const char = otp[i] || '';
           const active = otp.length === i;
           return (
-            <View key={i} style={[styles.otpBox, active && styles.otpBoxActive]}>
-              <Text style={char ? styles.otpChar : styles.otpCharEmpty}>{char || '0'}</Text>
+            <View
+              key={i}
+              style={[styles.otpBox, { flex: 0, width: boxW, height: boxH, marginHorizontal: boxGap / 2 }, active && styles.otpBoxActive]}
+            >
+              <Text style={char ? styles.otpChar : styles.otpCharEmpty}>{char || ''}</Text>
             </View>
           );
         })}
@@ -324,7 +553,7 @@ function OtpStep({
           ref={otpRef}
           value={otp}
           onChangeText={onOtpChange}
-          keyboardType="number-pad"
+          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
           maxLength={OTP_LENGTH}
           autoFocus
           caretHidden
@@ -334,26 +563,55 @@ function OtpStep({
         />
       </Pressable>
 
+      <Text style={styles.resendTimer}>
+        {seconds > 0 ? (
+          <>Resend OTP in <Text style={{ color: EMERALD, fontWeight: '700' }}>{`00:${String(seconds).padStart(2, '0')}`}</Text></>
+        ) : ' '}
+      </Text>
+
       {note ? <Text style={styles.note}>{note}</Text> : null}
       <ErrorBox msg={error} />
 
-      <PrimaryButton label="VERIFY" loading={loading} onPress={onSubmit} />
-
-      <View style={styles.resendRow}>
-        <Text style={styles.resendMuted}>Not yet code? </Text>
-        <Pressable onPress={onResend} disabled={!canResend} hitSlop={8}>
-          <Text style={[styles.resendLink, !canResend && styles.resendLinkOff]}>
-            {seconds > 0 ? `Resend in ${seconds}s` : 'Resend Now'}
-          </Text>
+      <View style={styles.resendCard}>
+        <View style={styles.resendCardIcon}>
+          <MessageSquare size={rs(17)} color={DARK_GREEN} strokeWidth={2} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.resendCardTitle}>Didn&apos;t receive the code?</Text>
+          <Text style={styles.resendCardDesc}>Check your SMS or spam folder.</Text>
+        </View>
+        <Pressable onPress={onResend} disabled={!canResend} hitSlop={8} style={styles.resendPill}>
+          <Text style={[styles.resendPillText, !canResend && styles.resendPillTextOff]}>Resend OTP</Text>
         </Pressable>
       </View>
+
+      <PrimaryButton label="Verify" loading={loading} onPress={onSubmit} isTablet={isTablet} style={{ marginTop: rs(22) }} />
+
+      {/* Lowest-priority element — dropped first (only when the keyboard is
+          open on an already-short screen) so the Verify button never gets
+          pushed below the fold ahead of it. */}
+      {!(compact && isShortScreen) ? (
+        <View style={styles.secureRow}>
+          <ShieldCheck size={rs(13)} color={MUTED} strokeWidth={2} />
+          <Text style={styles.secureText}>Your information is secure with GGFIX</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 /* ------------------------------------------------------------------- parts */
 
-function PrimaryButton({ label, loading, onPress }) {
+function TrustItem({ icon, label }) {
+  return (
+    <View style={styles.trustItem}>
+      {icon}
+      <Text style={styles.trustLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function PrimaryButton({ label, loading, onPress, isTablet, style }) {
   return (
     <Button
       onPress={onPress}
@@ -361,16 +619,16 @@ function PrimaryButton({ label, loading, onPress }) {
       fullWidth
       elevated={false}
       // twMerge drops Button's own `rounded-2xl`/`py-3.5`/`bg-primary` in favour
-      // of these, so the CTA keeps the design's squarer 10px corners at a fixed
-      // 56px height and the sage fill instead of the app's #087A0A green.
+      // of these, so the CTA keeps this design's pill shape and the exact
+      // brand fill instead of the app's default green.
       // The hex must stay literal here — Tailwind's JIT only compiles arbitrary
       // values it can see as source text, so a constant would emit no class.
-      className="rounded-[10px] py-0 bg-[#004C40]"
-      style={styles.cta}
+      className="rounded-[28px] py-0 bg-[#004C40]"
+      style={[styles.cta, isTablet && { height: rs(54) }, style]}
     >
       <View style={styles.ctaInner}>
-        <Text style={styles.ctaText}>{label}</Text>
-        <ArrowRight size={rs(18)} color="#FFFFFF" strokeWidth={2.5} />
+        <Text style={[styles.ctaText, isTablet && { fontSize: rf(16.5) }]}>{label}</Text>
+        <ArrowRight size={rs(isTablet ? 19 : 18)} color="#FFFFFF" strokeWidth={2.5} />
       </View>
     </Button>
   );
@@ -385,82 +643,157 @@ function ErrorBox({ msg }) {
   );
 }
 
-const cardSurface = {
-  borderRadius: rs(12),
-  borderWidth: 1,
-  borderColor: BORDER,
-  backgroundColor: tokens.card,
-  shadowColor: '#0B1F14',
-  shadowOpacity: 0.06,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 2,
-};
-
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: PAGE_BG },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: rs(24) },
+  page: { flex: 1, backgroundColor: '#FFFFFF' },
+  scroll: { flexGrow: 1 },
 
-  logo: {
-    height: rs(100),
-    width: rs(100),
-    borderRadius: LOGO_RADIUS,
-    marginBottom: rs(22),
-    alignSelf: 'center',
+  /* ---- mobile step ---- */
+  hero: {
+    backgroundColor: MINT,
+    paddingBottom: rs(20),
+    paddingHorizontal: rs(24),
+    alignItems: 'center',
   },
+  wordmark: { fontSize: rf(19), fontWeight: '800', color: DARK_GREEN, letterSpacing: -0.3 },
+  wordmarkSub: { marginTop: rs(2), fontSize: rf(9), fontWeight: '700', letterSpacing: 1.8, color: MUTED },
+  tagline: { marginTop: rs(6), fontSize: rf(11.5), color: MUTED, fontWeight: '500' },
+  heroLogo: { width: rs(64), height: rs(64), marginTop: rs(16) },
+  welcome: { marginTop: rs(14), fontSize: rf(24), fontWeight: '800', color: TEXT, textAlign: 'center' },
+  welcomeSub: { marginTop: rs(4), fontSize: rf(13), fontWeight: '600', color: EMERALD, textAlign: 'center' },
+  welcomeDesc: {
+    marginTop: rs(6),
+    fontSize: rf(12),
+    lineHeight: rlh(17),
+    color: MUTED,
+    textAlign: 'center',
+    paddingHorizontal: rs(12),
+  },
+  loginImageWrap: {
+    width: '100%',
+    alignSelf: 'center',
+    marginTop: rs(18),
+  },
+  loginImage: { width: '100%', height: '100%' },
 
-  h1: { fontSize: rf(28), lineHeight: rlh(36), fontWeight: '800', color: TEXT, letterSpacing: -0.4 },
-  h1Center: { fontSize: rf(26), lineHeight: rlh(32), fontWeight: '800', color: TEXT, textAlign: 'center' },
-  sub: { fontSize: rf(13.5), lineHeight: rlh(20), color: MUTED, marginTop: rs(8) },
-  subCenter: { fontSize: rf(13.5), lineHeight: rlh(20), color: MUTED, textAlign: 'center', marginTop: rs(8) },
+  card: {
+    alignSelf: 'center',
+    width: '100%',
+    marginTop: -rs(24),
+    marginHorizontal: rs(20),
+    backgroundColor: '#FFFFFF',
+    borderRadius: rs(22),
+    padding: rs(16),
+    shadowColor: '#0B1F14',
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  cardTitle: { fontSize: rf(17), fontWeight: '800', color: TEXT },
+  cardDesc: { marginTop: rs(6), fontSize: rf(12), lineHeight: rlh(17), color: MUTED },
 
-  inputRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(28) },
   numberCard: {
-    ...cardSurface,
-    flex: 1,
-    height: rs(54),
-    justifyContent: 'center',
+    marginTop: rs(13),
+    height: rs(46),
+    borderRadius: rs(14),
+    borderWidth: 1,
+    borderColor: BORDER,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: rs(14),
   },
-  numberInput: { fontSize: rf(15.5), fontWeight: '600', color: TEXT, padding: 0 },
+  countryCode: { fontSize: rf(14.5), fontWeight: '700', color: TEXT },
+  inputDivider: { width: 1, height: rs(22), backgroundColor: BORDER, marginHorizontal: rs(10) },
+  numberInput: { flex: 1, fontSize: rf(14.5), fontWeight: '600', color: TEXT, padding: 0 },
 
-  backBtn: { alignSelf: 'flex-start', height: rs(36), width: rs(36), alignItems: 'center', justifyContent: 'center', marginBottom: rs(8), marginLeft: -rs(8) },
+  signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: rs(16) },
+  signupMuted: { fontSize: rf(12.5), color: MUTED },
+  signupLink: { fontSize: rf(12.5), fontWeight: '800', color: EMERALD },
 
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: rs(26) },
-  otpBox: {
-    ...cardSurface,
-    flex: 1,
-    height: rs(56),
-    marginHorizontal: rs(4),
+  trustRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: rs(16),
+    paddingHorizontal: rs(24),
+  },
+  trustItem: { alignItems: 'center', gap: rs(5) },
+  trustLabel: { fontSize: rf(9.5), fontWeight: '600', color: MUTED, textAlign: 'center', lineHeight: rf(12) },
+
+  footnote: { fontSize: rf(10.5), lineHeight: rlh(15), color: MUTED, textAlign: 'center', marginTop: rs(14), paddingHorizontal: rs(30) },
+
+  /* ---- otp step ---- */
+  otpPage: { width: '100%', paddingHorizontal: rs(24) },
+  otpHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backBtn: { height: rs(36), width: rs(36), borderRadius: rs(12), backgroundColor: MINT_2, alignItems: 'center', justifyContent: 'center' },
+  otpWordmark: { fontSize: rf(17), fontWeight: '800', color: DARK_GREEN },
+  otpWordmarkSub: { marginTop: rs(1), fontSize: rf(10.5), color: MUTED, fontWeight: '500' },
+
+  otpHeroWrap: { alignSelf: 'center', marginTop: rs(20), width: rs(88), height: rs(88), alignItems: 'center', justifyContent: 'center' },
+  otpHeroHalo: { position: 'absolute', width: rs(88), height: rs(88), borderRadius: rs(44), backgroundColor: MINT },
+  otpHeroBadge: {
+    position: 'absolute',
+    right: rs(2),
+    bottom: rs(2),
+    width: rs(30),
+    height: rs(30),
+    borderRadius: rs(15),
+    backgroundColor: DARK_GREEN,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  otpBoxActive: { borderColor: GREEN, borderWidth: 1.5 },
-  otpChar: { fontSize: rf(20), fontWeight: '700', color: TEXT },
-  otpCharEmpty: { fontSize: rf(20), fontWeight: '700', color: tokens.borderStrong },
+
+  h1Center: { marginTop: rs(16), fontSize: rf(22), lineHeight: rlh(28), fontWeight: '800', color: TEXT, textAlign: 'center' },
+  subCenter: { fontSize: rf(12.5), lineHeight: rlh(18), color: MUTED, textAlign: 'center', marginTop: rs(8) },
+  mobileBold: { fontSize: rf(14.5), fontWeight: '700', color: TEXT, textAlign: 'center', marginTop: rs(2) },
+
+  otpRow: { flexDirection: 'row', justifyContent: 'center', marginTop: rs(22) },
+  otpBox: {
+    borderRadius: rs(13),
+    borderWidth: 1.4,
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpBoxActive: { borderColor: EMERALD, borderWidth: 2 },
+  otpChar: { fontSize: rf(19), fontWeight: '700', color: TEXT },
+  otpCharEmpty: { fontSize: rf(19), fontWeight: '700', color: tokens.borderStrong },
   otpHiddenInput: { ...StyleSheet.absoluteFillObject, opacity: 0, color: 'transparent' },
 
+  resendTimer: { fontSize: rf(12), color: MUTED, textAlign: 'center', marginTop: rs(14) },
   note: { fontSize: rf(12.5), color: GREEN, marginTop: rs(10), textAlign: 'center' },
 
-  cta: { height: rs(56), borderRadius: rs(10), marginTop: rs(26), paddingVertical: 0 },
+  resendCard: {
+    marginTop: rs(14),
+    backgroundColor: MINT_2,
+    borderRadius: rs(16),
+    padding: rs(12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: rs(10),
+  },
+  resendCardIcon: {
+    width: rs(32),
+    height: rs(32),
+    borderRadius: rs(10),
+    backgroundColor: MINT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resendCardTitle: { fontSize: rf(12), fontWeight: '700', color: TEXT },
+  resendCardDesc: { fontSize: rf(10.5), color: MUTED, marginTop: rs(1) },
+  resendPill: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, borderRadius: rs(16), paddingHorizontal: rs(12), paddingVertical: rs(7) },
+  resendPillText: { fontSize: rf(10.5), fontWeight: '700', color: TEXT },
+  resendPillTextOff: { color: SUBTLE },
+
+  secureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: rs(6), marginTop: rs(16) },
+  secureText: { fontSize: rf(10.5), color: MUTED },
+
+  /* ---- shared ---- */
+  cta: { height: rs(48), borderRadius: rs(24), marginTop: rs(14), paddingVertical: 0 },
   ctaInner: { flexDirection: 'row', alignItems: 'center' },
-  // White, because the CTA fill is dark again (#004C40, luminance 0.055):
-  // white on it is 10:1, the dark text token only 1.7:1. This flips with the
-  // fill — it was briefly dark while the fill was the light #64FF43.
-  ctaText: { color: '#FFFFFF', fontSize: rf(14.5), fontWeight: '500', letterSpacing: 1.6, marginRight: rs(10) },
-
-  resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: rs(30) },
-  resendMuted: { fontSize: rf(12.5), color: MUTED },
-  // Amber on the page wash is 2.4:1 — fine as a 12.5px bold link beside its
-  // muted label, but the DARK amber is what keeps it legible, so use that.
-  resendLink: { fontSize: rf(12.5), fontWeight: '700', color: tokens.attentionDark },
-  resendLinkOff: { color: MUTED, fontWeight: '600' },
-
-  signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: rs(24) },
-  signupMuted: { fontSize: rf(13), color: MUTED },
-  signupLink: { fontSize: rf(13), fontWeight: '800', color: GREEN },
-
-  footnote: { fontSize: rf(11), lineHeight: rlh(16), color: MUTED, textAlign: 'center', marginTop: rs(18) },
+  // White, because the CTA fill is dark (#004C40, luminance 0.055): white on
+  // it is 10:1, the dark text token only 1.7:1.
+  ctaText: { color: '#FFFFFF', fontSize: rf(14.5), fontWeight: '700', letterSpacing: 0.4, marginRight: rs(10) },
 
   errorBox: {
     marginTop: rs(14),

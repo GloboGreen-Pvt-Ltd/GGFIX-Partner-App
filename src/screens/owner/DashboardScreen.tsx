@@ -13,8 +13,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BarChart3,
-  BookText,
-  CalendarCheck,
   CalendarOff,
   CheckCircle2,
   ClipboardCheck,
@@ -22,17 +20,18 @@ import {
   ClipboardPlus,
   Clock,
   IndianRupee,
+  LayoutGrid,
   MessageCircle,
   Package,
-  PackageCheck,
   PackageOpen,
-  PackageSearch,
   Pencil,
   Puzzle,
-  Timer,
+  ShieldCheck,
   Truck,
+  UserCheck,
   Users,
   UsersRound,
+  Wallet,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { getBanners, getDeviceCategories, getModelsByBrand } from '../../api/masterData';
@@ -124,8 +123,17 @@ function useBookingCounts() {
       const data: TicketCountsResponse = await ticketApi.get('/tickets/counts');
       setCounts(data || {});
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load counts');
-      setCounts({});
+      // TEMP DIAG — pinpointing an intermittent failure on this endpoint;
+      // remove once confirmed. console.log (not warn/error) so it doesn't
+      // itself trip LogBox's warning count.
+      const status = (e as { status?: number })?.status;
+      const message = e instanceof Error ? e.message : String(e);
+      console.log('[Dashboard counts] /tickets/counts FAILED — status:', status, 'message:', message);
+      setError(message || 'Failed to load counts');
+      // Do NOT reset counts to {} here — that's what was making every
+      // Overview card read 0 on a transient background-refresh failure. Keep
+      // whatever was last successfully loaded (still null on a genuine first-
+      // load failure, which correctly keeps the full-page loader up below).
     } finally {
       setLoading(false);
     }
@@ -173,17 +181,17 @@ export const QUICK_ACTIONS: DashboardTool[] = [
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   { key: 'OwnerEmployeeList', label: 'Team', icon: UsersRound, color: TOOL_TONES[0], via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Attendance', icon: CalendarCheck, color: TOOL_TONES[1], via: 'parent', params: { mode: 'attendance' } },
+  { key: 'OwnerStaffReport', label: 'Attendance', icon: UserCheck, color: TOOL_TONES[1], via: 'parent', params: { mode: 'attendance' } },
   { key: 'OwnerEmployeeWorkingRecord', label: 'Service Report', icon: ClipboardList, color: TOOL_TONES[2], via: 'parent' },
-  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: PackageSearch, color: TOOL_TONES[4], via: 'parent' },
+  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: Truck, color: TOOL_TONES[4], via: 'parent' },
   { key: 'OwnerLeaveRequests', label: 'Leave', icon: CalendarOff, color: TOOL_TONES[5], via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Permissions', icon: Timer, color: TOOL_TONES[6], via: 'parent', params: { mode: 'permission' } },
+  { key: 'OwnerStaffReport', label: 'Permissions', icon: ShieldCheck, color: TOOL_TONES[6], via: 'parent', params: { mode: 'permission' } },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
   { key: 'OwnerRevenue', label: 'Revenue', icon: IndianRupee, color: TOOL_TONES[0], via: 'parent' },
   { key: 'BookingStatus', label: 'Service Status', icon: BarChart3, color: TOOL_TONES[1], via: 'parent' },
-  { key: 'OwnerCashBook', label: 'Cash Book', icon: BookText, color: TOOL_TONES[4], via: 'parent' },
+  { key: 'OwnerCashBook', label: 'Cash Book', icon: Wallet, color: TOOL_TONES[4], via: 'parent' },
 ];
 
 function greetingFor(date: Date = new Date()): string {
@@ -370,7 +378,13 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
         request: countScope(SCOPES.PICKUP_REQUEST, { pickups: rows }),
         accepted: countScope(SCOPES.PICKUP_ACCEPTED, { pickups: rows }),
       });
-    } catch {}
+    } catch (e) {
+      // TEMP DIAG — same trace as the other Home loaders above; remove once
+      // confirmed. Already correct behaviour-wise: pickupCounts is left as
+      // whatever was last loaded, never reset on a failed refresh.
+      const status = (e as { status?: number })?.status;
+      console.log('[Dashboard pickups] repair-bookings fetch failed — status:', status, 'message:', e instanceof Error ? e.message : String(e));
+    }
   }, []);
 
   useEffect(() => {
@@ -576,13 +590,17 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   const loadBanners = useCallback(async () => {
     try {
       const list: DashboardBanner[] = await getBanners();
-      // TEMPORARY DEBUG — remove once the banner issue is confirmed fixed.
-      console.log('[Dashboard banners] fetched', Array.isArray(list) ? list.length : typeof list, 'rows:', JSON.stringify(list));
       setBanners(Array.isArray(list) ? list : []);
     } catch (e) {
-      // TEMPORARY DEBUG — remove once the banner issue is confirmed fixed.
-      console.warn('[Dashboard banners] fetch FAILED', e);
-      setBanners([]);
+      // console.log, not warn/error — an admin-banner fetch failing is an
+      // already-handled, non-fatal condition (the banner block just stays
+      // hidden below), not a genuine app warning; console.warn here was
+      // what tripped LogBox's warning badge on every failed refresh.
+      const status = (e as { status?: number })?.status;
+      console.log('[Dashboard banners] fetch failed — status:', status, 'message:', e instanceof Error ? e.message : String(e));
+      // Do NOT reset banners to [] here — keep whatever was last shown
+      // instead of hiding an already-successfully-loaded banner because a
+      // later background refresh failed.
     } finally {
       setBannersLoading(false);
     }
@@ -594,8 +612,17 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refresh(), loadLatest(), loadPickups(), loadBanners()]);
-    setRefreshing(false);
+    try {
+      // Each of these already catches its own errors internally and never
+      // rejects (see `load`/`loadLatest`/`loadPickups`/`loadBanners` above),
+      // so one section failing does not stop the others from completing —
+      // Promise.all here is not the same footgun it would be if any of them
+      // threw. The try/finally is a safety net regardless: refreshing must
+      // always end even if that invariant is ever broken by a future edit.
+      await Promise.all([refresh(), loadLatest(), loadPickups(), loadBanners()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const gotoParent = (route: string, params?: Record<string, unknown>) => {
@@ -632,7 +659,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // preset, and its count comes from the same scope predicate the list
   // filters by, so the figure always matches the length of the list it opens.
   const overview: OverviewStatItem[] = [
-    { label: 'Service Orders', caption: 'All services', value: total, icon: PackageCheck, color: OV_TONE.total, onPress: () => navigation.navigate('Bookings') },
+    { label: 'Service Orders', caption: 'All services', value: total, icon: Package, color: OV_TONE.total, onPress: () => navigation.navigate('Bookings') },
     { label: 'Active Jobs', caption: 'In progress', value: activeCount, icon: Clock, color: OV_TONE.active, onPress: () => gotoParent('BookingList', { preset: 'ACTIVE' }) },
     { label: 'Pickup Queue', caption: 'All pickups', value: pickupCounts.all, icon: Truck, color: OV_TONE.pickups, onPress: () => gotoParent('BookingList', { menu: 'PICKUP', preset: 'PICKUP_ALL' }) },
     { label: 'Pickup Requests', caption: 'New requests', value: pickupCounts.request, icon: Package, color: OV_TONE.request, onPress: () => gotoParent('BookingList', { menu: 'PICKUP', preset: 'PICKUP_REQUEST' }) },
@@ -705,6 +732,12 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
         onNotificationsPress={() => navigation.navigate('OwnerNotifications')}
         onCartPress={() => navigation.navigate('OwnerCart')}
         onSearchPress={() => gotoParent('OwnerSearch')}
+        onScanPress={(mode) => {
+          // TEMP DEBUG — staged scanner logging, remove once verified on device.
+          console.log(`[QR] ${mode} button pressed`);
+          gotoParent('ScanSearch', { mode });
+          console.log(`[QR] navigation executed -> ScanSearch (${mode})`);
+        }}
       />
 
       <Animated.ScrollView
@@ -753,9 +786,9 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
         <View style={{ marginTop: SECTION_GAP }}>
           <DashboardMenuTabs
             tabs={[
-              { label: 'Services', items: QUICK_ACTIONS },
-              { label: 'Employee', items: EMPLOYEE_ACTIONS },
-              { label: 'Reports', items: REPORT_ACTIONS },
+              { label: 'Services', items: QUICK_ACTIONS, icon: LayoutGrid },
+              { label: 'Employee', items: EMPLOYEE_ACTIONS, icon: UsersRound },
+              { label: 'Reports', items: REPORT_ACTIONS, icon: BarChart3 },
             ]}
             pad={PAD}
             panelStyle={toolCardStyle}

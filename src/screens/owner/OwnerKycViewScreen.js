@@ -1,80 +1,74 @@
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
+  RefreshControl, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
-  ChevronLeft,
-  ShieldCheck,
-  XCircle,
-  Clock,
-  FileText,
-  Pencil,
-  CloudUpload,
-  Upload,
-  CheckCircle2,
+  ShieldCheck, XCircle, Clock, FileText, CloudUpload,
 } from 'lucide-react-native';
+import {
+  AppHeader, Card, ScreenContainer, StatusChip, Button, Loader,
+} from '../../components/rnr';
+import { DocumentPreview } from '../../components/owner/kyc/DocumentPreview';
+import { OwnerBadge } from '../../components/owner/kyc/OwnerBadge';
+import { tokens } from '../../theme/colors';
 import { getOwnerKycDocuments } from '../../api/shops';
+import { rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-
-const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.10,
-  shadowRadius: 18,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 5,
-};
-
-const softShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 2,
-};
-
-// Owner KYC = personal identity documents only (Aadhar front/back + PAN).
+// Owner KYC = a single blob with ONE review status shared across all docs
+// (see api/shops.js) — Aadhar front/back + PAN.
 const ORDER = ['aadharFront', 'aadharBack', 'pan'];
 const TITLES = {
-  aadharFront: 'Aadhar Card Front',
-  aadharBack:  'Aadhar Card Back',
+  aadharFront: 'Aadhaar Card (Front)',
+  aadharBack:  'Aadhaar Card (Back)',
   pan:         'PAN Card',
 };
 const URL_FIELD = { aadharFront: 'aadharFrontUrl', aadharBack: 'aadharBackUrl', pan: 'panUrl' };
+// Same identity/tax grouping OwnerKycUploadScreen uses — not fabricated,
+// mirrors the doc's real purpose.
+const GROUP_LABEL = { aadharFront: 'Identity Proof', aadharBack: 'Identity Proof', pan: 'Tax Proof' };
 
-function isPdf(url) {
-  return typeof url === 'string' && url.toLowerCase().includes('.pdf');
-}
-
-function fmtDate(iso) {
+function fmtDateTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
 }
 
 const STATUS_GRADIENT = {
-  APPROVED:       [BRAND_GREEN, BRAND_GREEN_DARK],
+  APPROVED:       [tokens.accentSoft, tokens.primarySoft],
   REJECTED:       ['#FCA5A5', '#B91C1C'],
-  PENDING_REVIEW: ['#F59E0B', '#B45309'],
-  NONE:           ['#8FA08F', '#667066'],
+  PENDING_REVIEW: [tokens.attentionLight, tokens.attentionDark],
+  NONE:           [tokens.textSubtle, tokens.textMuted],
 };
+const STATUS_TONE = { APPROVED: 'completed', REJECTED: 'cancelled', PENDING_REVIEW: 'pending', PENDING: 'pending' };
+const STATUS_LABEL = { APPROVED: 'Approved', REJECTED: 'Rejected', PENDING_REVIEW: 'Pending', PENDING: 'Pending' };
+
+function MetaRow({ label, value }) {
+  return (
+    <View className="flex-row items-center justify-between px-3.5 py-1">
+      <Text className="text-[10.5px] text-text-muted">{label}</Text>
+      <Text className="text-[11.5px] font-bold text-text">{value}</Text>
+    </View>
+  );
+}
 
 export default function OwnerKycViewScreen({ route, navigation }) {
   const fromSubmit = !!route?.params?.fromSubmit;
   const [kyc, setKyc] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const r = useResponsive();
+  // Single-column always (unlike the upload screen's cards, a full document
+  // thumbnail reads worse split across two columns on a tablet) — just
+  // capped and centred so it doesn't stretch edge-to-edge.
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 640) : undefined;
+  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -91,9 +85,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Owner KYC is a single blob with one review status shared across all docs.
   const status = kyc.status || 'PENDING_REVIEW';
-  const reviewDate = kyc.reviewedAt || kyc.submittedAt;
   const orderedDocs = ORDER
     .map((key) => {
       const url = kyc[URL_FIELD[key]];
@@ -105,12 +97,14 @@ export default function OwnerKycViewScreen({ route, navigation }) {
         required: true,
         status,
         rejectReason: status === 'REJECTED' ? kyc.rejectReason : null,
-        updatedAt: reviewDate,
+        submittedAt: kyc.submittedAt || null,
+        reviewedAt: kyc.reviewedAt || null,
       };
     })
     .filter(Boolean);
 
   const overallStatus = orderedDocs.length === 0 ? 'NONE' : status;
+  const isApproved = overallStatus === 'APPROVED';
 
   const onEdit = () => {
     navigation.navigate('OwnerKycUpload', { existing: kyc });
@@ -123,127 +117,103 @@ export default function OwnerKycViewScreen({ route, navigation }) {
           : Clock;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <ScreenContainer>
+      <AppHeader
+        title="KYC Documents"
+        subtitle="View and manage your documents"
+        onBack={() => navigation.goBack()}
+        right={<OwnerBadge />}
+      />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            paddingTop: 6,
-            paddingBottom: 14,
-            paddingHorizontal: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
-          }}
-        >
-          <View className="flex-row items-center">
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-              className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
-            >
-              <ChevronLeft size={22} color="#172117" />
-            </TouchableOpacity>
-            <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-              KYC Documents
-            </Text>
-            {orderedDocs.length > 0 ? (
-              <Pressable
-                onPress={onEdit}
-                className="px-2.5 py-1 rounded-full flex-row items-center bg-surface-muted"
-                hitSlop={6}
-              >
-                <Pencil size={11} color="#172117" />
-                <Text className="ml-1 text-text text-[10.5px] font-extrabold">EDIT</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      </SafeAreaView>
-
-      {(
-        <ScrollView
-          contentContainerStyle={{ padding: 14, paddingBottom: 32 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => load(true)}
-              tintColor={BRAND_GREEN_DARK}
-              colors={[BRAND_GREEN_DARK]}
-            />
-          }
-        >
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            tintColor={tokens.primary}
+            colors={[tokens.primary]}
+          />
+        }
+      >
+        <View style={capStyle}>
           {/* Status hero card */}
-          <View style={cardShadow}>
+          <View style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 }}>
             <LinearGradient
               colors={STATUS_GRADIENT[overallStatus]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 22, padding: 16, overflow: 'hidden' }}
+              style={{ borderRadius: 20, padding: 16, overflow: 'hidden', flexDirection: 'row', alignItems: 'center' }}
             >
-              <View
-                style={{
-                  position: 'absolute', right: -30, top: -30,
-                  width: 110, height: 110, borderRadius: 999,
-                  backgroundColor: 'rgba(255,255,255,0.10)',
-                }}
-              />
-              <View className="flex-row items-center">
+              {!isApproved ? (
                 <View
                   style={{
-                    width: 48, height: 48, borderRadius: 16,
-                    backgroundColor: 'rgba(255,255,255,0.22)',
+                    position: 'absolute', right: -30, top: -30,
+                    width: 110, height: 110, borderRadius: 999,
+                    backgroundColor: 'rgba(255,255,255,0.10)',
+                  }}
+                />
+              ) : null}
+              <View
+                style={{
+                  width: 48, height: 48, borderRadius: 16,
+                  backgroundColor: isApproved ? tokens.primary : 'rgba(255,255,255,0.22)',
+                  alignItems: 'center', justifyContent: 'center',
+                  borderWidth: isApproved ? 0 : 1, borderColor: 'rgba(255,255,255,0.30)',
+                  marginRight: 12,
+                }}
+              >
+                <HeroIcon size={22} color="#FFFFFF" strokeWidth={2.3} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[15.5px] font-extrabold" style={{ color: isApproved ? tokens.primary : '#FFFFFF' }}>
+                  {overallStatus === 'APPROVED' && 'KYC Approved'}
+                  {overallStatus === 'REJECTED' && 'KYC Rejected'}
+                  {overallStatus === 'PENDING_REVIEW' && 'Under Review'}
+                  {overallStatus === 'NONE' && 'No documents yet'}
+                </Text>
+                <Text
+                  className="text-[11.5px] mt-1 leading-4"
+                  style={{ color: isApproved ? tokens.textMuted : 'rgba(255,255,255,0.85)' }}
+                >
+                  {fromSubmit && overallStatus === 'PENDING_REVIEW'
+                    ? 'Thank you! Your documents are being reviewed by admin.'
+                    : overallStatus === 'APPROVED' ? 'All documents have been verified. You can continue using all features.'
+                      : overallStatus === 'REJECTED' ? 'One or more documents need attention. Tap Edit to fix.'
+                        : overallStatus === 'NONE' ? 'Upload your KYC documents to start verification.'
+                          : `${orderedDocs.length} document${orderedDocs.length === 1 ? '' : 's'} awaiting admin review.`}
+                </Text>
+              </View>
+              {isApproved ? (
+                <View
+                  style={{
+                    width: 40, height: 40, borderRadius: 13,
+                    backgroundColor: tokens.primarySoft,
                     alignItems: 'center', justifyContent: 'center',
-                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
-                    marginRight: 12,
+                    marginLeft: 8,
                   }}
                 >
-                  <HeroIcon size={22} color="#FFFFFF" strokeWidth={2.3} />
+                  <FileText size={18} color={tokens.primary} strokeWidth={2} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-white text-[15.5px] font-extrabold">
-                    {overallStatus === 'APPROVED' && 'KYC Approved'}
-                    {overallStatus === 'REJECTED' && 'KYC Rejected'}
-                    {overallStatus === 'PENDING_REVIEW' && 'Under Review'}
-                    {overallStatus === 'NONE' && 'No documents yet'}
-                  </Text>
-                  <Text className="text-white/85 text-[11.5px] mt-1 leading-4">
-                    {fromSubmit && overallStatus === 'PENDING_REVIEW'
-                      ? 'Thank you! Your documents are being reviewed by admin.'
-                      : overallStatus === 'APPROVED' ? 'All documents have been verified.'
-                        : overallStatus === 'REJECTED' ? 'One or more documents need attention. Tap Edit to fix.'
-                          : overallStatus === 'NONE' ? 'Upload your KYC documents to start verification.'
-                            : `${orderedDocs.length} document${orderedDocs.length === 1 ? '' : 's'} awaiting admin review.`}
-                  </Text>
-                </View>
-              </View>
+              ) : null}
             </LinearGradient>
           </View>
 
           {loading ? (
-            <View className="py-10 items-center">
-              <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
-            </View>
+            <Loader label="Loading documents…" className="py-12" />
           ) : orderedDocs.length === 0 ? (
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => navigation.navigate('OwnerKycUpload')}
               className="mt-4"
-              style={cardShadow}
+              style={{ shadowColor: '#172117', shadowOpacity: 0.10, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 5 }}
             >
               <LinearGradient
-                colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
+                colors={[tokens.primaryBright, tokens.primary]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={{
-                  borderRadius: 18,
-                  paddingVertical: 16,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                style={{ borderRadius: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
                 <CloudUpload size={16} color="#FFFFFF" />
                 <Text className="ml-2 text-white text-[14px] font-extrabold">
@@ -254,147 +224,104 @@ export default function OwnerKycViewScreen({ route, navigation }) {
           ) : (
             <>
               {/* Section label */}
-              <View className="mt-5 mb-2 ml-1 flex-row items-center">
-                <Text
-                  className="text-[11px] font-extrabold uppercase flex-1"
-                  style={{ color: BRAND_GREEN_DARK, letterSpacing: 1.2 }}
-                >
-                  Uploaded Documents
-                </Text>
-                <View
-                  className="px-2.5 py-1 rounded-full"
-                  style={{ backgroundColor: '#E6F7E3' }}
-                >
-                  <Text
-                    className="text-[10.5px] font-extrabold"
-                    style={{ color: BRAND_GREEN_DARK }}
-                  >
-                    {orderedDocs.length} uploaded
+              <View className="mt-5 mb-2 flex-row items-center">
+                <Text className="text-[15px] font-extrabold text-text flex-1">Uploaded Documents</Text>
+                <View className="px-2.5 py-1 rounded-full" style={{ backgroundColor: tokens.primarySoft }}>
+                  <Text className="text-[10.5px] font-extrabold" style={{ color: tokens.primary }}>
+                    {isApproved ? `${orderedDocs.length} of ${orderedDocs.length} verified` : `${orderedDocs.length} uploaded`}
                   </Text>
                 </View>
               </View>
 
-              {/* Doc grid */}
-              <View className="flex-row flex-wrap -mx-1">
-                {orderedDocs.map((doc) => {
-                  const status = doc.status || 'PENDING';
-                  const pillMeta =
-                    status === 'APPROVED' ? { tint: '#E6F7E3', accent: BRAND_GREEN_DARK, Icon: CheckCircle2 }
-                      : status === 'REJECTED' ? { tint: '#FEE2E2', accent: '#B91C1C', Icon: XCircle }
-                        : { tint: '#FEF3C7', accent: '#B45309', Icon: Clock };
-                  const PillIcon = pillMeta.Icon;
-                  return (
-                    <View key={doc.id || doc.docType} style={{ width: '50%', padding: 6 }}>
-                      <View className="bg-white rounded-2xl p-3" style={softShadow}>
+              {orderedDocs.map((doc, i) => {
+                const tone = STATUS_TONE[doc.status] || 'pending';
+                const label = STATUS_LABEL[doc.status] || 'Pending';
+                return (
+                  <Animated.View
+                    key={doc.docType}
+                    entering={FadeInDown.delay(i * 70).duration(300)}
+                    className="mb-3.5"
+                  >
+                    <Card padded={false} elevated>
+                      <View className="flex-row items-center px-3.5 py-3 border-b border-border">
                         <View
-                          className="flex-row items-center rounded-xl px-2 py-1.5 mb-2"
-                          style={{ backgroundColor: '#F7FAF7' }}
+                          className="h-8 w-8 rounded-lg items-center justify-center mr-2.5"
+                          style={{ backgroundColor: tokens.primarySoft }}
                         >
-                          <FileText size={12} color="#667066" />
-                          <Text
-                            className="flex-1 text-[11px] font-extrabold text-gray-800 ml-1.5"
-                            numberOfLines={1}
-                          >
-                            {doc.title || TITLES[doc.docType] || doc.docType}
-                          </Text>
-                          {doc.required ? (
-                            <Text className="text-[12px] font-extrabold" style={{ color: '#DC2626' }}>*</Text>
-                          ) : null}
+                          <FileText size={15} color={tokens.primary} />
                         </View>
-
-                        <View
-                          className="rounded-xl overflow-hidden items-center justify-center"
-                          style={{
-                            backgroundColor: '#F0F8EF',
-                            minHeight: 112,
-                            borderWidth: 1, borderColor: '#E6F7E3',
-                          }}
-                        >
-                          {isPdf(doc.url) ? (
-                            <View className="flex-row items-center px-2.5 py-2 w-full">
-                              <View
-                                className="px-2 py-1 rounded mr-2"
-                                style={{ backgroundColor: '#DC2626' }}
-                              >
-                                <Text className="text-white text-[10px] font-extrabold">PDF</Text>
-                              </View>
-                              <Text className="flex-1 text-[11px] font-semibold text-gray-700" numberOfLines={2}>
-                                {(doc.title || doc.docType).toLowerCase().replace(/\s+/g, '-')}.pdf
-                              </Text>
-                            </View>
-                          ) : (
-                            <Image
-                              source={{ uri: doc.url }}
-                              style={{ width: '100%', height: 112 }}
-                              resizeMode="cover"
-                            />
-                          )}
+                        <View className="flex-1">
+                          <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
+                          <Text className="text-[10.5px] text-text-muted mt-0.5">{GROUP_LABEL[doc.docType]}</Text>
                         </View>
+                        <StatusChip tone={tone} label={label} size="sm" />
+                      </View>
 
-                        <View className="flex-row items-center mt-2">
-                          <View
-                            className="flex-row items-center px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: pillMeta.tint }}
-                          >
-                            <PillIcon size={9} color={pillMeta.accent} />
-                            <Text
-                              className="ml-1 text-[9.5px] font-extrabold"
-                              style={{ color: pillMeta.accent, letterSpacing: 0.3 }}
-                            >
-                              {status}
-                            </Text>
-                          </View>
-                          <Text
-                            className="flex-1 ml-1 text-[9.5px] font-bold text-gray-400"
-                            numberOfLines={1}
-                          >
-                            {fmtDate(doc.updatedAt || doc.createdAt)}
-                          </Text>
-                        </View>
+                      <View className="m-2.5">
+                        <DocumentPreview url={doc.url} label={doc.title} height={170} rounded={14} />
+                      </View>
 
-                        {status === 'REJECTED' && doc.rejectReason ? (
-                          <Text
-                            className="text-[10px] mt-2 italic leading-3"
-                            style={{ color: '#B91C1C' }}
-                          >
+                      {doc.submittedAt ? <MetaRow label="Uploaded on" value={fmtDateTime(doc.submittedAt)} /> : null}
+                      {doc.reviewedAt ? (
+                        <MetaRow
+                          label={doc.status === 'APPROVED' ? 'Approved on' : 'Reviewed on'}
+                          value={fmtDateTime(doc.reviewedAt)}
+                        />
+                      ) : null}
+                      {(doc.submittedAt || doc.reviewedAt) ? <View className="pb-1" /> : null}
+
+                      {doc.status === 'REJECTED' && doc.rejectReason ? (
+                        <View className="mx-3.5 mb-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FEE2E2' }}>
+                          <Text className="text-[11px] italic leading-4" style={{ color: '#B91C1C' }}>
                             {doc.rejectReason}
                           </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
+                        </View>
+                      ) : null}
+                    </Card>
+                  </Animated.View>
+                );
+              })}
 
-              {/* CTA */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={onEdit}
-                className="mt-4"
-                style={cardShadow}
-              >
-                <LinearGradient
-                  colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{
-                    borderRadius: 18,
-                    paddingVertical: 14,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+              {isApproved ? (
+                // Approved: editing is optional maintenance, not urgent — a
+                // soft info card replaces the old always-on bright CTA.
+                <View
+                  className="mt-2 rounded-2xl px-4 py-4"
+                  style={{ backgroundColor: tokens.accentSoft, borderWidth: 1, borderColor: tokens.primarySoft }}
                 >
-                  <Upload size={16} color="#FFFFFF" />
-                  <Text className="ml-2 text-white text-[14px] font-extrabold">
-                    Edit Documents
+                  <Text className="text-[13px] font-extrabold" style={{ color: tokens.primary }}>
+                    Need to update your documents?
                   </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Text className="text-[11.5px] mt-1 mb-3 leading-4" style={{ color: tokens.textMuted }}>
+                    If your documents have changed or expired, you can upload new ones.
+                  </Text>
+                  <Button variant="outline" size="sm" onPress={onEdit} className="self-start">
+                    Edit Documents
+                  </Button>
+                </View>
+              ) : (
+                // Rejected / pending: still an owner-facing action they need
+                // to take, so it stays a prominent full-width CTA.
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={onEdit}
+                  className="mt-2"
+                  style={{ shadowColor: '#172117', shadowOpacity: 0.10, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 }}
+                >
+                  <LinearGradient
+                    colors={[tokens.primaryBright, tokens.primary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ borderRadius: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Text className="text-white text-[14px] font-extrabold">Edit Documents</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
             </>
           )}
-        </ScrollView>
-      )}
-    </View>
+        </View>
+      </ScrollView>
+    </ScreenContainer>
   );
 }

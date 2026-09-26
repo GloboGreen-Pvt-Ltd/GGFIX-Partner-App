@@ -59,28 +59,28 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
       <View
         style={{
           backgroundColor: '#FFFFFF',
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 22,
+          paddingHorizontal: 14,
+          paddingTop: 10,
+          paddingBottom: 14,
           borderBottomWidth: 1,
           borderBottomColor: '#E2E8E2',
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
           <Pressable
             onPress={() => navigation.goBack()}
-            hitSlop={10}
+            hitSlop={8}
             style={{
-              width: 40, height: 40, borderRadius: 20,
+              width: 36, height: 36, borderRadius: 18,
               backgroundColor: '#E6F7E3',
               alignItems: 'center', justifyContent: 'center',
-              marginRight: 12,
+              marginRight: 10,
             }}
           >
-            <Ionicons name="arrow-back" size={20} color="#004C40" />
+            <Ionicons name="arrow-back" size={19} color="#004C40" />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: '#172117', letterSpacing: 0.2 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#172117', letterSpacing: 0.2 }}>
               Sell on ggfix
             </Text>
             <Text style={{ fontSize: 12, color: '#667066', marginTop: 2 }}>
@@ -89,12 +89,12 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
           </View>
           <View
             style={{
-              width: 40, height: 40, borderRadius: 20,
+              width: 36, height: 36, borderRadius: 18,
               backgroundColor: '#E6F7E3',
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Ionicons name="create-outline" size={20} color="#172117" />
+            <Ionicons name="create-outline" size={19} color="#172117" />
           </View>
         </View>
 
@@ -103,19 +103,19 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
           style={{
             flexDirection: 'row', alignItems: 'center',
             backgroundColor: '#F0F8EF',
-            paddingHorizontal: 12, paddingVertical: 10,
+            paddingHorizontal: 12, paddingVertical: 8,
             borderRadius: 12,
             borderWidth: 1, borderColor: '#C8EEBF',
           }}
         >
           <View
             style={{
-              width: 36, height: 36, borderRadius: 18,
+              width: 32, height: 32, borderRadius: 16,
               backgroundColor: '#E6F7E3',
-              alignItems: 'center', justifyContent: 'center', marginRight: 12,
+              alignItems: 'center', justifyContent: 'center', marginRight: 10,
             }}
           >
-            <Ionicons name="flash" size={16} color="#004C40" />
+            <Ionicons name="flash" size={15} color="#004C40" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#004C40', fontSize: 14, fontWeight: '800' }}>
@@ -128,15 +128,15 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 18 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingTop: 14 }}>
         {modelName ? (
           <Pressable
             onPress={() => navigation.goBack()}
             style={{
               backgroundColor: '#FFFFFF',
-              borderRadius: 18,
-              padding: 12,
-              marginBottom: 18,
+              borderRadius: 16,
+              padding: 10,
+              marginBottom: 14,
               flexDirection: 'row',
               alignItems: 'center',
               shadowColor: '#172117',
@@ -148,16 +148,16 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
           >
             <View
               style={{
-                width: 56, height: 56, borderRadius: 14,
+                width: 48, height: 48, borderRadius: 12,
                 backgroundColor: '#F0F8EF',
                 alignItems: 'center', justifyContent: 'center',
-                marginRight: 12, overflow: 'hidden',
+                marginRight: 10, overflow: 'hidden',
               }}
             >
               {modelImageUrl ? (
-                <Image source={{ uri: modelImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+                <Image source={{ uri: modelImageUrl }} style={{ width: 48, height: 48 }} resizeMode="cover" />
               ) : (
-                <DeviceIcon size={26} color="#004C40" />
+                <DeviceIcon size={22} color="#004C40" />
               )}
             </View>
             <View style={{ flex: 1 }}>
@@ -192,7 +192,7 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
             fontSize: 11, fontWeight: '800',
             color: '#8FA08F',
             letterSpacing: 1,
-            marginBottom: 12,
+            marginBottom: 10,
             textTransform: 'uppercase',
           }}
         >
@@ -208,9 +208,9 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
               style={({ pressed }) => [
                 {
                   backgroundColor: '#FFFFFF',
-                  borderRadius: 18,
-                  padding: 14,
-                  marginBottom: 12,
+                  borderRadius: 16,
+                  padding: 11,
+                  marginBottom: 10,
                   flexDirection: 'row',
                   alignItems: 'center',
                   shadowColor: '#172117',
@@ -224,13 +224,13 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
             >
               <View
                 style={{
-                  width: 60, height: 60, borderRadius: 16,
+                  width: 48, height: 48, borderRadius: 14,
                   backgroundColor: t.tint,
                   alignItems: 'center', justifyContent: 'center',
-                  marginRight: 14,
+                  marginRight: 12,
                 }}
               >
-                <Icon size={28} color={t.accent} />
+                <Icon size={24} color={t.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -260,10 +260,10 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
         {/* Why sell with us footer */}
         <View
           style={{
-            marginTop: 8,
+            marginTop: 6,
             backgroundColor: '#FFFFFF',
             borderRadius: 16,
-            padding: 14,
+            padding: 11,
             shadowColor: '#172117',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.04,
@@ -274,7 +274,7 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
           <Text
             style={{
               fontSize: 11, fontWeight: '800', color: '#8FA08F',
-              letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
+              letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
             }}
           >
             Why sell on ggfix
@@ -289,20 +289,20 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
               key={row.icon}
               style={{
                 flexDirection: 'row', alignItems: 'center',
-                paddingVertical: 12,
+                paddingVertical: 9,
                 borderTopWidth: i === 0 ? 0 : 1,
                 borderTopColor: '#EFF5EE',
               }}
             >
               <View
                 style={{
-                  width: 44, height: 44, borderRadius: 14,
+                  width: 38, height: 38, borderRadius: 12,
                   backgroundColor: row.color + '18',
                   alignItems: 'center', justifyContent: 'center',
-                  marginRight: 12,
+                  marginRight: 10,
                 }}
               >
-                <Ionicons name={row.icon} size={20} color={row.color} />
+                <Ionicons name={row.icon} size={18} color={row.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13.5, color: '#172117', fontWeight: '800' }}>{row.title}</Text>

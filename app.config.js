@@ -23,7 +23,6 @@ export default {
     userInterfaceStyle: 'automatic',
     jsEngine: 'hermes',
     icon: './assets/logo.png',
-    splash: { image: './assets/logo.png', resizeMode: 'contain', backgroundColor: '#ffffff' },
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.ggfix.shopapp',
@@ -44,6 +43,12 @@ export default {
     android: {
       package: 'com.ggfix.shopapp',
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#ffffff' },
+      // 'resize' (not the default 'pan') so the root view actually shrinks
+      // when the keyboard opens — KeyboardAvoidingView's Android behaviors
+      // assume this; under 'pan' the OS slides the whole window instead,
+      // which is what was pushing/cropping the login card. Native-config
+      // only — takes effect on the next native rebuild, not a JS/Metro reload.
+      softwareKeyboardLayoutMode: 'resize',
       // READ_CONTACTS backs Cash Book → Add Customer → "Add from Contacts".
       // POST_NOTIFICATIONS backs the "Download complete" receipt a saved
       // statement leaves in the shade (Android 13+).
@@ -57,6 +62,19 @@ export default {
       ],
     },
     plugins: [
+      // Owns the native launch splash. JS controls the hide moment itself
+      // via SplashScreen.preventAutoHideAsync()/hideAsync() in App.js, so it
+      // stays up exactly until BootSplash.js has painted its first frame —
+      // this is what replaced the old top-level `splash` key, which had no
+      // JS-side hook and let the OS hide it on its own timing.
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/logo.png',
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+        },
+      ],
       // Peer deps of @expo/vector-icons (used app-wide) and expo-audio
       // respectively — expo-doctor flags these as required native modules;
       // without the plugin registration prebuild never links them, and the

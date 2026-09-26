@@ -124,9 +124,10 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
-              className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
+              hitSlop={6}
+              className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
             >
-              <ChevronLeft size={rs(22)} color="#172117" />
+              <ChevronLeft size={rs(20)} color="#172117" />
             </TouchableOpacity>
             <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(19) }} numberOfLines={1}>
               Leave Requests
@@ -273,19 +274,19 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             return (
               <View
                 key={item.id}
-                className="bg-white rounded-2xl p-4 mb-3"
+                className="bg-white rounded-2xl p-3 mb-2.5"
                 style={cardShadow}
               >
                 <View className="flex-row items-start">
                   <View
                     style={{
-                      width: rs(44), height: rs(44), borderRadius: rs(14),
+                      width: rs(40), height: rs(40), borderRadius: rs(13),
                       backgroundColor: '#E6F7E3',
                       alignItems: 'center', justifyContent: 'center',
-                      marginRight: rs(12),
+                      marginRight: rs(10),
                     }}
                   >
-                    <User size={rs(20)} color={BRAND_GREEN_DARK} strokeWidth={2.2} />
+                    <User size={rs(18)} color={BRAND_GREEN_DARK} strokeWidth={2.2} />
                   </View>
                   <View className="flex-1 pr-2">
                     <Text className="font-extrabold text-gray-900" style={{ fontSize: rf(13) }} numberOfLines={1}>
@@ -321,7 +322,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
 
                 {item.reason ? (
                   <View
-                    className="mt-3 p-3 rounded-xl"
+                    className="mt-2 p-2.5 rounded-xl"
                     style={{ backgroundColor: '#F7FAF7' }}
                   >
                     <Text
@@ -337,7 +338,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                 ) : null}
 
                 {status === 'PENDING' ? (
-                  <View className="flex-row mt-3">
+                  <View className="flex-row mt-2">
                     <TouchableOpacity
                       activeOpacity={0.9}
                       onPress={() => respond(item, 'APPROVED')}
@@ -351,7 +352,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                         end={{ x: 1, y: 1 }}
                         style={{
                           borderRadius: rs(14),
-                          paddingVertical: rs(11),
+                          paddingVertical: rs(9),
                           flexDirection: 'row',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -372,7 +373,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'REJECTED')}
                       disabled={actionId != null}
-                      className="flex-1 ml-2 rounded-2xl py-3 flex-row items-center justify-center"
+                      className="flex-1 ml-2 rounded-2xl py-2.5 flex-row items-center justify-center"
                       style={{
                         backgroundColor: '#FFFFFF',
                         borderWidth: 1.5,

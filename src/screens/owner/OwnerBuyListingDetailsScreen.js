@@ -285,8 +285,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   section: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: PALETTE.border,
   },

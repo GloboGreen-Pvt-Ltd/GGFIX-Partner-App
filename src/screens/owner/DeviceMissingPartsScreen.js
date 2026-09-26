@@ -73,20 +73,20 @@ function Toggle({ label, active, onPress }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 12, paddingBottom: 24 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 16,
+    padding: 10,
+    marginBottom: 12,
   },
-  title: { fontSize: 14, fontWeight: '700', color: '#172117', marginBottom: 8 },
+  title: { fontSize: 14, fontWeight: '700', color: '#172117', marginBottom: 6 },
   row: {
     borderWidth: 1,
     borderColor: '#E2E8E2',
     borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+    padding: 9,
+    marginBottom: 6,
   },
   partName: { fontSize: 13, fontWeight: '600', color: '#172117', marginBottom: 4 },
   input: {
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 12, color: '#172117' },
   button: {
     backgroundColor: '#087A0A',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 999,
     alignItems: 'center',
   },

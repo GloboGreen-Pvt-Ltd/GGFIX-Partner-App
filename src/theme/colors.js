@@ -3,37 +3,54 @@
  * NativeWind className strings (e.g. `bg-primary text-white`). The named
  * default exports are kept for screens that still use StyleSheet.
  *
- * GGFix palette, budgeted 60 / 30 / 10:
- *   60%  BACKGROUND + SURFACE — page wash #F7FAF7, cards/inputs #FFFFFF.
- *   30%  GREEN — #16BB05 and #087A0A plus their tints.
- *   10%  ACCENT — lime #7ED957, attention #F59E0B, danger #DC2626.
+ * GGFix palette — 2026 refresh. Same key names as before (nothing renamed,
+ * so every existing `tokens.x` / `bg-x` call site across the app keeps
+ * working); only the underlying hex values move to the current brand sheet:
  *
- * ── One departure from the brand sheet's labels, on purpose ────────────────
- * The sheet calls #16BB05 "Primary" and #087A0A "Secondary". Here `primary`
- * is #087A0A and #16BB05 is `primaryBright`.
+ *   Deep Green (primary):     #004C40 — unchanged, was already this value.
+ *   Primary Green (mid):      #008F72 — replaces the old bright lime-green
+ *                              #16BB05 in the `primaryBright`/`primaryLight`
+ *                              role (large fills: tab bars, gradients, progress).
+ *   Accent Green:             #16A36A — replaces the old lime `#7ED957`.
+ *                              Unlike the old lime, this is dark enough to
+ *                              carry white text, so `accentDark` (white-safe)
+ *                              is now the one to reach for on filled buttons/
+ *                              badges — `accent`/`accentLight` (still lime-ish
+ *                              light tints) stay DARK-text-only, unchanged.
+ *   Light Green Background:   #EAF8F3 — the shared "mint" tint used for soft
+ *                              fills/icon tiles (`primarySoft`/`accentSoft`).
+ *   Page Background:          #F7F9F8 — distinct from card background. Almost
+ *                              every screen redesigned this app cycle already
+ *                              drew this exact distinction locally (a tinted
+ *                              page wash behind pure-white cards); this makes
+ *                              it a real, reusable token instead of N local
+ *                              copies (`pageBackground`, new key, additive).
+ *   Card Background:          #FFFFFF — unchanged.
+ *   Main Text:                #102A2E — was #172117.
+ *   Secondary Text:           #667875 — was #667066.
+ *   Border:                  #E4EBE8 — was #E2E8E2.
+ *   Error:                   #DC2626 — UNCHANGED, per explicit instruction to
+ *                              keep the existing app error color as-is.
  *
- * Why: white on #16BB05 is 2.6:1 — under the 3:1 floor even for large bold
- * text — and #16BB05 on white is also 2.6:1, so it works as neither a button
- * fill nor a foreground. It is for LARGE fills: active tab bars, gradients,
- * progress, icon circles. Anything interactive, and any green text or icon on
- * a white card, uses #087A0A (5.6:1 both ways).
- *
- * `accent` (lime) and `attention` (amber) both take DARK text — white on them
- * is 1.9:1 and 2.1:1 respectively. Use `tokens.text` on top of either.
+ * Contrast notes carried over from the previous palette (still true at the
+ * new hexes — re-verify before reusing this reasoning for a new pairing):
+ * `accent`/`accentLight` and `attention` (amber) take DARK text only; `primary`,
+ * `primaryDark`, `success` and `danger` are dark enough for white text/icons.
  */
 const tokens = {
   // Primary — the interactive green
   primary: '#004C40',
-  primaryBright: '#16BB05',
-  primaryLight: '#16BB05',
+  primaryBright: '#008F72',
+  primaryLight: '#008F72',
   primaryDark: '#004C40',
-  primarySoft: '#E6F7E3',
+  primarySoft: '#EAF8F3',
 
-  // Accent — brand lime. Highlights, badges, success emphasis. DARK text only.
+  // Accent — brand green. `accentDark` is white-text-safe (interactive fills,
+  // badges); `accent`/`accentLight` stay the lighter, dark-text-only tints.
   accent: '#7ED957',
   accentLight: '#C8EEBF',
-  accentDark: '#16BB05',
-  accentSoft: '#F0F8EF',
+  accentDark: '#16A36A',
+  accentSoft: '#EAF8F3',
 
   // Attention — pending / warning states. DARK text only.
   attention: '#F59E0B',
@@ -42,22 +59,24 @@ const tokens = {
   attentionSoft: '#FEF3C7',
 
   // Surfaces
-  // Page wash is WHITE app-wide. Was #F7FAF7.
-  // NOTE: cards are `card: '#FFFFFF'`, so any card WITHOUT a border or shadow
-  // now sits invisible on the page. The shared `rnr/Card` carries
-  // `border border-border` and is fine; bare `bg-card` usages are not.
-  background: '#FFFFFF',
+  // Page wash is a soft mint-white, distinct from pure-white cards — see the
+  // header note. `background` is kept as the page wash for existing
+  // consumers; `pageBackground` is the same value under an explicit name for
+  // new/migrated screens that want to be unambiguous about which surface
+  // they mean.
+  background: '#F7F9F8',
+  pageBackground: '#F7F9F8',
   card: '#FFFFFF',
   surface: '#FFFFFF',
   surfaceMuted: '#F8F8F8',
 
   // Text
-  text: '#172117',
-  textMuted: '#667066',
+  text: '#102A2E',
+  textMuted: '#667875',
   textSubtle: '#8FA08F',
 
   // Lines
-  border: '#E2E8E2',
+  border: '#E4EBE8',
   borderStrong: '#CBD5CB',
 
   // Status
@@ -66,7 +85,7 @@ const tokens = {
   danger: '#DC2626',
   error: '#DC2626',
   // No blue survives the palette; "info" was only ever a neutral notice.
-  info: '#16BB05',
+  info: '#008F72',
 };
 
 export const radii = {

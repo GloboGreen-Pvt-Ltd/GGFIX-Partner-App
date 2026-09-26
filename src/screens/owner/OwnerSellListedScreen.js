@@ -19,15 +19,15 @@ export default function OwnerSellListedScreen({ navigation, route }) {
   return (
     <View className="flex-1 bg-background">
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
-        <View className="items-center mb-6">
-          <View className="bg-success/15 rounded-full p-3 mb-3">
-            <Ionicons name="checkmark-circle" size={56} color="#004C40" />
+        <View className="items-center mb-4">
+          <View className="bg-success/15 rounded-full p-2.5 mb-2.5">
+            <Ionicons name="checkmark-circle" size={48} color="#004C40" />
           </View>
           <Text className="text-text text-[20px] font-extrabold">Listed Successfully!</Text>
           <Text className="text-text-muted text-[12px] mt-1">Your device is now on the marketplace.</Text>
         </View>
 
-        <View className="bg-card border border-border rounded-2xl p-4 mb-6">
+        <View className="bg-card border border-border rounded-2xl p-3 mb-4">
           <View className="flex-row items-center">
             <View className="w-14 h-16 bg-border rounded-md overflow-hidden items-center justify-center">
               {firstImage ? (

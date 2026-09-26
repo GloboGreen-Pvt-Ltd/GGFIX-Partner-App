@@ -137,11 +137,11 @@ export default function TechnicianProfileScreen({ navigation }) {
               {profile.photoUrl ? (
                 <Image
                   source={{ uri: profile.photoUrl }}
-                  style={{ width: 88, height: 88, borderRadius: 44 }}
+                  style={{ width: 72, height: 72, borderRadius: 36 }}
                   resizeMode="cover"
                 />
               ) : (
-                <Ionicons name="person" size={48} color="#8FA08F" />
+                <Ionicons name="person" size={40} color="#8FA08F" />
               )}
             </View>
             <Text style={styles.name}>{profile.name || 'Technician'}</Text>
@@ -278,13 +278,13 @@ export default function TechnicianProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#172117' },
   loader: { flex: 1, justifyContent: 'center' },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 12, paddingBottom: 24 },
   error: { fontSize: 14, color: '#DC2626', textAlign: 'center', marginTop: 24 },
-  avatarRow: { alignItems: 'center', marginBottom: 20 },
+  avatarRow: { alignItems: 'center', marginBottom: 14 },
   avatarLarge: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#172117',
     alignItems: 'center',
     justifyContent: 'center',
@@ -292,10 +292,10 @@ const styles = StyleSheet.create({
     borderColor: '#172117',
   },
   avatarPlaceholder: { fontSize: 12, color: '#8FA08F' },
-  name: { fontSize: 20, fontWeight: '700', color: '#F7FAF7', marginTop: 12 },
+  name: { fontSize: 20, fontWeight: '700', color: '#F7FAF7', marginTop: 10 },
   email: { fontSize: 14, color: '#8FA08F', marginTop: 4 },
   role: { fontSize: 12, color: '#16BB05', marginTop: 4 },
-  card: { backgroundColor: '#172117', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#172117' },
+  card: { backgroundColor: '#172117', borderRadius: 12, padding: 12, marginBottom: 9, borderWidth: 1, borderColor: '#172117' },
   label: { fontSize: 12, color: '#8FA08F', marginBottom: 4 },
   input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 12, fontSize: 16, color: '#F7FAF7', marginBottom: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#172117' },
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   saveBtn: { flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#087A0A', alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { fontSize: 16, color: '#fff', fontWeight: '600' },
-  navCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#172117', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#172117', gap: 12 },
+  navCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#172117', borderRadius: 12, padding: 12, marginBottom: 9, borderWidth: 1, borderColor: '#172117', gap: 12 },
   navCardText: { flex: 1, fontSize: 16, fontWeight: '600', color: '#F7FAF7' },
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#8FA08F', marginBottom: 8 },
   checkInOutRow: { flexDirection: 'row', gap: 12, marginTop: 12 },

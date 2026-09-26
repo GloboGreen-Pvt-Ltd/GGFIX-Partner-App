@@ -90,16 +90,16 @@ export default function ResetPasswordScreen({ navigation, route, onLogin }) {
         loading={loading}
         fullWidth
         size="lg"
-        style={{ marginTop: 16, height: 54, borderRadius: 16 }}
+        style={{ marginTop: 13, height: 46, borderRadius: 16 }}
         textClassName="text-[15px] font-extrabold tracking-wide"
       >
         Save changes and sign in
       </Button>
 
-      <View style={{ marginTop: 26 }}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: INK, marginBottom: 8 }}>Secure password tips</Text>
+      <View style={{ marginTop: 18 }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: INK, marginBottom: 6 }}>Secure password tips</Text>
         {TIPS.map((tip, i) => (
-          <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
+          <View key={i} style={{ flexDirection: 'row', marginBottom: 5 }}>
             <Text style={{ fontSize: 13, color: MUTED, marginRight: 6 }}>•</Text>
             <Text style={{ flex: 1, fontSize: 12.5, color: MUTED, lineHeight: 18 }}>{tip}</Text>
           </View>

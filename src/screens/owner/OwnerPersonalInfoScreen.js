@@ -25,18 +25,18 @@ import { notify } from '../../components/confirm';
 import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// Swiggy / Zomato green palette — same as the rest of the owner-side flows.
-// Constant names left as PRIMARY etc. so the rest of the file keeps reading
-// naturally; only the hex values are swapped.
-const PRIMARY = '#087A0A';        // BRAND_GREEN_DARK
-const PRIMARY_MID = '#087A0A';    // ACCENT_GREEN
-const PRIMARY_LIGHT = '#16BB05';  // BRAND_GREEN
-const SUCCESS = '#087A0A';
-const TEXT = '#172117';
-const MUTED = '#667066';
-const BORDER = '#E2E8E2';
-const BG = '#F0F8EF';
-const PRIMARY_SOFT = '#E6F7E3';
+// GGFIX palette — same values used across the rest of the app's redesigned screens.
+const ACCENT = '#004C40';        // Deep Green
+const PRIMARY = '#006B57';       // Hero Dark Green
+const BRIGHT = '#00A86B';        // Bright Green
+const MINT = '#E8F7F2';
+const SOFT_MINT = '#F4FBF8';
+const PAGE_BG = '#F8FAF9';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#DCE7E2';
+const TEXT = '#111827';
+const MUTED = '#667085';
+const SUCCESS = '#16A34A';
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -45,12 +45,33 @@ function initialsOf(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Real "member since" derived from the active shop's own createdAt (the same
+// field OwnerShopInfoScreen already reads off session.activeShop) — a month +
+// year label, and a rough duration string. Never fabricated: returns null
+// when the shop carries no createdAt, and the caller hides the block then.
+function memberSinceOf(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const months = Math.max(0, (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+  const years = Math.floor(months / 12);
+  const duration = years >= 1
+    ? `${years}+ year${years > 1 ? 's' : ''}`
+    : months >= 1
+      ? `${Math.floor(months)}+ month${Math.floor(months) > 1 ? 's' : ''}`
+      : 'New';
+  return { label, duration };
+}
+
 export default function OwnerPersonalInfoScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [shopName, setShopName] = useState('');
+  const [shopSlug, setShopSlug] = useState('');
+  const [shopSince, setShopSince] = useState(null);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
@@ -65,7 +86,7 @@ export default function OwnerPersonalInfoScreen() {
   const r = useResponsive();
   // Tablet/iPad: cap the column and centre it so a form doesn't stretch
   // edge-to-edge. Phones keep contentW undefined and are unaffected.
-  const contentW = r.isTablet ? Math.min(r.width - rs(32), 740) : undefined;
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 900) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   // Guards so the async /auth/me fetch doesn't clobber whatever the user has
@@ -95,6 +116,8 @@ export default function OwnerPersonalInfoScreen() {
         // value on every routine profile edit.
         if (s?.secondaryMobile && !dirtyRef.current.additional) setAdditional(s.secondaryMobile);
         if (s?.shopName) setShopName(s.shopName);
+        if (s?.shopSlug) setShopSlug(s.shopSlug);
+        if (s?.activeShop?.createdAt) setShopSince(s.activeShop.createdAt);
         if (s?.avatarUrl) setAvatarUrl(s.avatarUrl);
       };
       try {
@@ -116,6 +139,7 @@ export default function OwnerPersonalInfoScreen() {
   const onChangeAdditional = useCallback((v) => { dirtyRef.current.additional = true; setAdditional(v); }, []);
 
   const initials = useMemo(() => initialsOf(fullName), [fullName]);
+  const memberSince = useMemo(() => memberSinceOf(shopSince), [shopSince]);
 
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -125,7 +149,7 @@ export default function OwnerPersonalInfoScreen() {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.75,
@@ -201,38 +225,56 @@ export default function OwnerPersonalInfoScreen() {
     if (navigation.canGoBack()) navigation.goBack();
   };
 
+  // Every "Edit" affordance on this screen (hero, Personal Details, Contact
+  // Numbers) opens the SAME single edit mode / SAME single Save action —
+  // there's no per-field editor on the backend, so three separate save flows
+  // would just be three copies of one PATCH and a real risk of drift. This
+  // keeps the reference's three entry points without duplicating that logic.
+  const openEdit = () => setIsEditing(true);
+
   return (
     <View style={styles.root}>
-      {/* Compact gradient header — sized to its own content (back button +
-          title/subtitle + OWNER badge) only. The profile card below sits in
-          normal document flow with a plain positive margin, never a negative
-          one, so there is no way for it to render underneath the header. */}
+      {/* Hero header — decorative leaf shapes behind the title block, same
+          low-risk plain-View approximation used elsewhere in this app (no new
+          SVG dependency). Sized to its own content only; the profile card
+          below sits in normal flow with a plain positive margin, never a
+          negative one, so it can never render underneath the header. */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY }}>
         <LinearGradient
-          colors={[PRIMARY_LIGHT, PRIMARY]}
+          colors={[PRIMARY, ACCENT]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.hero}
         >
+          <View pointerEvents="none" style={{ position: 'absolute', top: -rs(20), right: -rs(30), height: rs(130), width: rs(130), borderRadius: rs(65), backgroundColor: 'rgba(255,255,255,0.06)' }} />
+          <View pointerEvents="none" style={{ position: 'absolute', bottom: -rs(40), right: rs(40), height: rs(90), width: rs(90), borderRadius: rs(45), backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
           <View style={[styles.heroTopRow, capStyle]}>
             <Pressable
               onPress={handleBack}
               hitSlop={10}
               style={({ pressed }) => [styles.heroBackBtn, pressed && { opacity: 0.7 }]}
             >
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={rf(19)} color="#FFFFFF" />
             </Pressable>
             <View style={styles.heroTitleWrap}>
               <Text style={styles.heroTitle} numberOfLines={1}>
                 {isEditing ? 'Edit Personal Information' : 'Personal Information'}
               </Text>
               <Text style={styles.heroSubtitle} numberOfLines={1}>
-                {isEditing ? 'Update your profile details' : 'View your profile details'}
+                {isEditing ? 'Update your profile details' : 'View and manage your profile details'}
               </Text>
             </View>
-            <View style={styles.heroKickerPill}>
-              <Ionicons name="shield-checkmark" size={11} color="#FFFFFF" />
-              <Text style={styles.heroKicker}>OWNER</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <View style={styles.heroKickerPill}>
+                <Ionicons name="shield-checkmark" size={rf(12)} color={ACCENT} />
+                <Text style={styles.heroKicker}>OWNER</Text>
+              </View>
+              <View style={{ marginTop: rs(8), alignItems: 'flex-end' }}>
+                <Text style={styles.heroBrandLine}>MANAGE</Text>
+                <Text style={styles.heroBrandLine}>SECURE</Text>
+                <Text style={styles.heroBrandLine}>STAY CONNECTED</Text>
+              </View>
             </View>
           </View>
         </LinearGradient>
@@ -249,8 +291,7 @@ export default function OwnerPersonalInfoScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Profile summary card — normal flow, plain positive margin below
-              the header. Never overlaps it. */}
+          {/* Profile summary card */}
           <View style={[styles.identityCard, capStyle]}>
             <View style={styles.identityTopRow}>
               <View style={styles.avatarWrap}>
@@ -267,41 +308,41 @@ export default function OwnerPersonalInfoScreen() {
                     <Text style={styles.avatarText}>{initials}</Text>
                   )}
                 </Pressable>
-                {isEditing ? (
-                  <Pressable
-                    onPress={pickAvatar}
-                    disabled={uploadingAvatar}
-                    style={styles.avatarEditBtn}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="camera" size={11} color="#fff" />
-                  </Pressable>
-                ) : null}
+                <Pressable
+                  onPress={pickAvatar}
+                  disabled={uploadingAvatar}
+                  style={styles.avatarEditBtn}
+                  hitSlop={8}
+                >
+                  <Ionicons name="camera" size={rf(12)} color="#fff" />
+                </Pressable>
               </View>
 
               <View style={styles.identityText}>
                 <Text style={styles.name} numberOfLines={1}>
                   {fullName || 'Shop Owner'}
                 </Text>
-                <View style={styles.shopRow}>
-                  <Ionicons name="storefront-outline" size={12} color={MUTED} />
-                  <Text style={styles.shopName} numberOfLines={1}>
-                    {shopName}
-                  </Text>
-                </View>
+                {shopName ? (
+                  <View style={styles.shopRow}>
+                    <Ionicons name="storefront-outline" size={rf(12)} color={MUTED} />
+                    <Text style={styles.shopName} numberOfLines={1}>
+                      {shopName}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.verifiedPill}>
-                  <Ionicons name="shield-checkmark" size={10} color={SUCCESS} />
+                  <Ionicons name="shield-checkmark" size={rf(11)} color={SUCCESS} />
                   <Text style={styles.verifiedText}>Verified Owner</Text>
                 </View>
               </View>
 
               {!isEditing ? (
                 <Pressable
-                  onPress={() => setIsEditing(true)}
+                  onPress={openEdit}
                   style={({ pressed }) => [styles.editPillBtn, pressed && { opacity: 0.8 }]}
                 >
-                  <Ionicons name="pencil" size={13} color={PRIMARY} />
-                  <Text style={styles.editPillText}>Edit</Text>
+                  <Ionicons name="pencil" size={rf(13)} color={ACCENT} />
+                  <Text style={styles.editPillText}>Edit Profile</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -313,7 +354,7 @@ export default function OwnerPersonalInfoScreen() {
                 style={({ pressed }) => [styles.changePhotoBtn, pressed && { opacity: 0.85 }]}
               >
                 <View style={styles.changePhotoIconWrap}>
-                  <Ionicons name="camera-outline" size={18} color={PRIMARY} />
+                  <Ionicons name="camera-outline" size={rf(18)} color={ACCENT} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.changePhotoTitle}>Change Profile Photo</Text>
@@ -321,6 +362,22 @@ export default function OwnerPersonalInfoScreen() {
                 </View>
               </Pressable>
             ) : null}
+
+            {/* Account Type / Shop / Member Since — real data only. Member
+                Since is dropped (not faked) when the active shop carries no
+                createdAt. */}
+            <View style={styles.metaDivider} />
+            <View style={styles.metaRow}>
+              <MetaBlock icon="ribbon-outline" label="ACCOUNT TYPE" value="Owner" />
+              <View style={styles.metaVDivider} />
+              <MetaBlock icon="storefront-outline" label="SHOP" value={shopName || '—'} sub={shopSlug ? `#${shopSlug.toUpperCase()}` : null} />
+              {memberSince ? (
+                <>
+                  <View style={styles.metaVDivider} />
+                  <MetaBlock icon="calendar-outline" label="MEMBER SINCE" value={memberSince.label} sub={memberSince.duration} />
+                </>
+              ) : null}
+            </View>
           </View>
 
           {/* Personal Details */}
@@ -328,7 +385,8 @@ export default function OwnerPersonalInfoScreen() {
             <SectionHeader
               icon="person-outline"
               title="Personal Details"
-              subtitle={isEditing ? 'Keep your information up to date' : null}
+              subtitle={isEditing ? 'Keep your information up to date' : 'Your basic account information'}
+              onEdit={!isEditing ? openEdit : null}
             />
 
             <View style={styles.cardBody}>
@@ -354,8 +412,8 @@ export default function OwnerPersonalInfoScreen() {
                 </>
               ) : (
                 <>
-                  <DetailRow label="Full Name" value={fullName || '—'} />
-                  <DetailRow label="Email Address" value={email || '—'} last />
+                  <DetailRow icon="person-outline" label="Full Name" value={fullName || '—'} />
+                  <DetailRow icon="mail-outline" label="Email Address" value={email || '—'} last />
                 </>
               )}
             </View>
@@ -366,7 +424,8 @@ export default function OwnerPersonalInfoScreen() {
             <SectionHeader
               icon="call-outline"
               title="Contact Numbers"
-              subtitle={isEditing ? 'Add or update your contact number(s)' : null}
+              subtitle={isEditing ? 'Add or update your contact number(s)' : 'Phone numbers for service updates'}
+              onEdit={!isEditing ? openEdit : null}
             />
 
             <View style={styles.cardBody}>
@@ -382,7 +441,7 @@ export default function OwnerPersonalInfoScreen() {
                     keyboardType="phone-pad"
                   />
                   <PhoneField
-                    icon="call-outline"
+                    icon="add-outline"
                     label="Additional Number (Optional)"
                     value={additional}
                     onChangeText={onChangeAdditional}
@@ -394,13 +453,15 @@ export default function OwnerPersonalInfoScreen() {
               ) : (
                 <>
                   <DetailRow
+                    icon="call-outline"
                     label="Mobile Number (WhatsApp)"
-                    value={mobile ? `+91  ${mobile}` : '—'}
-                    trailing={<Ionicons name="logo-whatsapp" size={16} color="#25D366" style={{ marginLeft: rs(8) }} />}
+                    value={mobile ? `+91 ${mobile}` : '—'}
+                    trailing={<Ionicons name="logo-whatsapp" size={rf(16)} color="#25D366" style={{ marginLeft: rs(8) }} />}
                   />
                   <DetailRow
+                    icon="add-outline"
                     label="Additional Number"
-                    value={additional ? `+91  ${additional}` : 'Not added'}
+                    value={additional ? `+91 ${additional}` : 'Not added'}
                     muted={!additional}
                     trailing={!additional ? <Text style={styles.dash}>—</Text> : null}
                     last
@@ -413,7 +474,7 @@ export default function OwnerPersonalInfoScreen() {
           {/* Privacy / information note */}
           <View style={[styles.privacyCard, capStyle]}>
             <View style={styles.privacyIconWrap}>
-              <Ionicons name="lock-closed" size={16} color={PRIMARY} />
+              <Ionicons name="shield-checkmark" size={rf(18)} color={ACCENT} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.privacyHeading}>Your information is safe with us</Text>
@@ -425,7 +486,7 @@ export default function OwnerPersonalInfoScreen() {
 
           {loading ? (
             <View style={[styles.loadingRow, capStyle]}>
-              <ActivityIndicator color={PRIMARY} />
+              <ActivityIndicator color={ACCENT} />
               <Text style={styles.loadingText}>Loading profile…</Text>
             </View>
           ) : null}
@@ -445,11 +506,7 @@ export default function OwnerPersonalInfoScreen() {
                 onPress={handleSave}
               >
                 <LinearGradient
-                  colors={
-                    savedFlash
-                      ? [SUCCESS, '#087A0A']
-                      : [PRIMARY, PRIMARY_MID, PRIMARY_LIGHT]
-                  }
+                  colors={savedFlash ? [SUCCESS, SUCCESS] : [PRIMARY, ACCENT]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.button}
@@ -458,12 +515,12 @@ export default function OwnerPersonalInfoScreen() {
                     <ActivityIndicator color="#fff" />
                   ) : savedFlash ? (
                     <Animated.View style={[styles.buttonInner, { opacity: flashOpacity }]}>
-                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Ionicons name="checkmark-circle" size={rf(18)} color="#fff" />
                       <Text style={styles.buttonText}>Updated</Text>
                     </Animated.View>
                   ) : (
                     <View style={styles.buttonInner}>
-                      <Ionicons name="save-outline" size={18} color="#fff" />
+                      <Ionicons name="save-outline" size={rf(18)} color="#fff" />
                       <Text style={styles.buttonText}>Save Changes</Text>
                     </View>
                   )}
@@ -477,29 +534,60 @@ export default function OwnerPersonalInfoScreen() {
   );
 }
 
-// Shared card header — icon chip + title, with an optional subtitle (Edit
-// Mode only; View Mode intentionally has no section description).
-function SectionHeader({ icon, title, subtitle }) {
+// Shared card header — icon chip + title(+subtitle), with an optional
+// standalone-mint "Edit" button on the right (View Mode only).
+function SectionHeader({ icon, title, subtitle, onEdit }) {
   return (
     <View style={styles.cardHeaderRow}>
       <View style={styles.cardHeaderIconWrap}>
-        <Ionicons name={icon} size={16} color={PRIMARY} />
+        <Ionicons name={icon} size={rf(16)} color={ACCENT} />
       </View>
       <View style={styles.cardHeaderTextWrap}>
         <Text style={styles.cardHeaderTitle}>{title}</Text>
         {subtitle ? <Text style={styles.cardHeaderHelper} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
+      {onEdit ? (
+        <Pressable
+          onPress={onEdit}
+          style={({ pressed }) => [styles.headerEditBtn, pressed && { opacity: 0.8 }]}
+        >
+          <Ionicons name="pencil" size={rf(12)} color={ACCENT} />
+          <Text style={styles.headerEditText}>Edit</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// One meta block (Account Type / Shop / Member Since) — equal-flex column
+// with a mint icon tile, uppercase muted label, and a bold value(+sub).
+function MetaBlock({ icon, label, value, sub }) {
+  return (
+    <View style={styles.metaBlock}>
+      <View style={styles.metaIconWrap}>
+        <Ionicons name={icon} size={rf(15)} color={ACCENT} />
+      </View>
+      <Text style={styles.metaLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.metaValue} numberOfLines={1}>{value}</Text>
+      {sub ? <Text style={styles.metaSub} numberOfLines={1}>{sub}</Text> : null}
     </View>
   );
 }
 
 // View Mode — a compact read-only label/value row with a hairline divider
 // between rows (skipped on `last`).
-function DetailRow({ label, value, muted, trailing, last }) {
+function DetailRow({ icon, label, value, muted, trailing, last }) {
   return (
     <View>
       <View style={styles.viewRow}>
-        <Text style={styles.viewRowLabel} numberOfLines={1}>{label}</Text>
+        <View style={styles.viewRowLeft}>
+          {icon ? (
+            <View style={styles.viewRowIconWrap}>
+              <Ionicons name={icon} size={rf(14)} color={ACCENT} />
+            </View>
+          ) : null}
+          <Text style={styles.viewRowLabel} numberOfLines={1}>{label}</Text>
+        </View>
         <View style={styles.viewRowValueWrap}>
           <Text style={[styles.viewRowValue, muted && styles.viewRowValueMuted]} numberOfLines={1}>
             {value}
@@ -522,7 +610,7 @@ function Field({ icon, iconColor, label, last, ...inputProps }) {
       <View style={styles.inputRow}>
         {icon ? (
           <View style={styles.inputIconWrap}>
-            <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
+            <Ionicons name={icon} size={rf(15)} color={iconColor || ACCENT} />
           </View>
         ) : null}
         <TextInput
@@ -544,11 +632,11 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <View style={styles.inputIconWrap}>
-          <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
+          <Ionicons name={icon} size={rf(15)} color={iconColor || ACCENT} />
         </View>
         <View style={styles.phoneCodeWrap}>
           <Text style={styles.phoneCodeText}>+91</Text>
-          <Ionicons name="chevron-down" size={12} color={MUTED} />
+          <Ionicons name="chevron-down" size={rf(12)} color={MUTED} />
         </View>
         <TextInput
           style={styles.input}
@@ -561,74 +649,83 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+  root: { flex: 1, backgroundColor: PAGE_BG },
 
-  // Compact gradient header
+  // Hero header
   hero: {
-    paddingHorizontal: rs(20),
-    paddingTop: rs(10),
-    paddingBottom: rs(18),
-    borderBottomLeftRadius: rs(28),
-    borderBottomRightRadius: rs(28),
+    paddingHorizontal: rs(16),
+    paddingTop: rs(8),
+    paddingBottom: rs(16),
+    borderBottomLeftRadius: rs(26),
+    borderBottomRightRadius: rs(26),
+    overflow: 'hidden',
   },
   heroTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   heroBackBtn: {
-    width: rs(38),
-    height: rs(38),
-    borderRadius: rs(19),
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(18),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    marginRight: rs(12),
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    marginRight: rs(10),
   },
-  heroTitleWrap: { flex: 1, marginRight: rs(8) },
+  heroTitleWrap: { flex: 1, marginRight: rs(8), paddingTop: rs(4) },
   heroTitle: {
     color: '#FFFFFF',
-    fontSize: rf(17),
+    fontSize: rf(20),
     fontWeight: '800',
   },
   heroSubtitle: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: rf(11.5),
     fontWeight: '500',
-    marginTop: rs(2),
+    marginTop: rs(3),
   },
   heroKickerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(5),
+    paddingHorizontal: rs(12),
+    paddingVertical: rs(7),
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: '#FFFFFF',
   },
   heroKicker: {
-    color: '#FFFFFF',
+    color: ACCENT,
     fontSize: rf(10.5),
     fontWeight: '800',
     letterSpacing: 0.7,
-    marginLeft: rs(4),
+    marginLeft: rs(5),
+  },
+  heroBrandLine: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: rf(8),
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 
   content: {
-    paddingHorizontal: rs(18),
-    paddingTop: rs(16),
-    paddingBottom: rs(100),
+    paddingHorizontal: rs(14),
+    paddingTop: rs(12),
+    paddingBottom: rs(90),
   },
 
   // Profile summary card — plain flow, plain positive spacing above/below.
   identityCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: rs(24),
-    padding: rs(16),
-    marginBottom: rs(16),
-    shadowColor: '#172117',
+    backgroundColor: CARD_BG,
+    borderRadius: rs(22),
+    padding: rs(12),
+    marginBottom: rs(12),
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: '#0B1F14',
     shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   identityTopRow: {
     flexDirection: 'row',
@@ -641,71 +738,67 @@ const styles = StyleSheet.create({
   },
   avatarWrap: {},
   avatar: {
-    width: rs(66),
-    height: rs(66),
-    borderRadius: rs(33),
-    backgroundColor: PRIMARY,
+    width: rs(58),
+    height: rs(58),
+    borderRadius: rs(29),
+    backgroundColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: MINT,
   },
-  avatarImage: { width: rs(60), height: rs(60) },
+  avatarImage: { width: rs(52), height: rs(52) },
   avatarText: { color: '#fff', fontSize: rf(23), fontWeight: '800', letterSpacing: 1 },
   avatarEditBtn: {
     position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: rs(22),
-    height: rs(22),
-    borderRadius: rs(11),
-    backgroundColor: PRIMARY_LIGHT,
+    right: -rs(2),
+    bottom: -rs(2),
+    width: rs(24),
+    height: rs(24),
+    borderRadius: rs(12),
+    backgroundColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
   },
-  name: { fontSize: rf(16.5), fontWeight: '800', color: TEXT },
+  name: { fontSize: rf(19), fontWeight: '800', color: TEXT },
   shopRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(4) },
-  shopName: { fontSize: rf(12), color: MUTED, marginLeft: rs(4), fontWeight: '600' },
+  shopName: { fontSize: rf(12.5), color: MUTED, marginLeft: rs(5), fontWeight: '600' },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: PRIMARY_SOFT,
-    paddingHorizontal: rs(8),
-    paddingVertical: rs(3),
+    backgroundColor: MINT,
+    paddingHorizontal: rs(9),
+    paddingVertical: rs(4),
     borderRadius: 999,
-    marginTop: rs(6),
+    marginTop: rs(7),
   },
   verifiedText: {
-    fontSize: rf(9.5),
-    color: PRIMARY,
+    fontSize: rf(10),
+    color: ACCENT,
     fontWeight: '800',
-    marginLeft: rs(3),
+    marginLeft: rs(4),
   },
   editPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: MINT,
     paddingHorizontal: rs(12),
-    paddingVertical: rs(8),
+    paddingVertical: rs(9),
     borderRadius: rs(14),
   },
-  editPillText: { fontSize: rf(12.5), fontWeight: '800', color: PRIMARY, marginLeft: rs(5) },
+  editPillText: { fontSize: rf(11.5), fontWeight: '800', color: ACCENT, marginLeft: rs(5) },
 
   changePhotoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: rs(14),
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: MINT,
     borderWidth: 1,
-    borderColor: PRIMARY_LIGHT,
+    borderColor: BRIGHT,
     borderRadius: rs(16),
     paddingHorizontal: rs(14),
     paddingVertical: rs(12),
@@ -719,49 +812,82 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginRight: rs(10),
   },
-  changePhotoTitle: { fontSize: rf(13), fontWeight: '700', color: PRIMARY },
+  changePhotoTitle: { fontSize: rf(13), fontWeight: '700', color: ACCENT },
   changePhotoSub: { fontSize: rf(10.5), color: MUTED, marginTop: rs(1) },
 
-  // Form cards — shared header row (icon + title[/subtitle in Edit Mode])
+  // Account Type / Shop / Member Since meta row
+  metaDivider: { height: 1, backgroundColor: BORDER, marginTop: rs(14), marginBottom: rs(12) },
+  metaRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  metaBlock: { flex: 1, alignItems: 'flex-start' },
+  metaIconWrap: {
+    width: rs(32), height: rs(32), borderRadius: rs(16),
+    backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginBottom: rs(6),
+  },
+  metaLabel: { fontSize: rf(9), fontWeight: '700', color: MUTED, letterSpacing: 0.5 },
+  metaValue: { fontSize: rf(13.5), fontWeight: '800', color: TEXT, marginTop: rs(2) },
+  metaSub: { fontSize: rf(9.5), fontWeight: '600', color: MUTED, marginTop: rs(1) },
+  metaVDivider: { width: 1, alignSelf: 'stretch', backgroundColor: BORDER, marginHorizontal: rs(8) },
+
+  // Form cards — shared header row (icon + title[/subtitle]) + optional Edit
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: rs(22),
-    paddingHorizontal: rs(16),
-    paddingVertical: rs(14),
-    marginBottom: rs(16),
-    shadowColor: '#172117',
-    shadowOpacity: 0.06,
+    backgroundColor: CARD_BG,
+    borderRadius: rs(20),
+    paddingHorizontal: rs(13),
+    paddingVertical: rs(11),
+    marginBottom: rs(12),
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: '#0B1F14',
+    shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
+    elevation: 2,
   },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center' },
   cardHeaderIconWrap: {
-    width: rs(32),
-    height: rs(32),
-    borderRadius: rs(12),
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(13),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PRIMARY_SOFT,
-    marginRight: rs(10),
+    backgroundColor: MINT,
+    marginRight: rs(11),
   },
   cardHeaderTextWrap: { flex: 1 },
-  cardHeaderTitle: { fontSize: rf(15.5), fontWeight: '800', color: TEXT },
-  cardHeaderHelper: { fontSize: rf(11.5), color: MUTED, fontWeight: '500', marginTop: rs(2) },
-  cardBody: { marginTop: rs(12) },
+  cardHeaderTitle: { fontSize: rf(16), fontWeight: '800', color: TEXT },
+  cardHeaderHelper: { fontSize: rf(11), color: MUTED, fontWeight: '500', marginTop: rs(2) },
+  cardBody: { marginTop: rs(13) },
+  headerEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BRIGHT,
+    backgroundColor: MINT,
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(7),
+    borderRadius: rs(12),
+  },
+  headerEditText: { fontSize: rf(11), fontWeight: '800', color: ACCENT, marginLeft: rs(4) },
 
-  // View Mode rows
+  // View Mode rows — soft inner panel per the reference, each row's own icon
+  // tile on the left, value right-aligned.
   viewRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: rs(11),
+    paddingVertical: rs(12),
+    paddingHorizontal: rs(4),
   },
-  viewRowLabel: { fontSize: rf(12.5), color: MUTED, fontWeight: '600', flex: 1, marginRight: rs(8) },
+  viewRowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: rs(8) },
+  viewRowIconWrap: {
+    width: rs(28), height: rs(28), borderRadius: rs(14),
+    backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: rs(9),
+  },
+  viewRowLabel: { fontSize: rf(13), color: MUTED, fontWeight: '600', flexShrink: 1 },
   viewRowValueWrap: { flexDirection: 'row', alignItems: 'center' },
-  viewRowValue: { fontSize: rf(13.5), color: TEXT, fontWeight: '700' },
+  viewRowValue: { fontSize: rf(14.5), color: TEXT, fontWeight: '700' },
   viewRowValueMuted: { color: MUTED, fontWeight: '600' },
-  viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER },
+  viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginHorizontal: rs(4) },
   dash: { fontSize: rf(14), color: MUTED, fontWeight: '700', marginLeft: rs(8) },
 
   // Edit Mode fields
@@ -771,7 +897,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FAF7',
+    backgroundColor: SOFT_MINT,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: rs(14),
@@ -784,7 +910,7 @@ const styles = StyleSheet.create({
     borderRadius: rs(11),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: MINT,
     marginRight: rs(8),
   },
   phoneCodeWrap: {
@@ -811,19 +937,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(14),
     paddingVertical: rs(14),
     marginBottom: rs(14),
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: SOFT_MINT,
     borderRadius: rs(20),
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   privacyIconWrap: {
-    width: rs(34),
-    height: rs(34),
-    borderRadius: rs(17),
-    backgroundColor: '#FFFFFF',
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(19),
+    backgroundColor: MINT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: rs(10),
+    marginRight: rs(11),
   },
-  privacyHeading: { fontSize: rf(12.5), color: PRIMARY, fontWeight: '700' },
+  privacyHeading: { fontSize: rf(13), color: ACCENT, fontWeight: '800' },
   privacyText: { fontSize: rf(11), color: MUTED, marginTop: rs(3), lineHeight: rf(15.5), fontWeight: '500' },
 
   loadingRow: {
@@ -831,14 +959,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: rs(10),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: CARD_BG,
     borderRadius: rs(14),
     paddingVertical: rs(12),
-    shadowColor: '#172117',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   loadingText: { color: MUTED, marginLeft: rs(8), fontSize: rf(11) },
 
@@ -847,7 +972,7 @@ const styles = StyleSheet.create({
   saveBar: { paddingHorizontal: rs(18), paddingTop: rs(10), paddingBottom: rs(6) },
   buttonShadow: {
     borderRadius: 999,
-    shadowColor: PRIMARY,
+    shadowColor: ACCENT,
     shadowOpacity: 0.28,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },

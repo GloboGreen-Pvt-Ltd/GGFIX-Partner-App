@@ -110,11 +110,11 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
     <View className="flex-1 bg-background">
       <ScreenHeader title="Identify Device" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
         {/* Hero */}
-        <View className="items-center mt-2 mb-5">
-          <View className="h-16 w-16 rounded-3xl bg-success/10 items-center justify-center mb-3">
-            <ScanLine size={30} color={ACCENT} />
+        <View className="items-center mt-2 mb-4">
+          <View className="h-14 w-14 rounded-3xl bg-success/10 items-center justify-center mb-2.5">
+            <ScanLine size={26} color={ACCENT} />
           </View>
           <Text className="text-[17px] font-extrabold text-text text-center">Scan or enter the IMEI</Text>
           <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5 px-4">
@@ -133,9 +133,9 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
             backgroundColor: 'rgba(8, 122, 10, 0.06)',
           }}
         >
-          <View className="flex-row items-center p-4">
-            <View className="h-11 w-11 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: ACCENT }}>
-              <ScanLine size={22} color="#fff" />
+          <View className="flex-row items-center p-3">
+            <View className="h-10 w-10 rounded-2xl items-center justify-center mr-2.5" style={{ backgroundColor: ACCENT }}>
+              <ScanLine size={20} color="#fff" />
             </View>
             <View className="flex-1">
               <Text className="text-[14px] font-extrabold text-text">Scan IMEI barcode</Text>
@@ -153,7 +153,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
         </View>
 
         {/* Manual entry */}
-        <View className="bg-card border border-border rounded-2xl p-3.5 mb-4">
+        <View className="bg-card border border-border rounded-2xl p-3 mb-3">
           <View className="flex-row items-center mb-2">
             <Hash size={13} color={ACCENT} />
             <Text className="text-[11px] font-extrabold text-text ml-1.5 tracking-wider">IMEI NUMBER</Text>
@@ -195,7 +195,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
             opacity: valid && !loading ? 1 : 0.7,
           }}
         >
-          <View className="flex-row items-center justify-center py-3.5">
+          <View className="flex-row items-center justify-center py-3">
             {loading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (

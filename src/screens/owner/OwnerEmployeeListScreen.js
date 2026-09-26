@@ -384,7 +384,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
               </View>
             ) : null}
             {visibleList.length === 0 ? (
-              <View className="items-center pt-12 px-8">
+              <View className="items-center pt-8 px-8">
                 <View
                   className="w-16 h-16 rounded-full items-center justify-center mb-3.5"
                   style={{ backgroundColor: '#E6F7E3' }}

@@ -19,12 +19,14 @@
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, Share, ScrollView, Text, TextInput, View,
   useWindowDimensions,
   // Aliased: `Keyboard` below is the lucide GLYPH used on the "Enter IMEI" row.
   Keyboard as RNKeyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Sharing from 'expo-sharing';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 import {
   Share2,
   ChevronRight,
@@ -40,6 +42,12 @@ import {
   Truck,
   Keyboard,
   ScanLine,
+  X,
+  Pencil,
+  Send,
+  MoreHorizontal,
+  Mail,
+  FolderOpen,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import {
@@ -48,6 +56,7 @@ import {
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
+import { ReceiptCard, buildReceiptMessage } from './ReceiptCard';
 
 const BRAND_GREEN_DARK = '#087A0A';
 // The currently-assigned pickup person is marked in red so the owner can see
@@ -1036,35 +1045,200 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
   );
 }
 
-// ── Sheet 2: how to send the receipt ─────────────────────────────────
-// Same two options, wording and icons as the Share Receipt sheet in
-// TicketDetailScreen, so the choice looks identical wherever it is reached.
-export function ShareReceiptSheet({ visible, onClose, onShareImage, onShareSms, preparing }) {
+// ── Sheet 2: Share Image — a large, near-fullscreen sheet that shows the
+// actual receipt (not hidden off-screen) and shares it as a PNG.
+//
+// The receipt used to render inside a hidden, off-screen ViewShot owned by
+// the HOST screen (a Modal's children aren't mounted while closed, so a
+// ViewShot inside one used to fail to capture). That constraint no longer
+// applies here: the receipt is now visible INSIDE this open sheet, so it is
+// genuinely mounted and measured by the time a share button is pressed —
+// the ViewShot/capture now lives here, and both call sites (BookingHistory,
+// TicketDetail) just pass the ticket instead of owning their own capture.
+//
+// GGFIX palette — same values used across the rest of the app's redesigned
+// screens this pass.
+const SHARE_ACCENT = '#004C40';
+const SHARE_PRIMARY = '#006B57';
+const SHARE_BRIGHT = '#00A86B';
+const SHARE_MINT = '#E8F7F2';
+const SHARE_SOFT_MINT = '#F4FBF8';
+const SHARE_BORDER = '#DCE7E2';
+const SHARE_TEXT_SECONDARY = '#667085';
+
+// All five "Share to" shortcuts open the SAME real native share sheet with
+// the SAME captured receipt image. Expo/RN has no reliable, cross-platform
+// way to hand an image directly to one specific installed app (WhatsApp's
+// own URL scheme only accepts text, not an attachment) without a native
+// module this project doesn't have — rather than fake a direct launch that
+// silently drops the image, every shortcut is honest about triggering the
+// real OS share sheet, where the labelled app is picked from if installed.
+const SHARE_TARGETS = [
+  { key: 'whatsapp', label: 'WhatsApp Business', icon: MessageSquare },
+  { key: 'gmail', label: 'Gmail', icon: Mail },
+  { key: 'quickshare', label: 'Quick Share', icon: Send },
+  { key: 'files', label: 'File Manager', icon: FolderOpen },
+  { key: 'more', label: 'More', icon: MoreHorizontal },
+];
+
+export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, preparing }) {
+  const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const previewWidth = Math.round(Math.min(winW * 0.76, 340));
+  const receiptRef = useRef(null);
+  const [sharing, setSharing] = useState(false);
+
+  const doShareImage = useCallback(async () => {
+    if (!ticket || sharing) return;
+    setSharing(true);
+    try {
+      // The receipt can still be laying out on the very first open — retry
+      // briefly rather than dropping straight to a text-only share, which
+      // would look like the image share is broken.
+      let uri = null;
+      for (const wait of [0, 150, 400]) {
+        if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+        try {
+          uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
+          break;
+        } catch (_) { /* not laid out yet — retry, then fall back */ }
+      }
+      if (uri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
+          UTI: 'public.png',
+        });
+        return;
+      }
+      await Share.share({ message: buildReceiptMessage(ticket), title: `Booking ${ticket.trackingId || ticket.id}` });
+    } catch (e) {
+      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
+    } finally {
+      setSharing(false);
+    }
+  }, [ticket, sharing]);
+
   return (
-    <SheetShell visible={visible} onClose={onClose} title="Share Receipt">
-      <ActionRow
-        icon={
-          preparing
-            ? <ActivityIndicator size="small" color={TINT.green.fg} />
-            : <Share2 size={18} color={TINT.green.fg} />
-        }
-        tint={TINT.green}
-        title="Send image to WhatsApp"
-        onPress={onShareImage}
-        disabled={preparing}
-      />
-      <ActionRow
-        icon={
-          preparing
-            ? <ActivityIndicator size="small" color={TINT.blue.fg} />
-            : <MessageSquare size={18} color={TINT.blue.fg} />
-        }
-        tint={TINT.blue}
-        title="Send details by SMS"
-        onPress={onShareSms}
-        disabled={preparing}
-      />
-    </SheetShell>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(11, 31, 20, 0.55)', justifyContent: 'flex-end' }}>
+        <View
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderTopLeftRadius: 30,
+            borderTopRightRadius: 30,
+            maxHeight: winH - insets.top - 24,
+            paddingBottom: insets.bottom + 12,
+          }}
+        >
+          <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: SHARE_BORDER, marginTop: 10, marginBottom: 4 }} />
+
+          {/* Header */}
+          <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
+            <View style={{ flex: 1 }}>
+              <Text className="font-extrabold" style={{ fontSize: 20, color: '#111827' }}>Share image</Text>
+              <Text style={{ fontSize: 12.5, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
+                Share this booking receipt via your favourite apps
+              </Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              className="items-center justify-center"
+              style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
+            >
+              <X size={18} color="#111827" />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+            {/* Receipt preview — ONLY this View is captured for the shared
+                image; the floating edit button below sits outside it. */}
+            <View className="items-center" style={{ marginTop: 14 }}>
+              <View style={{ width: previewWidth }}>
+                {!ticket ? (
+                  <View
+                    className="items-center justify-center"
+                    style={{ height: 320, borderRadius: 22, borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: SHARE_SOFT_MINT }}
+                  >
+                    <ActivityIndicator color={SHARE_ACCENT} />
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER,
+                      shadowColor: '#0B1F14', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
+                    }}
+                  >
+                    <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
+                      <ReceiptCard ticket={ticket} technicianName={technicianName} />
+                    </ViewShot>
+                  </View>
+                )}
+                {/* Floating edit/customize button — no receipt-customization
+                    feature exists yet in this app, so this says so rather
+                    than pretending to open one. */}
+                <Pressable
+                  onPress={() => notify('Coming soon', "Customizing the receipt before sharing isn't available yet.")}
+                  className="items-center justify-center"
+                  style={{
+                    position: 'absolute', right: -8, bottom: -8,
+                    height: 44, width: 44, borderRadius: 22,
+                    backgroundColor: SHARE_MINT, borderWidth: 3, borderColor: '#FFFFFF',
+                    alignItems: 'center', justifyContent: 'center',
+                    shadowColor: '#0B1F14', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+                  }}
+                >
+                  <View className="items-center justify-center" style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: SHARE_ACCENT }}>
+                    <Pencil size={14} color="#FFFFFF" />
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 22, marginHorizontal: 18 }} />
+
+            {/* Share to */}
+            <View className="flex-row items-center justify-between" style={{ marginTop: 16, marginHorizontal: 18 }}>
+              <Text className="font-extrabold" style={{ fontSize: 14, color: '#111827' }}>Share to</Text>
+            </View>
+            <View className="flex-row" style={{ marginTop: 12, paddingHorizontal: 18 }}>
+              {SHARE_TARGETS.map((t, i) => (
+                <ShareTargetButton
+                  key={t.key}
+                  icon={t.icon}
+                  label={t.label}
+                  selected={i === 0}
+                  disabled={!ticket || sharing}
+                  busy={sharing}
+                  onPress={doShareImage}
+                />
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ShareTargetButton({ icon: Icon, label, selected, disabled, busy, onPress }) {
+  return (
+    <Pressable onPress={onPress} disabled={disabled} className="items-center" style={{ flex: 1, opacity: disabled && !busy ? 0.5 : 1 }}>
+      <View
+        className="items-center justify-center"
+        style={{
+          height: 52, width: 52, borderRadius: 16,
+          backgroundColor: selected ? SHARE_MINT : SHARE_SOFT_MINT,
+          borderWidth: 1, borderColor: selected ? SHARE_BRIGHT : SHARE_BORDER,
+        }}
+      >
+        {busy ? <ActivityIndicator size="small" color={SHARE_ACCENT} /> : <Icon size={22} color={SHARE_ACCENT} />}
+      </View>
+      <Text className="text-center font-semibold" style={{ fontSize: 10, color: '#111827', marginTop: 6 }} numberOfLines={2}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

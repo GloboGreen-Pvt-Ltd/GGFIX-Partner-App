@@ -41,6 +41,7 @@ export interface DashboardHeaderProps {
   onNotificationsPress: () => void;
   onCartPress: () => void;
   onSearchPress: () => void;
+  onScanPress: (mode: 'qr' | 'lens') => void;
 }
 
 /**
@@ -68,6 +69,7 @@ export function DashboardHeader({
   onNotificationsPress,
   onCartPress,
   onSearchPress,
+  onScanPress,
 }: DashboardHeaderProps) {
   const { width } = useWindowDimensions();
   const cls = getSizeClass(width);
@@ -80,11 +82,27 @@ export function DashboardHeader({
   const avatarSize = isTablet ? 56 : 52;
   const shopNameSize = isTablet ? 22 : cls === 'large' ? 19 : T.headline;
   const greetingSize = isTablet ? 14 : 13;
-  const actionIconSize = isTablet ? 26 : 24;
-  const actionGap = isTablet ? 20 : 16;
+  const actionIconSize = isTablet ? 24 : 22;
+  const actionButtonSize = isTablet ? 46 : 42;
+  const actionGap = isTablet ? 14 : 10;
 
   const avatarHitSlop = hitSlopFor(avatarSize);
-  const actionHitSlop = hitSlopFor(actionIconSize);
+  // Circular white button behind each header action icon — matches the
+  // reference design's soft, raised icon-button treatment (distinct from
+  // the plain bare-icon look this row used before).
+  const actionButtonStyle = {
+    width: actionButtonSize,
+    height: actionButtonSize,
+    borderRadius: actionButtonSize / 2,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    shadowColor: '#0B1F14',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  };
 
   return (
     <View style={{ backgroundColor: '#FFFFFF', paddingTop: insetsTop, borderBottomWidth: HAIRLINE, borderBottomColor: C.separator }}>
@@ -181,8 +199,8 @@ export function DashboardHeader({
               onPress={onSwitchAccountPress}
               accessibilityRole="button"
               accessibilityLabel="Switch account"
-              hitSlop={actionHitSlop}
-              pressedStyle={{ opacity: 0.4 }}
+              style={actionButtonStyle}
+              pressedStyle={{ opacity: 0.6 }}
             >
               <ArrowLeftRight size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
@@ -190,16 +208,16 @@ export function DashboardHeader({
               onPress={onNotificationsPress}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
-              hitSlop={actionHitSlop}
-              pressedStyle={{ opacity: 0.4 }}
+              style={actionButtonStyle}
+              pressedStyle={{ opacity: 0.6 }}
             >
               <Bell size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
               {notifUnread > 0 ? (
                 <View
                   style={{
                     position: 'absolute',
-                    top: -1,
-                    right: -1,
+                    top: 6,
+                    right: 6,
                     minWidth: 9,
                     height: 9,
                     borderRadius: 5,
@@ -214,8 +232,8 @@ export function DashboardHeader({
               onPress={onCartPress}
               accessibilityRole="button"
               accessibilityLabel="Cart"
-              hitSlop={actionHitSlop}
-              pressedStyle={{ opacity: 0.4 }}
+              style={actionButtonStyle}
+              pressedStyle={{ opacity: 0.6 }}
             >
               <ShoppingCart size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
@@ -226,7 +244,7 @@ export function DashboardHeader({
             centered/width-capped container so it lines up with it on
             tablet instead of stretching edge-to-edge on its own. */}
         <View style={{ paddingBottom: 12 }}>
-          <DashboardSearchBar pad={0} onSearchPress={onSearchPress} />
+          <DashboardSearchBar pad={0} onSearchPress={onSearchPress} onScanPress={onScanPress} />
         </View>
       </View>
     </View>

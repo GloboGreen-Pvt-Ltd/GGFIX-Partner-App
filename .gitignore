@@ -32,6 +32,7 @@ yarn-error.*
 .DS_Store
 .vscode/
 .idea/
+.claude/
 
 # gradle caches (nested local modules)
 .gradle/
