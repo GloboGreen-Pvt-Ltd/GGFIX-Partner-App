@@ -231,6 +231,37 @@ export async function getDeviceCategories() {
   return unwrap(await masterApi.get('/master/device-categories'));
 }
 
+// Admin-managed Category Menu (Management Portal → Category Menu) — the menu
+// rows shown on the Repair / Sell / Buy entry screens: menuName, imageUrl,
+// description, isActive, sortOrder. Read-only here.
+export async function getCategoryMenu(categoryType) {
+  return unwrap(await masterApi.get(`/master/category-menu?categoryType=${encodeURIComponent(categoryType)}`));
+}
+
+/**
+ * Key that lines a Category Menu row up with a device category by name:
+ * drops the "Buy / Sell / Repair" prefix, punctuation and a plural ending, so
+ * "Buy Smartwatch" meets "Smartwatches" and "Sell Audio Device" meets "Audio Device".
+ */
+export function categoryMenuKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^\s*(buy|sell|repair)\s+/, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(es|s)$/, '');
+}
+
+/** { categoryMenuKey: imageUrl } for the ACTIVE menu rows of one type. Never rejects. */
+export async function getCategoryMenuImages(categoryType) {
+  const rows = await getCategoryMenu(categoryType).catch(() => []);
+  const out = {};
+  (Array.isArray(rows) ? rows : []).forEach((m) => {
+    const url = m && m.isActive === true && m.imageUrl && String(m.imageUrl).trim();
+    if (url) out[categoryMenuKey(m.menuName)] = url;
+  });
+  return out;
+}
+
 export async function getSeriesByBrand(brandId) {
   if (!brandId) return [];
   return unwrap(await masterApi.get(`/master/brands/${brandId}/series`));

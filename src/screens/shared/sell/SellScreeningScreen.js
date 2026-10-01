@@ -1,22 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import colors from '../../../theme/colors';
-import { Card, PrimaryButton, Loader } from '../../../components/ui';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { Loader } from '../../../components/ui';
 import { getScreeningQuestions } from '../../../api/masterData';
+import { SELL, SellButton, SellCard, SellFooter, SellIntro, EditingBanner, CheckDot, RadioRing } from './sellTheme';
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  qTitle: { fontSize: 13, fontWeight: '700', color: colors.text },
-  qHelp: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-  ansRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginTop: 6 },
-  ansRowActive: { borderColor: '#004C40' },
-  ansLabel: { marginLeft: 8, fontSize: 13, color: colors.text },
-  editBanner: { backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center' },
-  editBannerTitle: { fontSize: 10, fontWeight: '800', color: '#92400E', letterSpacing: 0.5 },
-  editBannerText: { fontSize: 12, color: colors.text, fontWeight: '600', marginTop: 2 },
-  bottom: { padding: 12, backgroundColor: '#fff', borderTopColor: colors.border, borderTopWidth: 1 },
-});
+// Two short answers (Yes / No) sit side by side; anything longer stacks.
+const isCompact = (opts) => opts.length === 2 && opts.every((o) => String(o).length <= 12);
 
 export default function SellScreeningScreen({ navigation, route }) {
   const params = route.params || {};
@@ -76,41 +65,62 @@ export default function SellScreeningScreen({ navigation, route }) {
 
   if (loading) return <Loader />;
 
+  const answered = questions.filter((q) => answers[q.id]).length;
+  const allAnswered = !questions.some((q) => !answers[q.id]);
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 12 }}>
-        {isEditing ? (
-          <View style={styles.editBanner}>
-            <Ionicons name="create-outline" size={16} color="#92400E" />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.editBannerTitle}>EDITING ORDER</Text>
-              <Text style={styles.editBannerText}>Your previous answers are pre-selected — change any below.</Text>
-            </View>
-          </View>
-        ) : null}
-        {questions.map((q, i) => (
-          <Card key={q.id} style={{ padding: 10, marginVertical: 4 }}>
-            <Text style={styles.qTitle}>{i + 1}. {q.question}</Text>
-            {q.helperText ? <Text style={styles.qHelp}>{q.helperText}</Text> : null}
-            {(q.options || ['Yes', 'No']).map((opt) => {
-              const active = answers[q.id] === opt;
-              return (
-                <TouchableOpacity key={opt} style={[styles.ansRow, active && styles.ansRowActive]} onPress={() => setAnswers({ ...answers, [q.id]: opt })}>
-                  <Ionicons name={active ? 'checkmark-circle' : 'radio-button-off'} size={20} color={active ? '#004C40' : colors.textSecondary} />
-                  <Text style={styles.ansLabel}>{opt}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </Card>
-        ))}
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+        {isEditing ? <EditingBanner text="Your previous answers are pre-selected — change any below." /> : null}
+        <SellIntro title="Quick device check" caption="Answer each question about the device's current condition." />
+        {questions.map((q, i) => {
+          const opts = q.options || ['Yes', 'No'];
+          const compact = isCompact(opts);
+          return (
+            <SellCard key={q.id}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: SELL.greenDark }}>{i + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: SELL.ink, lineHeight: 20 }}>{q.question}</Text>
+                  {q.helperText ? <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 3, lineHeight: 17 }}>{q.helperText}</Text> : null}
+                </View>
+              </View>
+              <View style={{ flexDirection: compact ? 'row' : 'column', gap: 8, marginTop: 12 }}>
+                {opts.map((opt) => {
+                  const active = answers[q.id] === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      activeOpacity={0.85}
+                      onPress={() => setAnswers({ ...answers, [q.id]: opt })}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: active }}
+                      style={{
+                        flex: compact ? 1 : undefined, flexDirection: 'row', alignItems: 'center',
+                        minHeight: 46, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5,
+                        borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.greenLight : SELL.card,
+                      }}
+                    >
+                      {active ? <CheckDot size={20} /> : <RadioRing size={20} />}
+                      <Text style={{ flex: 1, marginLeft: 10, fontSize: 13, fontWeight: active ? '700' : '600', color: active ? SELL.greenDark : SELL.ink }}>{opt}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </SellCard>
+          );
+        })}
       </ScrollView>
-      <View style={styles.bottom}>
-        <PrimaryButton
-          title="Continue →"
-          disabled={questions.some((q) => !answers[q.id])}
+      <SellFooter caption={questions.length ? `${answered} of ${questions.length} answered` : null}>
+        <SellButton
+          title="Continue"
+          arrow
+          disabled={!allAnswered}
           onPress={() => navigation.navigate('SellScreenCondition', { ...params, device, workingCondition, screeningAnswers: questions.filter((q) => answers[q.id]).map((q) => ({ questionId: q.id, answer: answers[q.id], question: q.question })) })}
         />
-      </View>
+      </SellFooter>
     </View>
   );
 }

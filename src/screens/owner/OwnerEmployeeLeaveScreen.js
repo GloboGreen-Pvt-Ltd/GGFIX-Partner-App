@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   statsCard: {
     backgroundColor: '#FFFFFF',
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: rs(11),
   },
-  statsHeaderTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  statsHeaderTitle: { fontSize: 14, fontWeight: '800', color: '#172117' },
 
   monthPill: {
     flexDirection: 'row',
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     gap: rs(7),
   },
-  monthPillText: { color: '#FFFFFF', fontSize: rf(11.5), fontWeight: '700' },
+  monthPillText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   monthPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
 
   statTilesRow: { flexDirection: 'row', gap: rs(8) },
@@ -349,9 +349,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   statTileTop: { flexDirection: 'row', alignItems: 'center', gap: rs(5) },
-  statTileTopText: { fontSize: rf(10.5), fontWeight: '800' },
-  statTileValue: { fontSize: rf(20), fontWeight: '800', color: '#172117', marginTop: rs(6) },
-  statTileHint: { fontSize: rf(10), color: '#667066', marginTop: rs(2), fontWeight: '600' },
+  statTileTopText: { fontSize: 10.5, fontWeight: '800' },
+  statTileValue: { fontSize: 18.5, fontWeight: '800', color: '#172117', marginTop: rs(6) },
+  statTileHint: { fontSize: 10, color: '#667066', marginTop: rs(2), fontWeight: '600' },
 
   applyBtn: {
     marginTop: rs(12),
@@ -364,11 +364,11 @@ const styles = StyleSheet.create({
     gap: rs(8),
     shadowColor: '#172117', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  applyBtnText: { color: '#FFFFFF', fontSize: rf(13.5), fontWeight: '800' },
+  applyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 
   sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: rs(14), marginBottom: rs(8) },
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
-  viewAll: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: '#172117' },
+  viewAll: { fontSize: 12, fontWeight: '800', color: '#004C40' },
 
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(8), marginBottom: rs(12) },
   filterChip: {
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8E2',
   },
   filterChipActive: { backgroundColor: '#004C40', borderColor: '#004C40' },
-  filterChipText: { fontSize: rf(12), color: '#667066', fontWeight: '700' },
+  filterChipText: { fontSize: 12, color: '#667066', fontWeight: '700' },
   filterChipTextActive: { color: '#FFFFFF' },
 
   leaveCard: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   leaveAccent: { width: rs(4), backgroundColor: '#004C40' },
   leaveInner: { flex: 1, padding: rs(11) },
   leaveTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  leaveDate: { fontSize: rf(11.5), fontWeight: '700', color: '#172117' },
+  leaveDate: { fontSize: 11.5, fontWeight: '700', color: '#172117' },
 
   statusPill: {
     paddingHorizontal: rs(10),
@@ -406,23 +406,23 @@ const styles = StyleSheet.create({
   pillProcessing: { backgroundColor: '#F59E0B' },
   pillApproved: { backgroundColor: '#004C40' },
   pillRejected: { backgroundColor: '#DC2626' },
-  statusPillText: { color: '#FFFFFF', fontSize: rf(10), fontWeight: '700' },
+  statusPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   // Amber is the one light fill of the three: white on it is 2.1:1, so the
   // Processing pill takes dark ink (7.8:1) while green and red keep white.
   statusPillTextOnLight: { color: '#172117' },
 
   leaveCols: { flexDirection: 'row', marginTop: rs(7), gap: rs(8) },
   leaveCol: { flex: 1 },
-  leaveColValue: { fontSize: rf(11), fontWeight: '700', color: '#172117' },
-  leaveColLabel: { fontSize: rf(9), color: '#8FA08F', marginTop: rs(2) },
+  leaveColValue: { fontSize: 11, fontWeight: '700', color: '#172117' },
+  leaveColLabel: { fontSize: 9, color: '#8FA08F', marginTop: rs(2) },
 
   actionRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(8) },
   approveBtn: { flex: 1, backgroundColor: '#004C40', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
-  approveBtnText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
+  approveBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   rejectBtn: { flex: 1, backgroundColor: '#DC2626', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
-  rejectBtnText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
+  rejectBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
 
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', paddingVertical: rs(14) },
+  empty: { fontSize: 12, color: '#667066', textAlign: 'center', paddingVertical: rs(14) },
   emptyCard: {
     backgroundColor: '#F0F8EF',
     borderWidth: 1,
@@ -431,6 +431,6 @@ const styles = StyleSheet.create({
     paddingVertical: rs(20),
     alignItems: 'center',
   },
-  emptyTitle: { fontSize: rf(13), fontWeight: '800', color: '#172117', marginTop: rs(8) },
-  emptySub: { fontSize: rf(11.5), color: '#667066', marginTop: rs(3) },
+  emptyTitle: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(8) },
+  emptySub: { fontSize: 11.5, color: '#667066', marginTop: rs(3) },
 });

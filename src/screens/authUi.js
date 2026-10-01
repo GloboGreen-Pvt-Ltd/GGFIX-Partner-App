@@ -110,8 +110,8 @@ export function ErrorBox({ msg }) {
 }
 
 export const authStyles = {
-  h1: { fontSize: 22, fontWeight: '800', color: INK, letterSpacing: -0.4 },
-  sub: { fontSize: 13.5, color: MUTED, marginTop: 5, lineHeight: 19 },
+  h1: { fontSize: 20, fontWeight: '800', color: INK, letterSpacing: -0.4 },
+  sub: { fontSize: 13, color: MUTED, marginTop: 5, lineHeight: 19 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: INK, marginBottom: 5, marginTop: 14, marginLeft: 2 },
   fieldRow: {
     flexDirection: 'row',
@@ -123,7 +123,7 @@ export const authStyles = {
     paddingHorizontal: 14,
     height: 46,
   },
-  fieldInput: { fontSize: 15, color: INK, height: '100%', paddingVertical: 0 },
+  fieldInput: { fontSize: 14, color: INK, height: '100%', paddingVertical: 0 },
   ccChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,6 +133,6 @@ export const authStyles = {
     borderRightColor: FIELD_BORDER,
     height: '60%',
   },
-  ccText: { fontSize: 14, fontWeight: '700', color: INK },
+  ccText: { fontSize: 13, fontWeight: '700', color: INK },
   link: { fontSize: 13, fontWeight: '700', color: GREEN },
 };

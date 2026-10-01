@@ -254,8 +254,8 @@ export default function BookingThankYouScreen({ navigation, route }) {
         onBack={() => navigation.navigate('OwnerTabs', { screen: 'Home' })}
         right={(
           <View className="items-end">
-            <Text style={{ fontSize: rf(8.5), fontWeight: '800', letterSpacing: 1, color: ACCENT }}>REPAIR TODAY</Text>
-            <Text style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>A BRIGHTER TOMORROW</Text>
+            <Text style={{ fontSize: 8.5, fontWeight: '800', letterSpacing: 1, color: ACCENT }}>REPAIR TODAY</Text>
+            <Text style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>A BRIGHTER TOMORROW</Text>
           </View>
         )}
       />
@@ -298,8 +298,8 @@ export default function BookingThankYouScreen({ navigation, route }) {
                   </View>
                 </View>
               </View>
-              <Text className="font-extrabold" style={{ fontSize: rf(27), color: ACCENT, marginTop: rs(12) }}>Thank You!</Text>
-              <Text style={{ fontSize: rf(12.5), color: TEXT_SECONDARY, marginTop: rs(3) }}>Your booking has been placed.</Text>
+              <Text className="font-extrabold" style={{ fontSize: 24, color: ACCENT, marginTop: rs(12) }}>Thank You!</Text>
+              <Text style={{ fontSize: 12.5, color: TEXT_SECONDARY, marginTop: rs(3) }}>Your booking has been placed.</Text>
               <Pressable
                 onPress={copyTrackingId}
                 className="flex-row items-center active:opacity-80"
@@ -310,7 +310,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 }}
               >
                 <Ionicons name="pricetag-outline" size={rf(13)} color={ACCENT} />
-                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: ACCENT, marginLeft: rs(6) }}>#{trackingId}</Text>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', color: ACCENT, marginLeft: rs(6) }}>#{trackingId}</Text>
                 <View style={{ width: 1, height: rs(14), backgroundColor: BORDER, marginHorizontal: rs(8) }} />
                 <Ionicons name="copy-outline" size={rf(13)} color={TEXT_SECONDARY} />
               </Pressable>
@@ -336,7 +336,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 style={{ marginBottom: i === devices.length - 1 ? 0 : rs(10), paddingBottom: i === devices.length - 1 ? 0 : rs(10), borderBottomWidth: i === devices.length - 1 ? 0 : 1, borderBottomColor: BORDER }}
               >
                 <View className="flex-1">
-                  <Text style={{ fontSize: rf(9.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>DEVICE</Text>
+                  <Text style={{ fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>DEVICE</Text>
                   <View className="flex-row items-center" style={{ marginTop: rs(4) }}>
                     <View
                       className="items-center justify-center overflow-hidden"
@@ -348,7 +348,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
                         <Ionicons name="phone-portrait-outline" size={rf(15)} color={ACCENT} />
                       )}
                     </View>
-                    <Text className="flex-1 text-text font-bold" style={{ fontSize: rf(12.5) }} numberOfLines={1}>
+                    <Text className="flex-1 text-text font-bold" style={{ fontSize: 12.5 }} numberOfLines={1}>
                       {devices.length > 1 ? `${i + 1}. ` : ''}{d.modelName || 'Device'}
                     </Text>
                   </View>
@@ -357,9 +357,9 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 <View className="flex-1">
                   <View className="flex-row items-center">
                     <Ionicons name="build-outline" size={rf(11)} color={ACCENT} />
-                    <Text style={{ fontSize: rf(9.5), fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY, marginLeft: rs(4) }}>REPAIR SERVICES</Text>
+                    <Text style={{ fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY, marginLeft: rs(4) }}>REPAIR SERVICES</Text>
                   </View>
-                  <Text className="text-text font-bold" style={{ fontSize: rf(12.5), marginTop: rs(4) }} numberOfLines={2}>
+                  <Text className="text-text font-bold" style={{ fontSize: 12.5, marginTop: rs(4) }} numberOfLines={2}>
                     {(d.services || []).map((s) => s.serviceName).join(', ') || '—'}
                   </Text>
                 </View>
@@ -372,11 +372,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
             <View className="flex-row items-center" style={{ marginBottom: rs(11) }}>
               <View className="flex-row items-center" style={{ width: rs(112) }}>
                 <Ionicons name="time-outline" size={rf(13)} color={ACCENT} style={{ marginRight: rs(6) }} />
-                <Text style={{ fontSize: rf(10.5), fontWeight: '600', color: TEXT_SECONDARY }}>Status</Text>
+                <Text style={{ fontSize: 10.5, fontWeight: '600', color: TEXT_SECONDARY }}>Status</Text>
               </View>
               <View style={{ flex: 1, alignItems: 'flex-start' }}>
                 <View className="rounded-full" style={{ paddingHorizontal: rs(10), paddingVertical: rs(4), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}>
-                  <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT }}>Order Placed</Text>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: ACCENT }}>Order Placed</Text>
                 </View>
               </View>
             </View>
@@ -427,8 +427,8 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 <Ionicons name="checkmark-circle-outline" size={rf(19)} color="#FFFFFF" />
               </View>
               <View className="flex-1">
-                <Text className="font-extrabold" style={{ fontSize: rf(13), color: ACCENT }}>Booking confirmed!</Text>
-                <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>
+                <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT }}>Booking confirmed!</Text>
+                <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>
                   Your request is ready for technician assignment.
                 </Text>
               </View>
@@ -475,7 +475,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
             style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28 }}
           >
             <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
-            <Text className="text-[15px] font-extrabold text-text mb-3">Share Receipt</Text>
+            <Text className="text-[14px] font-extrabold text-text mb-3">Share Receipt</Text>
 
             <Pressable
               onPress={shareImage}
@@ -486,7 +486,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 <Ionicons name="logo-whatsapp" size={20} color={ACCENT} />
               </View>
               <View className="flex-1">
-                <Text className="text-[13.5px] font-extrabold text-text">Send image to WhatsApp</Text>
+                <Text className="text-[13px] font-extrabold text-text">Send image to WhatsApp</Text>
                 <Text className="text-[11px] text-text-muted mt-0.5">Opens WhatsApp with the receipt image</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#CBD5CB" />
@@ -501,7 +501,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
                 <Ionicons name="chatbubble-ellipses" size={20} color={ACCENT} />
               </View>
               <View className="flex-1">
-                <Text className="text-[13.5px] font-extrabold text-text">Send details by SMS</Text>
+                <Text className="text-[13px] font-extrabold text-text">Send details by SMS</Text>
                 <Text className="text-[11px] text-text-muted mt-0.5">Opens Messages with the details as text</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#CBD5CB" />
@@ -518,11 +518,11 @@ function Section({ label, right, children, noMargin }) {
     <View style={{ marginBottom: noMargin ? 0 : rs(18) }}>
       <View className="flex-row items-center" style={{ marginBottom: rs(9) }}>
         <View style={{ width: rs(3), height: rs(13), borderRadius: 2, backgroundColor: ACCENT, marginRight: rs(7) }} />
-        <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: TEXT_PRIMARY }}>{label}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: TEXT_PRIMARY }}>{label}</Text>
         <View className="flex-1" />
         {right ? (
           <View className="rounded-full" style={{ paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: MINT }}>
-            <Text style={{ fontSize: rf(8.5), fontWeight: '800', letterSpacing: 0.6, color: ACCENT }} numberOfLines={1}>
+            <Text style={{ fontSize: 8.5, fontWeight: '800', letterSpacing: 0.6, color: ACCENT }} numberOfLines={1}>
               {right}
             </Text>
           </View>
@@ -550,12 +550,12 @@ function SectionRow({ icon, label, value, bold, last }) {
     <View className="flex-row" style={{ alignItems: 'flex-start', marginBottom: last ? 0 : rs(11) }}>
       <View className="flex-row items-center" style={{ width: rs(112) }}>
         {icon ? <Ionicons name={icon} size={rf(13)} color={ACCENT} style={{ marginRight: rs(6) }} /> : null}
-        <Text style={{ flex: 1, fontSize: rf(10.5), fontWeight: '600', color: TEXT_SECONDARY, lineHeight: rf(14) }} numberOfLines={2}>
+        <Text style={{ flex: 1, fontSize: 10.5, fontWeight: '600', color: TEXT_SECONDARY, lineHeight: rf(14) }} numberOfLines={2}>
           {label}
         </Text>
       </View>
       <Text
-        style={{ flex: 1, fontSize: rf(12.5), color: TEXT_PRIMARY, fontWeight: bold ? '800' : '700', textAlign: 'left', lineHeight: rf(17) }}
+        style={{ flex: 1, fontSize: 12.5, color: TEXT_PRIMARY, fontWeight: bold ? '800' : '700', textAlign: 'left', lineHeight: rf(17) }}
       >
         {value || '—'}
       </Text>
@@ -581,11 +581,11 @@ function ActionTile({ icon, label, sub, onPress }) {
         >
           <Ionicons name={icon} size={rf(19)} color="#fff" />
         </View>
-        <Text className="text-white font-extrabold text-center" style={{ fontSize: rf(11.5), marginTop: rs(8) }} numberOfLines={1}>
+        <Text className="text-white font-extrabold text-center" style={{ fontSize: 11.5, marginTop: rs(8) }} numberOfLines={1}>
           {label}
         </Text>
         {sub ? (
-          <Text style={{ fontSize: rf(8), fontWeight: '700', letterSpacing: 0.3, color: 'rgba(255,255,255,0.75)', marginTop: rs(2) }} numberOfLines={1}>
+          <Text style={{ fontSize: 8, fontWeight: '700', letterSpacing: 0.3, color: 'rgba(255,255,255,0.75)', marginTop: rs(2) }} numberOfLines={1}>
             {sub}
           </Text>
         ) : null}

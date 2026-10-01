@@ -81,7 +81,7 @@ function GreenInput(props) {
           borderRadius: 12,
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 13.5,
+          fontSize: 13,
           color: '#172117',
         },
         props.style,
@@ -103,7 +103,7 @@ function SubLink({ icon: Icon, tint, accent, label, sub, onPress, divider }) {
         <Icon size={16} color={accent} />
       </View>
       <View className="flex-1">
-        <Text className="text-[13.5px] font-bold text-gray-900">{label}</Text>
+        <Text className="text-[13px] font-bold text-gray-900">{label}</Text>
         {sub ? <Text className="text-[11px] text-gray-500 mt-0.5">{sub}</Text> : null}
       </View>
       <ChevronRight size={16} color="#8FA08F" />
@@ -210,7 +210,7 @@ export default function EditBookingScreen({ route, navigation }) {
           >
             <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
-          <Text className="text-text text-[15px] font-extrabold">Edit Booking</Text>
+          <Text className="text-text text-[14px] font-extrabold">Edit Booking</Text>
           <View
             className="px-3 py-1.5 rounded-full bg-surface-muted"
           >
@@ -270,7 +270,7 @@ export default function EditBookingScreen({ route, navigation }) {
                 <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                   Now Editing
                 </Text>
-                <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+                <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
                   {ticket.deviceModelName || ticket.modelName || 'Device'}
                 </Text>
                 <Text className="text-[11.5px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -327,7 +327,7 @@ export default function EditBookingScreen({ route, navigation }) {
                     Estimated Total
                   </Text>
                   <Text
-                    className="text-[16px] font-extrabold"
+                    className="text-[15px] font-extrabold"
                     style={{ color: BRAND_GREEN_DARK }}
                   >
                     ₹{Number(estimatedTotal).toLocaleString('en-IN')}
@@ -434,7 +434,7 @@ export default function EditBookingScreen({ route, navigation }) {
               </View>
               <View className="flex-1">
                 <Text
-                  className="text-[14px] font-extrabold"
+                  className="text-[13px] font-extrabold"
                   style={{ color: approved ? BRAND_GREEN_DARK : '#172117' }}
                 >
                   Customer Repair Approval
@@ -527,7 +527,7 @@ export default function EditBookingScreen({ route, navigation }) {
             ) : (
               <Check size={18} color="#FFFFFF" strokeWidth={3} />
             )}
-            <Text className="ml-2 text-white text-[15px] font-extrabold">
+            <Text className="ml-2 text-white text-[14px] font-extrabold">
               {saving ? 'Saving...' : 'Save Changes'}
             </Text>
           </LinearGradient>

@@ -149,7 +149,7 @@ function SheetShell({ visible, onClose, title, subtitle, children, maxHeightRati
               backgroundColor: '#E2E8E2', marginBottom: 14,
             }}
           />
-          <Text className="text-[15px] font-extrabold text-gray-900">{title}</Text>
+          <Text className="text-[14px] font-extrabold text-gray-900">{title}</Text>
           {subtitle ? (
             <Text className="text-[11.5px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
           ) : (
@@ -176,7 +176,7 @@ function ActionRow({ icon, tint, title, onPress, disabled }) {
       <View className="w-9 h-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: tint.bg }}>
         {icon}
       </View>
-      <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
+      <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
       <ChevronRight size={16} color="#CBD5CB" />
     </Pressable>
   );
@@ -315,7 +315,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
           opacity: disabled ? 0.5 : 1,
         }}
       >
-        <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+        <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
           {value?.label || 'Select'}
         </Text>
         <ChevronDown
@@ -345,7 +345,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
               >
                 <View className="flex-1">
                   <Text
-                    className="text-[13.5px] text-gray-900"
+                    className="text-[13px] text-gray-900"
                     style={{ fontWeight: selected ? '800' : '600' }}
                     numberOfLines={1}
                   >
@@ -479,7 +479,7 @@ export function ServiceStatusSheet({
             style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
           >
             <Text className="text-[10px] text-gray-500">Current status</Text>
-            <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+            <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
               {doneLabel}
             </Text>
           </View>
@@ -492,7 +492,7 @@ export function ServiceStatusSheet({
           </View>
         ) : finished ? (
           <View className="items-center py-6 px-2">
-            <Text className="text-[13.5px] font-extrabold text-gray-900 text-center">
+            <Text className="text-[13px] font-extrabold text-gray-900 text-center">
               This booking is closed
             </Text>
             <Text className="text-[11.5px] text-gray-500 text-center mt-1">
@@ -533,7 +533,7 @@ export function ServiceStatusSheet({
               {saving
                 ? <ActivityIndicator color="#FFFFFF" />
                 : (
-                  <Text className="text-white text-[14px] font-extrabold">
+                  <Text className="text-white text-[13px] font-extrabold">
                     {status?.action === 'INVOICE' ? 'Generate Invoice' : 'Update Status'}
                   </Text>
                 )}
@@ -684,7 +684,7 @@ export function ImeiGateSheet({
             editable={!busy}
             className="text-gray-900"
             style={{
-              fontSize: 17, fontWeight: '800', letterSpacing: 1.5,
+              fontSize: 16, fontWeight: '800', letterSpacing: 1.5,
               borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF',
               borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
             }}
@@ -716,7 +716,7 @@ export function ImeiGateSheet({
             >
               {busy
                 ? <ActivityIndicator color="#FFFFFF" />
-                : <Text className="text-white text-[13.5px] font-extrabold">Verify &amp; Continue</Text>}
+                : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
             </Pressable>
           </View>
         </>
@@ -943,7 +943,7 @@ export function TechnicianPickerSheet({
                     <UserRound size={18} color="#667066" />
                   </View>
                   <View className="flex-1 pr-2">
-                    <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
                       {t.name || 'Technician'}
                     </Text>
                     <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -1003,7 +1003,7 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
           <UserRound size={18} color={BRAND_GREEN_DARK} />
         </View>
         <View className="flex-1 pr-2">
-          <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
             {tech?.name || 'Technician'}
           </Text>
           <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -1058,13 +1058,13 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
 //
 // GGFIX palette — same values used across the rest of the app's redesigned
 // screens this pass.
-const SHARE_ACCENT = '#004C40';
-const SHARE_PRIMARY = '#006B57';
-const SHARE_BRIGHT = '#00A86B';
-const SHARE_MINT = '#E8F7F2';
-const SHARE_SOFT_MINT = '#F4FBF8';
-const SHARE_BORDER = '#DCE7E2';
-const SHARE_TEXT_SECONDARY = '#667085';
+const SHARE_ACCENT = '#09AD2A';
+const SHARE_PRIMARY = '#078F23';
+const SHARE_BRIGHT = '#09AD2A';
+const SHARE_MINT = '#EAF8EC';
+const SHARE_SOFT_MINT = '#F8F8F8';
+const SHARE_BORDER = '#E6E6E6';
+const SHARE_TEXT_SECONDARY = '#6B6B6B';
 
 // All five "Share to" shortcuts open the SAME real native share sheet with
 // the SAME captured receipt image. Expo/RN has no reliable, cross-platform
@@ -1121,7 +1121,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(11, 31, 20, 0.55)', justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.55)', justifyContent: 'flex-end' }}>
         <View
           style={{
             backgroundColor: '#FFFFFF',
@@ -1136,7 +1136,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
           {/* Header */}
           <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: 20, color: '#111827' }}>Share image</Text>
+              <Text className="font-extrabold" style={{ fontSize: 18.5, color: '#1E1E1E' }}>Share image</Text>
               <Text style={{ fontSize: 12.5, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
                 Share this booking receipt via your favourite apps
               </Text>
@@ -1147,7 +1147,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
               className="items-center justify-center"
               style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
             >
-              <X size={18} color="#111827" />
+              <X size={18} color="#1E1E1E" />
             </Pressable>
           </View>
 
@@ -1167,7 +1167,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
                   <View
                     style={{
                       borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER,
-                      shadowColor: '#0B1F14', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
+                      shadowColor: '#1E1E1E', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
                     }}
                   >
                     <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
@@ -1186,7 +1186,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
                     height: 44, width: 44, borderRadius: 22,
                     backgroundColor: SHARE_MINT, borderWidth: 3, borderColor: '#FFFFFF',
                     alignItems: 'center', justifyContent: 'center',
-                    shadowColor: '#0B1F14', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+                    shadowColor: '#1E1E1E', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
                   }}
                 >
                   <View className="items-center justify-center" style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: SHARE_ACCENT }}>
@@ -1200,7 +1200,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
 
             {/* Share to */}
             <View className="flex-row items-center justify-between" style={{ marginTop: 16, marginHorizontal: 18 }}>
-              <Text className="font-extrabold" style={{ fontSize: 14, color: '#111827' }}>Share to</Text>
+              <Text className="font-extrabold" style={{ fontSize: 13, color: '#1E1E1E' }}>Share to</Text>
             </View>
             <View className="flex-row" style={{ marginTop: 12, paddingHorizontal: 18 }}>
               {SHARE_TARGETS.map((t, i) => (
@@ -1235,7 +1235,7 @@ function ShareTargetButton({ icon: Icon, label, selected, disabled, busy, onPres
       >
         {busy ? <ActivityIndicator size="small" color={SHARE_ACCENT} /> : <Icon size={22} color={SHARE_ACCENT} />}
       </View>
-      <Text className="text-center font-semibold" style={{ fontSize: 10, color: '#111827', marginTop: 6 }} numberOfLines={2}>
+      <Text className="text-center font-semibold" style={{ fontSize: 10, color: '#1E1E1E', marginTop: 6 }} numberOfLines={2}>
         {label}
       </Text>
     </Pressable>
@@ -1296,7 +1296,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
         style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
       >
         <Text className="text-[10px] text-gray-500">Current status</Text>
-        <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+        <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
           {statusLabel || booking?.status || 'Pending'}
         </Text>
       </View>
@@ -1504,7 +1504,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                         assigned/unassigned swap can't be lost to className
                         merging. */}
                     <Text
-                      className="text-[13.5px] font-extrabold"
+                      className="text-[13px] font-extrabold"
                       style={{ color: isAssigned ? ASSIGNED_RED : TEXT_DARK }}
                       numberOfLines={1}
                     >

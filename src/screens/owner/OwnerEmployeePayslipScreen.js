@@ -547,8 +547,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', marginTop: rs(20) },
+  error: { fontSize: 13, color: '#DC2626' },
+  empty: { fontSize: 12, color: '#667066', textAlign: 'center', marginTop: rs(20) },
 
   hero: {
     backgroundColor: '#004C40',
@@ -566,8 +566,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroPayslip: { fontSize: rf(11), color: 'rgba(255,255,255,0.85)', fontWeight: '600', letterSpacing: 0.5 },
-  heroMonth: { fontSize: rf(18), fontWeight: '800', color: '#FFFFFF', marginTop: rs(1) },
+  heroPayslip: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600', letterSpacing: 0.5 },
+  heroMonth: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', marginTop: rs(1) },
   heroStatusPill: {
     paddingHorizontal: rs(11),
     paddingVertical: rs(5),
@@ -575,19 +575,19 @@ const styles = StyleSheet.create({
   },
   heroStatusPaid: { backgroundColor: 'rgba(255,255,255,0.22)' },
   heroStatusPending: { backgroundColor: '#F59E0B' },
-  heroStatusText: { fontSize: rf(11), fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
+  heroStatusText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
   heroStatusTextOnLight: { color: '#172117' },
 
   heroDivider: { height: rs(1), backgroundColor: 'rgba(255,255,255,0.18)', marginVertical: rs(10) },
 
   heroEmpRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  heroEmpLabel: { fontSize: rf(10), color: 'rgba(255,255,255,0.7)', fontWeight: '600', letterSpacing: 0.5 },
-  heroEmpName: { fontSize: rf(13.5), fontWeight: '800', color: '#FFFFFF', marginTop: rs(2) },
-  heroEmpRole: { fontSize: rf(10.5), color: 'rgba(255,255,255,0.85)', marginTop: rs(1) },
-  heroEmpId: { fontSize: rf(13), fontWeight: '800', color: '#FFFFFF', marginTop: rs(2), letterSpacing: 0.3 },
+  heroEmpLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: '600', letterSpacing: 0.5 },
+  heroEmpName: { fontSize: 13, fontWeight: '800', color: '#FFFFFF', marginTop: rs(2) },
+  heroEmpRole: { fontSize: 10.5, color: 'rgba(255,255,255,0.85)', marginTop: rs(1) },
+  heroEmpId: { fontSize: 13, fontWeight: '800', color: '#FFFFFF', marginTop: rs(2), letterSpacing: 0.3 },
 
   heroPeriodRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
-  heroPeriodText: { fontSize: rf(11.5), color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  heroPeriodText: { fontSize: 11.5, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
 
   payoutCard: {
     backgroundColor: '#FFFFFF',
@@ -599,8 +599,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8E2',
     shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  payoutLabel: { fontSize: rf(11.5), color: '#667066', fontWeight: '600', letterSpacing: 0.3 },
-  payoutAmount: { fontSize: rf(26), fontWeight: '800', color: '#004C40', marginTop: rs(4) },
+  payoutLabel: { fontSize: 11.5, color: '#667066', fontWeight: '600', letterSpacing: 0.3 },
+  payoutAmount: { fontSize: 23, fontWeight: '800', color: '#004C40', marginTop: rs(4) },
   payoutSplit: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -609,10 +609,10 @@ const styles = StyleSheet.create({
   },
   payoutSplitItem: { flex: 1, alignItems: 'center' },
   payoutSplitSep: { width: rs(1), height: rs(28), backgroundColor: '#E2E8E2' },
-  payoutSplitLabel: { fontSize: rf(10.5), color: '#8FA08F', fontWeight: '600' },
-  payoutSplitValue: { fontSize: rf(14), fontWeight: '800', color: '#172117', marginTop: rs(3) },
+  payoutSplitLabel: { fontSize: 10.5, color: '#8FA08F', fontWeight: '600' },
+  payoutSplitValue: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(3) },
 
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
 
   attendanceRow: { flexDirection: 'row', gap: rs(8) },
   attendanceTile: {
@@ -626,8 +626,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#004C40',
     alignItems: 'center', justifyContent: 'center',
   },
-  attendanceValue: { fontSize: rf(18), fontWeight: '800', color: '#172117', marginTop: rs(8) },
-  attendanceLabel: { fontSize: rf(11), color: '#667066', fontWeight: '600', marginTop: rs(2) },
+  attendanceValue: { fontSize: 17, fontWeight: '800', color: '#172117', marginTop: rs(8) },
+  attendanceLabel: { fontSize: 11, color: '#667066', fontWeight: '600', marginTop: rs(2) },
 
   breakdownCard: {
     backgroundColor: '#FFFFFF',
@@ -652,9 +652,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   breakdownTextWrap: { flex: 1, minWidth: 0 },
-  breakdownLabel: { fontSize: rf(13), fontWeight: '800', color: '#172117' },
-  breakdownSub: { fontSize: rf(11), color: '#8FA08F', marginTop: rs(2) },
-  breakdownValue: { fontSize: rf(13), fontWeight: '800', color: '#172117' },
+  breakdownLabel: { fontSize: 13, fontWeight: '800', color: '#172117' },
+  breakdownSub: { fontSize: 11, color: '#8FA08F', marginTop: rs(2) },
+  breakdownValue: { fontSize: 13, fontWeight: '800', color: '#172117' },
   breakdownValueEmphasize: { color: '#004C40', fontWeight: '800' },
   breakdownDivider: { height: rs(1), backgroundColor: '#EFF5EE' },
 
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
     borderRadius: rs(12),
   },
   actionBtnSecondary: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#004C40' },
-  actionBtnSecondaryText: { color: '#004C40', fontSize: rf(13), fontWeight: '800' },
+  actionBtnSecondaryText: { color: '#004C40', fontSize: 13, fontWeight: '800' },
   actionBtnPrimary: { backgroundColor: '#004C40' },
-  actionBtnPrimaryText: { color: '#FFFFFF', fontSize: rf(13), fontWeight: '800' },
+  actionBtnPrimaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 });

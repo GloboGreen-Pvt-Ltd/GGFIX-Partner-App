@@ -251,7 +251,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
           >
             <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
             Booking Status Report
           </Text>
           <Pressable
@@ -326,7 +326,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                   <Text className="text-white/85 text-[10.5px] font-bold tracking-wider">
                     SHOWING
                   </Text>
-                  <Text className="text-white text-[18px] font-extrabold" numberOfLines={1}>
+                  <Text className="text-white text-[17px] font-extrabold" numberOfLines={1}>
                     {label}
                   </Text>
                 </View>
@@ -342,7 +342,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                 >
                   <Text
                     className="font-extrabold"
-                    style={{ color: gradient[1], fontSize: 18, letterSpacing: -0.3 }}
+                    style={{ color: gradient[1], fontSize: 17, letterSpacing: -0.3 }}
                   >
                     {String(tickets.length).padStart(2, '0')}
                   </Text>
@@ -470,7 +470,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
           >
             <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[16px] font-extrabold text-gray-900">Filter by period</Text>
+              <Text className="text-[15px] font-extrabold text-gray-900">Filter by period</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}
@@ -499,7 +499,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                     <Calendar size={14} color={active ? '#FFFFFF' : BRAND_GREEN_DARK} />
                   </View>
                   <Text
-                    className="flex-1 text-[14px] font-extrabold"
+                    className="flex-1 text-[13px] font-extrabold"
                     style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
                   >
                     {p.label}
@@ -547,7 +547,7 @@ function TicketCard({ ticket, index, accent, tint, onViewDetails, onHistory, onI
         >
           <Text
             className="font-extrabold"
-            style={{ color: accent || BRAND_GREEN_DARK, fontSize: 14 }}
+            style={{ color: accent || BRAND_GREEN_DARK, fontSize: 13 }}
           >
             {String(index).padStart(2, '0')}
           </Text>
@@ -572,7 +572,7 @@ function TicketCard({ ticket, index, accent, tint, onViewDetails, onHistory, onI
             <View className="flex-1" />
             {priceStr ? (
               <Text
-                className="text-[14px] font-extrabold"
+                className="text-[13px] font-extrabold"
                 style={{ color: BRAND_GREEN_DARK }}
               >
                 ₹{priceStr}

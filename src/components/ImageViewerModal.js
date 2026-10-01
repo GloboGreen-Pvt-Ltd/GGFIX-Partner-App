@@ -190,7 +190,7 @@ export default function ImageViewerModal({ visible, images = [], index = 0, onCl
 
           <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 18, alignItems: 'center' }}>
             {current?.label ? (
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={2}>
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }} numberOfLines={2}>
                 {current.label}
               </Text>
             ) : null}

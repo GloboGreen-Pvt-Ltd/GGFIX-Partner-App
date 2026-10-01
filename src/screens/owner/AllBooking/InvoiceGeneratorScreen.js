@@ -520,7 +520,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
           >
             <ChevronLeft size={22} color="#172117" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
             Invoice Generator
           </Text>
           {ticket?.trackingId ? (
@@ -547,7 +547,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         <View className="px-4" style={{ marginTop: 12 }}>
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13.5px] font-bold text-gray-900">
+              <Text className="text-[13px] font-bold text-gray-900">
                 (A) Service Charges
               </Text>
               <View
@@ -870,7 +870,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               <Text className="text-[13px] font-extrabold text-gray-900">
                 Final Payable Amount (₹)
               </Text>
-              <Text className="text-[14px] font-extrabold text-gray-900">
+              <Text className="text-[13px] font-extrabold text-gray-900">
                 ₹{fmt(totals.finalPayable)}
               </Text>
             </View>
@@ -911,7 +911,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               <Text className="text-[13px] font-extrabold text-gray-900">
                 Net Payable Now
               </Text>
-              <Text className="text-[14px] font-extrabold" style={{ color: ACCENT_GREEN }}>
+              <Text className="text-[13px] font-extrabold" style={{ color: ACCENT_GREEN }}>
                 ₹{fmt(pay.netPayable)}
               </Text>
             </View>
@@ -946,7 +946,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   {pay.settled ? 'Balance Payable' : 'Credit Amount (Balance Payable)'}
                 </Text>
                 <Text
-                  className="text-[16px] font-extrabold"
+                  className="text-[15px] font-extrabold"
                   style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
                 >
                   ₹{fmt(pay.credit)}
@@ -1062,7 +1062,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               {pay.settled ? 'BALANCE PAYABLE' : 'CREDIT / BALANCE'}
             </Text>
             <Text
-              className="text-[21px] font-extrabold"
+              className="text-[19px] font-extrabold"
               style={{ color: pay.settled ? BRAND_GREEN_DARK : CREDIT_AMBER }}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -1100,7 +1100,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               ) : (
                 <CheckCircle2 size={18} color="#FFFFFF" />
               )}
-              <Text className="ml-2 text-white text-[15px] font-extrabold">
+              <Text className="ml-2 text-white text-[14px] font-extrabold">
                 {submitting ? 'Generating…' : 'Generate Invoice'}
               </Text>
             </LinearGradient>
@@ -1267,7 +1267,7 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
                   }}
                 >
                   <Text
-                    className="text-[13.5px] font-bold"
+                    className="text-[13px] font-bold"
                     style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
                   >
                     {lbl}

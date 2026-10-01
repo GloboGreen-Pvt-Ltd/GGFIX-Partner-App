@@ -23,7 +23,7 @@ export function StatTile({ icon, label, value, palette = 'primary', onPress, cla
         {icon}
       </View>
       <Text className="text-[11px] text-text-muted">{label}</Text>
-      <Text className={cn('text-[17px] font-extrabold mt-0.5', p.text)}>{value}</Text>
+      <Text className={cn('text-[16px] font-extrabold mt-0.5', p.text)}>{value}</Text>
     </Wrapper>
   );
 }

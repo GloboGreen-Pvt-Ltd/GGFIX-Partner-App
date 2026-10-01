@@ -11,7 +11,7 @@ export function LocationPill({ label = 'Home', sub, onPress, className }) {
       </View>
       <View className="max-w-[78%]">
         <View className="flex-row items-center">
-          <Text numberOfLines={1} className="text-[15px] font-extrabold text-text mr-1">{label}</Text>
+          <Text numberOfLines={1} className="text-[14px] font-extrabold text-text mr-1">{label}</Text>
           <ChevronDown size={16} color="#172117" />
         </View>
         {sub ? (

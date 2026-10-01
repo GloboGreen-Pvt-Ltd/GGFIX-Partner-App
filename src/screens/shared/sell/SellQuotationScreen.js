@@ -26,7 +26,7 @@ export default function SellQuotationScreen({ route }) {
   if (loading) return <Loader />;
   return (
     <View style={styles.container}>
-      <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Total Quotation : {items.length}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Total Quotation : {items.length}</Text>
       <View style={styles.table}>
         <View style={styles.headerRow}>
           <Text style={[styles.cell, { fontWeight: '700' }]}>S.No</Text>

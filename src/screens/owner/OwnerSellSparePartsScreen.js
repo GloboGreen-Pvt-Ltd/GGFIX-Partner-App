@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,11 +9,11 @@ import { uploadMedia } from '../../api/masterData';
 // Preset parts shown as default cards per group. Beyond these, the shop taps
 // "+ Add" to drop in a blank custom card (type a part name + upload photos).
 const PRESET_GROUPS = [
-  { key: 'DISPLAY',      label: 'Display Combo',  sub: 'Add main & sub screen',      icon: 'phone-portrait-outline', accent: '#004C40', tint: '#F0F8EF', slotBg: '#F0F8EF', border: '#7FB8AE', parts: ['Main Screen Display Combo', 'Sub Screen Display Combo'] },
-  { key: 'MOTHERBOARD',  label: 'Motherboard',    sub: 'Add motherboard & variants', icon: 'hardware-chip-outline',  accent: '#004C40', tint: '#F0F8EF', slotBg: '#F0F8EF', border: '#E6F7E3', parts: ['Motherboard 16GB / 512GB', 'Battery'] },
-  { key: 'FRONT_CAMERA', label: 'Front Camera',   sub: 'Add front camera',           icon: 'camera-outline',         accent: '#004C40', tint: '#F0F8EF', slotBg: '#F0F8EF', border: '#C8EEBF', parts: ['Front Camera'] },
+  { key: 'DISPLAY',      label: 'Display Combo',  sub: 'Add main & sub screen',      icon: 'phone-portrait-outline', accent: '#09AD2A', tint: '#EAF8EC', slotBg: '#EAF8EC', border: '#CDEFD5', parts: ['Main Screen Display Combo', 'Sub Screen Display Combo'] },
+  { key: 'MOTHERBOARD',  label: 'Motherboard',    sub: 'Add motherboard & variants', icon: 'hardware-chip-outline',  accent: '#09AD2A', tint: '#EAF8EC', slotBg: '#EAF8EC', border: '#CDEFD5', parts: ['Motherboard 16GB / 512GB', 'Battery'] },
+  { key: 'FRONT_CAMERA', label: 'Front Camera',   sub: 'Add front camera',           icon: 'camera-outline',         accent: '#09AD2A', tint: '#EAF8EC', slotBg: '#EAF8EC', border: '#CDEFD5', parts: ['Front Camera'] },
   { key: 'BACK_CAMERA',  label: "Back Camera's",  sub: 'Add back camera',            icon: 'camera-reverse-outline', accent: '#D97706', tint: '#FFFBEB', slotBg: '#FFFBEB', border: '#FDE68A', parts: ['Back Main Camera'] },
-  { key: 'MORE',         label: 'More Items',     sub: 'Add other components',       icon: 'apps-outline',           accent: '#004C40', tint: '#F0F8EF', slotBg: '#F0F8EF', border: '#C8EEBF', parts: ['Side Frame', 'Back Panel (Backshell)', 'Charging Sub Board', 'SIM Tray', 'Loudspeaker'] },
+  { key: 'MORE',         label: 'More Items',     sub: 'Add other components',       icon: 'apps-outline',           accent: '#09AD2A', tint: '#EAF8EC', slotBg: '#EAF8EC', border: '#CDEFD5', parts: ['Side Frame', 'Back Panel (Backshell)', 'Charging Sub Board', 'SIM Tray', 'Loudspeaker'] },
 ];
 
 let nextCustomId = 1;
@@ -179,10 +179,10 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
               <ActivityIndicator color={g.accent} />
             ) : (
               <View style={{ alignItems: 'center' }}>
-                <Ionicons name={g.icon} size={30} color="#8FA08F" />
+                <Ionicons name={g.icon} size={30} color="#8E8E8E" />
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
                   <Ionicons name="cloud-upload-outline" size={14} color={g.accent} />
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#667066', marginLeft: 4 }}>Upload image</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#6B6B6B', marginLeft: 4 }}>Upload image</Text>
                 </View>
               </View>
             )}
@@ -195,34 +195,34 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       {/* Header */}
-      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EFF5EE' }}>
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F3F3' }}>
         <View style={{ paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' }}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E6F7E3', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="chevron-back" size={19} color="#004C40" />
+          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#EAF8EC', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="chevron-back" size={19} color="#09AD2A" />
           </Pressable>
-          <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#172117', marginRight: 36 }}>Spare Parts</Text>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '800', color: '#1E1E1E', marginRight: 36 }}>Spare Parts</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ backgroundColor: '#F8F8F8' }} contentContainerStyle={{ padding: 12, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
         {PRESET_GROUPS.map((g) => {
           const customList = added[g.key] || [];
           const selectedCount = items.filter((it) => it.groupKey === g.key).length;
           return (
-            <View key={g.key} style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 10, marginBottom: 10, shadowColor: '#172117', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
+            <View key={g.key} style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 10, marginBottom: 10, shadowColor: '#1E1E1E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
               {/* Group header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                 <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: g.tint, alignItems: 'center', justifyContent: 'center', marginRight: 9 }}>
                   <Ionicons name={g.icon} size={16} color={g.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#172117' }}>{g.label}</Text>
-                  <Text style={{ fontSize: 11, color: '#8FA08F', marginTop: 1 }}>{g.sub}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1E1E1E' }}>{g.label}</Text>
+                  <Text style={{ fontSize: 11, color: '#8E8E8E', marginTop: 1 }}>{g.sub}</Text>
                 </View>
-                <Pressable onPress={() => addCustomCard(g.key)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', backgroundColor: '#004C40', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, opacity: pressed ? 0.85 : 1 })}>
+                <TouchableOpacity onPress={() => addCustomCard(g.key)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={`Add a ${g.label} part`} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#09AD2A', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}>
                   <Ionicons name="add" size={14} color="#fff" />
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', marginLeft: 3 }}>Add</Text>
-                </Pressable>
+                </TouchableOpacity>
               </View>
 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5 }}>
@@ -234,9 +234,9 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
                       {renderPhotos(g, name, true)}
                       <Pressable
                         onPress={() => togglePreset(g.key, name)}
-                        style={{ borderRadius: 12, borderWidth: 1, borderColor: active ? g.accent : '#E2E8E2', backgroundColor: active ? g.tint : '#FFFFFF', marginTop: 6, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center' }}
+                        style={{ borderRadius: 12, borderWidth: 1, borderColor: active ? g.accent : '#E6E6E6', backgroundColor: active ? g.tint : '#FFFFFF', marginTop: 6, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center' }}
                       >
-                        <Text style={{ fontSize: 12, fontWeight: active ? '800' : '700', color: active ? g.accent : '#172117', textAlign: 'center' }} numberOfLines={2}>{name}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: active ? '800' : '700', color: active ? g.accent : '#1E1E1E', textAlign: 'center' }} numberOfLines={2}>{name}</Text>
                       </Pressable>
                     </View>
                   );
@@ -246,16 +246,16 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
                 {customList.map((c) => (
                   <View key={c.id} style={{ width: '50%', paddingHorizontal: 5, marginBottom: 10 }}>
                     {renderPhotos(g, c.id, false)}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF', marginTop: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E6E6E6', backgroundColor: '#FFFFFF', marginTop: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 2 }}>
                       <TextInput
                         placeholder="Enter part name"
-                        placeholderTextColor="#8FA08F"
+                        placeholderTextColor="#8E8E8E"
                         defaultValue={c.name}
                         onChangeText={(v) => updateCustomName(g.key, c.id, v)}
-                        style={{ flex: 1, fontSize: 12, fontWeight: '700', color: '#172117', paddingVertical: 6 }}
+                        style={{ flex: 1, fontSize: 12, fontWeight: '700', color: '#1E1E1E', paddingVertical: 6 }}
                       />
                       <Pressable onPress={() => removeCustomCard(g.key, c.id)} hitSlop={8} style={{ padding: 4 }}>
-                        <Ionicons name="close-circle" size={16} color="#8FA08F" />
+                        <Ionicons name="close-circle" size={16} color="#8E8E8E" />
                       </Pressable>
                     </View>
                   </View>
@@ -273,11 +273,11 @@ export default function OwnerSellSparePartsScreen({ navigation }) {
       </ScrollView>
 
       {/* Bottom Sell Now bar */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#EFF5EE', shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
-        <Pressable onPress={onSellNow} disabled={disabled} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? '#8FA08F' : '#004C40', borderRadius: 999, paddingVertical: 13, opacity: pressed ? 0.9 : 1 })}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', marginRight: 6 }}>Sell Now{totalSelected ? ` (${totalSelected})` : ''}</Text>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#F3F3F3', shadowColor: '#1E1E1E', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+        <TouchableOpacity onPress={onSellNow} disabled={disabled} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 50, backgroundColor: '#09AD2A', opacity: disabled ? 0.45 : 1, borderRadius: 999, paddingVertical: 13 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', marginRight: 6 }}>Sell Now{totalSelected ? ` (${totalSelected})` : ''}</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" />
-        </Pressable>
+        </TouchableOpacity>
       </View>
     </View>
   );

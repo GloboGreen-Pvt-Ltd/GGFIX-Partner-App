@@ -92,7 +92,7 @@ export default function CreateAccountScreen({ navigation }) {
             <UserPlus size={26} color={GREEN} />
           </View>
 
-          <Text style={{ fontSize: 22, fontWeight: '800', color: '#172117', letterSpacing: -0.4 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#172117', letterSpacing: -0.4 }}>
             Create account
           </Text>
 
@@ -133,7 +133,7 @@ export default function CreateAccountScreen({ navigation }) {
             fullWidth
             size="lg"
             style={{ marginTop: 16, height: 46, borderRadius: 16 }}
-            textClassName="text-[15px] font-extrabold tracking-wide"
+            textClassName="text-[14px] font-extrabold tracking-wide"
           >
             Back to sign in
           </Button>

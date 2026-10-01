@@ -82,7 +82,7 @@ export default function ShopChatInboxScreen({ navigation }) {
               <ChevronLeft size={20} color="#172117" />
             </Pressable>
             <View className="flex-1 ml-2">
-              <Text className="text-text text-[16px] font-extrabold">Messages</Text>
+              <Text className="text-text text-[15px] font-extrabold">Messages</Text>
               <View className="flex-row items-center mt-0.5">
                 <MessageCircle size={11} color="#667066" />
                 <Text className="text-text-muted text-[11px] ml-1">
@@ -155,7 +155,7 @@ export default function ShopChatInboxScreen({ navigation }) {
                 </View>
                 <View className="flex-1 ml-3">
                   <View className="flex-row items-center">
-                    <Text className="text-[14px] font-extrabold text-text flex-1" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-text flex-1" numberOfLines={1}>
                       {t.counterpartName || 'Customer'}
                     </Text>
                     <Text className={`text-[10px] font-semibold ${unread > 0 ? 'text-emerald-700' : 'text-text-muted'}`}>

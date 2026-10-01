@@ -77,7 +77,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         size="lg"
         rightIcon={!loading ? <ChevronRight size={18} color="#fff" /> : null}
         style={{ marginTop: 12, height: 46, borderRadius: 16 }}
-        textClassName="text-[15px] font-extrabold tracking-wide"
+        textClassName="text-[14px] font-extrabold tracking-wide"
       >
         Continue
       </Button>

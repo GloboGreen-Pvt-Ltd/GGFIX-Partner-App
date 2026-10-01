@@ -257,7 +257,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   headerRow: {
     flexDirection: 'row',
@@ -268,9 +268,9 @@ const styles = StyleSheet.create({
     paddingBottom: rs(6),
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10) },
-  headerDate: { fontSize: rf(26), fontWeight: '800', color: '#004C40', lineHeight: rlh(28) },
-  headerDayLong: { fontSize: rf(13.5), fontWeight: '700', color: '#172117' },
-  headerMonth: { fontSize: rf(11.5), color: '#667066', marginTop: rs(1) },
+  headerDate: { fontSize: 23, fontWeight: '800', color: '#004C40', lineHeight: rlh(28) },
+  headerDayLong: { fontSize: 13, fontWeight: '700', color: '#172117' },
+  headerMonth: { fontSize: 11.5, color: '#667066', marginTop: rs(1) },
   todayBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     paddingVertical: rs(6),
     borderRadius: rs(10),
   },
-  todayBtnText: { color: '#004C40', fontSize: rf(12), fontWeight: '700' },
+  todayBtnText: { color: '#004C40', fontSize: 12, fontWeight: '700' },
 
   weekStrip: {
     flexDirection: 'row',
@@ -301,14 +301,14 @@ const styles = StyleSheet.create({
   },
   weekDaySelected: { backgroundColor: '#004C40', borderColor: '#004C40' },
   weekDaySunday: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
-  weekDayName: { fontSize: rf(10.5), color: '#667066', fontWeight: '600' },
-  weekDayNum: { fontSize: rf(15), fontWeight: '800', color: '#172117', marginTop: rs(3) },
+  weekDayName: { fontSize: 10.5, color: '#667066', fontWeight: '600' },
+  weekDayNum: { fontSize: 14, fontWeight: '800', color: '#172117', marginTop: rs(3) },
   weekDayTextSelected: { color: '#FFFFFF' },
   weekDayTextSunday: { color: '#FFFFFF' },
 
   scheduleContent: { paddingHorizontal: rs(14), paddingTop: rs(6), paddingBottom: rs(24) },
   scheduleHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: rs(10) },
-  scheduleTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  scheduleTitle: { fontSize: 14, fontWeight: '800', color: '#172117' },
   viewListBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     paddingVertical: rs(6),
     borderRadius: rs(10),
   },
-  viewListBtnText: { color: '#004C40', fontSize: rf(12), fontWeight: '700' },
+  viewListBtnText: { color: '#004C40', fontSize: 12, fontWeight: '700' },
 
   timeline: {
     backgroundColor: 'transparent',
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: rs(4),
   },
-  hourPillText: { fontSize: rf(11), fontWeight: '700', color: '#004C40' },
+  hourPillText: { fontSize: 11, fontWeight: '700', color: '#004C40' },
   connectorCol: { width: rs(22), alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   connectorLine: { position: 'absolute', top: 0, bottom: 0, left: rs(10), borderLeftWidth: 1.5, borderStyle: 'dashed', borderColor: '#B7D5CF' },
   connectorDot: { width: rs(9), height: rs(9), borderRadius: rs(5), backgroundColor: '#004C40', zIndex: 1 },
@@ -370,11 +370,11 @@ const styles = StyleSheet.create({
   },
   eventChipCheckIn: { backgroundColor: '#E6F7E3' },
   eventChipCheckOut: { backgroundColor: '#E6F7E3' },
-  eventChipText: { fontSize: rf(11.5), fontWeight: '700', color: '#004C40' },
-  eventChipTime: { fontSize: rf(10.5), fontWeight: '600', color: '#004C40' },
+  eventChipText: { fontSize: 11.5, fontWeight: '700', color: '#004C40' },
+  eventChipTime: { fontSize: 10.5, fontWeight: '600', color: '#004C40' },
 
   empty: {
-    fontSize: rf(12),
+    fontSize: 12,
     color: '#667066',
     textAlign: 'center',
     marginTop: rs(16),
@@ -392,8 +392,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8E2',
   },
   listDot: { width: rs(10), height: rs(10), borderRadius: rs(5), marginRight: rs(12) },
-  listRowLabel: { flex: 1, fontSize: rf(13), fontWeight: '700', color: '#172117' },
-  listRowValue: { fontSize: rf(13), fontWeight: '800', color: '#004C40' },
+  listRowLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: '#172117' },
+  listRowValue: { fontSize: 13, fontWeight: '800', color: '#004C40' },
 
   statusNote: {
     marginTop: rs(14),
@@ -401,5 +401,5 @@ const styles = StyleSheet.create({
     borderRadius: rs(8),
     padding: rs(10),
   },
-  statusNoteText: { fontSize: rf(12), fontWeight: '600', color: '#92400E' },
+  statusNoteText: { fontSize: 12, fontWeight: '600', color: '#92400E' },
 });

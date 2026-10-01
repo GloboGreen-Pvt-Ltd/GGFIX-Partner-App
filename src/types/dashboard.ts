@@ -6,6 +6,9 @@ export interface DashboardTool {
   label: string;
   icon: LucideIcon;
   color?: string;
+  /** Optional explicit glyph colour / circle fill (Home's solid-icon tiles); default derives from `color`. */
+  iconColor?: string;
+  iconBg?: string;
   /** Present when the route is a sibling of OwnerTabs on the parent stack. */
   via?: 'parent';
   params?: Record<string, unknown>;

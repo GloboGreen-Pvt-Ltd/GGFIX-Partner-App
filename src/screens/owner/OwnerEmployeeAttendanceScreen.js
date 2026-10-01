@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   card: {
     backgroundColor: '#FFFFFF',
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(12) },
-  cardTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  cardTitle: { fontSize: 14, fontWeight: '800', color: '#172117' },
 
   monthPill: {
     flexDirection: 'row',
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     gap: rs(7),
   },
-  monthPillText: { color: '#FFFFFF', fontSize: rf(11.5), fontWeight: '700' },
+  monthPillText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   monthPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
 
   statRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: rs(14) },
@@ -396,8 +396,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  statRingValue: { fontSize: rf(14), fontWeight: '800', color: '#172117' },
-  statRingLabel: { fontSize: rf(10.5), fontWeight: '700', marginTop: rs(5) },
+  statRingValue: { fontSize: 13, fontWeight: '800', color: '#172117' },
+  statRingLabel: { fontSize: 10.5, fontWeight: '700', marginTop: rs(5) },
 
   calendar: { marginTop: rs(4), marginBottom: rs(8) },
   calRowHeader: { flexDirection: 'row', marginBottom: rs(6) },
@@ -411,12 +411,12 @@ const styles = StyleSheet.create({
   calHeaderCell: {
     flex: 1,
     textAlign: 'center',
-    fontSize: rf(10),
+    fontSize: 10,
     fontWeight: '800',
     color: '#172117',
   },
   calHeaderSunday: { color: '#DC2626' },
-  calCellNum: { fontSize: rf(13), fontWeight: '700', color: '#172117' },
+  calCellNum: { fontSize: 13, fontWeight: '700', color: '#172117' },
   calCellSunday: { color: '#DC2626' },
   calCellToday: { color: '#004C40', fontWeight: '800' },
   calDayWrap: { width: rs(28), height: rs(28), borderRadius: rs(14), alignItems: 'center', justifyContent: 'center' },
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(10), marginTop: rs(8) },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: rs(4) },
   legendDot: { width: rs(8), height: rs(8), borderRadius: rs(4) },
-  legendText: { fontSize: rf(10.5), color: '#172117', fontWeight: '500' },
+  legendText: { fontSize: 10.5, color: '#172117', fontWeight: '500' },
 
   dailySection: {
     marginTop: rs(12),
@@ -438,9 +438,9 @@ const styles = StyleSheet.create({
     shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   dailyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(10) },
-  dailyTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  dailyTitle: { fontSize: 14, fontWeight: '800', color: '#172117' },
   dailyMonthPill: { flexDirection: 'row', alignItems: 'center', gap: rs(8) },
-  dailyMonthText: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  dailyMonthText: { fontSize: 12, fontWeight: '800', color: '#004C40' },
   dailyMonthBtn: {
     backgroundColor: '#004C40',
     width: rs(26),
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   dayTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayDateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
   dayTopRight: { flexDirection: 'row', gap: rs(6) },
-  dayDate: { fontSize: rf(12.5), fontWeight: '800', color: '#172117' },
+  dayDate: { fontSize: 12.5, fontWeight: '800', color: '#172117' },
   dayPill: {
     paddingHorizontal: rs(10),
     paddingVertical: rs(3),
@@ -476,15 +476,15 @@ const styles = StyleSheet.create({
   dayPillPermission: { backgroundColor: '#FEE2E2' },
   dayPillLeave: { backgroundColor: '#DC2626' },
   dayPillWeekOff: { backgroundColor: '#004C40' },
-  dayPillText: { fontSize: rf(10), fontWeight: '700', color: '#172117' },
-  dayPillTextOn: { fontSize: rf(10), fontWeight: '700', color: '#FFFFFF' },
+  dayPillText: { fontSize: 10, fontWeight: '700', color: '#172117' },
+  dayPillTextOn: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
 
   dayCols: { flexDirection: 'row', marginTop: rs(10), alignItems: 'center' },
   dayCol: { flex: 1 },
   dayColDivider: { width: rs(1), height: rs(30), backgroundColor: '#E2E8E2', marginHorizontal: rs(6) },
-  dayColValue: { fontSize: rf(13.5), fontWeight: '800', color: '#004C40' },
+  dayColValue: { fontSize: 13, fontWeight: '800', color: '#004C40' },
   dayColValueLate: { color: '#DC2626' },
-  dayColLabel: { fontSize: rf(10.5), color: '#667066', marginTop: rs(3) },
+  dayColLabel: { fontSize: 10.5, color: '#667066', marginTop: rs(3) },
 
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', paddingVertical: rs(16) },
+  empty: { fontSize: 12, color: '#667066', textAlign: 'center', paddingVertical: rs(16) },
 });

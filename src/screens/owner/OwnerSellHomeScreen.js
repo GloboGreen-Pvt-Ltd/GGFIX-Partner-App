@@ -26,23 +26,25 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { EmptyState, Loader } from '../../components/rnr';
-import { getDeviceCategories, getBanners } from '../../api/masterData';
+import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
+import DeviceImage from '../../components/DeviceImage';
 import { tintFor } from '../shared/categoryTints';
 import { selectShopId, selectUserId } from '../../store/authSlice';
 
-// GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FAF9';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3
+// (same as the rest of the Sell flow: screens/shared/sell/sellTheme.js).
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
 const ACTIVE_FG = '#B45309';
 const ACTIVE_BG = '#FFF3CD';
 // Kept for the parts of this file untouched by the redesign (device-category
@@ -101,7 +103,7 @@ function bannerImage(b) {
 }
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -136,6 +138,8 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const maxContentWidth = isTablet ? 1000 : undefined;
 
   const [cats, setCats] = useState([]);
+  // categoryMenuKey -> imageUrl from the active SELL Category Menu rows.
+  const [menuImages, setMenuImages] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [banners, setBanners] = useState([]);
@@ -180,7 +184,9 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   useEffect(() => {
     (async () => {
       try {
-        const list = await getDeviceCategories();
+        // Tile images come from the admin's Category Menu (type SELL).
+        const [list, imgs] = await Promise.all([getDeviceCategories(), getCategoryMenuImages('SELL')]);
+        setMenuImages(imgs);
         const ORDER = ['mobile', 'laptop', 'tablet', 'smartwatches', 'audio device'];
         const rank = (c) => {
           const i = ORDER.indexOf((c.name || '').trim().toLowerCase());
@@ -237,10 +243,11 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   // opens with — "Sell Now" just gives that same action a dedicated button.
   const startSelling = () => { if (filtered.length) goPickCategory(filtered[0]); };
 
-  const CHIP_SIZE = isSmall ? 78 : isTablet ? 118 : 92;
-  const CHIP_IMG_SIZE = isSmall ? 52 : isTablet ? 80 : 62;
-  const CHIP_ICON_SIZE = isSmall ? 26 : isTablet ? 40 : 32;
-  const CHIP_LABEL_F = isSmall ? 10.5 : isTablet ? 13.5 : 11.5;
+  // Compact tiles, same sizes as the Buy screen's category row.
+  const CHIP_SIZE = isSmall ? 50 : isTablet ? 80 : 56;
+  const CHIP_IMG_SIZE = isSmall ? 30 : isTablet ? 52 : 34;
+  const CHIP_ICON_SIZE = isSmall ? 18 : isTablet ? 28 : 20;
+  const CHIP_LABEL_F = isSmall ? 9.5 : isTablet ? 12 : 10;
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
@@ -266,7 +273,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   <ChevronLeft size={19} color={TEXT_PRIMARY} />
                 </Pressable>
                 <View className="flex-1 items-center">
-                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on GGFIX</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on GGFIX</Text>
                   <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
                 <Pressable
@@ -307,7 +314,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 data={[{ all: true }, ...filtered]}
                 keyExtractor={(c, i) => (c.all ? 'all' : c.id || String(i))}
                 showsHorizontalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+                ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
                 contentContainerStyle={{ paddingHorizontal: padH }}
                 renderItem={({ item: c }) => {
                   if (c.all) {
@@ -319,23 +326,31 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                             rather than fabricating selectable-filter state. */}
                         <View
                           className="items-center justify-center"
-                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: MINT, borderWidth: 1.5, borderColor: BRIGHT, ...cardShadow }}
+                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 14, backgroundColor: MINT, borderWidth: 1.5, borderColor: BRIGHT, ...cardShadow }}
                         >
                           <LayoutGrid size={CHIP_ICON_SIZE} color={ACCENT} />
                         </View>
-                        <Text className="text-center mt-1.5 font-bold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: ACCENT }}>All</Text>
+                        <Text className="text-center mt-1.5 font-bold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: PRIMARY }}>All</Text>
                       </Pressable>
                     );
                   }
                   const meta = metaFor(c.code);
-                  const uri = imgUri(c);
+                  const menuUri = menuImages[categoryMenuKey(c.name)] || menuImages[categoryMenuKey(c.code)] || null;
+                  const uri = menuUri || imgUri(c);
                   return (
                     <Pressable onPress={() => goPickCategory(c)} className="items-center active:opacity-80" style={{ width: CHIP_SIZE }}>
                       <View
                         className="items-center justify-center overflow-hidden"
-                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: tintFor(c.code), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
+                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 14, backgroundColor: tintFor(c.code), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
                       >
-                        {uri ? <Image source={{ uri }} style={{ width: CHIP_IMG_SIZE, height: CHIP_IMG_SIZE }} resizeMode="contain" /> : <Text style={{ fontSize: CHIP_ICON_SIZE }}>{meta.emoji}</Text>}
+                        {menuUri ? (
+                          // Category Menu image: a large transparent cut-out, fitted near tile size.
+                          <Image source={{ uri: menuUri }} style={{ width: '86%', height: '86%' }} resizeMode="contain" resizeMethod="resize" />
+                        ) : uri ? (
+                          <Image source={{ uri }} style={{ width: CHIP_IMG_SIZE, height: CHIP_IMG_SIZE }} resizeMode="contain" />
+                        ) : (
+                          <Text style={{ fontSize: CHIP_ICON_SIZE }}>{meta.emoji}</Text>
+                        )}
                       </View>
                       <Text className="text-center mt-1.5 font-semibold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: TEXT_PRIMARY }}>{c.name}</Text>
                     </Pressable>
@@ -388,18 +403,18 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 <View style={{ flex: isSmall ? 1.3 : 1, padding: isSmall ? 14 : 18 }}>
                   <View className="flex-row items-center">
                     <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: ACCENT, marginRight: 9 }}>
-                      <Text className="text-white font-extrabold" style={{ fontSize: 15 }}>G</Text>
+                      <Text className="text-white font-extrabold" style={{ fontSize: 14 }}>G</Text>
                     </View>
                     <View>
-                      <Text className="font-extrabold" style={{ fontSize: 14, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
+                      <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
                       <Text style={{ fontSize: 7, color: TEXT_SECONDARY, letterSpacing: 0.5 }}>SMART DEVICES. SMARTER CHOICE.</Text>
                     </View>
                   </View>
 
-                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: TEXT_PRIMARY, marginTop: 12 }}>
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 17 : 19, color: TEXT_PRIMARY, marginTop: 12 }}>
                     Sell Your Devices
                   </Text>
-                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: ACCENT }}>
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 17 : 19, color: ACCENT }}>
                     Get the Best Value
                   </Text>
                   <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 3 }} numberOfLines={1}>
@@ -426,7 +441,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     className="flex-row items-center active:opacity-90"
                     style={{ marginTop: 6, borderRadius: 999, backgroundColor: ACCENT, paddingVertical: 6, paddingLeft: 18, paddingRight: 6, alignSelf: 'flex-start', ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.3 }}
                   >
-                    <Text className="text-white font-extrabold" style={{ fontSize: 13.5 }}>Sell Now</Text>
+                    <Text className="text-white font-extrabold" style={{ fontSize: 13 }}>Sell Now</Text>
                     <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: '#FFFFFF', marginLeft: 10 }}>
                       <ChevronRight size={15} color={ACCENT} />
                     </View>
@@ -438,7 +453,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     instant-payment badge, and the decorative handwritten
                     closing line. */}
                 <LinearGradient
-                  colors={[BRIGHT, ACCENT]}
+                  colors={[ACCENT, PRIMARY]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={{ width: isSmall ? 96 : 118, padding: 10, justifyContent: 'space-between' }}
@@ -484,7 +499,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
           {listings.length > 0 ? (
             <View style={{ paddingHorizontal: padH, marginTop: 16 }}>
               <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
-                <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY }}>
+                <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }}>
                   Your listed products
                 </Text>
                 <Pressable
@@ -492,7 +507,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   className="flex-row items-center active:opacity-70"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT }}>View all</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 12.5, color: PRIMARY }}>View all</Text>
                   <ChevronRight size={15} color={ACCENT} />
                 </Pressable>
               </View>
@@ -509,10 +524,10 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   const sold = status === 'SOLD' || status === 'COMPLETED';
                   const cancelled = status === 'CANCELLED' || status === 'CANCELED';
                   const pill = sold
-                    ? { label: 'Sold', ink: ACCENT, bg: MINT }
+                    ? { label: 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
                     : cancelled
                       ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
-                      : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: ACTIVE_FG, bg: ACTIVE_BG };
+                      : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: PRIMARY, bg: MINT };
                   // Real fields (same ones the My Listings screen already
                   // reads) — not the fabricated view/like counts the
                   // reference showed, which nothing in this app tracks.
@@ -533,7 +548,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                             style={{ width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: MINT, overflow: 'hidden' }}
                           >
                             {img ? (
-                              <Image source={img} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                              <DeviceImage url={p.imageUrl} style={{ width: '88%', height: '88%' }} contentFit="contain" />
                             ) : (
                               <Package size={28} color={ACCENT} />
                             )}
@@ -561,7 +576,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                             ({spec})
                           </Text>
                         ) : null}
-                        <Text className="font-extrabold" style={{ fontSize: 15, color: ACCENT, marginTop: 5 }}>
+                        <Text className="font-extrabold" style={{ fontSize: 14, color: PRIMARY, marginTop: 5 }}>
                           {price}
                         </Text>
                       </Pressable>

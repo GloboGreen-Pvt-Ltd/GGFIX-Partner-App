@@ -33,16 +33,16 @@ import { rf, rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 
 // GGFIX palette — same values used across the rest of the booking flow.
-const ACCENT = '#004C40';       // Dark Green
-const PRIMARY = '#006B57';      // Primary Green
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FAF9';
+const ACCENT = '#09AD2A';       // GGFIX green
+const PRIMARY = '#078F23';      // deeper GGFIX green
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F8F8F8';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
-const SUCCESS = '#16A34A';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const SUCCESS = '#09AD2A';
 const CREATED_BG = '#FFF3E8';
 const CREATED_FG = '#B45309';
 const CREATED_BORDER = '#F3D9BC';
@@ -73,9 +73,9 @@ const STATUS_VARIANT = {
 
 const TONE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.14)', fg: '#B45309', border: 'rgba(245, 158, 11, 0.35)' },
-  blue:   { bg: 'rgba(0, 76, 64, 0.10)',    fg: ACCENT,    border: 'rgba(0, 76, 64, 0.28)' },
-  purple: { bg: 'rgba(0, 107, 87, 0.12)',   fg: PRIMARY,   border: 'rgba(0, 107, 87, 0.30)' },
-  green:  { bg: 'rgba(22, 163, 74, 0.12)',  fg: SUCCESS,   border: 'rgba(22, 163, 74, 0.32)' },
+  blue:   { bg: 'rgba(9, 173, 42, 0.10)',    fg: ACCENT,    border: 'rgba(9, 173, 42, 0.28)' },
+  purple: { bg: 'rgba(7, 143, 35, 0.12)',   fg: PRIMARY,   border: 'rgba(7, 143, 35, 0.30)' },
+  green:  { bg: 'rgba(9, 173, 42, 0.12)',  fg: SUCCESS,   border: 'rgba(9, 173, 42, 0.32)' },
   red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C', border: 'rgba(220, 38, 38, 0.32)' },
 };
 
@@ -90,9 +90,9 @@ const COLOR_HEX = {
 };
 
 function colorToHex(name) {
-  if (!name) return '#CBD5CB';
+  if (!name) return '#D6D6D6';
   const k = String(name).trim().toLowerCase().replace(/\s+/g, '');
-  return COLOR_HEX[k] || COLOR_HEX[k.split(/(?=[A-Z])/)[0]] || '#CBD5CB';
+  return COLOR_HEX[k] || COLOR_HEX[k.split(/(?=[A-Z])/)[0]] || '#D6D6D6';
 }
 
 // Splits a tracking id into its letter prefix and trailing digits so the header
@@ -135,9 +135,9 @@ function SectionHeader({ icon: Icon, label, subtitle, right }) {
         <Icon size={rf(15)} color={ACCENT} />
       </View>
       <View className="flex-1">
-        <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY }}>{label}</Text>
+        <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY }}>{label}</Text>
         {subtitle ? (
-          <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>{subtitle}</Text>
+          <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>{subtitle}</Text>
         ) : null}
       </View>
       {right}
@@ -154,7 +154,7 @@ function HeaderAction({ icon: Icon, label, onPress }) {
       style={{ borderRadius: 999, paddingHorizontal: rs(10), paddingVertical: rs(6), backgroundColor: MINT }}
     >
       <Icon size={rf(12)} color={ACCENT} />
-      <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: rs(4) }}>{label}</Text>
+      <Text className="font-extrabold" style={{ fontSize: 10.5, color: ACCENT, marginLeft: rs(4) }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -177,16 +177,16 @@ function TimelineRow({ icon: Icon, label, value, sub, done, right, isLast }) {
       </View>
       <View className="flex-1" style={{ paddingBottom: isLast ? 0 : rs(18), marginLeft: rs(12) }}>
         <View className="flex-row items-center justify-between">
-          <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), letterSpacing: 0.6, color: TEXT_SECONDARY }} numberOfLines={1}>
+          <Text className="uppercase font-bold" style={{ fontSize: 9.5, letterSpacing: 0.6, color: TEXT_SECONDARY }} numberOfLines={1}>
             {label}
           </Text>
           {right}
         </View>
-        <Text className="font-extrabold" style={{ fontSize: rf(13), color: TEXT_PRIMARY, marginTop: rs(2) }} numberOfLines={2}>
+        <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY, marginTop: rs(2) }} numberOfLines={2}>
           {value}
         </Text>
         {sub ? (
-          <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>
+          <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>
             {sub}
           </Text>
         ) : null}
@@ -342,10 +342,10 @@ export default function DeviceDetailScreen({ route, navigation }) {
               <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: rf(18.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
                 Device Details
               </Text>
-              <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+              <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
                 View complete information about this device
               </Text>
             </View>
@@ -355,7 +355,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
               className="flex-row items-center"
               style={{ maxWidth: rs(160), borderRadius: 999, paddingHorizontal: rs(11), paddingVertical: rs(8), backgroundColor: MINT }}
             >
-              <Text style={{ fontSize: rf(10), fontWeight: '800' }} numberOfLines={1}>
+              <Text style={{ fontSize: 10, fontWeight: '800' }} numberOfLines={1}>
                 <Text style={{ color: TEXT_PRIMARY }}>#{tid.prefix}</Text>
                 <Text style={{ color: ACCENT }}>{tid.digits}</Text>
               </Text>
@@ -394,14 +394,14 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), letterSpacing: 0.7, color: TEXT_SECONDARY }}>
+                  <Text className="uppercase font-bold" style={{ fontSize: 9.5, letterSpacing: 0.7, color: TEXT_SECONDARY }}>
                     DEVICE
                   </Text>
-                  <Text className="font-extrabold" style={{ fontSize: rf(18), marginTop: rs(2), color: TEXT_PRIMARY }} numberOfLines={2}>
+                  <Text className="font-extrabold" style={{ fontSize: 17, marginTop: rs(2), color: TEXT_PRIMARY }} numberOfLines={2}>
                     {deviceName}
                   </Text>
                   {storageLabel ? (
-                    <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+                    <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
                       {storageLabel}
                     </Text>
                   ) : null}
@@ -413,7 +413,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                           backgroundColor: colorToHex(colorName), borderWidth: 1, borderColor: BORDER,
                         }}
                       />
-                      <Text style={{ fontSize: rf(11.5), color: TEXT_PRIMARY, marginLeft: rs(6), fontWeight: '600' }} numberOfLines={1}>
+                      <Text style={{ fontSize: 11.5, color: TEXT_PRIMARY, marginLeft: rs(6), fontWeight: '600' }} numberOfLines={1}>
                         {colorName}
                       </Text>
                     </View>
@@ -424,7 +424,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   style={{ paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: statusTone.bg, borderWidth: 1, borderColor: statusTone.border }}
                 >
                   <View style={{ width: rs(6), height: rs(6), borderRadius: rs(3), backgroundColor: statusTone.fg, marginRight: rs(5) }} />
-                  <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: statusTone.fg }} numberOfLines={1}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: statusTone.fg }} numberOfLines={1}>
                     {currentStatusLabel}
                   </Text>
                 </View>
@@ -443,11 +443,11 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   >
                     <Tag size={rf(14)} color={ACCENT} />
                   </View>
-                  <Text className="uppercase font-bold" style={{ fontSize: rf(8.5), letterSpacing: 0.5, color: TEXT_SECONDARY }}>
+                  <Text className="uppercase font-bold" style={{ fontSize: 8.5, letterSpacing: 0.5, color: TEXT_SECONDARY }}>
                     TRACKING ID
                   </Text>
                   <TouchableOpacity onPress={copyTrackingId} activeOpacity={0.7} className="flex-row items-center" style={{ marginTop: rs(3) }}>
-                    <Text className="font-extrabold" style={{ fontSize: rf(11.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+                    <Text className="font-extrabold" style={{ fontSize: 11.5, color: TEXT_PRIMARY }} numberOfLines={1}>
                       #{trackingId}
                     </Text>
                     <Copy size={rf(10)} color={TEXT_SECONDARY} style={{ marginLeft: rs(5) }} />
@@ -463,20 +463,20 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   >
                     <Calendar size={rf(14)} color={ACCENT} />
                   </View>
-                  <Text className="uppercase font-bold" style={{ fontSize: rf(8.5), letterSpacing: 0.5, color: TEXT_SECONDARY }}>
+                  <Text className="uppercase font-bold" style={{ fontSize: 8.5, letterSpacing: 0.5, color: TEXT_SECONDARY }}>
                     BOOKED ON
                   </Text>
                   {bookedSplit ? (
                     <>
-                      <Text className="font-bold" style={{ fontSize: rf(11), color: TEXT_PRIMARY, marginTop: rs(3) }} numberOfLines={1}>
+                      <Text className="font-bold" style={{ fontSize: 11, color: TEXT_PRIMARY, marginTop: rs(3) }} numberOfLines={1}>
                         {bookedSplit.date}
                       </Text>
-                      <Text style={{ fontSize: rf(10), color: TEXT_SECONDARY }} numberOfLines={1}>
+                      <Text style={{ fontSize: 10, color: TEXT_SECONDARY }} numberOfLines={1}>
                         {bookedSplit.time}
                       </Text>
                     </>
                   ) : (
-                    <Text className="font-bold" style={{ fontSize: rf(11), color: TEXT_PRIMARY, marginTop: rs(3) }}>—</Text>
+                    <Text className="font-bold" style={{ fontSize: 11, color: TEXT_PRIMARY, marginTop: rs(3) }}>—</Text>
                   )}
                 </View>
 
@@ -492,14 +492,14 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   >
                     <CheckCircle2 size={rf(14)} color={CREATED_FG} />
                   </View>
-                  <Text className="uppercase font-bold" style={{ fontSize: rf(8.5), letterSpacing: 0.5, color: TEXT_SECONDARY }}>
+                  <Text className="uppercase font-bold" style={{ fontSize: 8.5, letterSpacing: 0.5, color: TEXT_SECONDARY }}>
                     BOOKING
                   </Text>
                   <View
                     className="self-start rounded-full"
                     style={{ marginTop: rs(5), paddingHorizontal: rs(9), paddingVertical: rs(4), backgroundColor: CREATED_BG, borderWidth: 1, borderColor: CREATED_BORDER }}
                   >
-                    <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: CREATED_FG }} numberOfLines={1}>
+                    <Text className="font-extrabold" style={{ fontSize: 9.5, color: CREATED_FG }} numberOfLines={1}>
                       Created by Shop
                     </Text>
                   </View>
@@ -518,7 +518,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                 right={canViewInvoice ? <HeaderAction icon={ReceiptText} label="View Invoice" onPress={goViewInvoice} /> : null}
               />
               {lineItems.length === 0 ? (
-                <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY }}>No service items recorded.</Text>
+                <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>No service items recorded.</Text>
               ) : (
                 <>
                   {lineItems.map((item, idx) => (
@@ -527,19 +527,19 @@ export default function DeviceDetailScreen({ route, navigation }) {
                         className="items-center justify-center"
                         style={{ height: rs(24), width: rs(24), borderRadius: rs(12), marginRight: rs(10), backgroundColor: MINT }}
                       >
-                        <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT }}>{idx + 1}</Text>
+                        <Text style={{ fontSize: 10.5, fontWeight: '800', color: ACCENT }}>{idx + 1}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text className="font-bold" style={{ fontSize: rf(12.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+                        <Text className="font-bold" style={{ fontSize: 12.5, color: TEXT_PRIMARY }} numberOfLines={1}>
                           {item.label}
                         </Text>
                         {item.description ? (
-                          <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                          <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
                             {item.description}
                           </Text>
                         ) : null}
                       </View>
-                      <Text className="font-extrabold" style={{ fontSize: rf(12.5), color: TEXT_PRIMARY }}>
+                      <Text className="font-extrabold" style={{ fontSize: 12.5, color: TEXT_PRIMARY }}>
                         ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
@@ -552,12 +552,12 @@ export default function DeviceDetailScreen({ route, navigation }) {
                     style={{ padding: rs(13), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}
                   >
                     <View>
-                      <Text className="uppercase font-bold" style={{ fontSize: rf(10), letterSpacing: 0.6, color: TEXT_SECONDARY }}>
+                      <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.6, color: TEXT_SECONDARY }}>
                         Estimated Total
                       </Text>
-                      <Text style={{ fontSize: rf(10), color: TEXT_SECONDARY }}>Inclusive of all services</Text>
+                      <Text style={{ fontSize: 10, color: TEXT_SECONDARY }}>Inclusive of all services</Text>
                     </View>
-                    <Text className="font-extrabold" style={{ fontSize: rf(18), color: ACCENT }}>
+                    <Text className="font-extrabold" style={{ fontSize: 17, color: ACCENT }}>
                       ₹{Number(estimatedTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                   </View>
@@ -565,8 +565,8 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   {payment ? (
                     <View style={{ marginTop: rs(10) }}>
                       <View className="flex-row items-center justify-between" style={{ paddingVertical: rs(6) }}>
-                        <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY }} numberOfLines={1}>{payment.label}</Text>
-                        <Text className="font-extrabold" style={{ fontSize: rf(12.5), color: ACCENT }}>
+                        <Text style={{ fontSize: 12, color: TEXT_SECONDARY }} numberOfLines={1}>{payment.label}</Text>
+                        <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT }}>
                           − ₹{Number(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                       </View>
@@ -579,14 +579,14 @@ export default function DeviceDetailScreen({ route, navigation }) {
                         }}
                       >
                         <View>
-                          <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), letterSpacing: 0.5, color: TEXT_SECONDARY }}>
+                          <Text className="uppercase font-bold" style={{ fontSize: 9.5, letterSpacing: 0.5, color: TEXT_SECONDARY }}>
                             Balance Amount
                           </Text>
-                          <Text style={{ fontSize: rf(9.5), color: TEXT_SECONDARY }}>
+                          <Text style={{ fontSize: 9.5, color: TEXT_SECONDARY }}>
                             {payment.balance > 0 ? 'Collect on delivery' : 'Fully settled'}
                           </Text>
                         </View>
-                        <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: payment.balance > 0 ? '#B45309' : ACCENT }}>
+                        <Text className="font-extrabold" style={{ fontSize: 13.5, color: payment.balance > 0 ? '#B45309' : ACCENT }}>
                           ₹{Number(payment.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                       </View>
@@ -608,7 +608,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                   right={<HeaderAction icon={Pencil} label="Edit" onPress={goEdit} />}
                 />
                 <View className="rounded-2xl" style={{ padding: rs(12), backgroundColor: SOFT_MINT }}>
-                  <Text style={{ fontSize: rf(12.5), color: TEXT_PRIMARY, lineHeight: rf(18) }}>
+                  <Text style={{ fontSize: 12.5, color: TEXT_PRIMARY, lineHeight: rf(18) }}>
                     {ticket.issueDescription}
                   </Text>
                 </View>
@@ -654,7 +654,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                     style={{ paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: ACCENT }}
                   >
                     <Plus size={rf(11)} color="#FFFFFF" />
-                    <Text className="font-extrabold" style={{ fontSize: rf(10), color: '#FFFFFF', marginLeft: rs(3) }}>Add IMEI</Text>
+                    <Text className="font-extrabold" style={{ fontSize: 10, color: '#FFFFFF', marginLeft: rs(3) }}>Add IMEI</Text>
                   </TouchableOpacity>
                 ) : null}
               />
@@ -682,7 +682,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
           paddingHorizontal: rs(16),
           paddingTop: rs(12),
           paddingBottom: insets.bottom + rs(12),
-          backgroundColor: 'rgba(248, 250, 249, 0.97)',
+          backgroundColor: 'rgba(255, 255, 255, 0.97)',
           borderTopWidth: 1,
           borderTopColor: BORDER,
         }}
@@ -698,7 +698,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
             }}
           >
             <Share2 size={rf(15)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ fontSize: rf(12.5), color: ACCENT, marginLeft: rs(6) }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT, marginLeft: rs(6) }} numberOfLines={1}>
               Share
             </Text>
           </TouchableOpacity>
@@ -712,7 +712,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
             }}
           >
             <Printer size={rf(15)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ fontSize: rf(12.5), color: ACCENT, marginLeft: rs(6) }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT, marginLeft: rs(6) }} numberOfLines={1}>
               Print QR
             </Text>
           </TouchableOpacity>
@@ -726,7 +726,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
             }}
           >
             <Hammer size={rf(15)} color="#FFFFFF" />
-            <Text className="text-white font-extrabold" style={{ fontSize: rf(12.5), marginLeft: rs(6) }} numberOfLines={1}>
+            <Text className="text-white font-extrabold" style={{ fontSize: 12.5, marginLeft: rs(6) }} numberOfLines={1}>
               Assign Technician
             </Text>
           </TouchableOpacity>

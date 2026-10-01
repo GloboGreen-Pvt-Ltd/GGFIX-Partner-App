@@ -254,7 +254,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             >
               <ChevronLeft size={20} color="#172117" />
             </TouchableOpacity>
-            <Text className="flex-1 text-text text-[18px] font-extrabold" numberOfLines={1}>
+            <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
               {isPickupPicker ? 'Select Pickup Person' : 'Employees'}
             </Text>
             {!isPickupPicker ? (
@@ -325,7 +325,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                 />
               </View>
               <View className="flex-1 ml-3">
-                <Text className="text-[14.5px] font-extrabold text-gray-900">
+                <Text className="text-[13.5px] font-extrabold text-gray-900">
                   {isPickupPicker ? 'Pickup-eligible staff' : 'All Employees'}
                 </Text>
                 {/* "3 active · 5 total" — the ring carries the allowance, so
@@ -391,7 +391,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                 >
                   <Users size={26} color={BRAND_GREEN_DARK} />
                 </View>
-                <Text className="text-[13.5px] font-extrabold text-gray-700 text-center">
+                <Text className="text-[13px] font-extrabold text-gray-700 text-center">
                   {isPickupPicker ? 'No pickup persons yet' : 'No employees yet'}
                 </Text>
                 <Text className="text-[11.5px] text-gray-500 mt-1.5 text-center leading-[17px]">
@@ -431,7 +431,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                       }}
                     >
                       <Text
-                        className="text-[18px] font-extrabold"
+                        className="text-[17px] font-extrabold"
                         style={{ color: isActive ? BRAND_GREEN_DARK : '#8FA08F' }}
                       >
                         {initial}
@@ -449,7 +449,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                   </View>
 
                   <View className="flex-1 ml-2.5 pr-1">
-                    <Text className="text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
                       {e.name || '—'}
                     </Text>
                     <View className="flex-row items-center mt-1">

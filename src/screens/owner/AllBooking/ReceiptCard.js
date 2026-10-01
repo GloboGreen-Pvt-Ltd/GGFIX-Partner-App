@@ -11,7 +11,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
-const BRAND_GREEN_DARK = '#087A0A';
+const BRAND_GREEN_DARK = '#09AD2A';
 
 const STATUS_LABEL = {
   CREATED: 'Service Accepted',
@@ -170,7 +170,7 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
           marginBottom: 16,
         }}
       >
-        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>GGFix</Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>GGFix</Text>
         <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }}>
           Booking Receipt
         </Text>
@@ -179,22 +179,22 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
       {/* Tracking */}
       <View
         style={{
-          backgroundColor: '#F0F8EF',
+          backgroundColor: '#EAF8EC',
           borderWidth: 1,
-          borderColor: '#C8EEBF',
+          borderColor: '#CDEFD5',
           borderRadius: 10,
           padding: 12,
           marginBottom: 14,
         }}
       >
-        <Text style={{ fontSize: 10, fontWeight: '700', color: '#087A0A', letterSpacing: 1 }}>
+        <Text style={{ fontSize: 10, fontWeight: '700', color: '#09AD2A', letterSpacing: 1 }}>
           TRACKING ID
         </Text>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: '#172117', marginTop: 2 }}>
+        <Text style={{ fontSize: 17, fontWeight: '800', color: '#1E1E1E', marginTop: 2 }}>
           #{trackingId}
         </Text>
-        <Text style={{ fontSize: 11, color: '#667066', marginTop: 4 }}>
-          Status: <Text style={{ fontWeight: '700', color: '#087A0A' }}>{status}</Text>
+        <Text style={{ fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+          Status: <Text style={{ fontWeight: '700', color: '#09AD2A' }}>{status}</Text>
         </Text>
       </View>
 
@@ -224,7 +224,7 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
       {/* Services */}
       <ReceiptSection title="Services">
         {items.length === 0 ? (
-          <Text style={{ fontSize: 12, color: '#667066' }}>No services recorded.</Text>
+          <Text style={{ fontSize: 12, color: '#6B6B6B' }}>No services recorded.</Text>
         ) : (
           items.map((it, idx) => (
             <View
@@ -235,10 +235,10 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
                 paddingVertical: 4,
               }}
             >
-              <Text style={{ fontSize: 12, color: '#172117', flex: 1, paddingRight: 8 }} numberOfLines={2}>
+              <Text style={{ fontSize: 12, color: '#1E1E1E', flex: 1, paddingRight: 8 }} numberOfLines={2}>
                 {idx + 1}. {it.label}
               </Text>
-              <Text style={{ fontSize: 12, color: '#172117', fontWeight: '700' }}>
+              <Text style={{ fontSize: 12, color: '#1E1E1E', fontWeight: '700' }}>
                 ₹{fmt(it.amount)}
               </Text>
             </View>
@@ -251,7 +251,7 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
         style={{
           marginTop: 4,
           padding: 12,
-          backgroundColor: '#087A0A',
+          backgroundColor: '#09AD2A',
           borderRadius: 10,
           flexDirection: 'row',
           alignItems: 'center',
@@ -261,7 +261,7 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
         <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>
           Estimated Total
         </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
+        <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>
           ₹{fmt(total)}
         </Text>
       </View>
@@ -274,14 +274,14 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
           style={{
             marginTop: 8,
             borderWidth: 1,
-            borderColor: '#C8EEBF',
+            borderColor: '#CDEFD5',
             borderRadius: 10,
             paddingVertical: 10,
             paddingHorizontal: 14,
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#172117', fontSize: 12, fontWeight: '700' }}>{payment.label}</Text>
+            <Text style={{ color: '#1E1E1E', fontSize: 12, fontWeight: '700' }}>{payment.label}</Text>
             <Text style={{ color: BRAND_GREEN_DARK, fontSize: 13, fontWeight: '800' }}>
               − ₹{fmt(payment.amount)}
             </Text>
@@ -289,12 +289,12 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
           <View
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-              marginTop: 6, borderTopWidth: 1, borderTopColor: '#EFF5EE', paddingTop: 6,
+              marginTop: 6, borderTopWidth: 1, borderTopColor: '#F3F3F3', paddingTop: 6,
             }}
           >
-            <Text style={{ color: '#172117', fontSize: 12, fontWeight: '700' }}>Balance Amount</Text>
+            <Text style={{ color: '#1E1E1E', fontSize: 12, fontWeight: '700' }}>Balance Amount</Text>
             <Text
-              style={{ fontSize: 14, fontWeight: '800', color: payment.balance > 0 ? '#B45309' : BRAND_GREEN_DARK }}
+              style={{ fontSize: 13, fontWeight: '800', color: payment.balance > 0 ? '#B45309' : BRAND_GREEN_DARK }}
             >
               ₹{fmt(payment.balance)}
             </Text>
@@ -304,10 +304,10 @@ export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName 
 
       {/* Footer */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 10, color: '#8FA08F' }}>
+        <Text style={{ fontSize: 10, color: '#8E8E8E' }}>
           Generated {generated}
         </Text>
-        <Text style={{ fontSize: 10, color: '#8FA08F', marginTop: 2 }}>
+        <Text style={{ fontSize: 10, color: '#8E8E8E', marginTop: 2 }}>
           Track your repair in the GGFix app.
         </Text>
       </View>
@@ -322,14 +322,14 @@ function ReceiptSection({ title, children }) {
         marginBottom: 12,
         paddingBottom: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8E2',
+        borderBottomColor: '#E6E6E6',
       }}
     >
       <Text
         style={{
           fontSize: 10,
           fontWeight: '800',
-          color: '#087A0A',
+          color: '#09AD2A',
           letterSpacing: 1,
           marginBottom: 6,
         }}
@@ -344,8 +344,8 @@ function ReceiptSection({ title, children }) {
 function ReceiptRow({ label, value }) {
   return (
     <View style={{ flexDirection: 'row', paddingVertical: 2 }}>
-      <Text style={{ fontSize: 11, color: '#667066', width: 70 }}>{label}</Text>
-      <Text style={{ fontSize: 12, color: '#172117', flex: 1, fontWeight: '600' }}>
+      <Text style={{ fontSize: 11, color: '#6B6B6B', width: 70 }}>{label}</Text>
+      <Text style={{ fontSize: 12, color: '#1E1E1E', flex: 1, fontWeight: '600' }}>
         {value}
       </Text>
     </View>

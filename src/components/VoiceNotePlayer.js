@@ -79,7 +79,7 @@ export default function VoiceNotePlayer({ url, seconds, tint = '#087A0A', compac
       </View>
       <Text
         className="font-semibold ml-2.5 flex-1"
-        style={{ fontSize: compact ? 12.5 : 13.5, color: playing ? tint : INK }}
+        style={{ fontSize: compact ? 12.5 : 13, color: playing ? tint : INK }}
         numberOfLines={1}
       >
         {playing ? 'Playing…' : text}

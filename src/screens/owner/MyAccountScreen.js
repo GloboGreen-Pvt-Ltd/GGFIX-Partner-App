@@ -40,6 +40,9 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { getSession } from '../../auth/session';
+import { ion, mci } from '../../components/dashboard/solidIcons';
+import { SERIF } from '../../components/dashboard/theme';
+import { Ionicons } from '@expo/vector-icons';
 import { switchShop, fetchMe } from '../../api/auth';
 import {
   FEATURE,
@@ -51,6 +54,14 @@ import { getOwnerKycDocuments } from '../../api/shops';
 import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } from '../../auth/appLock';
 import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
+
+// My Account palette — green + white only (per the redesign brief).
+const G = '#09AD2A';            // Primary green
+const G_LIGHT = '#EAF8EC';      // Very light green (icon tiles, badges)
+const DARK = '#1E1E1E';         // Dark text
+const MUTED = '#6B6B6B';        // Muted dark grey (subtitles)
+const LIGHT = '#F3F3F3';        // Secondary light (borders, toggle off)
+const BG = '#F8F8F8';           // Page background
 
 // GGFIX palette — same values used across the rest of the app's redesigned screens.
 const ACCENT = '#004C40';       // Dark Green
@@ -72,12 +83,12 @@ const ICON_STROKE = 2; // ONE weight for every icon on the screen.
 // orange, team pink, …) while staying centralised the same way the old
 // single-tint system was.
 const TONE = {
-  green:  { bg: MINT,          fg: ACCENT },
-  amber:  { bg: '#FDF0DC',     fg: '#B45309' },
-  blue:   { bg: '#E7F0FF',     fg: '#2563EB' },
-  purple: { bg: '#F1EBFF',     fg: '#9333EA' },
-  orange: { bg: '#FFEADC',     fg: '#F59E0B' },
-  pink:   { bg: '#FDE7EF',     fg: '#DB2777' },
+  green:  { bg: MINT,          fg: ACCENT,    dark: '#16A34A' },
+  amber:  { bg: '#FDF0DC',     fg: '#B45309', dark: '#F59E0B' },
+  blue:   { bg: '#E7F0FF',     fg: '#2563EB', dark: '#3B82F6' },
+  purple: { bg: '#F1EBFF',     fg: '#9333EA', dark: '#A855F7' },
+  orange: { bg: '#FFEADC',     fg: '#F59E0B', dark: '#F97316' },
+  pink:   { bg: '#FDE7EF',     fg: '#DB2777', dark: '#EC4899' },
 };
 
 const cardShadow = {
@@ -238,7 +249,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     !isShopLogin && {
       key: 'personal',
       tone: 'green',
-      Icon: User,
+      Icon: SOLID.personal,
       label: 'Personal Information',
       sub: 'Name, mobile, email',
       onPress: () => navigation?.navigate?.('OwnerPersonalInfo'),
@@ -246,7 +257,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'subscription',
       tone: 'amber',
-      Icon: Crown,
+      Icon: SOLID.subscription,
       label: 'Subscription',
       sub: isShopLogin ? 'View current plan' : 'View your plan & upgrade',
       onPress: () => navigation?.navigate?.('OwnerSubscription'),
@@ -254,7 +265,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'qr',
       tone: 'blue',
-      Icon: QrCode,
+      Icon: SOLID.qr,
       label: 'My QR Code',
       sub: 'Share your shop instantly',
       onPress: () => navigation?.navigate?.('OwnerQrCode'),
@@ -262,7 +273,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'shop',
       tone: 'green',
-      Icon: Store,
+      Icon: SOLID.shop,
       label: 'Shop Information',
       sub: 'Address, opening hours, GST',
       onPress: () => navigation?.navigate?.('OwnerShopInfo'),
@@ -270,7 +281,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     !isShopLogin && {
       key: 'kyc',
       tone: 'purple',
-      Icon: FileText,
+      Icon: SOLID.kyc,
       label: 'KYC Documents',
       sub: 'Aadhar, PAN, GST / Udyam',
       onPress: () => navigation?.navigate?.(hasKycDocs ? 'OwnerKycView' : 'OwnerKycIntro'),
@@ -278,7 +289,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'pickup',
       tone: 'orange',
-      Icon: Truck,
+      Icon: SOLID.pickup,
       label: 'Pickup Service',
       sub: 'Turn pickup on/off, slot timings & zones',
       onPress: () => navigation?.navigate?.('OwnerPickupSlots'),
@@ -293,7 +304,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'orders',
       tone: 'blue',
-      Icon: ShoppingBag,
+      Icon: SOLID.orders,
       label: 'My Orders',
       sub: 'View your orders & history',
       onPress: () => navigation?.navigate?.('MarketplaceOrders'),
@@ -301,7 +312,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'employees',
       tone: 'pink',
-      Icon: Users,
+      Icon: SOLID.employees,
       label: 'Employee Management',
       sub: 'Add, edit & track your team',
       onPress: () => navigation?.navigate?.('OwnerEmployeeList'),
@@ -309,7 +320,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     {
       key: 'leave',
       tone: 'green',
-      Icon: CalendarClock,
+      Icon: SOLID.leave,
       label: 'Leave Requests',
       sub: 'Approve or reject leave',
       onPress: () => navigation?.navigate?.('OwnerLeaveRequests'),
@@ -317,43 +328,34 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   ];
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+    <View className="flex-1" style={{ backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: PAGE_BG }}>
-        {/* Header — decorative mint leaf shapes behind the title block, same
-            low-risk plain-View approximation used elsewhere in this app (no
-            new SVG dependency). */}
-        <View style={{ paddingHorizontal: rs(16), paddingTop: rs(5), paddingBottom: rs(6), overflow: 'hidden' }}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
-          <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(30), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
-
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG }}>
+        <View style={{ paddingHorizontal: rs(16), paddingTop: 0, paddingBottom: rs(8) }}>
           <View style={capStyle}>
             <View className="flex-row items-start justify-between">
               <View style={{ flex: 1 }}>
-                <Text className="uppercase font-extrabold" style={{ fontSize: rf(10.5), letterSpacing: 1.4, color: BRIGHT }} numberOfLines={1}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', letterSpacing: 0.4, color: G }} numberOfLines={1}>
                   {brandKicker}
                 </Text>
-                <Text className="font-extrabold" style={{ fontSize: rf(28), color: ACCENT, marginTop: rs(2) }} numberOfLines={1}>
+                <Text style={{ fontSize: 25, fontWeight: '700', fontFamily: SERIF, color: DARK, marginTop: rs(2) }} numberOfLines={1}>
                   My Account
                 </Text>
-                <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                <Text style={{ fontSize: 12, color: MUTED, marginTop: rs(1) }} numberOfLines={1}>
                   Manage your profile, shop and preferences
                 </Text>
               </View>
-
-              <View style={{ alignItems: 'flex-end' }}>
-                <View
-                  className="flex-row items-center rounded-full"
-                  style={{ paddingHorizontal: rs(12), paddingVertical: rs(7), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, ...softShadow }}
-                >
-                  {isShopLogin
-                    ? <Store size={rf(12)} color={ACCENT} strokeWidth={ICON_STROKE} />
-                    : <Crown size={rf(12)} color={ACCENT} strokeWidth={ICON_STROKE} />}
-                  <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: rs(5), letterSpacing: 0.5 }}>
-                    {isShopLogin ? 'SHOP' : 'OWNER'}
-                  </Text>
-                </View>
+              <View
+                className="flex-row items-center rounded-full"
+                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: G }}
+              >
+                {isShopLogin
+                  ? <Store size={rf(12)} color={G} strokeWidth={ICON_STROKE} />
+                  : <Crown size={rf(12)} color={G} strokeWidth={ICON_STROKE} />}
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: G, marginLeft: rs(5), letterSpacing: 0.5 }}>
+                  {isShopLogin ? 'SHOP' : 'OWNER'}
+                </Text>
               </View>
             </View>
           </View>
@@ -366,53 +368,33 @@ export default function MyAccountScreen({ onLogout, navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={capStyle}>
-        {/* Identity card */}
-        <View
-          style={{ backgroundColor: CARD_BG, borderRadius: rs(18), padding: rs(9), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
-        >
-          <Pressable
-            onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
+        {/* ONE card: profile row, divider, active-shop row — no box inside a box. */}
+        <View style={{ backgroundColor: '#FFFFFF', borderRadius: rs(20), borderWidth: 1, borderColor: LIGHT, ...softShadow }}>
+          <View
             className="flex-row items-center"
-            hitSlop={4}
+            style={{ paddingHorizontal: rs(12), paddingVertical: rs(12) }}
           >
             <View style={{ position: 'relative' }}>
               <View
                 style={{
-                  padding: 2,
-                  borderRadius: rs(31),
-                  backgroundColor: '#FFFFFF',
-                  borderWidth: 2,
-                  borderColor: MINT,
+                  width: rs(54), height: rs(54), borderRadius: rs(27),
+                  backgroundColor: G,
+                  alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden',
+                  borderWidth: 2, borderColor: G_LIGHT,
                 }}
               >
-                <View
-                  style={{
-                    width: rs(50), height: rs(50), borderRadius: rs(25),
-                    backgroundColor: ACCENT,
-                    alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {displayAvatar ? (
-                    <Image
-                      source={{ uri: displayAvatar }}
-                      style={{ width: rs(50), height: rs(50), borderRadius: rs(25) }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text className="text-white font-extrabold" style={{ fontSize: rf(16.5), letterSpacing: 1 }}>
-                      {initials}
-                    </Text>
-                  )}
-                </View>
+                {displayAvatar ? (
+                  <Image source={{ uri: displayAvatar }} style={{ width: rs(54), height: rs(54) }} resizeMode="cover" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15.5, letterSpacing: 1 }}>{initials}</Text>
+                )}
               </View>
-              {/* Camera badge — the whole row now navigates to profile/photo
-                  editing, this is just the visual affordance for it. */}
               <View
                 style={{
                   position: 'absolute', right: -rs(1), bottom: -rs(1),
                   width: rs(18), height: rs(18), borderRadius: rs(9),
-                  backgroundColor: ACCENT,
+                  backgroundColor: G,
                   alignItems: 'center', justifyContent: 'center',
                   borderWidth: 2, borderColor: '#FFFFFF',
                 }}
@@ -420,313 +402,179 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                 <Camera size={rf(9)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
               </View>
             </View>
-            <View className="flex-1 ml-3">
+            <View className="flex-1" style={{ marginLeft: rs(12) }}>
               <View className="flex-row items-center flex-wrap">
-                <Text className="font-extrabold mr-2" style={{ fontSize: rf(16), color: TEXT_PRIMARY }} numberOfLines={1}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: DARK, marginRight: rs(6) }} numberOfLines={1}>
                   {displayName}
                 </Text>
                 {isVerified ? (
-                  <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(6), paddingVertical: rs(2), backgroundColor: MINT }}>
-                    <BadgeCheck size={rf(10)} color={ACCENT} strokeWidth={ICON_STROKE} />
-                    <Text className="font-extrabold" style={{ fontSize: rf(8.5), color: ACCENT, marginLeft: rs(2), letterSpacing: 0.4 }}>
-                      VERIFIED
-                    </Text>
+                  <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(6), paddingVertical: rs(2), backgroundColor: G_LIGHT }}>
+                    <BadgeCheck size={rf(10)} color={G} strokeWidth={ICON_STROKE} />
+                    <Text style={{ fontSize: 8.5, fontWeight: '800', color: G, marginLeft: rs(2), letterSpacing: 0.4 }}>VERIFIED</Text>
                   </View>
                 ) : null}
               </View>
               {displayPhone ? (
-                <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
-                  <Phone size={rf(10)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
-                  <Text className="font-semibold" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={1}>
-                    {displayPhone}
-                  </Text>
+                <View className="flex-row items-center" style={{ marginTop: rs(3) }}>
+                  <Phone size={rf(10)} color={MUTED} strokeWidth={ICON_STROKE} />
+                  <Text style={{ fontSize: 11.5, color: MUTED, marginLeft: rs(5) }} numberOfLines={1}>{displayPhone}</Text>
                 </View>
               ) : null}
               {displayEmail ? (
                 <View className="flex-row items-center" style={{ marginTop: rs(1) }}>
-                  <Mail size={rf(10)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
-                  <Text className="font-semibold" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={1}>
-                    {displayEmail}
-                  </Text>
+                  <Mail size={rf(10)} color={MUTED} strokeWidth={ICON_STROKE} />
+                  <Text style={{ fontSize: 11.5, color: MUTED, marginLeft: rs(5) }} numberOfLines={1}>{displayEmail}</Text>
+                </View>
+              ) : null}
+              {!isShopLogin ? (
+                <View className="flex-row items-center" style={{ marginTop: rs(5) }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: G }} numberOfLines={1}>
+                      {shopName || 'No shop linked'}
+                    </Text>
+                    {shopSlug ? (
+                      <Text style={{ fontSize: 10.5, color: MUTED }} numberOfLines={1}>
+                        Shop ID: #{shopSlug.toUpperCase()}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {/* Shop icon beside the shop name, "Switch" under it — the card's
+                      only tap target; opens Switch Shop. */}
+                  {canOpenSwitcher ? (
+                    <Pressable
+                      onPress={() => setShowSwitcher(true)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Switch shop"
+                      style={{ alignItems: 'center', marginLeft: rs(8) }}
+                    >
+                      <View style={{ width: rs(38), height: rs(38), borderRadius: rs(19), backgroundColor: G_LIGHT, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="storefront" size={rf(18)} color={G} />
+                      </View>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: G, marginTop: rs(2) }}>Switch</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
             </View>
-            <ChevronRight size={rf(17)} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
-          </Pressable>
+          </View>
 
-          {/* Active shop card — hidden for shop-scoped logins (single shop) */}
-          {!isShopLogin ? (
-          <Pressable
-            onPress={() => canOpenSwitcher && setShowSwitcher(true)}
-            disabled={!canOpenSwitcher}
-            className="flex-row items-center"
-            hitSlop={4}
-            style={{
-              marginTop: rs(7), borderRadius: rs(14), padding: rs(7),
-              backgroundColor: canOpenSwitcher ? MINT : SOFT_MINT,
-              borderWidth: 1,
-              borderColor: canOpenSwitcher ? BRIGHT : BORDER,
-            }}
-          >
-            <View
-              style={{
-                width: rs(32), height: rs(32), borderRadius: rs(10),
-                backgroundColor: '#FFFFFF',
-                alignItems: 'center', justifyContent: 'center',
-                marginRight: rs(8),
-              }}
-            >
-              <Store size={rf(14)} color={ACCENT} strokeWidth={ICON_STROKE} />
-            </View>
-            <View className="flex-1">
-              <Text className="font-extrabold" style={{ fontSize: rf(9), color: PRIMARY, letterSpacing: 1 }}>
-                ACTIVE SHOP
-              </Text>
-              <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: TEXT_PRIMARY, marginTop: 0 }} numberOfLines={1}>
-                {shopName || 'No shop linked'}
-              </Text>
-              {shopSlug ? (
-                <Text className="font-semibold" style={{ fontSize: rf(10), color: TEXT_SECONDARY, marginTop: 0 }} numberOfLines={1}>
-                  Shop ID: #{shopSlug.toUpperCase()}
-                </Text>
-              ) : null}
-            </View>
-            {hasMultipleShops ? (
-              <View
-                className="flex-row items-center rounded-full"
-                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: ACCENT, ...cardShadow, shadowOpacity: 0.18 }}
-              >
-                <ArrowLeftRight size={rf(11)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="text-white font-extrabold" style={{ fontSize: rf(11), marginLeft: rs(5) }}>
-                  Switch ({shops.length})
-                </Text>
-              </View>
-            ) : canAddShop ? (
-              // One shop and nothing to switch between — the pill still opens
-              // the sheet, so it advertises what it actually does from here.
-              <View
-                className="flex-row items-center rounded-full"
-                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: ACCENT }}
-              >
-                <Plus size={rf(11)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="text-white font-extrabold" style={{ fontSize: rf(11), marginLeft: rs(5) }}>
-                  Add Shop
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-          ) : null}
         </View>
 
-        {/* My Profile group — the reference's 6 (or fewer, for a shop login)
-            core rows, each its own standalone premium card. */}
-        <SectionLabel subtitle="Manage your personal and shop details" count={profileRows.length} countIcon={User}>
+        <SectionLabel subtitle="Manage your personal and shop details" count={profileRows.length}>
           My Profile
         </SectionLabel>
-        {profileRows.map(({ key, ...row }, i) => (
-          <MenuRow key={key} {...row} last={i === profileRows.length - 1} standalone />
-        ))}
+        <View style={LIST_STYLE}>
+          {profileRows.map(({ key, ...row }, i) => (
+            <MenuRow key={key} {...row} last={i === profileRows.length - 1} />
+          ))}
+        </View>
 
-        {/* More tools — same rows as before, just no longer counted in the
-            "My Profile" pill above so that count stays true to what the
-            reference actually shows. */}
         <SectionLabel subtitle="Orders, team and time off">More Tools</SectionLabel>
-        {moreToolsRows.map(({ key, ...row }, i) => (
-          <MenuRow key={key} {...row} last={i === moreToolsRows.length - 1} standalone />
-        ))}
+        <View style={LIST_STYLE}>
+          {moreToolsRows.map(({ key, ...row }, i) => (
+            <MenuRow key={key} {...row} last={i === moreToolsRows.length - 1} />
+          ))}
+        </View>
 
-        {/* Security group */}
         <SectionLabel subtitle="Keep your account safe and secure">Security</SectionLabel>
-        <View style={{ backgroundColor: CARD_BG, borderRadius: rs(14), paddingHorizontal: rs(12), borderWidth: 1, borderColor: BORDER, ...softShadow, marginBottom: rs(8) }}>
+        <View style={LIST_STYLE}>
           <AppLockRow />
         </View>
 
-        {/* More group */}
         <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
-        <MenuRow tone="blue" Icon={ScrollText} label="Terms & Conditions" sub="Platform usage rules" standalone />
-        <MenuRow tone="green" Icon={ShieldCheck} label="Privacy Policy" sub="How we handle your data" standalone />
-        <MenuRow tone="purple" Icon={HelpCircle} label="FAQs" sub="Common questions answered" standalone />
-        <MenuRow tone="orange" Icon={Headphones} label="Help & Support" sub="Talk to the GGfix team" last standalone />
+        <View style={LIST_STYLE}>
+          <MenuRow tone="blue" Icon={SOLID.terms} label="Terms & Conditions" sub="Platform usage rules" />
+          <MenuRow tone="green" Icon={SOLID.privacy} label="Privacy Policy" sub="How we handle your data" />
+          <MenuRow tone="purple" Icon={SOLID.faq} label="FAQs" sub="Common questions answered" />
+          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the GGfix team" last />
+        </View>
 
-        {/* Logout */}
         {onLogout ? (
           <Pressable
             onPress={onLogout}
-            className="flex-row items-center justify-center"
+            className="flex-row items-center"
             hitSlop={4}
-            style={{
-              marginTop: rs(3), borderRadius: rs(14), paddingVertical: rs(8),
-              backgroundColor: '#FDECEE',
-              borderWidth: 1,
-              borderColor: '#F8C9CF',
-            }}
+            style={{ ...ROW_STYLE, marginTop: rs(6) }}
           >
-            <LogOut size={rf(16)} color={DANGER} strokeWidth={ICON_STROKE} />
-            <Text className="font-extrabold" style={{ fontSize: rf(14), color: DANGER, marginLeft: rs(8) }}>
-              Log Out
-            </Text>
+            <View style={{ ...ICON_TILE, backgroundColor: '#FDEEEE' }}>
+              <LogOut size={rf(18)} color={DANGER} strokeWidth={ICON_STROKE} />
+            </View>
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: DANGER }}>Log Out</Text>
           </Pressable>
         ) : null}
 
         {/* Trust footer — reassurance only, no state or navigation. */}
-        <View
-          className="flex-row items-center"
-          style={{ borderRadius: rs(14), marginTop: rs(5), padding: rs(8), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
-        >
-          <View
-            style={{
-              width: rs(28), height: rs(28), borderRadius: rs(14),
-              backgroundColor: ACCENT,
-              alignItems: 'center', justifyContent: 'center',
-              marginRight: rs(9),
-            }}
-          >
-            <ShieldCheck size={rf(13)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-          </View>
-          <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(12), color: ACCENT }}>
-              Your data is safe with us
-            </Text>
-            <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: 0, lineHeight: rf(13) }}>
-              We follow industry-standard security practices to protect your information.
-            </Text>
-          </View>
+        <View className="flex-row items-center" style={{ borderRadius: rs(14), marginTop: rs(8), padding: rs(11), backgroundColor: G_LIGHT }}>
+          <ShieldCheck size={rf(16)} color={G} strokeWidth={ICON_STROKE} />
+          <Text style={{ flex: 1, fontSize: 11, color: DARK, marginLeft: rs(8), lineHeight: rf(15) }}>
+            Your data is safe with us — we follow industry-standard security practices.
+          </Text>
         </View>
         </View>
       </ScrollView>
 
-      {/* Shop switcher modal */}
-      <Modal
-        visible={showSwitcher}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSwitcher(false)}
-      >
-        <Pressable
-          onPress={() => setShowSwitcher(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(16, 32, 27, 0.55)', justifyContent: 'flex-end' }}
-        >
+      {/* Switch Shop bottom sheet — real shops from the session, existing switch/add logic. */}
+      <Modal visible={showSwitcher} transparent animationType="fade" onRequestClose={() => setShowSwitcher(false)}>
+        <Pressable onPress={() => setShowSwitcher(false)} style={{ flex: 1, backgroundColor: 'rgba(16, 24, 20, 0.5)', justifyContent: 'flex-end' }}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: 26,
-              borderTopRightRadius: 26,
-              paddingHorizontal: 16,
-              paddingTop: 10,
-              paddingBottom: 28,
-            }}
+            style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28 }}
           >
-            <View
-              style={{
-                alignSelf: 'center', width: 44, height: 5,
-                borderRadius: 999, backgroundColor: BORDER,
-                marginBottom: 12,
-              }}
-            />
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-[17px] font-extrabold" style={{ color: TEXT_PRIMARY }}>Switch Shop</Text>
-              <Pressable
-                onPress={() => setShowSwitcher(false)}
-                hitSlop={8}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: SOFT_MINT }}
-              >
-                <X size={14} color={TEXT_PRIMARY} strokeWidth={ICON_STROKE} />
+            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: LIGHT, marginBottom: 12 }} />
+            <View className="flex-row items-center justify-between">
+              <Text style={{ fontSize: 17.5, fontWeight: '700', fontFamily: SERIF, color: DARK }}>Switch Shop</Text>
+              <Pressable onPress={() => setShowSwitcher(false)} hitSlop={8} className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: LIGHT }}>
+                <X size={14} color={DARK} strokeWidth={ICON_STROKE} />
               </Pressable>
             </View>
-            <Text className="text-[12px] mb-3" style={{ color: TEXT_SECONDARY }}>
-              {canAddShop
-                ? 'Choose which of your shops to manage, or add a new one.'
-                : 'Choose which of your shops to manage.'}
-            </Text>
-            {/* Capped and scrollable: the list grows every time Add Shop is
-                used, and an un-scrolled sheet pushes the Add Shop row itself
-                off the bottom of the screen once an owner has a handful. */}
-            <ScrollView
-              style={{ maxHeight: 340 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-            {shops.map((s) => {
-              const active = s.id === user?.shopId;
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => handleSwitch(s.id)}
-                  disabled={switching || active}
-                  className="flex-row items-center rounded-2xl border mb-2"
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    backgroundColor: active ? MINT : '#FFFFFF',
-                    borderColor: active ? BRIGHT : BORDER,
-                  }}
-                >
-                  <View
-                    className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                    style={{ backgroundColor: active ? ACCENT : MINT }}
+            <Text style={{ fontSize: 12, color: MUTED, marginTop: 2, marginBottom: 12 }}>Choose the shop you want to manage</Text>
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {shops.map((s) => {
+                const active = s.id === user?.shopId;
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => handleSwitch(s.id)}
+                    disabled={switching || active}
+                    className="flex-row items-center"
+                    style={{ ...ROW_STYLE, borderColor: active ? G : LIGHT, backgroundColor: active ? G_LIGHT : '#FFFFFF' }}
                   >
-                    <Store size={16} color={active ? '#FFFFFF' : ACCENT} strokeWidth={ICON_STROKE} />
-                  </View>
-                  <View className="flex-1">
-                    <Text
-                      className="text-[14px] font-extrabold"
-                      style={{ color: active ? ACCENT : TEXT_PRIMARY }}
-                      numberOfLines={1}
-                    >
-                      {s.name}
-                    </Text>
-                    <Text className="text-[11px] mt-0.5" style={{ color: TEXT_SECONDARY }} numberOfLines={1}>
-                      {s.slug}
-                    </Text>
-                  </View>
-                  {active ? (
-                    <View className="w-7 h-7 rounded-full items-center justify-center" style={{ backgroundColor: MINT }}>
-                      <Check size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
+                    <View style={{ ...ICON_TILE, backgroundColor: active ? G : G_LIGHT }}>
+                      <Ionicons name="storefront" size={rf(18)} color={active ? '#FFFFFF' : G} />
                     </View>
-                  ) : (
-                    <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={ICON_STROKE} />
-                  )}
+                    <View className="flex-1">
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: DARK }} numberOfLines={1}>{s.name}</Text>
+                      {s.slug ? (
+                        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Shop ID: #{String(s.slug).toUpperCase()}</Text>
+                      ) : null}
+                    </View>
+                    {active ? (
+                      <View style={{ backgroundColor: G, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>ACTIVE</Text>
+                      </View>
+                    ) : (
+                      <ChevronRight size={16} color={MUTED} strokeWidth={ICON_STROKE} />
+                    )}
+                  </Pressable>
+                );
+              })}
+              {canAddShop ? (
+                <Pressable
+                  onPress={handleAddShop}
+                  disabled={switching}
+                  className="flex-row items-center justify-center"
+                  style={{ marginTop: 4, borderRadius: 14, paddingVertical: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: G, opacity: switching ? 0.5 : 1 }}
+                >
+                  <Plus size={16} color={G} strokeWidth={ICON_STROKE} />
+                  <Text style={{ color: G, fontWeight: '800', fontSize: 13, marginLeft: 6 }}>Add New Shop</Text>
                 </Pressable>
-              );
-            })}
-            {/* Add Shop closes the list: it is the one row that doesn't switch
-                anything, so it sits below every shop with a dashed border to
-                read as an action rather than another shop to pick. */}
-            {canAddShop ? (
-              <Pressable
-                onPress={handleAddShop}
-                disabled={switching}
-                className="flex-row items-center rounded-2xl border mb-2"
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  backgroundColor: '#FFFFFF',
-                  borderColor: BRIGHT,
-                  borderStyle: 'dashed',
-                  opacity: switching ? 0.5 : 1,
-                }}
-              >
-                <View className="w-9 h-9 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: MINT }}>
-                  <Plus size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[14px] font-extrabold" style={{ color: ACCENT }} numberOfLines={1}>
-                    Add Shop
-                  </Text>
-                  <Text className="text-[11px] mt-0.5" style={{ color: TEXT_SECONDARY }} numberOfLines={1}>
-                    Open another business location
-                  </Text>
-                </View>
-                <ChevronRight size={16} color={ACCENT} strokeWidth={ICON_STROKE} />
-              </Pressable>
-            ) : null}
+              ) : null}
             </ScrollView>
             {switching ? (
               <View className="flex-row items-center justify-center mt-2">
-                <ActivityIndicator color={ACCENT} />
-                <Text className="ml-2 text-[12px]" style={{ color: TEXT_SECONDARY }}>Switching…</Text>
+                <ActivityIndicator color={G} />
+                <Text className="ml-2 text-[12px]" style={{ color: MUTED }}>Switching…</Text>
               </View>
             ) : null}
           </Pressable>
@@ -736,20 +584,53 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   );
 }
 
-function SectionLabel({ children, subtitle, count, countIcon: CountIcon }) {
+// One white list per section; rows inside are flat and divider-separated.
+const LIST_STYLE = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: rs(16),
+  borderWidth: 1,
+  borderColor: LIGHT,
+  paddingHorizontal: rs(12),
+};
+// Flat list row (reference listing style): no box, thin divider underneath.
+const LIST_ROW = {
+  minHeight: rs(64),
+  paddingVertical: rs(11),
+};
+
+// Compact single-line row (Airtel-style list), shared by every list item.
+const ROW_STYLE = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: rs(14),
+  borderWidth: 1,
+  borderColor: LIGHT,
+  paddingHorizontal: rs(12),
+  minHeight: rs(60),
+  paddingVertical: rs(9),
+  marginBottom: rs(7),
+  shadowColor: '#000000',
+  shadowOpacity: 0.03,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 1,
+};
+const ICON_TILE = {
+  width: rs(36), height: rs(36), borderRadius: rs(10),
+  backgroundColor: G_LIGHT,
+  alignItems: 'center', justifyContent: 'center',
+  marginRight: rs(11),
+};
+
+function SectionLabel({ children, subtitle, count }) {
   return (
-    <View className="flex-row items-center" style={{ marginTop: rs(8), marginBottom: rs(4) }}>
-      <View style={{ width: 3, height: rs(16), borderRadius: 2, backgroundColor: BRIGHT, marginRight: rs(7) }} />
+    <View className="flex-row items-center" style={{ marginTop: rs(16), marginBottom: rs(8) }}>
       <View style={{ flex: 1 }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY }}>{children}</Text>
-        {subtitle ? (
-          <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: 0 }}>{subtitle}</Text>
-        ) : null}
+        <Text style={{ fontSize: 16, fontWeight: '700', fontFamily: SERIF, color: DARK }}>{children}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
       </View>
       {typeof count === 'number' ? (
-        <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT }}>
-          {CountIcon ? <CountIcon size={rf(11)} color={ACCENT} strokeWidth={ICON_STROKE} /> : null}
-          <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: CountIcon ? rs(4) : 0 }}>
+        <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: G_LIGHT }}>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: G }}>
             {count} Option{count === 1 ? '' : 's'}
           </Text>
         </View>
@@ -773,78 +654,63 @@ function AppLockRow() {
     await setAppLockEnabled(next);
     setOn(next);
   };
-  const tone = TONE.blue;
   return (
-    <View className="flex-row items-center" style={{ paddingVertical: rs(5) }}>
-      <View
-        style={{ height: rs(37), width: rs(37), borderRadius: rs(11), backgroundColor: tone.bg }}
-        className="items-center justify-center mr-3"
-      >
-        <Fingerprint size={rf(18)} color={tone.fg} strokeWidth={ICON_STROKE} />
+    <View className="flex-row items-center" style={LIST_ROW}>
+      <View style={{ ...ICON_TILE, backgroundColor: TONE.blue.dark }}>
+        <Ionicons name="lock-closed" size={rf(18)} color="#FFFFFF" />
       </View>
       <View className="flex-1">
-        <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY }}>App Lock</Text>
-        <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: 0 }}>Require fingerprint / pattern / PIN to open</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: DARK }}>App Lock</Text>
+        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Require fingerprint / pattern / PIN to open</Text>
       </View>
       <Switch
         value={on}
         onValueChange={toggle}
         disabled={!ready}
-        trackColor={{ true: PRIMARY, false: BORDER }}
+        trackColor={{ true: G, false: LIGHT }}
         thumbColor="#FFFFFF"
+        ios_backgroundColor={LIGHT}
       />
     </View>
   );
 }
 
-// Each row picks a tone NAME from the shared TONE palette above instead of an
-// ad-hoc colour pair, so the colour-coding (green/amber/blue/purple/orange/
-// pink) stays centralised and can't drift call-site by call-site.
-// `standalone` renders it as its own rounded card with a bottom margin
-// (the reference's individual menu-card look); omitting it keeps the old
-// grouped-list-row look for anywhere still using it.
-function MenuRow({ Icon, label, sub, onPress, last, tone = 'green', standalone }) {
+// Solid glyphs for the menu rows — green on a very light green tile.
+const SOLID = {
+  personal: ion('person'),
+  subscription: mci('crown'),
+  qr: ion('qr-code'),
+  shop: ion('storefront'),
+  kyc: ion('document-text'),
+  pickup: mci('truck'),
+  orders: ion('bag-handle'),
+  employees: ion('people'),
+  leave: mci('calendar-clock'),
+  terms: mci('script-text'),
+  privacy: mci('shield-check'),
+  faq: ion('help-circle'),
+  support: ion('headset'),
+};
+
+// One list row: [medium-colour tile + white icon] Title / subtitle, with a thin
+// divider under every row except the section's last.
+function MenuRow({ Icon, label, sub, onPress, tone = 'green', last }) {
   const t = TONE[tone] || TONE.green;
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: SOFT_MINT }}
+      android_ripple={{ color: LIGHT }}
       className="flex-row items-center"
-      hitSlop={4}
-      style={
-        standalone
-          ? {
-              backgroundColor: CARD_BG, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rs(5),
-              minHeight: rs(50),
-              borderWidth: 1, borderColor: BORDER, marginBottom: last ? 0 : rs(5),
-              ...softShadow,
-            }
-          : {
-              paddingVertical: rs(5),
-              borderBottomWidth: last ? 0 : 1,
-              borderBottomColor: '#EFF5EE',
-            }
-      }
+      hitSlop={2}
+      style={{ ...LIST_ROW, borderBottomWidth: last ? 0 : 1, borderBottomColor: LIGHT }}
     >
-      <View
-        style={{
-          width: rs(37), height: rs(37), borderRadius: rs(11),
-          backgroundColor: t.bg,
-          alignItems: 'center', justifyContent: 'center',
-          marginRight: rs(10),
-        }}
-      >
-        <Icon size={rf(18)} color={t.fg} strokeWidth={ICON_STROKE} />
+      <View style={{ ...ICON_TILE, backgroundColor: t.dark }}>
+        <Icon size={rf(19)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
-        <Text className="font-bold" style={{ fontSize: rf(14), color: TEXT_PRIMARY, lineHeight: rf(16.5) }}>{label}</Text>
-        {sub ? (
-          <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: 0, lineHeight: rf(13.5) }} numberOfLines={1}>
-            {sub}
-          </Text>
-        ) : null}
+        <Text style={{ fontSize: 13.5, fontWeight: '700', color: DARK }} numberOfLines={1}>{label}</Text>
+        {sub ? <Text style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }} numberOfLines={1}>{sub}</Text> : null}
       </View>
-      <ChevronRight size={rf(16)} color={ACCENT} strokeWidth={ICON_STROKE} />
     </Pressable>
   );
 }

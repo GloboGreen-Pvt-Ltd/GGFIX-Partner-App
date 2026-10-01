@@ -13,6 +13,6 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#172117', padding: 16 },
-  title: { fontSize: 20, fontWeight: '700', color: '#F7FAF7', marginBottom: 12 },
-  hint: { fontSize: 14, color: '#8FA08F' },
+  title: { fontSize: 18.5, fontWeight: '700', color: '#F7FAF7', marginBottom: 12 },
+  hint: { fontSize: 13, color: '#8FA08F' },
 });

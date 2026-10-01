@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   statsCard: {
     backgroundColor: '#FFFFFF',
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: rs(11),
   },
-  statsHeaderTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  statsHeaderTitle: { fontSize: 14, fontWeight: '800', color: '#172117' },
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     gap: rs(7),
   },
-  monthPillText: { color: '#FFFFFF', fontSize: rf(11.5), fontWeight: '700' },
+  monthPillText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   monthPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
 
   statTilesRow: { flexDirection: 'row', gap: rs(8) },
@@ -467,13 +467,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   statTileTop: { flexDirection: 'row', alignItems: 'center', gap: rs(5) },
-  statTileTopText: { fontSize: rf(10.5), fontWeight: '800' },
-  statTileValue: { fontSize: rf(20), fontWeight: '800', color: '#172117', marginTop: rs(6) },
-  statTileHint: { fontSize: rf(10), color: '#667066', marginTop: rs(2), fontWeight: '600' },
+  statTileTopText: { fontSize: 10.5, fontWeight: '800' },
+  statTileValue: { fontSize: 18.5, fontWeight: '800', color: '#172117', marginTop: rs(6) },
+  statTileHint: { fontSize: 10, color: '#667066', marginTop: rs(2), fontWeight: '600' },
 
   sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: rs(14), marginBottom: rs(8) },
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
-  viewAll: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: '#172117' },
+  viewAll: { fontSize: 12, fontWeight: '800', color: '#004C40' },
 
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(8), marginBottom: rs(12) },
   filterChip: {
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8E2',
   },
   filterChipActive: { backgroundColor: '#004C40', borderColor: '#004C40' },
-  filterChipText: { fontSize: rf(12), color: '#667066', fontWeight: '700' },
+  filterChipText: { fontSize: 12, color: '#667066', fontWeight: '700' },
   filterChipTextActive: { color: '#FFFFFF' },
 
   taskCard: {
@@ -502,14 +502,14 @@ const styles = StyleSheet.create({
   taskInner: { flex: 1, padding: rs(11) },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskDateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
-  taskDate: { fontSize: rf(13), fontWeight: '800', color: '#172117' },
-  taskTracking: { fontSize: rf(11), color: '#8FA08F', fontWeight: '600' },
+  taskDate: { fontSize: 13, fontWeight: '800', color: '#172117' },
+  taskTracking: { fontSize: 11, color: '#8FA08F', fontWeight: '600' },
   taskMiddleRow: { marginTop: rs(6) },
-  taskDevice: { fontSize: rf(12), color: '#172117' },
-  taskAssignee: { fontSize: rf(11), color: '#004C40', fontWeight: '700', marginTop: rs(2) },
+  taskDevice: { fontSize: 12, color: '#172117' },
+  taskAssignee: { fontSize: 11, color: '#004C40', fontWeight: '700', marginTop: rs(2) },
   taskBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(8) },
-  taskStep: { fontSize: rf(12.5), fontWeight: '800' },
-  taskFooter: { fontSize: rf(10.5), color: '#8FA08F', marginTop: rs(3) },
+  taskStep: { fontSize: 12.5, fontWeight: '800' },
+  taskFooter: { fontSize: 10.5, color: '#8FA08F', marginTop: rs(3) },
   taskStatusIcon: { marginLeft: rs(8) },
   statusBadge: {
     width: rs(32),
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: rs(8), height: rs(8), borderRadius: rs(4) },
 
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', paddingVertical: rs(14) },
+  empty: { fontSize: 12, color: '#667066', textAlign: 'center', paddingVertical: rs(14) },
   emptyCard: {
     backgroundColor: '#F0F8EF',
     borderWidth: 1,
@@ -529,6 +529,6 @@ const styles = StyleSheet.create({
     paddingVertical: rs(18),
     alignItems: 'center',
   },
-  emptyTitle: { fontSize: rf(13), fontWeight: '800', color: '#172117', marginTop: rs(7) },
-  emptySub: { fontSize: rf(11.5), color: '#667066', marginTop: rs(3) },
+  emptyTitle: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(7) },
+  emptySub: { fontSize: 11.5, color: '#667066', marginTop: rs(3) },
 });

@@ -132,7 +132,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   if (!invoice) {
     return (
       <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: '#F0F8EF' }}>
-        <Text className="text-[15px] font-extrabold text-gray-700">No invoice generated yet</Text>
+        <Text className="text-[14px] font-extrabold text-gray-700">No invoice generated yet</Text>
         <Text className="text-[12px] text-gray-500 mt-2 text-center">
           Open the Invoice Generator from the Invoices screen to create one.
         </Text>
@@ -457,7 +457,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
           >
             <ChevronLeft size={22} color="#172117" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
             Deliver Invoice
           </Text>
           {/* Ticket no · Download · Share. These used to be a sticky bar across
@@ -507,7 +507,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             <Text className="text-[9.5px] font-bold text-text-muted" style={{ letterSpacing: 0.8 }}>
               INVOICE TOTAL
             </Text>
-            <Text className="text-text text-[27px] font-extrabold" style={{ marginTop: 1, letterSpacing: -0.5 }}>
+            <Text className="text-text text-[24px] font-extrabold" style={{ marginTop: 1, letterSpacing: -0.5 }}>
               ₹{fmt(invoice.finalPayableAmount)}
             </Text>
           </View>
@@ -533,7 +533,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-start">
               <View className="flex-1 pr-3">
-                <Text className="text-[18px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                <Text className="text-[17px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                   {shopName}
                 </Text>
                 {ownerDisplayName ? (
@@ -802,8 +802,8 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               className="mt-3 p-3 rounded-2xl flex-row items-center justify-between"
               style={{ backgroundColor: BRAND_GREEN_DARK }}
             >
-              <Text className="text-white text-[13.5px] font-extrabold">Invoice Total</Text>
-              <Text className="text-white text-[18px] font-extrabold">
+              <Text className="text-white text-[13px] font-extrabold">Invoice Total</Text>
+              <Text className="text-white text-[17px] font-extrabold">
                 ₹{fmt(invoice.finalPayableAmount)}
               </Text>
             </View>
@@ -852,7 +852,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                     {creditAmount > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}
                   </Text>
                   <Text
-                    className="text-[16px] font-extrabold"
+                    className="text-[15px] font-extrabold"
                     style={{ color: creditAmount > 0 ? '#B45309' : BRAND_GREEN_DARK }}
                   >
                     ₹{fmt(creditAmount)}

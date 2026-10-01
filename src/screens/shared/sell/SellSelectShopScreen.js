@@ -43,7 +43,7 @@ export default function SellSelectShopScreen({ navigation, route }) {
           <TouchableOpacity key={q.id} style={styles.row} onPress={() => setSelectedId(q.id)}>
             <Ionicons name={selectedId === q.id ? 'radio-button-on' : 'radio-button-off'} size={22} color={selectedId === q.id ? '#087A0A' : colors.textSecondary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={{ fontWeight: '700', color: colors.text, fontSize: 14 }}>{i + 1}. {q.shopName} - {q.shopCity}</Text>
+              <Text style={{ fontWeight: '700', color: colors.text, fontSize: 13 }}>{i + 1}. {q.shopName} - {q.shopCity}</Text>
               <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Quotation Price - ₹{Number(q.quotationPrice).toLocaleString()}</Text>
             </View>
           </TouchableOpacity>

@@ -90,7 +90,7 @@ export default function ForgotPasswordOtpScreen({ navigation, route }) {
         fullWidth
         size="lg"
         style={{ marginTop: 13, height: 46, borderRadius: 16 }}
-        textClassName="text-[15px] font-extrabold tracking-wide"
+        textClassName="text-[14px] font-extrabold tracking-wide"
       >
         Submit code
       </Button>

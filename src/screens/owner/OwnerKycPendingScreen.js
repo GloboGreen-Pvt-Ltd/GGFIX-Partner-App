@@ -29,7 +29,7 @@ export default function OwnerKycPendingScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28 },
-  title: { fontSize: 18, fontWeight: '700', color: '#172117', marginTop: 12, textAlign: 'center' },
+  title: { fontSize: 17, fontWeight: '700', color: '#172117', marginTop: 12, textAlign: 'center' },
   desc: { fontSize: 13, color: '#667066', marginTop: 6, textAlign: 'center' },
   button: {
     marginTop: 18,
@@ -40,6 +40,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  buttonText: { marginLeft: 6, fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+  buttonText: { marginLeft: 6, fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 });
 

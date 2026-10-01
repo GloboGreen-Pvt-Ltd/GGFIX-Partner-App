@@ -169,7 +169,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
           <Ionicons name="checkmark-circle" size={20} color="#16BB05" />
         </View>
         <View className="flex-1">
-          <Text className="font-extrabold text-text text-[14px]">Booking Successful</Text>
+          <Text className="font-extrabold text-text text-[13px]">Booking Successful</Text>
           <Text className="text-[10px] text-text-muted mt-0.5">{time} on {date}</Text>
         </View>
         <View className="bg-success/10 px-2 py-1 rounded-full">
@@ -263,7 +263,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
             {deviceList.length > 1 ? (
               <View className="px-3 py-3 flex-row items-center">
                 <Text className="flex-1 font-extrabold text-text text-[13px]">Grand Total · {deviceList.length} devices</Text>
-                <Text className="font-extrabold text-primary text-[15px]">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text className="font-extrabold text-primary text-[14px]">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
             ) : null}
           </Card>

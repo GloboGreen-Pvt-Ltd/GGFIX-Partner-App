@@ -77,13 +77,13 @@ export default function ReminderCard({
             ) : (
               // Monogram fallback, so a shop that never uploaded a front image
               // still sends something branded rather than an empty square.
-              <Text style={{ fontSize: 18, fontWeight: '800', color: GREEN }}>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: GREEN }}>
                 {(shopName || '#').trim().charAt(0).toUpperCase()}
               </Text>
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontSize: 15.5, fontWeight: '800', color: '#FFFFFF' }}>
+            <Text numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '800', color: '#FFFFFF' }}>
               {shopName || 'Our shop'}
             </Text>
             {shopPhone ? (
@@ -99,7 +99,7 @@ export default function ReminderCard({
           <Text style={{ fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1.4 }}>
             PAYMENT REMINDER
           </Text>
-          <Text style={{ fontSize: 40, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 34.5, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
             {formatMoney(Math.abs(Number(amount) || 0))}
           </Text>
           <Text style={{ fontSize: 12.5, color: MUTED, marginTop: 2 }}>
@@ -139,7 +139,7 @@ export default function ReminderCard({
             <Text style={{ fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1.1 }}>
               ACCOUNT
             </Text>
-            <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '700', color: INK, marginTop: 2 }}>
+            <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: INK, marginTop: 2 }}>
               {customerName}
             </Text>
           </View>

@@ -138,12 +138,12 @@ function SellProgressTracker({ statusKey, dateLabel }) {
               </View>
               <Text
                 numberOfLines={2}
-                style={{ fontSize: rf(8.5), lineHeight: rf(10.5), fontWeight: '700', color: done ? ACCENT : TEXT_SECONDARY, marginTop: rs(4), textAlign: 'center' }}
+                style={{ fontSize: 8.5, lineHeight: rf(10.5), fontWeight: '700', color: done ? ACCENT : TEXT_SECONDARY, marginTop: rs(4), textAlign: 'center' }}
               >
                 {step.label}
               </Text>
               {i === 0 && dateLabel ? (
-                <Text style={{ fontSize: rf(7.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                <Text style={{ fontSize: 7.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
                   {dateLabel}
                 </Text>
               ) : null}
@@ -188,12 +188,12 @@ function OrderCard({ item, showPrice, isSell, onPress }) {
           style={{ paddingHorizontal: rs(9), paddingVertical: rs(4), backgroundColor: meta.tint }}
         >
           <StatusIcon size={rf(11)} color={meta.accent} strokeWidth={2.4} />
-          <Text className="font-extrabold" style={{ marginLeft: rs(4), fontSize: rf(9.5), color: meta.accent, letterSpacing: 0.3 }}>
+          <Text className="font-extrabold" style={{ marginLeft: rs(4), fontSize: 9.5, color: meta.accent, letterSpacing: 0.3 }}>
             {meta.short.toUpperCase()}
           </Text>
         </View>
         <View className="flex-row items-center">
-          <Text className="font-bold" style={{ fontSize: rf(10), color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
+          <Text className="font-bold" style={{ fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
             #GGFIX{orderId}
           </Text>
           {/* Same real destination as the whole card — a decorative
@@ -218,15 +218,15 @@ function OrderCard({ item, showPrice, isSell, onPress }) {
         </View>
 
         <View className="flex-1" style={{ paddingRight: rs(6) }}>
-          <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY, lineHeight: rf(18) }} numberOfLines={2}>
+          <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY, lineHeight: rf(18) }} numberOfLines={2}>
             {item.title || 'Item'}
           </Text>
           <View className="flex-row items-center justify-between" style={{ marginTop: rs(5) }}>
-            <Text className="flex-1" style={{ fontSize: rf(11.5), color: TEXT_SECONDARY }} numberOfLines={1}>
+            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }} numberOfLines={1}>
               {specs || dateLabel || ''}
             </Text>
             {showPrice && item.price != null ? (
-              <Text className="font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(14), color: ACCENT }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(8), fontSize: 13, color: ACCENT }}>
                 ₹{Number(item.price).toLocaleString('en-IN')}
               </Text>
             ) : null}
@@ -256,7 +256,7 @@ function OrderTab({ label, Icon, active, onPress }) {
       />
       <View className="items-center justify-center flex-row" style={{ paddingVertical: rs(12) }}>
         <Icon size={rf(16)} color={active ? '#FFFFFF' : TEXT_SECONDARY} />
-        <Text className="font-extrabold" style={{ marginLeft: rs(7), fontSize: rf(14), color: active ? '#FFFFFF' : TEXT_SECONDARY }}>
+        <Text className="font-extrabold" style={{ marginLeft: rs(7), fontSize: 13, color: active ? '#FFFFFF' : TEXT_SECONDARY }}>
           {label}
         </Text>
       </View>
@@ -277,9 +277,9 @@ function FilterChip({ label, Icon, count, active, tint, fg, onPress }) {
       }}
     >
       {Icon ? <Icon size={rf(11)} color={active ? fg : TEXT_SECONDARY} style={{ marginRight: rs(5) }} /> : null}
-      <Text className="font-bold" style={{ fontSize: rf(11.5), color: active ? fg : TEXT_PRIMARY }}>{label}</Text>
+      <Text className="font-bold" style={{ fontSize: 11.5, color: active ? fg : TEXT_PRIMARY }}>{label}</Text>
       {typeof count === 'number' ? (
-        <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11), color: active ? fg : TEXT_SECONDARY }}>{count}</Text>
+        <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: 11, color: active ? fg : TEXT_SECONDARY }}>{count}</Text>
       ) : null}
     </Pressable>
   );
@@ -332,7 +332,7 @@ function BottomNavMimic({ navigation, activeKey }) {
             >
               <ItemIcon size={rf(18)} color={active ? ACCENT : TEXT_PRIMARY} strokeWidth={2} />
             </View>
-            <Text className="font-bold" style={{ fontSize: rf(10), color: active ? ACCENT : TEXT_PRIMARY, marginTop: rs(3) }}>
+            <Text className="font-bold" style={{ fontSize: 10, color: active ? ACCENT : TEXT_PRIMARY, marginTop: rs(3) }}>
               {it.label}
             </Text>
           </Pressable>
@@ -467,10 +467,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               <ChevronLeft size={rf(21)} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: rf(21), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 19, color: TEXT_PRIMARY }} numberOfLines={1}>
                 My Orders
               </Text>
-              <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+              <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
                 {loading ? 'Loading…' : `${visible.length} ${tab.toLowerCase()} order${visible.length === 1 ? '' : 's'}`}
               </Text>
             </View>
@@ -516,7 +516,7 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               placeholderTextColor="#8FA08F"
               returnKeyType="search"
               className="flex-1"
-              style={{ fontSize: rf(12.5), paddingVertical: rs(9), marginLeft: rs(8), color: TEXT_PRIMARY }}
+              style={{ fontSize: 12.5, paddingVertical: rs(9), marginLeft: rs(8), color: TEXT_PRIMARY }}
             />
             {query ? (
               <Pressable onPress={() => setQuery('')} hitSlop={10}>
@@ -587,10 +587,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
                   </View>
                   <Send size={rf(20)} color={BRIGHT} style={{ position: 'absolute', top: rs(4), right: rs(8) }} />
                 </View>
-                <Text className="font-extrabold text-center" style={{ fontSize: rf(20), color: TEXT_PRIMARY, marginTop: rs(18) }}>
+                <Text className="font-extrabold text-center" style={{ fontSize: 18.5, color: TEXT_PRIMARY, marginTop: rs(18) }}>
                   No buy orders yet
                 </Text>
-                <Text className="text-center" style={{ fontSize: rf(12.5), color: TEXT_SECONDARY, marginTop: rs(6) }}>
+                <Text className="text-center" style={{ fontSize: 12.5, color: TEXT_SECONDARY, marginTop: rs(6) }}>
                   Your marketplace purchases will appear here.
                 </Text>
               </View>
@@ -614,8 +614,8 @@ export default function MarketplaceOrdersScreen({ navigation }) {
                         <View className="items-center justify-center" style={{ height: rs(34), width: rs(34), borderRadius: rs(17), backgroundColor: '#FFFFFF', marginBottom: rs(6) }}>
                           <b.Icon size={rf(15)} color={ACCENT} />
                         </View>
-                        <Text className="font-extrabold text-center" style={{ fontSize: rf(10.5), color: TEXT_PRIMARY }} numberOfLines={1}>{b.title}</Text>
-                        <Text className="text-center" style={{ fontSize: rf(9), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={2}>{b.sub}</Text>
+                        <Text className="font-extrabold text-center" style={{ fontSize: 10.5, color: TEXT_PRIMARY }} numberOfLines={1}>{b.title}</Text>
+                        <Text className="text-center" style={{ fontSize: 9, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={2}>{b.sub}</Text>
                       </View>
                     </React.Fragment>
                   ))}
@@ -630,10 +630,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
                   style={{ borderRadius: 999, backgroundColor: ACCENT, paddingVertical: rs(15), ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.28 }}
                 >
                   <ShoppingBag size={rf(16)} color="#FFFFFF" />
-                  <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(14) }}>Explore Products</Text>
+                  <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 13 }}>Explore Products</Text>
                   <ArrowRight size={rf(16)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
                 </Pressable>
-                <Text className="text-center" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(10) }}>
+                <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(10) }}>
                   Start shopping and find great deals!
                 </Text>
               </View>
@@ -649,10 +649,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
                 <ShoppingBag size={rf(26)} color={ACCENT} />
               </View>
             </View>
-            <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }}>
+            <Text className="font-extrabold" style={{ fontSize: 13.5, color: TEXT_PRIMARY }}>
               {q ? 'No matches' : `No ${tab.toLowerCase()} orders yet`}
             </Text>
-            <Text className="text-center" style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(8), lineHeight: rf(17) }}>
+            <Text className="text-center" style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: rs(8), lineHeight: rf(17) }}>
               {q
                 ? `Nothing in ${tab} matches "${query.trim()}".`
                 : tab === 'Sell'

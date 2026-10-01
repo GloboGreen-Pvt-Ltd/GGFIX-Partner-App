@@ -34,7 +34,7 @@ function SellHeader({ onBack }) {
         >
           <Ionicons name="chevron-back" size={20} color="#172117" />
         </TouchableOpacity>
-        <Text className="flex-1 text-[19px] font-extrabold" style={{ color: '#172117' }} numberOfLines={1}>
+        <Text className="flex-1 text-[17.5px] font-extrabold" style={{ color: '#172117' }} numberOfLines={1}>
           Sell Device Details
         </Text>
       </View>
@@ -172,11 +172,11 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 <Ionicons name={meta.icon} size={24} color="#fff" />
               </View>
               <View className="flex-1">
-                <Text className="text-[16px] font-extrabold" style={{ color: '#172117' }}>{meta.label}</Text>
+                <Text className="text-[15px] font-extrabold" style={{ color: '#172117' }}>{meta.label}</Text>
                 <Text className="text-[12px] mt-0.5" style={{ color: '#8FA08F' }}>#{orderId}</Text>
               </View>
               {item.price != null ? (
-                <Text className="text-[17px] font-extrabold" style={{ color: GREEN_DARK }}>
+                <Text className="text-[16px] font-extrabold" style={{ color: GREEN_DARK }}>
                   ₹{Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Text>
               ) : null}
@@ -198,7 +198,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               )}
             </View>
             <View className="ml-3.5 flex-1">
-              <Text className="text-[15px] font-extrabold leading-6" style={{ color: '#172117' }} numberOfLines={2}>
+              <Text className="text-[14px] font-extrabold leading-6" style={{ color: '#172117' }} numberOfLines={2}>
                 {item.title || 'Device'}
               </Text>
               <View style={{ height: 6 }} />
@@ -215,7 +215,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
             <>
               <View className="flex-row items-center mt-4 mb-2.5">
                 <Ionicons name="image-outline" size={17} color={GREEN} />
-                <Text className="ml-2 text-[14px] font-extrabold" style={{ color: '#172117' }}>Device Photos</Text>
+                <Text className="ml-2 text-[13px] font-extrabold" style={{ color: '#172117' }}>Device Photos</Text>
               </View>
               <View className="flex-row flex-wrap -mx-1">
                 {allPhotos.map((url, i) => (
@@ -241,7 +241,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
           <View className="bg-card rounded-2xl p-4 mb-3" style={{ borderWidth: 1, borderColor: '#E2E8E2' }}>
             <View className="flex-row items-center mb-1">
               <Ionicons name="reader-outline" size={18} color={GREEN} />
-              <Text className="ml-2 text-[14px] font-extrabold" style={{ color: '#172117' }}>Device Summary</Text>
+              <Text className="ml-2 text-[13px] font-extrabold" style={{ color: '#172117' }}>Device Summary</Text>
             </View>
 
             {assessment.screeningAnswers?.length ? (
@@ -301,7 +301,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
             return (
               <View className="bg-success/10 border border-success/30 rounded-2xl p-3 mt-3 items-center">
                 <Ionicons name="checkmark-circle" size={28} color="#004C40" />
-                <Text className="text-success text-[14px] font-extrabold mt-1">Selling Completed</Text>
+                <Text className="text-success text-[13px] font-extrabold mt-1">Selling Completed</Text>
               </View>
             );
           }
@@ -309,7 +309,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
             return (
               <View className="bg-danger/10 border border-danger/30 rounded-2xl p-3 mt-3 items-center">
                 <Ionicons name="close-circle" size={28} color="#DC2626" />
-                <Text className="text-danger text-[14px] font-extrabold mt-1">Listing Cancelled</Text>
+                <Text className="text-danger text-[13px] font-extrabold mt-1">Listing Cancelled</Text>
               </View>
             );
           }
@@ -342,7 +342,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               {acting ? <ActivityIndicator color="#DC2626" /> : (
                 <View className="flex-row items-center">
                   <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
-                  <Text className="font-extrabold text-[14px] ml-2" style={{ color: '#DC2626' }}>Selling Cancel</Text>
+                  <Text className="font-extrabold text-[13px] ml-2" style={{ color: '#DC2626' }}>Selling Cancel</Text>
                 </View>
               )}
             </Pressable>
@@ -355,7 +355,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               {acting ? <ActivityIndicator color="#fff" /> : (
                 <View className="flex-row items-center">
                   <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                  <Text className="text-white font-extrabold text-[14px] ml-2">Selling Completed</Text>
+                  <Text className="text-white font-extrabold text-[13px] ml-2">Selling Completed</Text>
                 </View>
               )}
             </Pressable>

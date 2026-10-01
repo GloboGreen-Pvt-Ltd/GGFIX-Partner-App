@@ -167,7 +167,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                 <HeroIcon size={22} color="#FFFFFF" strokeWidth={2.3} />
               </View>
               <View className="flex-1">
-                <Text className="text-[15.5px] font-extrabold" style={{ color: isApproved ? tokens.primary : '#FFFFFF' }}>
+                <Text className="text-[14.5px] font-extrabold" style={{ color: isApproved ? tokens.primary : '#FFFFFF' }}>
                   {overallStatus === 'APPROVED' && 'KYC Approved'}
                   {overallStatus === 'REJECTED' && 'KYC Rejected'}
                   {overallStatus === 'PENDING_REVIEW' && 'Under Review'}
@@ -216,7 +216,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                 style={{ borderRadius: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
                 <CloudUpload size={16} color="#FFFFFF" />
-                <Text className="ml-2 text-white text-[14px] font-extrabold">
+                <Text className="ml-2 text-white text-[13px] font-extrabold">
                   Upload KYC Documents
                 </Text>
               </LinearGradient>
@@ -225,7 +225,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
             <>
               {/* Section label */}
               <View className="mt-5 mb-2 flex-row items-center">
-                <Text className="text-[15px] font-extrabold text-text flex-1">Uploaded Documents</Text>
+                <Text className="text-[14px] font-extrabold text-text flex-1">Uploaded Documents</Text>
                 <View className="px-2.5 py-1 rounded-full" style={{ backgroundColor: tokens.primarySoft }}>
                   <Text className="text-[10.5px] font-extrabold" style={{ color: tokens.primary }}>
                     {isApproved ? `${orderedDocs.length} of ${orderedDocs.length} verified` : `${orderedDocs.length} uploaded`}
@@ -251,7 +251,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                           <FileText size={15} color={tokens.primary} />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
+                          <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
                           <Text className="text-[10.5px] text-text-muted mt-0.5">{GROUP_LABEL[doc.docType]}</Text>
                         </View>
                         <StatusChip tone={tone} label={label} size="sm" />
@@ -314,7 +314,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                     end={{ x: 1, y: 1 }}
                     style={{ borderRadius: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Text className="text-white text-[14px] font-extrabold">Edit Documents</Text>
+                    <Text className="text-white text-[13px] font-extrabold">Edit Documents</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}

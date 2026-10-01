@@ -143,7 +143,7 @@ export default function OwnerCartScreen({ navigation }) {
         </View>
 
         <View className="flex-1">
-          <Text className="text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
             {p.title || 'Product'}
           </Text>
           <View className="flex-row items-center mt-0.5">
@@ -156,7 +156,7 @@ export default function OwnerCartScreen({ navigation }) {
               <Text className="text-[11px] text-gray-500" numberOfLines={1}>{p.conditionLabel}</Text>
             ) : null}
           </View>
-          <Text className="text-[13.5px] font-extrabold mt-1" style={{ color: GREEN_DARK }}>
+          <Text className="text-[13px] font-extrabold mt-1" style={{ color: GREEN_DARK }}>
             {price != null ? `₹${price.toLocaleString('en-IN')}` : '—'}
           </Text>
 
@@ -228,7 +228,7 @@ export default function OwnerCartScreen({ navigation }) {
             >
               <ChevronLeft size={20} color="#172117" />
             </Pressable>
-            <Text className="flex-1 text-center text-text text-[15px] font-extrabold">My Cart</Text>
+            <Text className="flex-1 text-center text-text text-[14px] font-extrabold">My Cart</Text>
             {items.length ? (
               <Pressable onPress={onClear} hitSlop={10} className="px-2 h-9 rounded-full items-center justify-center bg-surface-muted">
                 <Text className="text-text text-[11px] font-extrabold">Clear</Text>
@@ -264,7 +264,7 @@ export default function OwnerCartScreen({ navigation }) {
               <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
                 <ShoppingCart size={28} color={GREEN_DARK} />
               </View>
-              <Text className="text-[13.5px] font-extrabold text-gray-700">Your cart is empty</Text>
+              <Text className="text-[13px] font-extrabold text-gray-700">Your cart is empty</Text>
               <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">
                 Add products and spare parts from the Buy screen to see them here.
               </Text>
@@ -284,7 +284,7 @@ export default function OwnerCartScreen({ navigation }) {
               <Text className="text-[11px] text-gray-500 font-semibold">
                 {totalQty} item{totalQty === 1 ? '' : 's'} · Subtotal
               </Text>
-              <Text className="text-[17px] font-extrabold" style={{ color: GREEN_DARK }}>
+              <Text className="text-[16px] font-extrabold" style={{ color: GREEN_DARK }}>
                 ₹{subtotal.toLocaleString('en-IN')}
               </Text>
             </View>
@@ -299,7 +299,7 @@ export default function OwnerCartScreen({ navigation }) {
                 end={{ x: 1, y: 1 }}
                 style={{ borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28 }}
               >
-                <Text className="text-white text-[14px] font-extrabold">Checkout</Text>
+                <Text className="text-white text-[13px] font-extrabold">Checkout</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

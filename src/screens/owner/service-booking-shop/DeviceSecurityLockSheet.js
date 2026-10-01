@@ -156,7 +156,7 @@ function PatternPad({ value, onChange }) {
             >
               <Text
                 style={{
-                  fontSize: rf(13),
+                  fontSize: 13,
                   fontWeight: active ? '700' : '500',
                   color: active ? '#FFFFFF' : SUB,
                 }}
@@ -218,18 +218,18 @@ function DeviceSummaryCard({ device }) {
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: INK }} numberOfLines={1}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>
             {device.modelName || 'Device'}
           </Text>
           {specs ? (
-            <Text style={{ fontSize: rf(10.5), color: SUB, marginTop: 1 }} numberOfLines={1}>{specs}</Text>
+            <Text style={{ fontSize: 10.5, color: SUB, marginTop: 1 }} numberOfLines={1}>{specs}</Text>
           ) : null}
           {device.modelNumber ? (
             <View
               className="self-start flex-row items-center"
               style={{ marginTop: rs(5), borderRadius: rs(7), paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: '#FFFFFF' }}
             >
-              <Text style={{ fontSize: rf(9.5), fontWeight: '700', color: A }}>{'#' + device.modelNumber}</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: A }}>{'#' + device.modelNumber}</Text>
             </View>
           ) : null}
         </View>
@@ -240,7 +240,7 @@ function DeviceSummaryCard({ device }) {
           >
             <ShieldCheck size={rf(14)} color="#FFFFFF" strokeWidth={2.5} />
           </View>
-          <Text style={{ fontSize: rf(8.5), fontWeight: '700', color: A, textAlign: 'center' }} numberOfLines={2}>
+          <Text style={{ fontSize: 8.5, fontWeight: '700', color: A, textAlign: 'center' }} numberOfLines={2}>
             Secure{'\n'}Service
           </Text>
         </View>
@@ -267,9 +267,9 @@ function PinKey({ label, sub, onPress, accessibilityLabel }) {
         backgroundColor: pressed ? A : SOFT_MINT, borderWidth: 1, borderColor: pressed ? A : LINE,
       }}
     >
-      <Text style={{ fontSize: rf(19), fontWeight: '700', color: pressed ? '#FFFFFF' : INK }}>{label}</Text>
+      <Text style={{ fontSize: 17.5, fontWeight: '700', color: pressed ? '#FFFFFF' : INK }}>{label}</Text>
       {sub ? (
-        <Text style={{ fontSize: rf(7.5), fontWeight: '600', color: pressed ? 'rgba(255,255,255,0.85)' : SUB, letterSpacing: 1, marginTop: 1 }}>
+        <Text style={{ fontSize: 7.5, fontWeight: '600', color: pressed ? 'rgba(255,255,255,0.85)' : SUB, letterSpacing: 1, marginTop: 1 }}>
           {sub}
         </Text>
       ) : null}
@@ -292,8 +292,8 @@ function PrivacyNote() {
         <Lock size={rf(16)} color={A} strokeWidth={2} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: rf(12), fontWeight: '800', color: A }}>{PRIVACY_TITLE}</Text>
-        <Text style={{ fontSize: rf(10.5), color: SUB, marginTop: 1, lineHeight: rf(15) }}>{PRIVACY_BODY}</Text>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: A }}>{PRIVACY_TITLE}</Text>
+        <Text style={{ fontSize: 10.5, color: SUB, marginTop: 1, lineHeight: rf(15) }}>{PRIVACY_BODY}</Text>
       </View>
     </View>
   );
@@ -403,14 +403,14 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
           </View>
         )}
         <View className="flex-1" style={{ paddingTop: step ? rs(6) : rs(2) }}>
-          <Text style={{ fontSize: rf(16.5), fontWeight: '800', color: INK }}>
+          <Text style={{ fontSize: 15.5, fontWeight: '800', color: INK }}>
             {step === 'PIN' ? 'Enter Device PIN'
               : step === 'PASSWORD' ? 'Enter Device Password'
               : step === 'PATTERN' ? 'Draw Lock Screen Pattern'
               : step === 'NONE' ? 'No Device Lock'
               : 'Device Security Lock'}
           </Text>
-          <Text style={{ fontSize: rf(11.5), color: SUB, marginTop: rs(2) }} numberOfLines={2}>
+          <Text style={{ fontSize: 11.5, color: SUB, marginTop: rs(2) }} numberOfLines={2}>
             {step === 'PIN' ? 'Enter the lock screen PIN to proceed with service'
               : step === 'PASSWORD' ? 'Enter the lock screen password to proceed with service'
               : step === 'PATTERN' ? 'Draw the device pattern by connecting at least 4 dots'
@@ -461,13 +461,13 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                     : <Lock size={rf(21)} color={A} strokeWidth={2} />}
                 </View>
                 <View className="flex-1">
-                  <Text style={{ fontSize: rf(9.5), fontWeight: '800', letterSpacing: 1, color: SUB }}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1, color: SUB }}>
                     CURRENT SECURITY
                   </Text>
-                  <Text style={{ fontSize: rf(15), fontWeight: '800', color: INK, marginTop: rs(2) }} numberOfLines={1}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: INK, marginTop: rs(2) }} numberOfLines={1}>
                     {summary()}
                   </Text>
-                  <Text style={{ fontSize: rf(10.5), color: SUB, marginTop: rs(2) }} numberOfLines={2}>
+                  <Text style={{ fontSize: 10.5, color: SUB, marginTop: rs(2) }} numberOfLines={2}>
                     {lock.type === 'NONE'
                       ? 'Device is currently unlocked and ready for service.'
                       : 'This lock will be used to unlock the device during service.'}
@@ -478,17 +478,17 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                     className="items-center"
                     style={{ borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: A, marginLeft: rs(6) }}
                   >
-                    <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>READY</Text>
+                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>READY</Text>
                   </View>
                 ) : null}
               </View>
             </LinearGradient>
 
             {/* B. Select lock type */}
-            <Text style={{ fontSize: rf(13), fontWeight: '800', color: INK, marginTop: rs(16) }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: INK, marginTop: rs(16) }}>
               Choose Device Lock
             </Text>
-            <Text style={{ fontSize: rf(11), color: SUB, marginTop: rs(1), marginBottom: rs(10) }}>
+            <Text style={{ fontSize: 11, color: SUB, marginTop: rs(1), marginBottom: rs(10) }}>
               Select the lock currently used on this device.
             </Text>
             {LOCK_OPTIONS.map((opt) => {
@@ -529,18 +529,18 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                   </View>
                   <View className="flex-1" style={{ paddingRight: rs(8) }}>
                     <View className="flex-row items-center">
-                      <Text style={{ fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: INK }} numberOfLines={1}>
                         {opt.label}
                       </Text>
                       {active ? (
                         <View style={{ marginLeft: rs(6), borderRadius: 999, paddingHorizontal: rs(6), paddingVertical: rs(2), backgroundColor: A }}>
-                          <Text style={{ fontSize: rf(8), fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 }}>
+                          <Text style={{ fontSize: 8, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 }}>
                             {opt.key === 'NONE' ? 'READY FOR SERVICE' : 'SELECTED'}
                           </Text>
                         </View>
                       ) : null}
                     </View>
-                    <Text style={{ fontSize: rf(11), marginTop: rs(2), color: SUB }} numberOfLines={1}>
+                    <Text style={{ fontSize: 11, marginTop: rs(2), color: SUB }} numberOfLines={1}>
                       {opt.desc}
                     </Text>
                     {opt.helper ? (
@@ -548,7 +548,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                         className="self-start"
                         style={{ marginTop: rs(5), borderRadius: rs(7), paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: active ? '#FFFFFF' : SOFT }}
                       >
-                        <Text style={{ fontSize: rf(9.5), fontWeight: '600', color: SUB }}>{opt.helper}</Text>
+                        <Text style={{ fontSize: 9.5, fontWeight: '600', color: SUB }}>{opt.helper}</Text>
                       </View>
                     ) : null}
                     {opt.key === 'PATTERN' ? (
@@ -586,9 +586,9 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                 >
                   <Info size={rf(15)} color="#2563EB" strokeWidth={2} />
                 </View>
-                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: INK }}>Why we need this</Text>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', color: INK }}>Why we need this</Text>
               </View>
-              <Text style={{ fontSize: rf(11), color: SUB, lineHeight: rf(16) }}>
+              <Text style={{ fontSize: 11, color: SUB, lineHeight: rf(16) }}>
                 Helps technicians verify device functionality, test repairs after service, and avoid accidental data access.
               </Text>
             </View>
@@ -607,9 +607,9 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                   >
                     <ShieldCheck size={rf(15)} color={A} strokeWidth={2} />
                   </View>
-                  <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: INK }}>{PRIVACY_TITLE}</Text>
+                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: INK }}>{PRIVACY_TITLE}</Text>
                 </View>
-                <Text style={{ fontSize: rf(11), color: SUB, lineHeight: rf(16) }}>
+                <Text style={{ fontSize: 11, color: SUB, lineHeight: rf(16) }}>
                   {PRIVACY_BODY}
                 </Text>
               </View>
@@ -629,20 +629,20 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                       backgroundColor: patternDots >= 4 ? MINT : SOFT, marginRight: rs(8),
                     }}
                   >
-                    <Text style={{ fontSize: rf(10.5), fontWeight: '700', color: patternDots >= 4 ? A : SUB }}>
+                    <Text style={{ fontSize: 10.5, fontWeight: '700', color: patternDots >= 4 ? A : SUB }}>
                       {patternDots} dot{patternDots === 1 ? '' : 's'} selected
                     </Text>
                   </View>
                 </View>
                 {patternDots ? (
-                  <Text style={{ fontSize: rf(10.5), color: SUB, marginTop: rs(5) }} numberOfLines={1}>
+                  <Text style={{ fontSize: 10.5, color: SUB, marginTop: rs(5) }} numberOfLines={1}>
                     {pattern.split(',').filter(Boolean).join(' → ')}
                   </Text>
                 ) : null}
               </View>
               {pattern ? (
                 <Pressable onPress={() => setPattern('')} className="active:opacity-70" style={{ paddingHorizontal: rs(8), paddingVertical: rs(4) }}>
-                  <Text className="text-danger" style={{ fontSize: rf(11.5), fontWeight: '700' }}>Reset</Text>
+                  <Text className="text-danger" style={{ fontSize: 11.5, fontWeight: '700' }}>Reset</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -668,7 +668,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                 />
               ))}
             </View>
-            <Text style={{ fontSize: rf(11), color: SUB, marginBottom: rs(16) }}>Enter your device PIN</Text>
+            <Text style={{ fontSize: 11, color: SUB, marginBottom: rs(16) }}>Enter your device PIN</Text>
             <View className="flex-row flex-wrap justify-center" style={{ width: rs(258) }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                 <View key={n} className="w-1/3 items-center" style={{ paddingVertical: rs(6) }}>
@@ -698,7 +698,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
               </View>
               <View className="w-1/3" />
             </View>
-            <Text className="text-text-muted self-start" style={{ fontSize: rf(10), fontWeight: '600', letterSpacing: 1.2, marginTop: rs(14) }}>
+            <Text className="text-text-muted self-start" style={{ fontSize: 10, fontWeight: '600', letterSpacing: 1.2, marginTop: rs(14) }}>
               PIN NUMBER
             </Text>
             <TextInput
@@ -711,7 +711,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
               autoComplete="off"
               textContentType="none"
               className="w-full text-text text-center"
-              style={{ borderRadius: rs(12), paddingHorizontal: rs(14), paddingVertical: rs(11), marginTop: rs(4), fontSize: rf(16), fontWeight: '700', backgroundColor: SOFT, borderWidth: 1, borderColor: LINE }}
+              style={{ borderRadius: rs(12), paddingHorizontal: rs(14), paddingVertical: rs(11), marginTop: rs(4), fontSize: 15, fontWeight: '700', backgroundColor: SOFT, borderWidth: 1, borderColor: LINE }}
             />
             <View style={{ width: '100%' }}><PrivacyNote /></View>
           </View>
@@ -729,18 +729,18 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
               >
                 <LockOpen size={rf(26)} color={A} strokeWidth={2} />
               </View>
-              <Text style={{ fontSize: rf(15), fontWeight: '800', color: INK }}>Device is Unlocked</Text>
-              <Text style={{ fontSize: rf(11.5), color: SUB, marginTop: rs(4), textAlign: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: INK }}>Device is Unlocked</Text>
+              <Text style={{ fontSize: 11.5, color: SUB, marginTop: rs(4), textAlign: 'center' }}>
                 No PIN, password, or pattern is required.
               </Text>
               <View
                 className="items-center"
                 style={{ marginTop: rs(10), borderRadius: 999, paddingHorizontal: rs(11), paddingVertical: rs(5), backgroundColor: A }}
               >
-                <Text style={{ fontSize: rf(10), fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>READY FOR SERVICE</Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>READY FOR SERVICE</Text>
               </View>
             </LinearGradient>
-            <Text style={{ fontSize: rf(11), color: SUB, marginTop: rs(12), textAlign: 'center', lineHeight: rf(16) }}>
+            <Text style={{ fontSize: 11, color: SUB, marginTop: rs(12), textAlign: 'center', lineHeight: rf(16) }}>
               Technicians will be able to access the device only as needed for service checks.
             </Text>
             <PrivacyNote />
@@ -750,7 +750,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
             <View
               style={{ borderRadius: rs(16), padding: rs(12), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: LINE }}
             >
-              <Text style={{ fontSize: rf(10), fontWeight: '700', letterSpacing: 1.2, color: SUB }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: SUB }}>
                 PASSWORD
               </Text>
 
@@ -782,7 +782,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                   textContentType="none"
                   spellCheck={false}
                   className="flex-1"
-                  style={{ paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: rf(14), color: INK }}
+                  style={{ paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: 13, color: INK }}
                 />
                 <Pressable
                   onPress={() => setPwMasked((m) => !m)}
@@ -797,7 +797,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                     : <EyeOff size={rf(17)} color={SUB} strokeWidth={2} />}
                 </Pressable>
               </View>
-              <Text style={{ fontSize: rf(10.5), color: SUB, marginTop: rs(7) }}>
+              <Text style={{ fontSize: 10.5, color: SUB, marginTop: rs(7) }}>
                 Use 4–16 letters and numbers.
               </Text>
             </View>
@@ -827,18 +827,18 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
                 end={{ x: 1, y: 0 }}
                 style={{ paddingVertical: rs(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text className="text-white" style={{ fontSize: rf(15), fontWeight: '700' }}>Continue</Text>
+                <Text className="text-white" style={{ fontSize: 14, fontWeight: '700' }}>Continue</Text>
                 <ArrowRight size={rf(18)} color="#FFFFFF" strokeWidth={2.5} style={{ marginLeft: rs(6) }} />
               </LinearGradient>
             ) : (
               <View style={{ paddingVertical: rs(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECF2F0' }}>
-                <Text style={{ fontSize: rf(15), fontWeight: '700', color: SUB }}>Continue</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: SUB }}>Continue</Text>
                 <ArrowRight size={rf(18)} color={SUB} strokeWidth={2.5} style={{ marginLeft: rs(6) }} />
               </View>
             )}
           </Pressable>
           {!isReady ? (
-            <Text className="text-text-muted text-center" style={{ fontSize: rf(11.5), marginTop: rs(7) }}>
+            <Text className="text-text-muted text-center" style={{ fontSize: 11.5, marginTop: rs(7) }}>
               Enter the {lock.type.toLowerCase()} to continue.
             </Text>
           ) : null}
@@ -863,13 +863,13 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
               style={{ paddingVertical: rs(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
             >
               {step === 'NONE' ? <CheckCircle2 size={rf(17)} color="#FFFFFF" strokeWidth={2.5} /> : <Save size={rf(16)} color="#FFFFFF" strokeWidth={2} />}
-              <Text className="text-white" style={{ fontSize: rf(15), fontWeight: '700', marginLeft: rs(8) }}>{stepLabel}</Text>
+              <Text className="text-white" style={{ fontSize: 14, fontWeight: '700', marginLeft: rs(8) }}>{stepLabel}</Text>
               <ArrowRight size={rf(16)} color="#FFFFFF" strokeWidth={2.5} style={{ marginLeft: rs(6) }} />
             </LinearGradient>
           ) : (
             <View style={{ paddingVertical: rs(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECF2F0' }}>
               <Save size={rf(16)} color={SUB} strokeWidth={2} />
-              <Text style={{ fontSize: rf(15), fontWeight: '700', marginLeft: rs(8), color: SUB }}>{stepLabel}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', marginLeft: rs(8), color: SUB }}>{stepLabel}</Text>
             </View>
           )}
         </Pressable>
@@ -879,7 +879,7 @@ export default function DeviceSecurityLockSheet({ visible, initialLock, device, 
           every screen this sheet renders. */}
       <View className="flex-row items-center justify-center" style={{ marginTop: rs(10) }}>
         <ShieldCheck size={rf(11)} color={SUB} strokeWidth={2} />
-        <Text style={{ fontSize: rf(10.5), fontWeight: '600', color: SUB, marginLeft: rs(5) }}>Encrypted &amp; Secure</Text>
+        <Text style={{ fontSize: 10.5, fontWeight: '600', color: SUB, marginLeft: rs(5) }}>Encrypted &amp; Secure</Text>
       </View>
     </ResponsiveModal>
   );

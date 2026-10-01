@@ -177,7 +177,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   // recommended range, stays a stable string (so the memoized <Input>/
   // <FormTextInput> below still skip re-render on an unrelated keystroke)
   // as long as `compact` itself hasn't changed.
-  const inputCls = compact ? 'py-2 text-[14px]' : 'py-2.5 text-[14.5px]';
+  const inputCls = compact ? 'py-2 text-[13px]' : 'py-2.5 text-[13.5px]';
   const initial = route?.params?.initial || {};
   // The picker passes the resolved customer in `existing`; the ticket-service
   // CustomerResponse now carries structured address fields (state/city/
@@ -392,11 +392,11 @@ export default function CustomerDetailsScreen({ navigation, route }) {
    * Same destination and params ChooseDevice's own `onPick` produces, so the
    * rest of the booking flow cannot tell which route the category came from.
    */
-  const pickCategory = (c) => {
+  const pickCategory = (c, customer = savedCustomer) => {
     setCatOpen(false);
     navigation.navigate('SelectBrand', {
-      customerId: savedCustomer?.id,
-      customer: savedCustomer,
+      customerId: customer?.id,
+      customer,
       flow: 'BOOKING',
       categoryId: c.id,
       categoryCode: (c.code || '').toUpperCase(),
@@ -455,6 +455,14 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           body: { name: data.name.trim(), phone, idProofUrl },
         });
       }
+      // Home's Repair popup already chose the category: go straight on to
+      // SelectBrand with the same params the category sheet would send.
+      const preselected = route?.params?.preselectedCategory;
+      if (preselected?.id) {
+        setSavedCustomer(resolved);
+        pickCategory(preselected, resolved);
+        return;
+      }
       // With the IMEI step enabled the flow still goes through its own screen.
       // Otherwise the category sheet opens here instead of pushing ChooseDevice.
       if (IDENTIFY_DEVICE_ENABLED) {
@@ -490,7 +498,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <ChevronLeft size={20} color={ACCENT} />
           </Pressable>
           <View className="flex-1 items-center px-2">
-            <Text className="text-[18px] font-extrabold text-text">Customer Details</Text>
+            <Text className="text-[17px] font-extrabold text-text">Customer Details</Text>
           </View>
           <View className="h-9 w-9" />
         </View>
@@ -581,7 +589,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-9 w-9 rounded-full bg-success/10 items-center justify-center mr-2.5">
               <UserPlus size={17} color={ACCENT} />
             </View>
-            <Text className="text-[15px] font-extrabold text-text">Personal Info</Text>
+            <Text className="text-[14px] font-extrabold text-text">Personal Info</Text>
           </View>
 
           <Field label="Customer Name" required>
@@ -628,7 +636,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-9 w-9 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: ACCENT_10 }}>
               <MapPin size={17} color={ACCENT} />
             </View>
-            <Text className="text-[15px] font-extrabold text-text">Address</Text>
+            <Text className="text-[14px] font-extrabold text-text">Address</Text>
           </View>
 
           <View className="flex-row -mx-1.5">
@@ -681,7 +689,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           <View className="border rounded-3xl p-3.5 mb-3 flex-row items-center" style={{ borderColor: ACCENT_30, backgroundColor: ACCENT_05 }}>
             <Image source={{ uri: idProofUrl }} style={{ width: 52, height: 52, borderRadius: 10 }} resizeMode="cover" />
             <View className="flex-1 ml-3">
-              <Text className="text-[14px] font-extrabold text-text">ID Proof uploaded</Text>
+              <Text className="text-[13px] font-extrabold text-text">ID Proof uploaded</Text>
               <Pressable onPress={promptPickIdProof} hitSlop={6}>
                 <Text className="text-[12px] font-semibold mt-0.5" style={{ color: ACCENT }}>Replace</Text>
               </Pressable>
@@ -702,7 +710,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-10 w-10 rounded-full items-center justify-center" style={{ backgroundColor: ACCENT_10 }}>
               <UploadCloud size={18} color={ACCENT} />
             </View>
-            <Text className="font-extrabold text-[14px] mt-1.5" style={{ color: ACCENT }}>Upload ID Proof</Text>
+            <Text className="font-extrabold text-[13px] mt-1.5" style={{ color: ACCENT }}>Upload ID Proof</Text>
             <Text className="text-[11px] text-text-muted mt-0.5">Optional · Max 1MB</Text>
           </Pressable>
         )}
@@ -730,7 +738,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           ) : (
             <>
               <Save size={17} color={ACCENT} />
-              <Text style={{ color: ACCENT, fontSize: 14, fontWeight: '700', marginLeft: 7 }}>
+              <Text style={{ color: ACCENT, fontSize: 13, fontWeight: '700', marginLeft: 7 }}>
                 Save & Continue
               </Text>
             </>
@@ -747,7 +755,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           already saved, so Save & Continue simply reopens this. */}
       <ResponsiveModal visible={catOpen} onClose={() => setCatOpen(false)} maxWidth={480}>
         <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 10 }} />
-        <Text className="text-[15px] font-extrabold text-text">Select Category</Text>
+        <Text className="text-[14px] font-extrabold text-text">Select Category</Text>
         <Text className="text-[11.5px] text-text-muted mb-2.5" numberOfLines={1}>
           What is {savedCustomer?.name || 'the customer'} bringing in?
         </Text>

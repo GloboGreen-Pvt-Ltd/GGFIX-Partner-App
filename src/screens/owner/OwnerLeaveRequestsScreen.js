@@ -129,7 +129,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             >
               <ChevronLeft size={rs(20)} color="#172117" />
             </TouchableOpacity>
-            <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(19) }} numberOfLines={1}>
+            <Text className="flex-1 text-text font-extrabold" style={{ fontSize: 17.5 }} numberOfLines={1}>
               Leave Requests
             </Text>
             <View
@@ -137,7 +137,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               style={{ backgroundColor: '#F0F8EF' }}
             >
               <Clock size={rs(13)} color="#172117" />
-              <Text className="ml-1.5 text-text font-extrabold" style={{ fontSize: rf(11.5) }}>
+              <Text className="ml-1.5 text-text font-extrabold" style={{ fontSize: 11.5 }}>
                 {list.length} {activeMeta?.label || 'Total'}
               </Text>
             </View>
@@ -174,7 +174,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               <ChipIcon size={rs(15)} color={active ? '#FFFFFF' : opt.accent} />
               <Text
                 className="ml-1.5 font-extrabold"
-                style={{ fontSize: rf(12.5), color: active ? '#FFFFFF' : opt.accent }}
+                style={{ fontSize: 12.5, color: active ? '#FFFFFF' : opt.accent }}
               >
                 {opt.label}
               </Text>
@@ -194,7 +194,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             className="rounded-2xl px-4 py-3"
             style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
           >
-            <Text className="font-semibold" style={{ fontSize: rf(12), color: '#B91C1C' }}>
+            <Text className="font-semibold" style={{ fontSize: 12, color: '#B91C1C' }}>
               {error}
             </Text>
             <Pressable
@@ -202,7 +202,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               className="mt-2 self-start px-3 py-1.5 rounded-full"
               style={{ backgroundColor: '#B91C1C' }}
             >
-              <Text className="text-white font-extrabold" style={{ fontSize: rf(10.5) }}>Retry</Text>
+              <Text className="text-white font-extrabold" style={{ fontSize: 10.5 }}>Retry</Text>
             </Pressable>
           </View>
         </View>
@@ -233,10 +233,10 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               </View>
             </View>
 
-            <Text className="font-extrabold text-gray-900 mt-3" style={{ fontSize: rf(16) }}>
+            <Text className="font-extrabold text-gray-900 mt-3" style={{ fontSize: 15 }}>
               No {activeMeta?.label.toLowerCase() || 'matching'} leaves
             </Text>
-            <Text className="text-gray-500 mt-2 text-center leading-5" style={{ fontSize: rf(12.5) }}>
+            <Text className="text-gray-500 mt-2 text-center leading-5" style={{ fontSize: 12.5 }}>
               {status === 'PENDING'
                 ? 'New leave requests from your team will appear here.'
                 : `No ${activeMeta?.label.toLowerCase()} leaves to show.`}
@@ -249,7 +249,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               style={{ borderWidth: 1.5, borderColor: BRAND_GREEN_DARK }}
             >
               <UserPlus size={rs(16)} color={BRAND_GREEN_DARK} />
-              <Text className="ml-2 font-extrabold" style={{ fontSize: rf(13), color: BRAND_GREEN_DARK }}>
+              <Text className="ml-2 font-extrabold" style={{ fontSize: 13, color: BRAND_GREEN_DARK }}>
                 Add Employee
               </Text>
             </TouchableOpacity>
@@ -289,19 +289,19 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                     <User size={rs(18)} color={BRAND_GREEN_DARK} strokeWidth={2.2} />
                   </View>
                   <View className="flex-1 pr-2">
-                    <Text className="font-extrabold text-gray-900" style={{ fontSize: rf(13) }} numberOfLines={1}>
+                    <Text className="font-extrabold text-gray-900" style={{ fontSize: 13 }} numberOfLines={1}>
                       {item.technicianName ?? 'Employee'}
                     </Text>
                     <View className="flex-row items-center mt-1">
                       <CalendarDays size={rs(12)} color="#8FA08F" />
-                      <Text className="ml-1.5 text-gray-500" style={{ fontSize: rf(11) }}>
+                      <Text className="ml-1.5 text-gray-500" style={{ fontSize: 11 }}>
                         {formatDate(item.startDate)} – {formatDate(item.endDate)}
                       </Text>
                     </View>
                     {item.appliedDaysLabel ? (
                       <View className="flex-row items-center mt-1">
                         <Clock size={rs(11)} color="#8FA08F" />
-                        <Text className="ml-1.5 text-gray-500" style={{ fontSize: rf(10.5) }}>
+                        <Text className="ml-1.5 text-gray-500" style={{ fontSize: 10.5 }}>
                           {item.appliedDaysLabel}
                         </Text>
                       </View>
@@ -313,7 +313,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                   >
                     <Text
                       className="font-extrabold"
-                      style={{ fontSize: rf(10), color: meta?.accent || '#B45309', letterSpacing: 0.3 }}
+                      style={{ fontSize: 10, color: meta?.accent || '#B45309', letterSpacing: 0.3 }}
                     >
                       {(item.status || 'PENDING').toUpperCase()}
                     </Text>
@@ -327,11 +327,11 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                   >
                     <Text
                       className="uppercase font-extrabold text-gray-500"
-                      style={{ fontSize: rf(9.5), letterSpacing: 0.8 }}
+                      style={{ fontSize: 9.5, letterSpacing: 0.8 }}
                     >
                       Reason
                     </Text>
-                    <Text className="text-gray-700 mt-1 leading-5" style={{ fontSize: rf(12) }}>
+                    <Text className="text-gray-700 mt-1 leading-5" style={{ fontSize: 12 }}>
                       {item.reason}
                     </Text>
                   </View>
@@ -364,7 +364,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                         ) : (
                           <CheckCircle2 size={rs(14)} color="#FFFFFF" />
                         )}
-                        <Text className="ml-2 text-white font-extrabold" style={{ fontSize: rf(12.5) }}>
+                        <Text className="ml-2 text-white font-extrabold" style={{ fontSize: 12.5 }}>
                           Approve
                         </Text>
                       </LinearGradient>
@@ -382,7 +382,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                       }}
                     >
                       <XCircle size={rs(14)} color="#B91C1C" />
-                      <Text className="ml-2 font-extrabold" style={{ fontSize: rf(12.5), color: '#B91C1C' }}>
+                      <Text className="ml-2 font-extrabold" style={{ fontSize: 12.5, color: '#B91C1C' }}>
                         Deny
                       </Text>
                     </TouchableOpacity>

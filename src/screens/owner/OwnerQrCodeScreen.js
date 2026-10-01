@@ -189,10 +189,10 @@ export default function OwnerQrCodeScreen({ navigation }) {
               <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: rf(24), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 21.5, color: TEXT_PRIMARY }} numberOfLines={1}>
                 My QR Code
               </Text>
-              <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+              <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
                 Share your business with customers
               </Text>
             </View>
@@ -203,7 +203,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
               style={{ paddingHorizontal: rs(14), paddingVertical: rs(9), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT, ...softShadow }}
             >
               <Share2 size={rf(13)} color={ACCENT} />
-              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11), color: ACCENT, letterSpacing: 0.5 }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, color: ACCENT, letterSpacing: 0.5 }}>
                 SHARE
               </Text>
             </TouchableOpacity>
@@ -241,7 +241,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={{ width: rs(48), height: rs(48) }} />
                 ) : (
-                  <Text className="font-extrabold" style={{ fontSize: rf(17), color: ACCENT, letterSpacing: 1 }}>
+                  <Text className="font-extrabold" style={{ fontSize: 16, color: ACCENT, letterSpacing: 1 }}>
                     {shopName.slice(0, 2).toUpperCase()}
                   </Text>
                 )}
@@ -263,13 +263,13 @@ export default function OwnerQrCodeScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View className="flex-1" style={{ marginLeft: rs(13) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: PRIMARY, letterSpacing: 1 }}>
+            <Text className="font-extrabold" style={{ fontSize: 10.5, color: PRIMARY, letterSpacing: 1 }}>
               SHOP QR
             </Text>
-            <Text className="font-extrabold" style={{ fontSize: rf(16.5), color: TEXT_PRIMARY, marginTop: rs(1) }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 15.5, color: TEXT_PRIMARY, marginTop: rs(1) }} numberOfLines={1}>
               {shopName}
             </Text>
-            <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
               Tap-to-scan business card
             </Text>
           </View>
@@ -279,7 +279,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
               style={{ paddingHorizontal: rs(10), paddingVertical: rs(7), backgroundColor: MINT }}
             >
               <ShieldCheck size={rf(12)} color={ACCENT} />
-              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(10.5), color: ACCENT }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: 10.5, color: ACCENT }}>
                 Verified Owner
               </Text>
             </View>
@@ -316,17 +316,17 @@ export default function OwnerQrCodeScreen({ navigation }) {
                 style={{ paddingVertical: rs(14), paddingHorizontal: rs(18), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
                 <ScanLine size={rf(15)} color="#FFFFFF" />
-                <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(13), letterSpacing: 2 }}>
+                <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 13, letterSpacing: 2 }}>
                   SCAN TO CONNECT
                 </Text>
               </LinearGradient>
 
               {/* Shop + owner names */}
               <View style={{ paddingTop: rs(16), paddingHorizontal: rs(18), alignItems: 'center' }}>
-                <Text className="font-extrabold text-center" style={{ fontSize: rf(20), color: TEXT_PRIMARY }} numberOfLines={2}>
+                <Text className="font-extrabold text-center" style={{ fontSize: 18.5, color: TEXT_PRIMARY }} numberOfLines={2}>
                   {shopName}
                 </Text>
-                <Text className="font-semibold text-center" style={{ fontSize: rf(12.5), color: PRIMARY, marginTop: rs(2) }} numberOfLines={1}>
+                <Text className="font-semibold text-center" style={{ fontSize: 12.5, color: PRIMARY, marginTop: rs(2) }} numberOfLines={1}>
                   Owner · {ownerName}
                 </Text>
               </View>
@@ -352,7 +352,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
               <View style={{ paddingHorizontal: rs(18), paddingTop: rs(8), paddingBottom: rs(18), alignItems: 'center' }}>
                 <View className="flex-row items-start" style={{ maxWidth: rs(260) }}>
                   <Camera size={rf(13)} color={TEXT_SECONDARY} style={{ marginTop: rs(1), marginRight: rs(6) }} />
-                  <Text className="text-center flex-1" style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, lineHeight: rf(16) }}>
+                  <Text className="text-center flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY, lineHeight: rf(16) }}>
                     Point your camera at this QR to add {shopName} to your contacts.
                   </Text>
                 </View>
@@ -362,7 +362,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
                     style={{ marginTop: rs(12), paddingHorizontal: rs(14), paddingVertical: rs(9), backgroundColor: MINT }}
                   >
                     <Phone size={rf(12)} color={ACCENT} />
-                    <Text className="font-extrabold" style={{ marginLeft: rs(7), fontSize: rf(13), color: ACCENT }}>
+                    <Text className="font-extrabold" style={{ marginLeft: rs(7), fontSize: 13, color: ACCENT }}>
                       {shopPhone}
                     </Text>
                   </View>
@@ -403,7 +403,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
         {/* Bottom brand message */}
         <View className="flex-row items-center" style={{ marginTop: rs(22), marginBottom: rs(8) }}>
           <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-          <Text className="font-extrabold" style={{ marginHorizontal: rs(10), fontSize: rf(9.5), letterSpacing: 1.2, color: PRIMARY }}>
+          <Text className="font-extrabold" style={{ marginHorizontal: rs(10), fontSize: 9.5, letterSpacing: 1.2, color: PRIMARY }}>
             LOCAL BUSINESS · BETTER TOGETHER
           </Text>
           <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
@@ -418,7 +418,7 @@ function DetailSection({ label, Icon, title, sub, subIcon: SubIcon, actionLabel,
   return (
     <View className="flex-row items-center">
       <View>
-        <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: PRIMARY, letterSpacing: 1, marginBottom: rs(8) }}>
+        <Text className="font-extrabold" style={{ fontSize: 9.5, color: PRIMARY, letterSpacing: 1, marginBottom: rs(8) }}>
           {label}
         </Text>
         <View className="flex-row items-center">
@@ -426,13 +426,13 @@ function DetailSection({ label, Icon, title, sub, subIcon: SubIcon, actionLabel,
             <Icon size={rf(17)} color={ACCENT} />
           </View>
           <View>
-            <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 13.5, color: TEXT_PRIMARY }} numberOfLines={1}>
               {title}
             </Text>
             {sub ? (
               <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
                 <SubIcon size={rf(11)} color={TEXT_SECONDARY} />
-                <Text style={{ marginLeft: rs(5), fontSize: rf(11.5), color: TEXT_SECONDARY }} numberOfLines={1}>
+                <Text style={{ marginLeft: rs(5), fontSize: 11.5, color: TEXT_SECONDARY }} numberOfLines={1}>
                   {sub}
                 </Text>
               </View>
@@ -448,7 +448,7 @@ function DetailSection({ label, Icon, title, sub, subIcon: SubIcon, actionLabel,
         style={{ paddingHorizontal: rs(12), paddingVertical: rs(8), backgroundColor: MINT }}
       >
         <ActionIcon size={rf(12)} color={ACCENT} />
-        <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(10.5), color: ACCENT }}>
+        <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: 10.5, color: ACCENT }}>
           {actionLabel}
         </Text>
       </TouchableOpacity>

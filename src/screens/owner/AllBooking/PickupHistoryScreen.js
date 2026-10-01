@@ -208,7 +208,7 @@ export default function PickupHistoryScreen({ route }) {
           >
             <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
             Pickup History
           </Text>
           <View className="px-2.5 py-1 rounded-full" style={{ maxWidth: 180, backgroundColor: '#E6F7E3' }}>
@@ -245,7 +245,7 @@ export default function PickupHistoryScreen({ route }) {
                   <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                     Current Status
                   </Text>
-                  <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5">
+                  <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5">
                     {currentLabel || 'Pickup Requested'}
                   </Text>
                 </View>

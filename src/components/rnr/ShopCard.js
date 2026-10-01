@@ -48,7 +48,7 @@ export function ShopCard({
         </View>
         <View className="flex-1">
           <View className="flex-row items-center mb-1">
-            <Text className="text-[15px] font-extrabold text-text flex-1" numberOfLines={1}>{name}</Text>
+            <Text className="text-[14px] font-extrabold text-text flex-1" numberOfLines={1}>{name}</Text>
             <Badge variant={open ? 'softSuccess' : 'softDanger'}>
               {open ? 'OPEN' : 'CLOSED'}
             </Badge>

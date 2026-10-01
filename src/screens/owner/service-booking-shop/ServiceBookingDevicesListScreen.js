@@ -341,10 +341,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             <ArrowLeft size={rf(18)} color="#172117" strokeWidth={2} />
           </Pressable>
           <View className="flex-1" style={{ paddingHorizontal: rs(8) }}>
-            <Text className="text-text text-center font-bold" style={{ fontSize: rf(15.5) }} numberOfLines={1}>
+            <Text className="text-text text-center font-bold" style={{ fontSize: 14.5 }} numberOfLines={1}>
               Service Booking Devices List
             </Text>
-            <Text className="text-center" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+            <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
               Review customer devices and services
             </Text>
           </View>
@@ -387,14 +387,14 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                   <User size={rf(23)} color={ACCENT} strokeWidth={2} />
                 </View>
                 <View className="flex-1">
-                  <Text style={{ fontSize: rf(10), fontWeight: '800', letterSpacing: 1, color: TEXT_SECONDARY }}>CUSTOMER</Text>
-                  <Text className="text-text font-extrabold" style={{ fontSize: rf(15.5), marginTop: rs(1) }} numberOfLines={1}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1, color: TEXT_SECONDARY }}>CUSTOMER</Text>
+                  <Text className="text-text font-extrabold" style={{ fontSize: 14.5, marginTop: rs(1) }} numberOfLines={1}>
                     {customerName}
                   </Text>
                   {customerPhone ? (
                     <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
                       <Phone size={rf(11)} color={TEXT_SECONDARY} strokeWidth={2} />
-                      <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginLeft: rs(4) }}>{customerPhone}</Text>
+                      <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginLeft: rs(4) }}>{customerPhone}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -403,7 +403,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                   style={{ borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: '#FFFFFF' }}
                 >
                   <CircleCheck size={rf(12)} color={ACCENT} strokeWidth={2} />
-                  <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT, marginLeft: rs(4) }}>Verified</Text>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: ACCENT, marginLeft: rs(4) }}>Verified</Text>
                 </View>
               </View>
             </View>
@@ -413,12 +413,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         {/* ── Section rail ──────────────────────────────────────── */}
         <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(18), paddingBottom: rs(8) }, colStyle]}>
           <ReceiptText size={rf(14)} color={ACCENT} strokeWidth={2} />
-          <Text className="text-text font-extrabold" style={{ fontSize: rf(11.5), letterSpacing: 1, marginLeft: rs(6) }}>
+          <Text className="text-text font-extrabold" style={{ fontSize: 11.5, letterSpacing: 1, marginLeft: rs(6) }}>
             DEVICES IN THIS BOOKING
           </Text>
           <View className="flex-1" />
           <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
-            <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT }}>
+            <Text style={{ fontSize: 10.5, fontWeight: '800', color: ACCENT }}>
               {deviceCount} Device{deviceCount === 1 ? '' : 's'}
             </Text>
           </View>
@@ -458,30 +458,30 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                       )}
                     </View>
                     <View className="flex-1">
-                      <Text className="text-text font-extrabold" style={{ fontSize: rf(14.5) }} numberOfLines={1}>
+                      <Text className="text-text font-extrabold" style={{ fontSize: 13.5 }} numberOfLines={1}>
                         {d.modelName || 'Device'}
                       </Text>
                       {summary ? (
-                        <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                        <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
                           {summary}
                         </Text>
                       ) : null}
                       <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(6), gap: rs(6) }}>
                         {d.brandName ? (
                           <View className="rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: MINT }}>
-                            <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: ACCENT }}>{d.brandName}</Text>
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: ACCENT }}>{d.brandName}</Text>
                           </View>
                         ) : null}
                         {d.modelNumber ? (
                           <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: MINT }}>
                             <Hash size={9} color={ACCENT} />
-                            <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: ACCENT, marginLeft: 2 }}>{d.modelNumber}</Text>
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: ACCENT, marginLeft: 2 }}>{d.modelNumber}</Text>
                           </View>
                         ) : null}
                         {idx === 0 ? (
                           <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: '#F4F7F5' }}>
                             <Star size={9} color={TEXT_SECONDARY} fill={TEXT_SECONDARY} />
-                            <Text style={{ fontSize: rf(9.5), fontWeight: '700', color: TEXT_SECONDARY, marginLeft: 2 }}>Primary Device</Text>
+                            <Text style={{ fontSize: 9.5, fontWeight: '700', color: TEXT_SECONDARY, marginLeft: 2 }}>Primary Device</Text>
                           </View>
                         ) : null}
                       </View>
@@ -498,12 +498,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                       <View style={{ borderTopWidth: 1, borderColor: BORDER, marginBottom: rs(10) }} />
                       <View className="flex-row items-center" style={{ marginBottom: rs(8) }}>
                         <Wrench size={rf(12)} color={ACCENT} strokeWidth={2} />
-                        <Text className="text-text font-extrabold" style={{ fontSize: rf(11), letterSpacing: 0.5, marginLeft: rs(6) }}>
+                        <Text className="text-text font-extrabold" style={{ fontSize: 11, letterSpacing: 0.5, marginLeft: rs(6) }}>
                           REPAIR SERVICES ({serviceCount})
                         </Text>
                       </View>
                       {d.complaint ? (
-                        <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginBottom: rs(8) }} numberOfLines={2}>
+                        <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginBottom: rs(8) }} numberOfLines={2}>
                           {d.complaint}
                         </Text>
                       ) : null}
@@ -518,12 +518,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                               className="items-center justify-center"
                               style={{ height: rs(22), width: rs(22), borderRadius: rs(7), marginRight: rs(8), backgroundColor: '#FFFFFF' }}
                             >
-                              <Text style={{ fontSize: rf(10), fontWeight: '800', color: ACCENT }}>{i + 1}</Text>
+                              <Text style={{ fontSize: 10, fontWeight: '800', color: ACCENT }}>{i + 1}</Text>
                             </View>
-                            <Text className="flex-1 text-text" style={{ fontSize: rf(12.5), fontWeight: '600' }} numberOfLines={1}>
+                            <Text className="flex-1 text-text" style={{ fontSize: 12.5, fontWeight: '600' }} numberOfLines={1}>
                               {s.serviceName}
                             </Text>
-                            <Text className="text-text font-extrabold" style={{ fontSize: rf(12.5) }}>
+                            <Text className="text-text font-extrabold" style={{ fontSize: 12.5 }}>
                               ₹{formatINR(s.price)}
                             </Text>
                           </View>
@@ -536,10 +536,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                         style={{ marginTop: rs(9), borderRadius: rs(12), paddingHorizontal: rs(11), paddingVertical: rs(9), backgroundColor: MINT }}
                       >
                         <Tag size={rf(12)} color={ACCENT} strokeWidth={2} />
-                        <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(12), marginLeft: rs(6) }}>
+                        <Text className="flex-1 text-text font-extrabold" style={{ fontSize: 12, marginLeft: rs(6) }}>
                           Estimated repair amount
                         </Text>
-                        <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: ACCENT }}>
+                        <Text className="font-extrabold" style={{ fontSize: 13.5, color: ACCENT }}>
                           ₹{formatINR(subTotal)}
                         </Text>
                       </View>
@@ -584,10 +584,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                   <Plus size={rf(17)} color="#fff" strokeWidth={2.5} />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: ACCENT }}>
+                  <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT }}>
                     Add another device
                   </Text>
-                  <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(1) }}>
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>
                     Same customer? Book multiple devices in one go.
                   </Text>
                 </View>
@@ -603,7 +603,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
           <>
             <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(18), paddingBottom: rs(8) }, colStyle]}>
               <ReceiptText size={rf(14)} color={ACCENT} strokeWidth={2} />
-              <Text className="text-text font-extrabold" style={{ fontSize: rf(11.5), letterSpacing: 1, marginLeft: rs(6) }}>
+              <Text className="text-text font-extrabold" style={{ fontSize: 11.5, letterSpacing: 1, marginLeft: rs(6) }}>
                 BILL SUMMARY
               </Text>
             </View>
@@ -618,14 +618,14 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                   {devices.map((d, i) => (
                     <View key={i} style={{ marginBottom: rs(10) }}>
                       <View className="flex-row items-center">
-                        <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(13.5) }} numberOfLines={1}>
+                        <Text className="flex-1 text-text font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>
                           {d.modelName || `Device ${i + 1}`}
                         </Text>
-                        <Text className="text-text font-extrabold" style={{ fontSize: rf(13.5) }}>
+                        <Text className="text-text font-extrabold" style={{ fontSize: 13 }}>
                           ₹{formatINR(totalFor(d))}
                         </Text>
                       </View>
-                      <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }}>
+                      <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }}>
                         {(d.services || []).length} service{(d.services || []).length === 1 ? '' : 's'}
                       </Text>
                     </View>
@@ -634,12 +634,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                     style={{ borderTopWidth: 1, borderColor: BORDER, borderStyle: 'dashed', marginBottom: rs(10) }}
                   />
                   <View className="flex-row items-center">
-                    <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(14.5) }}>Grand Total</Text>
-                    <Text className="font-extrabold" style={{ fontSize: rf(19), color: ACCENT }}>
+                    <Text className="flex-1 text-text font-extrabold" style={{ fontSize: 13.5 }}>Grand Total</Text>
+                    <Text className="font-extrabold" style={{ fontSize: 17.5, color: ACCENT }}>
                       ₹{formatINR(grandTotal)}
                     </Text>
                   </View>
-                  <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(5) }}>
+                  <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(5) }}>
                     Final amount may vary slightly based on parts availability.
                   </Text>
                 </View>
@@ -684,12 +684,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             }}
           >
             <View className="flex-1">
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: rf(10), fontWeight: '700', letterSpacing: 0.5 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>
                 {deviceCount === 0
                   ? 'NO DEVICE YET'
                   : `GRAND TOTAL · ${deviceCount} DEVICE${deviceCount > 1 ? 'S' : ''}`}
               </Text>
-              <Text className="text-white font-extrabold" style={{ fontSize: rf(18), marginTop: rs(1) }}>
+              <Text className="text-white font-extrabold" style={{ fontSize: 17, marginTop: rs(1) }}>
                 ₹{formatINR(grandTotal)}
               </Text>
             </View>
@@ -706,7 +706,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                 <ActivityIndicator color={ACCENT} />
               ) : (
                 <>
-                  <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: ACCENT }}>
+                  <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT }}>
                     {params.editMode ? 'Update Booking' : 'Submit Booking'}
                   </Text>
                   <Send size={rf(15)} color={ACCENT} strokeWidth={2} style={{ marginLeft: rs(6) }} />
@@ -715,7 +715,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             </Pressable>
           </View>
           {deviceCount === 0 ? (
-            <Text className="text-text-muted text-center" style={{ fontSize: rf(10.5), marginTop: rs(8) }}>
+            <Text className="text-text-muted text-center" style={{ fontSize: 10.5, marginTop: rs(8) }}>
               Add at least one device to submit.
             </Text>
           ) : null}
@@ -753,17 +753,17 @@ const PaymentSection = memo(function PaymentSection({
     <>
       <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(18), paddingBottom: rs(8) }, colStyle]}>
         <Wallet size={rf(14)} color={ACCENT} strokeWidth={2} />
-        <Text className="text-text font-extrabold" style={{ fontSize: rf(11.5), letterSpacing: 1, marginLeft: rs(6) }}>
+        <Text className="text-text font-extrabold" style={{ fontSize: 11.5, letterSpacing: 1, marginLeft: rs(6) }}>
           PAYMENT
         </Text>
         <View className="flex-1" />
         {paymentType ? (
           <View className="rounded-full flex-row items-center" style={{ paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
             <CircleCheck size={10} color={ACCENT} />
-            <Text style={{ fontSize: rf(10), fontWeight: '800', color: ACCENT, marginLeft: rs(4) }}>₹{formatINR(paid)}</Text>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: ACCENT, marginLeft: rs(4) }}>₹{formatINR(paid)}</Text>
           </View>
         ) : (
-          <Text style={{ fontSize: rf(10), fontWeight: '700', color: TEXT_SECONDARY }}>OPTIONAL</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_SECONDARY }}>OPTIONAL</Text>
         )}
       </View>
 
@@ -784,7 +784,7 @@ const PaymentSection = memo(function PaymentSection({
                 <Text
                   className="flex-1"
                   numberOfLines={1}
-                  style={{ fontSize: rf(12.5), fontWeight: '700', color: selectedLabel ? '#172117' : '#8FA08F' }}
+                  style={{ fontSize: 12.5, fontWeight: '700', color: selectedLabel ? '#172117' : '#8FA08F' }}
                 >
                   {selectedLabel || 'Payment mode'}
                 </Text>
@@ -799,7 +799,7 @@ const PaymentSection = memo(function PaymentSection({
                   borderWidth: 1, borderColor: overTotal ? '#DC2626' : BORDER, backgroundColor: '#FFFFFF',
                 }}
               >
-                <Text style={{ fontSize: rf(13), fontWeight: '800', color: ACCENT }}>₹</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT }}>₹</Text>
                 <TextInput
                   value={paidText}
                   onChangeText={(t) => onChangeAmount(sanitizeAmount(t))}
@@ -808,7 +808,7 @@ const PaymentSection = memo(function PaymentSection({
                   placeholderTextColor="#8FA08F"
                   editable={!!paymentType}
                   className="flex-1 text-text font-extrabold"
-                  style={{ paddingVertical: rs(12), paddingLeft: rs(4), fontSize: rf(13.5), textAlign: 'right' }}
+                  style={{ paddingVertical: rs(12), paddingLeft: rs(4), fontSize: 13, textAlign: 'right' }}
                 />
               </View>
             </View>
@@ -816,20 +816,20 @@ const PaymentSection = memo(function PaymentSection({
             {/* Consequence line — what the customer still owes, or why the field
                 is inert. Both answer the question the row just raised. */}
             {!paymentType ? (
-              <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(10) }}>
+              <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(10) }}>
                 Pick a mode to record money collected now. Leave it blank if the customer pays on delivery.
               </Text>
             ) : overTotal ? (
-              <Text className="text-danger" style={{ fontSize: rf(10.5), fontWeight: '700', marginTop: rs(10) }}>
+              <Text className="text-danger" style={{ fontSize: 10.5, fontWeight: '700', marginTop: rs(10) }}>
                 More than the grand total ₹{formatINR(grandTotal)}.
               </Text>
             ) : (
               <View className="flex-row items-center" style={{ marginTop: rs(10) }}>
-                <Text className="flex-1" style={{ fontSize: rf(11), color: TEXT_SECONDARY }}>
+                <Text className="flex-1" style={{ fontSize: 11, color: TEXT_SECONDARY }}>
                   {paymentType === 'ADVANCE' ? 'Balance on delivery' : 'Balance'}
                 </Text>
                 <Text
-                  style={{ fontSize: rf(12.5), fontWeight: '800', color: balanceDue > 0 ? '#172117' : ACCENT }}
+                  style={{ fontSize: 12.5, fontWeight: '800', color: balanceDue > 0 ? '#172117' : ACCENT }}
                 >
                   ₹{formatINR(balanceDue)}
                 </Text>

@@ -123,10 +123,10 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
             <ArrowLeft size={rf(18)} color={INK} strokeWidth={2} />
           </Pressable>
           <View className="flex-1" style={{ paddingHorizontal: rs(8) }}>
-            <Text className="text-text text-center" style={{ fontSize: rf(16), fontWeight: '700' }} numberOfLines={1}>
+            <Text className="text-text text-center" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
               Device Missing Parts
             </Text>
-            <Text className="text-center" style={{ fontSize: rf(11), color: SUB, marginTop: rs(1) }} numberOfLines={1}>
+            <Text className="text-center" style={{ fontSize: 11, color: SUB, marginTop: rs(1) }} numberOfLines={1}>
               Inspect and flag the device condition
             </Text>
           </View>
@@ -156,7 +156,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
               ? <CircleCheck size={rf(14)} color={ACCENT} strokeWidth={2} />
               : <PackageX size={rf(14)} color={damageCount > 0 ? DAMAGE : MISSING} strokeWidth={2} />}
             <Text
-              style={{ fontSize: rf(11.5), fontWeight: '700', color: allClear ? ACCENT : (damageCount > 0 ? DAMAGE : MISSING), marginLeft: rs(6) }}
+              style={{ fontSize: 11.5, fontWeight: '700', color: allClear ? ACCENT : (damageCount > 0 ? DAMAGE : MISSING), marginLeft: rs(6) }}
               numberOfLines={1}
             >
               {flaggedTotal} Part{flaggedTotal === 1 ? '' : 's'} Flagged
@@ -167,7 +167,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
             style={{ flex: 1, borderRadius: 999, paddingVertical: rs(8), paddingHorizontal: rs(12), backgroundColor: SOFT }}
           >
             <ClipboardList size={rf(13)} color={SUB} strokeWidth={2} />
-            <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: SUB, marginLeft: rs(6) }} numberOfLines={1}>
+            <Text style={{ fontSize: 11.5, fontWeight: '600', color: SUB, marginLeft: rs(6) }} numberOfLines={1}>
               Inspection in progress
             </Text>
           </View>
@@ -206,10 +206,10 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                     <Icon size={rf(20)} color={anyFlag ? flagColor : ACCENT} strokeWidth={2} />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-text" style={{ fontSize: rf(14.5), fontWeight: '700' }} numberOfLines={1}>
+                    <Text className="text-text" style={{ fontSize: 13.5, fontWeight: '700' }} numberOfLines={1}>
                       {p.name}
                     </Text>
-                    <Text style={{ fontSize: rf(11.5), color: SUB, marginTop: rs(1) }} numberOfLines={1}>
+                    <Text style={{ fontSize: 11.5, color: SUB, marginTop: rs(1) }} numberOfLines={1}>
                       {p.desc}
                     </Text>
                   </View>
@@ -257,7 +257,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                       borderRadius: rs(11),
                       paddingHorizontal: rs(12),
                       paddingVertical: rs(9),
-                      fontSize: rf(12.5),
+                      fontSize: 12.5,
                       backgroundColor: '#FFFFFF',
                       borderWidth: 1,
                       borderColor: LINE,
@@ -293,10 +293,10 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
             accessibilityRole="button"
           >
             <View className="flex-1">
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10.5, fontWeight: '600', letterSpacing: 1 }}>
                 {flaggedTotal} PART{flaggedTotal === 1 ? '' : 'S'} FLAGGED
               </Text>
-              <Text className="text-white" style={{ fontSize: rf(14.5), fontWeight: '700', marginTop: rs(1) }} numberOfLines={1}>
+              <Text className="text-white" style={{ fontSize: 13.5, fontWeight: '700', marginTop: rs(1) }} numberOfLines={1}>
                 Review &amp; Submit
               </Text>
             </View>
@@ -335,7 +335,7 @@ function FlagPill({ label, active, tint, tintBg, onPress, style }) {
       accessibilityState={{ checked: !!active }}
     >
       {active ? <X size={rf(13)} color={tint} strokeWidth={2.75} style={{ marginRight: rs(5) }} /> : null}
-      <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: active ? tint : SUB }}>
+      <Text style={{ fontSize: 12.5, fontWeight: '700', color: active ? tint : SUB }}>
         {label}
       </Text>
     </Pressable>

@@ -236,7 +236,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
 
           <View className="items-center px-12">
             <Text
-              className="text-text text-[14px] font-extrabold text-center"
+              className="text-text text-[13px] font-extrabold text-center"
               numberOfLines={1}
             >
               Your Device
@@ -275,7 +275,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                   <Smartphone size={52} color={ACCENT_GREEN} />
                 )}
               </View>
-              <Text className="text-[14px] font-extrabold text-text text-center" numberOfLines={2}>
+              <Text className="text-[13px] font-extrabold text-text text-center" numberOfLines={2}>
                 {params.modelName || 'Device'}
               </Text>
               {params.brandName ? (
@@ -320,7 +320,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                 onChangeText={setColor}
                 placeholder="e.g. Sea Green"
                 placeholderTextColor="#8FA08F"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
+                className="bg-card rounded-2xl px-3.5 py-3 text-[13px] text-text"
                 style={cardShadow}
               />
             </View>
@@ -333,7 +333,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                 placeholder="e.g. 8 GB"
                 placeholderTextColor="#8FA08F"
                 autoCapitalize="characters"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
+                className="bg-card rounded-2xl px-3.5 py-3 text-[13px] text-text"
                 style={cardShadow}
               />
             </View>
@@ -346,7 +346,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                 placeholder="e.g. 128 GB"
                 placeholderTextColor="#8FA08F"
                 autoCapitalize="characters"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
+                className="bg-card rounded-2xl px-3.5 py-3 text-[13px] text-text"
                 style={cardShadow}
               />
             </View>
@@ -412,7 +412,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                   placeholderTextColor="#8FA08F"
                   value={color}
                   onChangeText={setColor}
-                  className="flex-1 py-3 text-text text-[14px]"
+                  className="flex-1 py-3 text-text text-[13px]"
                 />
               </View>
             )}
@@ -502,7 +502,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                 YOUR CONFIGURATION
               </Text>
               <Text
-                className="text-[14px] font-medium"
+                className="text-[13px] font-medium"
                 style={{ color: ready ? BAR_TEXT_READY : BAR_TEXT }}
                 numberOfLines={1}
               >
@@ -511,7 +511,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
             </View>
             <View className="flex-row items-center">
               <Text
-                className="text-[14px] font-medium"
+                className="text-[13px] font-medium"
                 style={{ color: ready ? BAR_TEXT_READY : BAR_TEXT }}
               >
                 Continue

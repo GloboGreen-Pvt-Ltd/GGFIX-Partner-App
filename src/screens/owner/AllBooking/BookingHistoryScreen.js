@@ -680,7 +680,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(22, 187, 5, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: '#16BB05' }}>#{ref}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
+              <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
               {item.pickupAddressText ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={2}>{item.pickupAddressText}</Text>
               ) : null}
@@ -854,7 +854,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(8, 122, 10, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
+              <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
               {specs ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{specs}</Text>
               ) : null}
@@ -1001,7 +1001,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           </Pressable>
           <View className="flex-1">
             <Text className="text-text-muted text-[11px] font-bold tracking-widest">{eyebrowText}</Text>
-            <Text className="text-text text-[20px] font-extrabold mt-0.5" numberOfLines={1}>
+            <Text className="text-text text-[18.5px] font-extrabold mt-0.5" numberOfLines={1}>
               {counts[scope.key] ?? 0}{' '}
               {(counts[scope.key] ?? 0) === 1 ? nounText : `${nounText}s`}
             </Text>
@@ -1083,7 +1083,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </View>
                 <Text
                   className="font-extrabold text-text mr-1"
-                  style={{ fontSize: isSmall ? 12.5 : 13.5 }}
+                  style={{ fontSize: isSmall ? 12.5 : 13 }}
                   numberOfLines={1}
                 >
                   {counts[s.key] ?? 0}
@@ -1162,7 +1162,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           >
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[16px] font-extrabold text-text">Filters</Text>
+              <Text className="text-[15px] font-extrabold text-text">Filters</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}

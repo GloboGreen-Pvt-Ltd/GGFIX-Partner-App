@@ -44,7 +44,7 @@ export function BottomActionBar({
         {hasPrice ? (
           <View className="mr-3" style={{ maxWidth: '46%' }}>
             {priceCaption ? <Text className="text-[11px] text-text-muted" numberOfLines={1}>{priceCaption}</Text> : null}
-            <Text className="text-[17px] font-extrabold text-text leading-5" numberOfLines={1}>{priceValue}</Text>
+            <Text className="text-[16px] font-extrabold text-text leading-5" numberOfLines={1}>{priceValue}</Text>
             {priceLabel ? <Text className="text-[11px] text-text-muted" numberOfLines={1}>{priceLabel}</Text> : null}
           </View>
         ) : null}

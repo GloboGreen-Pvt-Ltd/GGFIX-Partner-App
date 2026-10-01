@@ -73,7 +73,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
               <Text className="text-[11px] uppercase tracking-widest font-bold" style={{ color: tokens.primary }}>
                 Employee
               </Text>
-              <Text className="text-[16px] font-extrabold text-text mt-0.5" numberOfLines={1}>
+              <Text className="text-[15px] font-extrabold text-text mt-0.5" numberOfLines={1}>
                 {employee.name || employee.fullName || 'Employee'}
               </Text>
               {employee.role || employee.roleLabel ? (
@@ -127,7 +127,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
         >
           <Info size={18} color={tokens.primary} style={{ marginTop: 1 }} />
           <View className="flex-1 ml-2.5">
-            <Text className="text-[13.5px] font-extrabold" style={{ color: '#087A0A' }}>Note</Text>
+            <Text className="text-[13px] font-extrabold" style={{ color: '#087A0A' }}>Note</Text>
             <Text className="text-[12.5px] text-text-muted mt-0.5 leading-4">
               Leave request will be sent to your manager for approval.
             </Text>
@@ -147,7 +147,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Text className="text-white text-[15px] font-extrabold">Submit Leave Request</Text>
+              <Text className="text-white text-[14px] font-extrabold">Submit Leave Request</Text>
               <ChevronRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </>
           )}

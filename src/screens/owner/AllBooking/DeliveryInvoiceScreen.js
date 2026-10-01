@@ -287,7 +287,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
           >
             <ChevronLeft size={22} color="#172117" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+          <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
             Delivery Invoice
           </Text>
           <View
@@ -322,7 +322,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
               <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                 From
               </Text>
-              <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+              <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
                 {t.shopName || 'GGFix Service Center'}
               </Text>
               <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={2}>
@@ -486,10 +486,10 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                   >
                     <IndianRupee size={14} color="#FFFFFF" />
                   </View>
-                  <Text className="text-[13.5px] font-extrabold text-gray-900">Total</Text>
+                  <Text className="text-[13px] font-extrabold text-gray-900">Total</Text>
                 </View>
                 <Text
-                  className="text-[18px] font-extrabold"
+                  className="text-[17px] font-extrabold"
                   style={{ color: BRAND_GREEN_DARK }}
                 >
                   ₹{total.toLocaleString('en-IN')}
@@ -622,7 +622,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
           }}
         >
           <Printer size={16} color={BRAND_GREEN_DARK} />
-          <Text className="ml-2 text-[14px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+          <Text className="ml-2 text-[13px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
             Print
           </Text>
         </TouchableOpacity>
@@ -645,7 +645,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             }}
           >
             <Share2 size={16} color="#FFFFFF" />
-            <Text className="ml-2 text-white text-[14px] font-extrabold">Share</Text>
+            <Text className="ml-2 text-white text-[13px] font-extrabold">Share</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

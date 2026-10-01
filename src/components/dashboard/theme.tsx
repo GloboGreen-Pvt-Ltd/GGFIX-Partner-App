@@ -7,6 +7,7 @@ import {
   type PressableProps,
   type StyleProp,
   type ViewStyle,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Check, ChevronRight, type LucideIcon } from 'lucide-react-native';
@@ -164,6 +165,10 @@ export const T = {
 } as const;
 
 // iOS 26 corner scale.
+// Premium serif for the Home headings / shop name — the platform's own
+// system serif (no font package): Georgia on iOS, Noto Serif on Android.
+export const SERIF = Platform.select({ ios: 'Georgia', android: 'serif', default: undefined });
+
 export const R = {
   card: 26,
   control: 999,

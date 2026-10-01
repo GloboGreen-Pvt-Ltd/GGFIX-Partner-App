@@ -443,7 +443,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
             <View className="h-20 w-20 rounded-full bg-primary-soft items-center justify-center mb-4">
               <Search size={34} color={tokens.primary} />
             </View>
-            <Text className="text-[16px] font-extrabold text-text text-center">
+            <Text className="text-[15px] font-extrabold text-text text-center">
               {trimmed ? 'No model matched' : 'Nothing to show'}
             </Text>
             <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5">
@@ -512,7 +512,7 @@ function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh
           <View className="h-20 w-20 rounded-full bg-primary-soft items-center justify-center mb-4">
             <Boxes size={34} color={tokens.primary} />
           </View>
-          <Text className="text-[16px] font-extrabold text-text text-center">
+          <Text className="text-[15px] font-extrabold text-text text-center">
             {query ? 'No box matched' : 'No boxes yet'}
           </Text>
           <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5">
@@ -571,9 +571,9 @@ function BoxCard({ box, query }) {
             <DeviceImage url={box.referenceImageUrl} style={{ width: 44, height: 44 }} />
           </View>
         ) : null}
-        <Text className="flex-1 text-[15px] font-extrabold text-text" numberOfLines={2}>
+        <Text className="flex-1 text-[14px] font-extrabold text-text" numberOfLines={2}>
           {box.boxName}
-          <Text className="text-[14px] font-bold text-text-muted">{`  -  ${box.boxNo}`}</Text>
+          <Text className="text-[13px] font-bold text-text-muted">{`  -  ${box.boxNo}`}</Text>
         </Text>
         <View className="ml-2 items-end">
           {matchCount ? (
@@ -675,7 +675,7 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
         <View className="bg-card rounded-3xl p-4 flex-row items-center" style={CARD_SHADOW}>
           <Thumb model={entry} size={64} />
           <View className="flex-1 ml-3.5">
-            <Text className="text-[16px] font-extrabold text-text" numberOfLines={2}>{entry.name}</Text>
+            <Text className="text-[15px] font-extrabold text-text" numberOfLines={2}>{entry.name}</Text>
             <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
               {[entry.brandName, entry.categoryName].filter(Boolean).join(' · ') || 'Device'}
             </Text>
@@ -831,7 +831,7 @@ function ModelRow({ model, badge, onPress }) {
     >
       <Thumb model={model} size={44} />
       <View className="flex-1 ml-3">
-        <Text className="text-[13.5px] font-bold text-text" numberOfLines={1}>{model.name}</Text>
+        <Text className="text-[13px] font-bold text-text" numberOfLines={1}>{model.name}</Text>
         <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>
           {[model.brandName, model.codes?.[0]].filter(Boolean).join(' · ') || '—'}
         </Text>
@@ -871,7 +871,7 @@ function SectionLabel({ icon: Icon, text, className }) {
   return (
     <View className={`flex-row items-center mb-2 ${className || ''}`}>
       <Icon size={15} color={tokens.text} />
-      <Text className="ml-2 text-[13.5px] font-extrabold text-text">{text}</Text>
+      <Text className="ml-2 text-[13px] font-extrabold text-text">{text}</Text>
     </View>
   );
 }

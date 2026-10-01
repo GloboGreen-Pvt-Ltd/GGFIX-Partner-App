@@ -69,7 +69,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             >
               <ChevronLeft size={20} color="#172117" />
             </TouchableOpacity>
-            <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
+            <Text className="flex-1 text-text text-[16px] font-extrabold" numberOfLines={1}>
               KYC Documents
             </Text>
             <View
@@ -120,7 +120,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             >
               <ShieldCheck size={21} color="#FFFFFF" strokeWidth={2.3} />
             </View>
-            <Text className="text-white text-[19px] font-extrabold" style={{ letterSpacing: -0.3 }}>
+            <Text className="text-white text-[17.5px] font-extrabold" style={{ letterSpacing: -0.3 }}>
               Let's verify your shop
             </Text>
             <Text className="text-white/85 text-[12.5px] mt-1.5 leading-5">
@@ -221,7 +221,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
               justifyContent: 'center',
             }}
           >
-            <Text className="text-white text-[15px] font-extrabold">Get Started</Text>
+            <Text className="text-white text-[14px] font-extrabold">Get Started</Text>
             <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
           </LinearGradient>
         </TouchableOpacity>

@@ -124,7 +124,7 @@ export function BrandHeader({ title, onBack, right }) {
         <View style={{ width: 44 }} />
       )}
       <View className="flex-1 items-center">
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#172117' }}>{title}</Text>
+        <Text style={{ fontSize: 18.5, fontWeight: '800', color: '#172117' }}>{title}</Text>
       </View>
       <View style={{ width: 44, alignItems: 'flex-end' }}>{right}</View>
     </View>

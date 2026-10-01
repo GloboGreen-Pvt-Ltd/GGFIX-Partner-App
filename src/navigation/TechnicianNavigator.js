@@ -23,7 +23,7 @@ export default function TechnicianNavigator({ session, onLogout }) {
         headerStyle: { backgroundColor: colors.headerBg },
         headerShadowVisible: true,
         headerTintColor: colors.headerText,
-        headerTitleStyle: { fontSize: 17, fontWeight: '700', color: colors.headerText },
+        headerTitleStyle: { fontSize: 16, fontWeight: '700', color: colors.headerText },
         headerTitleAlign: 'center',
         headerTitleAllowFontScaling: false,
         headerLeft: () => {

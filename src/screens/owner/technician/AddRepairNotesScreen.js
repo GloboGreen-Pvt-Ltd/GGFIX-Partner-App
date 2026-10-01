@@ -40,8 +40,8 @@ export default function AddRepairNotesScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#172117', padding: 12 },
-  label: { fontSize: 14, color: '#8FA08F', marginBottom: 6 },
-  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 11, fontSize: 15, color: '#F7FAF7', minHeight: 90, textAlignVertical: 'top' },
+  label: { fontSize: 13, color: '#8FA08F', marginBottom: 6 },
+  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 11, fontSize: 14, color: '#F7FAF7', minHeight: 90, textAlignVertical: 'top' },
   button: { backgroundColor: '#087A0A', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-  buttonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  buttonText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 });

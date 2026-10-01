@@ -40,7 +40,7 @@ export function OfferBanner({
             <Text className="text-[10px] font-bold text-white tracking-widest">{badge}</Text>
           </View>
         ) : null}
-        <Text className="text-white text-[20px] font-extrabold leading-7">{title}</Text>
+        <Text className="text-white text-[18.5px] font-extrabold leading-7">{title}</Text>
         {subtitle ? (
           <Text className="text-white/85 text-[13px] mt-1 leading-5">{subtitle}</Text>
         ) : null}

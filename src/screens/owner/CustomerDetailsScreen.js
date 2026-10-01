@@ -410,10 +410,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
   content: { padding: 12, paddingBottom: 24 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  sectionTitle: { marginLeft: 6, fontSize: 14, fontWeight: '700', color: '#172117' },
+  sectionTitle: { marginLeft: 6, fontSize: 13, fontWeight: '700', color: '#172117' },
   label: { fontSize: 12, fontWeight: '600', color: '#172117', marginBottom: 6, marginTop: 10 },
   label2: { fontSize: 11, color: '#667066', marginBottom: 4 },
   input: {
@@ -471,6 +471,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnDisabled: { opacity: 0.7 },
-  saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  saveText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });
 

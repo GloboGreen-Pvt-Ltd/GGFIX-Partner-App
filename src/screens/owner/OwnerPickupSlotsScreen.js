@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   Switch,
   TextInput,
   TouchableOpacity,
+  Pressable,
+  Modal,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -105,6 +107,156 @@ function parseTimeInput(raw) {
   return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
 }
 
+// Screen palette (this screen only).
+const C = {
+  deep: '#004C40',
+  primary: '#006B57',
+  bright: '#00A86B',
+  mint: '#E8F7F2',
+  softMint: '#F4FBF8',
+  bg: '#F8FCFA',
+  card: '#FFFFFF',
+  border: '#DCE7E2',
+  text: '#111827',
+  muted: '#667085',
+  warn: '#F59E0B',
+  softWarn: '#FFF7DF',
+};
+
+// Pure-JS picker, like the price-estimate screen's: a native time picker would
+// need @react-native-community/datetimepicker and a full native rebuild.
+const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0'));
+const PICK_ROW_H = 44;
+
+function PickColumn({ items, value, onChange, label }) {
+  const ref = useRef(null);
+  const index = Math.max(0, items.indexOf(value));
+  return (
+    <View style={styles.pickCol}>
+      <Text style={styles.pickColLabel}>{label}</Text>
+      <ScrollView
+        ref={ref}
+        style={styles.pickList}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        // Open with the current value in view, not scrolled back to 00.
+        onLayout={() => ref.current?.scrollTo({ y: Math.max(0, (index - 2) * PICK_ROW_H), animated: false })}
+      >
+        {items.map((it) => {
+          const on = it === value;
+          return (
+            <Pressable
+              key={it}
+              onPress={() => onChange(it)}
+              style={[styles.pickRow, on && styles.pickRowOn]}
+            >
+              <Text style={[styles.pickRowText, on && styles.pickRowTextOn]}>{it}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Edits a local draft; only "Set time" hands the value back, so Cancel (or the
+ * backdrop / back button) leaves the field exactly as it was.
+ */
+function TimePickerSheet({ visible, title, value, fallback, onCancel, onConfirm }) {
+  const [hh, setHh] = useState('09');
+  const [mm, setMm] = useState('00');
+  useEffect(() => {
+    if (!visible) return;
+    const t = parseTimeInput(value) || fallback;
+    setHh(t.slice(0, 2));
+    setMm(t.slice(3, 5));
+  }, [visible, value, fallback]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.pickBackdrop} onPress={onCancel}>
+        {/* Swallows the backdrop press so tapping inside the card can't close it. */}
+        <Pressable style={styles.pickCard} onPress={() => {}}>
+          <Text style={styles.pickTitle}>{title}</Text>
+          <Text style={styles.pickPreview}>{`${hh}:${mm}`}</Text>
+          {visible ? (
+            <View style={styles.pickCols}>
+              <PickColumn label="Hour" items={HOURS} value={hh} onChange={setHh} />
+              <Text style={styles.pickColon}>:</Text>
+              <PickColumn label="Minute" items={MINUTES} value={mm} onChange={setMm} />
+            </View>
+          ) : null}
+          <View style={styles.pickActions}>
+            <TouchableOpacity style={[styles.pickBtn, styles.pickBtnGhost]} onPress={onCancel} activeOpacity={0.8}>
+              <Text style={[styles.pickBtnText, { color: C.muted }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.pickBtn, { backgroundColor: C.deep }]}
+              onPress={() => onConfirm(`${hh}:${mm}`)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.pickBtnText, { color: '#FFFFFF' }]}>Set time</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// One whole-field tap target: icon, value, blank space and chevron all open the picker.
+// Plain style (not a `({ pressed }) =>` function — NativeWind drops those).
+function TimeField({ label, value, placeholder, onPress }) {
+  return (
+    <View style={styles.col}>
+      <Text style={styles.label}>{label}</Text>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.7}
+        style={styles.fieldBox}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${value || 'not set'}`}
+      >
+        <Ionicons name="time-outline" size={20} color={C.primary} />
+        <Text
+          style={[styles.fieldValue, !value && { color: '#9AA8A1' }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {value ? normaliseTime(value) : placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color={C.muted} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ScreenHeader({ title, onBack, topInset }) {
+  return (
+    <LinearGradient
+      colors={['#00875A', C.primary, C.deep]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.hero, { paddingTop: topInset + 10 }]}
+    >
+      {/* Decorative curved shapes — pointerEvents none so they never eat taps. */}
+      <View pointerEvents="none" style={[styles.heroBlob, styles.heroBlobA]} />
+      <View pointerEvents="none" style={[styles.heroBlob, styles.heroBlobB]} />
+      <View style={styles.heroRow}>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} hitSlop={8} activeOpacity={0.7} style={styles.heroBack}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : null}
+        <Text style={styles.heroTitle} numberOfLines={1}>{title}</Text>
+      </View>
+    </LinearGradient>
+  );
+}
+
 // `days` is an array of ISO codes (1=Mon..7=Sun). Multi-select in both modes.
 // `capacity` is the legacy DB column name; the UI surfaces it as pickup-radius
 // kilometres so the underlying schema stays untouched.
@@ -127,6 +279,15 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
   const [pickupEnabled, setPickupEnabled] = useState(null);
   const [ownerId, setOwnerId] = useState(null);
   const [savingToggle, setSavingToggle] = useState(false);
+  // Which time field the shared picker is editing: 'startTime' | 'endTime' | null.
+  const [timeField, setTimeField] = useState(null);
+  const insets = useSafeAreaInsets();
+
+  // The design's gradient hero replaces the stack header on this screen only.
+  useLayoutEffect(() => {
+    navigation?.setOptions?.({ headerShown: false });
+  }, [navigation]);
+  const onBack = navigation?.canGoBack?.() ? () => navigation.goBack() : null;
 
   const load = useCallback(async () => {
     if (!shopId) { setLoading(false); return; }
@@ -261,25 +422,37 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
 
   if (!shopId) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.safe}>
+        <ScreenHeader title="Pickup Service" onBack={onBack} topInset={insets.top} />
         <View style={styles.center}><Text style={styles.errorText}>Please log in again.</Text></View>
-      </SafeAreaView>
+      </View>
     );
   }
 
+  // Display-only check so a reversed window is flagged before submit; the
+  // rule itself is still enforced by onSubmit.
+  const liveStart = parseTimeInput(form.startTime);
+  const liveEnd = parseTimeInput(form.endTime);
+  const windowInvalid = !!(liveStart && liveEnd && liveStart >= liveEnd);
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <View style={styles.safe}>
+      <ScreenHeader title="Pickup Service" onBack={onBack} topInset={insets.top} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Master pickup switch. Sits above the slot editor because it gates
             everything below it: with pickup off the shop is not listed in the
             customer app's pickup shop list, whatever the slots say. */}
         <View style={styles.card}>
           <View style={styles.toggleRow}>
-            <View style={[styles.cardHeaderIcon, !pickupEnabled && styles.cardHeaderIconOff]}>
+            <View style={[styles.iconTile, !pickupEnabled && styles.iconTileOff]}>
               <Ionicons
                 name="car-outline"
-                size={22}
-                color={pickupEnabled ? '#087A0A' : '#8FA08F'}
+                size={28}
+                color={pickupEnabled ? C.deep : '#8FA08F'}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -293,14 +466,14 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
               </Text>
             </View>
             {pickupEnabled === null || savingToggle ? (
-              <ActivityIndicator color="#087A0A" style={styles.toggleSpinner} />
+              <ActivityIndicator color={C.primary} style={styles.toggleSpinner} />
             ) : (
               <Switch
                 value={pickupEnabled}
                 onValueChange={onTogglePickup}
                 disabled={!ownerId}
-                trackColor={{ false: '#E2E8E2', true: '#C8EEBF' }}
-                thumbColor={pickupEnabled ? '#087A0A' : '#F7FAF7'}
+                trackColor={{ false: '#E2E8E2', true: C.bright }}
+                thumbColor="#FFFFFF"
                 ios_backgroundColor="#E2E8E2"
               />
             )}
@@ -308,22 +481,30 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
 
           {pickupEnabled === false ? (
             <View style={styles.warnBanner}>
-              <Ionicons name="eye-off-outline" size={16} color="#B45309" />
-              <Text style={styles.warnText}>
-                Pickup is off. Customers won’t see this shop when they search for
-                pickup shops. Your saved slots are kept — turn pickup back on to
-                start receiving requests again.
-              </Text>
+              <View style={styles.warnIcon}>
+                <Ionicons name="eye-off-outline" size={18} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warnTitle}>Pickup is off.</Text>
+                <Text style={styles.warnText}>
+                  Customers won’t see this shop when they search for pickup shops. Your saved
+                  slots are kept — turn pickup back on to start receiving requests again.
+                </Text>
+              </View>
             </View>
           ) : null}
 
           {pickupEnabled === true && !loading && slots.length === 0 ? (
             <View style={styles.warnBanner}>
-              <Ionicons name="alert-circle-outline" size={16} color="#B45309" />
-              <Text style={styles.warnText}>
-                Pickup is on but you have no slots yet. Add at least one below so
-                customers have a time window to book.
-              </Text>
+              <View style={styles.warnIcon}>
+                <Text style={styles.warnIconText}>!</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warnTitle}>Pickup is on but you have no slots yet.</Text>
+                <Text style={styles.warnText}>
+                  Add at least one below so customers have a time window to book.
+                </Text>
+              </View>
             </View>
           ) : null}
         </View>
@@ -336,11 +517,11 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
         <>
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderIcon}>
-              <Ionicons name="calendar-outline" size={22} color="#087A0A" />
+            <View style={styles.iconTile}>
+              <Ionicons name="calendar-outline" size={28} color={C.deep} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Add pickup slot</Text>
+              <Text style={styles.cardTitleLg}>Add pickup slot</Text>
               <Text style={styles.cardSub}>
                 Define the time window and how many pickups you can handle in it.
               </Text>
@@ -348,9 +529,6 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
           </View>
 
           <Text style={styles.daysLabel}>Days</Text>
-          {daysSummary(form.days) ? (
-            <Text style={styles.daysSummary}>{daysSummary(form.days)}</Text>
-          ) : null}
           <View style={styles.circleRow}>
             {DAY_CIRCLES.map((d) => {
               const active = form.days.includes(d.code);
@@ -374,94 +552,80 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
           ) : null}
 
           <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Start time (HH:MM)</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="time-outline" size={16} color="#087A0A" />
-                <TextInput
-                  style={styles.inputFlex}
-                  value={form.startTime}
-                  onChangeText={(t) => setForm((f) => ({ ...f, startTime: t }))}
-                  placeholder="09:00"
-                  placeholderTextColor="#8FA08F"
-                  autoCapitalize="characters"
-                />
-                <Ionicons name="chevron-down" size={16} color="#8FA08F" />
-              </View>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>End time (HH:MM)</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="time-outline" size={16} color="#087A0A" />
-                <TextInput
-                  style={styles.inputFlex}
-                  value={form.endTime}
-                  onChangeText={(t) => setForm((f) => ({ ...f, endTime: t }))}
-                  placeholder="12:00"
-                  placeholderTextColor="#8FA08F"
-                  autoCapitalize="characters"
-                />
-                <Ionicons name="chevron-down" size={16} color="#8FA08F" />
-              </View>
-            </View>
+            <TimeField
+              label="Start time (HH:MM)"
+              value={form.startTime}
+              placeholder="09:00"
+              onPress={() => setTimeField('startTime')}
+            />
+            <TimeField
+              label="End time (HH:MM)"
+              value={form.endTime}
+              placeholder="12:00"
+              onPress={() => setTimeField('endTime')}
+            />
           </View>
+          {windowInvalid ? (
+            <Text style={styles.errorText}>End time must be after start time.</Text>
+          ) : null}
 
           <Text style={styles.label}>Distance (KM)</Text>
-          <View style={styles.inputWrap}>
-            <Ionicons name="location-outline" size={16} color="#087A0A" />
+          <View style={styles.fieldBox}>
+            <Ionicons name="location-outline" size={20} color={C.primary} />
             <TextInput
-              style={styles.inputFlex}
+              style={styles.fieldInput}
               value={form.capacity}
               onChangeText={(t) => setForm((f) => ({ ...f, capacity: t }))}
               placeholder="20"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9AA8A1"
               keyboardType="number-pad"
             />
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
-              onPress={onSubmit}
-              disabled={submitting}
-              activeOpacity={0.9}
+          <TouchableOpacity
+            style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+            onPress={onSubmit}
+            disabled={submitting}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={['#00C27A', C.bright, C.deep]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.submitGrad}
             >
-              <LinearGradient
-                colors={['#16BB05', '#087A0A']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.submitGrad}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.submitBtnText}>
-                      {form.days.length > 1 ? `Add slots (${form.days.length})` : 'Add slot'}
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
+                  <Text style={styles.submitBtnText}>
+                    {form.days.length > 1 ? `Add slots (${form.days.length})` : 'Add slot'}
+                  </Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.savedHeaderRow}>
-          <Text style={styles.sectionLabel}>Saved pickup slots</Text>
+          <View style={styles.savedTitleRow}>
+            <Ionicons name="list-outline" size={22} color={C.deep} />
+            <Text style={styles.sectionLabel}>Saved Pickup Slots</Text>
+          </View>
           <View>
             <TouchableOpacity
               style={styles.sortBtn}
               onPress={() => setSortMenuOpen((v) => !v)}
               activeOpacity={0.8}
             >
-              <Ionicons name="swap-vertical" size={14} color="#172117" />
+              <Ionicons name="swap-vertical" size={16} color={C.deep} />
               <Text style={styles.sortText}>
                 Sort by: <Text style={styles.sortValue}>{sortBy === 'time' ? 'Time' : 'Day'}</Text>
               </Text>
-              <Ionicons name="chevron-down" size={14} color="#172117" />
+              <Ionicons name="chevron-down" size={14} color={C.text} />
             </TouchableOpacity>
             {sortMenuOpen ? (
               <View style={styles.sortMenu}>
@@ -475,7 +639,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                     <Text style={[styles.sortMenuText, sortBy === opt.key && styles.sortMenuTextActive]}>
                       {opt.label}
                     </Text>
-                    {sortBy === opt.key ? <Ionicons name="checkmark" size={14} color="#087A0A" /> : null}
+                    {sortBy === opt.key ? <Ionicons name="checkmark" size={14} color={C.primary} /> : null}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -484,11 +648,17 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
         </View>
 
         {loading ? (
-          <ActivityIndicator color="#087A0A" style={{ marginTop: 20 }} />
+          <ActivityIndicator color={C.primary} style={{ marginTop: 20 }} />
         ) : slots.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="time-outline" size={28} color="#8FA08F" />
-            <Text style={styles.emptyText}>No pickup slots yet. Add one above to get started.</Text>
+            {/* Lightweight decorative hills — plain shapes, no assets. */}
+            <View pointerEvents="none" style={[styles.emptyHill, styles.emptyHillL]} />
+            <View pointerEvents="none" style={[styles.emptyHill, styles.emptyHillR]} />
+            <View style={styles.emptyIcon}>
+              <Ionicons name="time-outline" size={28} color={C.deep} />
+            </View>
+            <Text style={styles.emptyTitle}>No pickup slots yet.</Text>
+            <Text style={styles.emptyText}>Add one above to get started.</Text>
           </View>
         ) : (
           // Read-only cards: a saved slot is something customers can already be
@@ -496,7 +666,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
           sortedSlots.map((slot, index) => (
             <View key={slot.id} style={styles.slotCard}>
               <View style={styles.slotIconWrap}>
-                <Ionicons name="calendar-outline" size={20} color="#087A0A" />
+                <Ionicons name="calendar-outline" size={20} color={C.deep} />
                 <View style={styles.slotBadge}>
                   <Text style={styles.slotBadgeText}>{index + 1}</Text>
                 </View>
@@ -509,13 +679,13 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                   </View>
                 </View>
                 <View style={styles.slotMetaRow}>
-                  <Ionicons name="time-outline" size={13} color="#667066" />
+                  <Ionicons name="time-outline" size={13} color={C.muted} />
                   <Text style={styles.slotTime}>
                     {to12h(slot.startTime)} – {to12h(slot.endTime)}
                   </Text>
                 </View>
                 <View style={styles.slotMetaRow}>
-                  <Ionicons name="location-outline" size={13} color="#667066" />
+                  <Ionicons name="location-outline" size={13} color={C.muted} />
                   <Text style={styles.slotMeta}>Distance: {slot.capacity ?? 10} km</Text>
                 </View>
               </View>
@@ -524,7 +694,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
         )}
 
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color="#087A0A" />
+          <Ionicons name="information-circle-outline" size={20} color={C.primary} />
           <Text style={styles.infoText}>
             Customers can book a pickup within the selected time window on the
             selected days only. A saved slot can’t be edited or removed — switch
@@ -534,124 +704,197 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
         </>
         )}
       </ScrollView>
-    </SafeAreaView>
+
+      <TimePickerSheet
+        visible={timeField !== null}
+        title={timeField === 'endTime' ? 'End time' : 'Start time'}
+        value={timeField ? form[timeField] : ''}
+        fallback={timeField === 'endTime' ? '12:00' : '09:00'}
+        onCancel={() => setTimeField(null)}
+        onConfirm={(t) => {
+          const field = timeField;
+          setTimeField(null);
+          // Updates only the field that opened the picker.
+          if (field) setForm((f) => ({ ...f, [field]: t }));
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: C.bg },
   scroll: { flex: 1 },
-  content: { padding: 12, paddingBottom: 24 },
+  content: { paddingHorizontal: 16, paddingTop: 14 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
+  // ---- gradient hero
+  hero: {
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: 'hidden',
+  },
+  heroBlob: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroBlobA: { width: 260, height: 260, top: -150, right: -60 },
+  heroBlobB: { width: 180, height: 180, bottom: -120, left: 90, backgroundColor: 'rgba(255,255,255,0.06)' },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  heroBack: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  heroTitle: { flex: 1, fontSize: 21.5, fontWeight: '800', color: '#FFFFFF' },
+
+  // ---- cards
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 11,
-    marginBottom: 10,
-    shadowColor: '#172117',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    backgroundColor: C.card,
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EEF4F1',
+    shadowColor: '#0B3B2E',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  cardHeaderIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#E6F7E3',
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  iconTile: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: C.mint,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardHeaderIconOff: { backgroundColor: '#EFF5EE' },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#172117' },
-  cardSub: { fontSize: 12.5, color: '#667066', marginTop: 2, lineHeight: 17 },
+  iconTileOff: { backgroundColor: '#EFF5EE' },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: C.text },
+  cardTitleLg: { fontSize: 17, fontWeight: '800', color: C.text },
+  cardSub: { fontSize: 13, color: C.muted, marginTop: 3, lineHeight: 18 },
 
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   // Reserve the switch's footprint so swapping in the spinner doesn't reflow
   // the row (the title would visibly jump on every save).
   toggleSpinner: { width: 51, alignItems: 'center' },
   warnBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 12,
-    padding: 9,
-    marginTop: 10,
-  },
-  warnText: { flex: 1, fontSize: 12, color: '#7C4A03', lineHeight: 17 },
-
-  daysLabel: { fontSize: 14, fontWeight: '800', color: '#172117', marginTop: 10, marginBottom: 6 },
-  label: { fontSize: 13, color: '#172117', fontWeight: '700', marginTop: 10, marginBottom: 5 },
-
-  inputWrap: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F7FAF7',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8E2',
+    gap: 10,
+    backgroundColor: C.softWarn,
+    borderWidth: 1,
+    borderColor: '#FBE3A6',
+    borderRadius: 15,
+    paddingVertical: 10,
     paddingHorizontal: 12,
+    marginTop: 12,
   },
-  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#172117' },
-
-  row: { flexDirection: 'row', gap: 10 },
-  col: { flex: 1 },
-
-  daysSummary: { fontSize: 13, color: '#087A0A', fontWeight: '700', marginTop: 2, marginBottom: 5 },
-  circleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  dayCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#E2E8E2',
+  warnIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: C.warn,
+    borderWidth: 3, borderColor: '#FDE3B0',
     alignItems: 'center', justifyContent: 'center',
   },
-  dayCircleActive: { backgroundColor: '#087A0A' },
-  dayCircleText: { fontSize: 15, color: '#667066', fontWeight: '800' },
+  warnIconText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', lineHeight: 18 },
+  warnTitle: { fontSize: 13, fontWeight: '800', color: '#6B3A00' },
+  warnText: { fontSize: 12.5, color: '#7C4A03', lineHeight: 17, marginTop: 1 },
+
+  daysLabel: { fontSize: 14, fontWeight: '800', color: C.text, marginTop: 12, marginBottom: 8 },
+  label: { fontSize: 13, color: C.text, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+
+  // Shared by the two time fields and the distance field.
+  fieldBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 54,
+    backgroundColor: C.softMint,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    paddingHorizontal: 12,
+  },
+  fieldValue: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
+  fieldInput: { flex: 1, height: '100%', paddingVertical: 0, fontSize: 15, fontWeight: '600', color: C.text },
+
+  row: { flexDirection: 'row', gap: 12 },
+  col: { flex: 1, minWidth: 0 },
+
+  circleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 4 },
+  dayCircle: {
+    flex: 1,
+    maxWidth: 48,
+    aspectRatio: 1,
+    borderRadius: 999,
+    backgroundColor: '#EEF3F0',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dayCircleActive: {
+    backgroundColor: C.deep,
+    shadowColor: C.deep,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  dayCircleText: { fontSize: 15, color: '#4B5563', fontWeight: '800' },
   dayCircleTextActive: { color: '#FFFFFF' },
 
   errorText: { fontSize: 12, color: '#DC2626', marginTop: 6 },
-  hint: { fontSize: 11, color: '#667066', marginTop: 5, fontStyle: 'italic' },
+  hint: { fontSize: 12, color: C.muted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  submitBtn: { flex: 1, borderRadius: 999, overflow: 'hidden' },
+  submitBtn: {
+    marginTop: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: C.deep,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
   submitGrad: {
     flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 10,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
+  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 
+  // ---- saved slots
   savedHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 10,
     zIndex: 20,
     elevation: 20,
   },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#172117',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+  savedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  sectionLabel: { fontSize: 16, fontWeight: '800', color: C.text },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.softMint,
   },
-  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  sortText: { fontSize: 12.5, color: '#172117', fontWeight: '600' },
-  sortValue: { fontWeight: '800', color: '#172117' },
+  sortText: { fontSize: 12.5, color: C.text, fontWeight: '600' },
+  sortValue: { fontWeight: '800', color: C.text },
   sortMenu: {
     position: 'absolute',
-    top: 26, right: 0,
-    minWidth: 130,
+    top: 38, right: 0,
+    minWidth: 140,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: C.border,
     paddingVertical: 4,
     elevation: 12,
     shadowColor: '#172117',
@@ -665,37 +908,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
-  sortMenuText: { fontSize: 13, color: '#667066', fontWeight: '600' },
-  sortMenuTextActive: { color: '#087A0A', fontWeight: '800' },
+  sortMenuText: { fontSize: 13, color: C.muted, fontWeight: '600' },
+  sortMenuTextActive: { color: C.primary, fontWeight: '800' },
 
   emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 18,
+    backgroundColor: C.card,
+    borderRadius: 20,
+    paddingTop: 18,
+    paddingBottom: 26,
     alignItems: 'center',
-    gap: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#EEF4F1',
   },
-  emptyText: { fontSize: 12, color: '#667066', textAlign: 'center', paddingHorizontal: 24 },
+  emptyHill: { position: 'absolute', bottom: -40, width: 170, height: 80, borderRadius: 999, backgroundColor: C.mint },
+  emptyHillL: { left: -40 },
+  emptyHillR: { right: -40 },
+  emptyIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: C.mint,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '800', color: C.text },
+  emptyText: { fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 3, paddingHorizontal: 24 },
 
   slotCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 11,
+    gap: 12,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    padding: 12,
     marginBottom: 8,
-    shadowColor: '#172117',
+    borderWidth: 1,
+    borderColor: '#EEF4F1',
+    shadowColor: '#0B3B2E',
     shadowOpacity: 0.04,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
   },
   slotIconWrap: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#E6F7E3',
+    width: 44, height: 44, borderRadius: 13,
+    backgroundColor: C.mint,
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
@@ -703,7 +961,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -4, bottom: -4,
     minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#087A0A',
+    backgroundColor: C.deep,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: '#FFFFFF',
     paddingHorizontal: 3,
@@ -711,28 +969,53 @@ const styles = StyleSheet.create({
   slotBadgeText: { color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' },
 
   slotDayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  slotDay: { fontSize: 15, fontWeight: '800', color: '#172117' },
+  slotDay: { fontSize: 14, fontWeight: '800', color: C.text },
   activePill: {
-    backgroundColor: '#E6F7E3',
+    backgroundColor: C.mint,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  activePillText: { fontSize: 10, fontWeight: '800', color: '#087A0A' },
+  activePillText: { fontSize: 10, fontWeight: '800', color: C.primary },
   slotMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  slotTime: { fontSize: 12.5, color: '#172117', fontWeight: '600' },
-  slotMeta: { fontSize: 12, color: '#667066' },
+  slotTime: { fontSize: 12.5, color: C.text, fontWeight: '600' },
+  slotMeta: { fontSize: 12, color: C.muted },
 
   infoCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    backgroundColor: '#F0F8EF',
+    backgroundColor: C.softMint,
     borderWidth: 1,
-    borderColor: '#C8EEBF',
-    borderRadius: 14,
-    padding: 10,
-    marginTop: 6,
+    borderColor: C.border,
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 8,
   },
-  infoText: { flex: 1, fontSize: 12.5, color: '#172117', lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 12.5, color: C.text, lineHeight: 18 },
+
+  // ---- time picker sheet
+  pickBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  pickCard: { width: '100%', maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16 },
+  pickTitle: { fontSize: 13, fontWeight: '800', color: C.muted, textAlign: 'center', letterSpacing: 0.6 },
+  pickPreview: { fontSize: 28, fontWeight: '800', color: C.deep, textAlign: 'center', marginTop: 2 },
+  pickCols: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 10 },
+  pickCol: { flex: 1 },
+  pickColLabel: { fontSize: 11, fontWeight: '700', color: C.muted, textAlign: 'center', marginBottom: 4 },
+  pickColon: { fontSize: 20, fontWeight: '800', color: C.muted, paddingHorizontal: 8, paddingBottom: 90 },
+  pickList: { height: PICK_ROW_H * 5, borderRadius: 14, backgroundColor: C.softMint, borderWidth: 1, borderColor: C.border },
+  pickRow: { height: PICK_ROW_H, alignItems: 'center', justifyContent: 'center', marginHorizontal: 6, borderRadius: 10 },
+  pickRowOn: { backgroundColor: C.deep },
+  pickRowText: { fontSize: 16, fontWeight: '600', color: C.text },
+  pickRowTextOn: { color: '#FFFFFF', fontWeight: '800' },
+  pickActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  pickBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  pickBtnGhost: { backgroundColor: '#F2F4F7' },
+  pickBtnText: { fontSize: 14, fontWeight: '800' },
 });

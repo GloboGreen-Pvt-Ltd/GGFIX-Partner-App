@@ -181,7 +181,7 @@ export default function BookingStatusScreen({ navigation }) {
           >
             <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
           </TouchableOpacity>
-          <Text className="font-extrabold flex-1" style={{ fontSize: rf(22), color: TEXT_PRIMARY }} numberOfLines={1}>
+          <Text className="font-extrabold flex-1" style={{ fontSize: 20, color: TEXT_PRIMARY }} numberOfLines={1}>
             Booking Status
           </Text>
           <TouchableOpacity
@@ -191,7 +191,7 @@ export default function BookingStatusScreen({ navigation }) {
             style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT }}
           >
             <History size={rf(13)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: ACCENT }}>
+            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11.5, color: ACCENT }}>
               Previous
             </Text>
           </TouchableOpacity>
@@ -217,10 +217,10 @@ export default function BookingStatusScreen({ navigation }) {
               <History size={rf(19)} color={ACCENT} />
             </View>
             <View className="flex-1">
-              <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 13.5, color: TEXT_PRIMARY }} numberOfLines={1}>
                 Previous Reports
               </Text>
-              <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+              <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
                 Month-by-month status snapshots
               </Text>
             </View>
@@ -235,14 +235,14 @@ export default function BookingStatusScreen({ navigation }) {
 
           {error ? (
             <View style={{ marginTop: rs(12) }}>
-              <Text style={{ fontSize: rf(12), color: WARNING_RED }}>{error}</Text>
+              <Text style={{ fontSize: 12, color: WARNING_RED }}>{error}</Text>
             </View>
           ) : null}
 
           {/* Section header */}
           <View style={{ marginTop: rs(20), marginBottom: rs(12) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(21), color: TEXT_PRIMARY }}>Booking status</Text>
-            <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }}>
+            <Text className="font-extrabold" style={{ fontSize: 19, color: TEXT_PRIMARY }}>Booking status</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: rs(2) }}>
               All time · {ALL_TILES.length} statuses
             </Text>
           </View>
@@ -271,15 +271,15 @@ export default function BookingStatusScreen({ navigation }) {
                 <ClipboardList size={rf(22)} color="#FFFFFF" />
               </View>
               <View className="flex-1">
-                <Text className="font-extrabold" style={{ fontSize: rf(16.5), color: '#FFFFFF' }} numberOfLines={1}>
+                <Text className="font-extrabold" style={{ fontSize: 15.5, color: '#FFFFFF' }} numberOfLines={1}>
                   {TOTAL_TILE.label}
                 </Text>
-                <Text style={{ fontSize: rf(11.5), color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>
+                <Text style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>
                   Every booking in the shop
                 </Text>
               </View>
               <View style={{ width: 1, height: rs(30), backgroundColor: 'rgba(255,255,255,0.4)', marginHorizontal: rs(12) }} />
-              <Text className="font-extrabold" style={{ fontSize: rf(28), color: '#FFFFFF' }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 25, color: '#FFFFFF' }} numberOfLines={1}>
                 {pad2(countFor(TOTAL_TILE))}
               </Text>
               <ChevronRight size={rf(20)} color="rgba(255,255,255,0.85)" style={{ marginLeft: rs(4) }} />
@@ -301,8 +301,8 @@ export default function BookingStatusScreen({ navigation }) {
 
           {/* Working Pending */}
           <View style={{ marginTop: rs(22), marginBottom: rs(12) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY }}>{WORK_PENDING_TILE.label}</Text>
-            <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }}>
+            <Text className="font-extrabold" style={{ fontSize: 17.5, color: TEXT_PRIMARY }}>{WORK_PENDING_TILE.label}</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: rs(2) }}>
               Waiting on a part or on the customer
             </Text>
           </View>
@@ -355,8 +355,8 @@ function MetricCard({ icon: Icon, label, value, onPress }) {
         <View className="items-center justify-center" style={{ width: rs(42), height: rs(42), borderRadius: rs(21), backgroundColor: MINT, marginBottom: rs(10) }}>
           <Icon size={rf(19)} color={ACCENT} />
         </View>
-        <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
-        <Text className="font-extrabold" style={{ fontSize: rf(22), color: TEXT_PRIMARY, marginTop: rs(2) }}>{value}</Text>
+        <Text style={{ fontSize: 12, color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
+        <Text className="font-extrabold" style={{ fontSize: 20, color: TEXT_PRIMARY, marginTop: rs(2) }}>{value}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -378,10 +378,10 @@ function PendingRow({ icon: Icon, color, label, value, onPress, last }) {
       <View className="items-center justify-center" style={{ width: rs(42), height: rs(42), borderRadius: rs(14), backgroundColor: color, marginRight: rs(12) }}>
         <Icon size={rf(18)} color="#FFFFFF" />
       </View>
-      <Text className="flex-1" style={{ fontSize: rf(13.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+      <Text className="flex-1" style={{ fontSize: 13, color: TEXT_PRIMARY }} numberOfLines={1}>
         {label}
       </Text>
-      <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY, marginRight: rs(6) }}>
+      <Text className="font-extrabold" style={{ fontSize: 17.5, color: TEXT_PRIMARY, marginRight: rs(6) }}>
         {value}
       </Text>
       <ChevronRight size={rf(16)} color={TEXT_SECONDARY} />

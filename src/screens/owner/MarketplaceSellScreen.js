@@ -113,7 +113,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                   <Text
                     numberOfLines={1}
                     style={{
-                      color: '#667066', fontWeight: '700', fontSize: 14,
+                      color: '#667066', fontWeight: '700', fontSize: 13,
                       maxWidth: width - 160, marginLeft: 4,
                     }}
                   >
@@ -137,7 +137,7 @@ export default function MarketplaceSellScreen({ navigation }) {
 
             <Text
               style={{
-                color: '#172117', fontSize: 22, fontWeight: '800',
+                color: '#172117', fontSize: 20, fontWeight: '800',
                 marginTop: 14, letterSpacing: -0.3,
               }}
             >
@@ -164,7 +164,7 @@ export default function MarketplaceSellScreen({ navigation }) {
               <Search size={18} color={GREEN} />
               <Text
                 numberOfLines={1}
-                style={{ flex: 1, marginLeft: 10, color: '#667066', fontSize: 14 }}
+                style={{ flex: 1, marginLeft: 10, color: '#667066', fontSize: 13 }}
               >
                 Search a device to list
               </Text>
@@ -235,7 +235,7 @@ export default function MarketplaceSellScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <Text
               style={{
-                fontSize: 17, fontWeight: '800',
+                fontSize: 16, fontWeight: '800',
                 color: '#172117', letterSpacing: -0.2,
               }}
             >
@@ -286,7 +286,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                     marginBottom: 10,
                   }}
                 >
-                  <Text style={{ fontSize: Math.min(40, imgH * 0.45) }}>{t.emoji}</Text>
+                  <Text style={{ fontSize: Math.min(34.5, imgH * 0.45) }}>{t.emoji}</Text>
                   <View
                     style={{
                       position: 'absolute', top: 64, alignSelf: 'center',
@@ -313,7 +313,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                 </View>
                 <Text
                   numberOfLines={1}
-                  style={{ fontSize: 14, fontWeight: '800', color: '#172117' }}
+                  style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}
                 >
                   {t.title}
                 </Text>
@@ -332,7 +332,7 @@ export default function MarketplaceSellScreen({ navigation }) {
         <View style={{ paddingHorizontal: padH, marginTop: 16, marginBottom: 6 }}>
           <Text
             style={{
-              fontSize: 17, fontWeight: '800',
+              fontSize: 16, fontWeight: '800',
               color: '#172117', letterSpacing: -0.2,
             }}
           >
@@ -399,7 +399,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                 <Store size={18} color={GREEN_DARK} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#172117' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}>
                   My Listings
                 </Text>
                 <Text style={{ fontSize: 11, color: '#667066', marginTop: 1 }}>

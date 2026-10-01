@@ -69,11 +69,42 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
     ? (listing.shopName || 'Shop')
     : 'Customer';
 
+  // Both bottom buttons used to do nothing at all when there was no phone —
+  // which is always the case for customer listings (the sell flow doesn't put
+  // the customer's number on the listing). They now dial when a number exists
+  // and otherwise say exactly why they can't, instead of silently ignoring the tap.
+  const dial = (phone) => {
+    const tel = String(phone).replace(/[^\d+]/g, '');
+    Linking.openURL(`tel:${tel}`).catch(() => {
+      notify('Could not start the call', `Dial ${phone} manually.`, { preset: 'error' });
+    });
+  };
+
   const callSeller = () => {
-    if (!contactPhone) {
-      return;
-    }
-    Linking.openURL(`tel:${contactPhone}`).catch(() => {});
+    if (contactPhone) { dial(contactPhone); return; }
+    notify(
+      `${contactName}'s number isn't available`,
+      isCustomer
+        ? "This customer listing doesn't include a phone number yet, so it can't be called from here."
+        : "This shop listing doesn't include a phone number.",
+      { preset: 'error' },
+    );
+  };
+
+  // Send Quote needs the listing's Sell Order (quotes live on
+  // /sell-orders/{sellOrderId}/quotations) and the listing doesn't carry that
+  // id — so it is not guessed from other fields; the tap explains why instead.
+  const sendQuote = () => {
+    notify(
+      'Quotation not available yet',
+      "Backend sellOrderId link required — this listing doesn't include the Sell Order it belongs to, so a quote can't be sent from the app yet.",
+      { preset: 'error' },
+    );
+  };
+
+  const orderNow = () => {
+    if (contactPhone) { dial(contactPhone); return; }
+    callSeller();
   };
 
   const openMap = () => {
@@ -188,7 +219,7 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
           </TouchableOpacity>
         ) : (
           <>
-            <TouchableOpacity style={styles.contactBtn} onPress={callSeller} disabled={!contactPhone}>
+            <TouchableOpacity style={styles.contactBtn} onPress={callSeller} activeOpacity={0.8}>
               <Ionicons name="call-outline" size={16} color={PALETTE.primary} />
               <Text style={styles.contactText}>
                 {contactPhone ? 'Contact' : `Call ${contactName}`}
@@ -196,13 +227,8 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.orderBtn}
-              onPress={() => {
-                // Order Now currently routes to the seller via phone — quotation
-                // flow for customer sells lands here too.
-                if (contactPhone) {
-                  Linking.openURL(`tel:${contactPhone}`).catch(() => {});
-                }
-              }}
+              onPress={isAwaitingQuote ? sendQuote : orderNow}
+              activeOpacity={0.85}
             >
               <Text style={styles.orderText}>{isAwaitingQuote ? 'Send Quote' : 'Order Now'}</Text>
             </TouchableOpacity>
@@ -250,7 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 18,
   },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '700', color: PALETTE.text },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '700', color: PALETTE.text },
   hero: {
     height: 260,
     backgroundColor: PALETTE.bg,
@@ -273,7 +299,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  priceText: { fontSize: 14, fontWeight: '800', color: PALETTE.text },
+  priceText: { fontSize: 13, fontWeight: '800', color: PALETTE.text },
   awaitingPill: {
     fontSize: 12,
     fontWeight: '800',
@@ -290,7 +316,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: PALETTE.border,
   },
-  modelName: { fontSize: 15, fontWeight: '700', color: PALETTE.text, marginBottom: 8 },
+  modelName: { fontSize: 14, fontWeight: '700', color: PALETTE.text, marginBottom: 8 },
   specRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   specIconWrap: {
     width: 32,
@@ -349,7 +375,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  orderText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  orderText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   cartBtn: {
     flex: 1,
     backgroundColor: PALETTE.success,
@@ -360,5 +386,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  cartText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  cartText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 });

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react-native';
 import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
+import { T } from '../../components/dashboard/theme';
 import { subscriptionApi } from '../../api/client';
 import { FEATURE, coverageLabel, fetchEntitlements, usageLabel } from '../../subscription/entitlements';
 import { getSession } from '../../auth/session';
@@ -247,63 +248,47 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: PAGE_BG }}>
-        {/* Header — decorative mint leaf shapes, same low-risk plain-View
-            approximation used elsewhere in this app (no new SVG dependency). */}
-        <View style={{ paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12), overflow: 'hidden' }}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
-          <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(30), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
-
+      {/* Header — same pattern as the Buy / Sell / Booking / Personal Info
+          screens: white bar with a bottom border, round back button, centred
+          title + subtitle, right slot (Logout while the plan gate is up). */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        <View
+          style={{
+            backgroundColor: '#FFFFFF', paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12),
+            borderBottomWidth: 1, borderBottomColor: BORDER,
+          }}
+        >
           <View style={capStyle}>
-            <View className="flex-row items-start justify-between">
-              <View className="flex-row items-center flex-1">
-                {!gated ? (
-                  <Pressable
-                    onPress={() => navigation?.goBack?.()}
-                    hitSlop={10}
-                    style={{
-                      height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
-                      alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
-                      borderWidth: 1, borderColor: BORDER,
-                    }}
-                  >
-                    <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
-                  </Pressable>
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  <Text className="font-extrabold" style={{ fontSize: rf(24), color: TEXT_PRIMARY }} numberOfLines={1}>
-                    Subscription
-                  </Text>
-                  <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
-                    Manage your plan and features
-                  </Text>
-                </View>
+            <View className="flex-row items-center">
+              {!gated ? (
+                <Pressable
+                  onPress={() => navigation?.goBack?.()}
+                  hitSlop={8}
+                  className="items-center justify-center"
+                  style={{ height: rs(36), width: rs(36), borderRadius: rs(18), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
+                >
+                  <ChevronLeft size={19} color={TEXT_PRIMARY} />
+                </Pressable>
+              ) : (
+                <View style={{ width: rs(56) }} />
+              )}
+              <View className="flex-1 items-center" style={{ marginHorizontal: rs(8) }}>
+                <Text className="font-extrabold" style={{ fontSize: T.headline, color: TEXT_PRIMARY }} numberOfLines={1}>
+                  Subscription
+                </Text>
+                <Text style={{ fontSize: T.caption2, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+                  Manage your plan and features
+                </Text>
               </View>
-
-              <View style={{ alignItems: 'flex-end' }}>
-                {gated ? (
-                  <Pressable onPress={onLogout} hitSlop={8} style={{ paddingHorizontal: rs(4), paddingVertical: rs(4) }}>
-                    <Text className="font-extrabold" style={{ fontSize: rf(12), color: '#B91C1C' }}>Logout</Text>
-                  </Pressable>
-                ) : (
-                  <View
-                    className="flex-row items-center rounded-full"
-                    style={{ paddingHorizontal: rs(12), paddingVertical: rs(7), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, ...softShadow }}
-                  >
-                    <Crown size={rf(12)} color={ACCENT} />
-                    <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: rs(5) }}>
-                      {isShopLogin ? 'SHOP' : 'OWNER'}
-                    </Text>
-                  </View>
-                )}
-                <View style={{ marginTop: rs(8), alignItems: 'flex-end' }}>
-                  <Text style={styles_heroBrand}>GROW</Text>
-                  <Text style={styles_heroBrand}>YOUR SHOP</Text>
-                  <Text style={styles_heroBrand}>WITH US</Text>
-                </View>
-              </View>
+              {gated ? (
+                <Pressable onPress={onLogout} hitSlop={8} style={{ width: rs(56), alignItems: 'flex-end', paddingVertical: rs(4) }}>
+                  <Text className="font-extrabold" style={{ fontSize: T.caption1, color: '#B91C1C' }}>Logout</Text>
+                </Pressable>
+              ) : (
+                <View style={{ width: rs(36) }} />
+              )}
             </View>
           </View>
         </View>
@@ -440,7 +425,6 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
   );
 }
 
-const styles_heroBrand = { fontSize: rf(8), fontWeight: '800', letterSpacing: 1.2, color: TEXT_SECONDARY };
 
 /* ------------------------------------------------------------------ */
 

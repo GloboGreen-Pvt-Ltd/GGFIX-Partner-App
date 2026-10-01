@@ -576,10 +576,10 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(22), color: TEXT_PRIMARY }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 20, color: TEXT_PRIMARY }} numberOfLines={1}>
               {isCreate ? 'Add Shop' : 'Shop Information'}
             </Text>
-            <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+            <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
               {isCreate ? 'Set up your new business location' : 'Manage your shop details and services'}
             </Text>
           </View>
@@ -589,7 +589,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
           {isCreate ? (
             <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: ACCENT }}>
               <Plus size={rf(13)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11), letterSpacing: 0.5 }}>
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, letterSpacing: 0.5 }}>
                 NEW
               </Text>
             </View>
@@ -601,7 +601,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: ACCENT }}
             >
               {editing ? <Eye size={rf(13)} color="#FFFFFF" /> : <Pencil size={rf(13)} color="#FFFFFF" />}
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11), letterSpacing: 0.5 }}>
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, letterSpacing: 0.5 }}>
                 {editing ? 'PREVIEW' : 'EDIT'}
               </Text>
             </Pressable>
@@ -654,29 +654,29 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
             <View className="flex-1" style={{ marginLeft: rs(13) }}>
               <View className="self-start rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT, marginBottom: rs(5) }}>
-                <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: PRIMARY, letterSpacing: 1 }}>SHOP</Text>
+                <Text className="font-extrabold" style={{ fontSize: 9.5, color: PRIMARY, letterSpacing: 1 }}>SHOP</Text>
               </View>
-              <Text className="font-extrabold" style={{ fontSize: rf(18), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
                 {shopName || '—'}
               </Text>
               <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(4) }}>
                 {shopSince ? (
                   <View className="flex-row items-center" style={{ marginRight: rs(10) }}>
                     <CalendarDays size={rf(11)} color={TEXT_SECONDARY} />
-                    <Text style={{ marginLeft: rs(4), fontSize: rf(11), color: TEXT_SECONDARY }}>Since {shopSince}</Text>
+                    <Text style={{ marginLeft: rs(4), fontSize: 11, color: TEXT_SECONDARY }}>Since {shopSince}</Text>
                   </View>
                 ) : null}
                 {(district || state) ? (
                   <View className="flex-row items-center">
                     <MapPin size={rf(11)} color={TEXT_SECONDARY} />
-                    <Text style={{ marginLeft: rs(4), fontSize: rf(11), color: TEXT_SECONDARY }} numberOfLines={1}>
+                    <Text style={{ marginLeft: rs(4), fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
                       {[district, state].filter(Boolean).join(', ')}
                     </Text>
                   </View>
                 ) : null}
               </View>
               <View className="self-start rounded-full" style={{ paddingHorizontal: rs(10), paddingVertical: rs(4), backgroundColor: MINT, marginTop: rs(7) }}>
-                <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: ACCENT }}>Your Trusted Device Service Partner</Text>
+                <Text className="font-extrabold" style={{ fontSize: 9.5, color: ACCENT }}>Your Trusted Device Service Partner</Text>
               </View>
             </View>
             {/* Storefront illustration — an icon-based stand-in for a full
@@ -685,7 +685,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               <View className="items-center justify-center" style={{ width: rs(44), height: rs(44), borderRadius: rs(14), backgroundColor: SOFT_MINT }}>
                 <Store size={rf(20)} color={BRIGHT} />
               </View>
-              <Text className="italic" style={{ fontSize: rf(8), color: PRIMARY, marginTop: rs(4), textAlign: 'center' }} numberOfLines={2}>
+              <Text className="italic" style={{ fontSize: 8, color: PRIMARY, marginTop: rs(4), textAlign: 'center' }} numberOfLines={2}>
                 Fix Today{'\n'}A Greener Tomorrow
               </Text>
             </View>
@@ -698,15 +698,15 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 <Wrench size={rf(14)} color={ACCENT} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }}>Repair Service Categories</Text>
-                <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(1) }}>Devices we service at our shop</Text>
+                <Text className="font-extrabold" style={{ fontSize: 13.5, color: TEXT_PRIMARY }}>Repair Service Categories</Text>
+                <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: rs(1) }}>Devices we service at our shop</Text>
               </View>
               <View className="items-end rounded-2xl" style={{ paddingHorizontal: rs(9), paddingVertical: rs(6), backgroundColor: SOFT_MINT }}>
                 <View className="flex-row items-center">
                   <Award size={rf(10)} color={ACCENT} />
-                  <Text className="font-extrabold" style={{ marginLeft: rs(3), fontSize: rf(9), color: ACCENT }}>Wide Range</Text>
+                  <Text className="font-extrabold" style={{ marginLeft: rs(3), fontSize: 9, color: ACCENT }}>Wide Range</Text>
                 </View>
-                <Text style={{ fontSize: rf(8.5), color: TEXT_SECONDARY }}>Trusted Service</Text>
+                <Text style={{ fontSize: 8.5, color: TEXT_SECONDARY }}>Trusted Service</Text>
               </View>
             </View>
             <View className="flex-row" style={{ marginHorizontal: -rs(4) }}>
@@ -750,7 +750,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 <MapPin size={16} color="#FFFFFF" />
               </View>
               <Text
-                className="flex-1 text-[13.5px] font-bold text-gray-900 leading-5"
+                className="flex-1 text-[13px] font-bold text-gray-900 leading-5"
                 numberOfLines={5}
               >
                 {fullAddress || '—'}
@@ -860,7 +860,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               style={{ borderRadius: rs(26), paddingVertical: rs(17) }}
             >
               <Pencil size={rf(17)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(9), fontSize: rf(15) }}>
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(9), fontSize: 14 }}>
                 Edit Shop Information
               </Text>
               <ArrowRight size={rf(17)} color="#FFFFFF" style={{ marginLeft: rs(9) }} />
@@ -979,7 +979,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                     flex: 1,
                     paddingVertical: 10,
                     paddingHorizontal: 8,
-                    fontSize: 13.5,
+                    fontSize: 13,
                     color: '#172117',
                   }}
                 />
@@ -1247,7 +1247,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 ) : (
                   <Save size={18} color="#FFFFFF" />
                 )}
-                <Text className="ml-2 text-white text-[15px] font-extrabold">
+                <Text className="ml-2 text-white text-[14px] font-extrabold">
                   {saving
                     ? (isCreate ? 'Creating...' : 'Saving...')
                     : (isCreate ? 'Create Shop' : 'Save Shop Details')}
@@ -1304,17 +1304,17 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, gradient, footerIc
         style={{ paddingVertical: rs(14), paddingHorizontal: rs(12) }}
       >
         <Icon size={rf(20)} color="#FFFFFF" />
-        <Text className="text-white font-extrabold" style={{ fontSize: rf(15), marginTop: rs(7) }} numberOfLines={1}>
+        <Text className="text-white font-extrabold" style={{ fontSize: 14, marginTop: rs(7) }} numberOfLines={1}>
           {title}
         </Text>
-        <Text style={{ fontSize: rf(10.5), color: 'rgba(255,255,255,0.8)' }}>{sub}</Text>
+        <Text style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.8)' }}>{sub}</Text>
         <View className="self-start rounded-full" style={{ marginTop: rs(8), paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: 'rgba(255,255,255,0.18)' }}>
-          <Text className="text-white font-bold" style={{ fontSize: rf(8.5) }} numberOfLines={1}>{badge}</Text>
+          <Text className="text-white font-bold" style={{ fontSize: 8.5 }} numberOfLines={1}>{badge}</Text>
         </View>
       </LinearGradient>
       <View style={{ paddingHorizontal: rs(4), paddingTop: rs(4) }}>
         {items.length === 0 ? (
-          <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, textAlign: 'center', paddingVertical: rs(10) }}>No services selected</Text>
+          <Text style={{ fontSize: 11, color: TEXT_SECONDARY, textAlign: 'center', paddingVertical: rs(10) }}>No services selected</Text>
         ) : items.map((s, i) => (
           <View
             key={s}
@@ -1324,7 +1324,7 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, gradient, footerIc
             <View className="items-center justify-center" style={{ width: rs(20), height: rs(20), borderRadius: rs(10), backgroundColor: MINT, marginRight: rs(8) }}>
               <CheckCircle2 size={rf(11)} color={ACCENT} />
             </View>
-            <Text className="flex-1" style={{ fontSize: rf(11.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_PRIMARY }} numberOfLines={1}>
               {s}
             </Text>
             <ChevronRight size={rf(13)} color={BORDER} />
@@ -1339,8 +1339,8 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, gradient, footerIc
           <FooterIcon size={rf(13)} color={ACCENT} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: TEXT_PRIMARY }} numberOfLines={1}>{footerTitle}</Text>
-          <Text style={{ fontSize: rf(9), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>{footerBody}</Text>
+          <Text className="font-extrabold" style={{ fontSize: 10.5, color: TEXT_PRIMARY }} numberOfLines={1}>{footerTitle}</Text>
+          <Text style={{ fontSize: 9, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={2}>{footerBody}</Text>
         </View>
       </View>
     </View>
@@ -1528,7 +1528,7 @@ function Field({ label, small, last, ...inputProps }) {
           borderColor: '#E2E8E2',
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 13.5,
+          fontSize: 13,
           color: '#172117',
         }}
       />

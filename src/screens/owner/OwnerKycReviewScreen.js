@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  statusTitle: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
   statusSub: { fontSize: 11, color: 'rgba(255,255,255,0.92)', marginTop: 2, lineHeight: 15 },
 
   grid: {
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionBtnSubmit: { backgroundColor: '#087A0A' },
-  actionBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   editBtn: {
     marginTop: 10,

@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: 'center' },
   list: { padding: 12, paddingBottom: 24 },
   row: { backgroundColor: '#172117', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#172117' },
-  tracking: { fontSize: 16, fontWeight: '600', color: '#F7FAF7' },
-  status: { fontSize: 14, color: '#8FA08F', marginTop: 4 },
-  empty: { fontSize: 14, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
+  tracking: { fontSize: 15, fontWeight: '600', color: '#F7FAF7' },
+  status: { fontSize: 13, color: '#8FA08F', marginTop: 4 },
+  empty: { fontSize: 13, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
 });

@@ -212,7 +212,7 @@ export default function OwnerRevenueScreen({ navigation }) {
             <Smartphone size={20} color={ACCENT_GREEN} />
           </View>
           <View className="flex-1 pr-2">
-            <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{device}</Text>
+            <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{device}</Text>
             <View className="flex-row items-center mt-0.5">
               {trackingId ? (
                 <Text className="text-[10px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
@@ -231,7 +231,7 @@ export default function OwnerRevenueScreen({ navigation }) {
               a day with several part-payments the amount alone doesn't say
               which one this is. */}
           <View className="items-end">
-            <Text className="text-[14px] font-extrabold" style={{ color: ACCENT_GREEN }}>
+            <Text className="text-[13px] font-extrabold" style={{ color: ACCENT_GREEN }}>
               {formatMoney(amount)}
             </Text>
             <View className="flex-row items-center mt-0.5">
@@ -265,7 +265,7 @@ export default function OwnerRevenueScreen({ navigation }) {
           </Pressable>
           <View className="flex-1">
             <Text className="text-white/80 text-[11px] font-bold tracking-widest">REVENUE</Text>
-            <Text className="text-white text-[20px] font-extrabold mt-0.5">Payments Received</Text>
+            <Text className="text-white text-[18.5px] font-extrabold mt-0.5">Payments Received</Text>
           </View>
           <View className="h-11 w-11 rounded-2xl items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}>
             <IndianRupee size={22} color="#FFFFFF" />
@@ -274,7 +274,7 @@ export default function OwnerRevenueScreen({ navigation }) {
 
         <View className="mt-4">
           <Text className="text-white/80 text-[11px] font-semibold">{periodLabel}</Text>
-          <Text className="text-white font-extrabold mt-0.5" style={{ fontSize: 30 }} numberOfLines={1} adjustsFontSizeToFit>
+          <Text className="text-white font-extrabold mt-0.5" style={{ fontSize: 26.5 }} numberOfLines={1} adjustsFontSizeToFit>
             {formatMoney(periodTotal)}
           </Text>
         </View>

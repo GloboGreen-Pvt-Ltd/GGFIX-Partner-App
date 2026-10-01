@@ -104,7 +104,7 @@ function HeroBanner() {
           <ShieldCheck size={22} color="#FFFFFF" strokeWidth={2.2} />
         </View>
         <View className="flex-1">
-          <Text className="text-white text-[16px] font-extrabold">Verify Your Identity</Text>
+          <Text className="text-white text-[15px] font-extrabold">Verify Your Identity</Text>
           <Text className="text-white/85 text-[11.5px] mt-1 leading-4">
             A secure and trusted marketplace starts with verified users.
           </Text>
@@ -153,7 +153,7 @@ function StepRail({ stepState }) {
 function SectionLabel({ title, subtitle }) {
   return (
     <View className="mt-5 mb-2">
-      <Text className="text-[15px] font-extrabold text-text">{title}</Text>
+      <Text className="text-[14px] font-extrabold text-text">{title}</Text>
       {subtitle ? <Text className="text-[11.5px] text-text-muted mt-0.5 leading-4">{subtitle}</Text> : null}
     </View>
   );
@@ -172,7 +172,7 @@ function DocCard({ doc, file, onPick, onRemove, index }) {
           >
             <Icon size={15} color={tokens.primary} />
           </View>
-          <Text className="flex-1 text-[14px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
+          <Text className="flex-1 text-[13px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
           {doc.required ? <Text className="text-danger font-extrabold text-[13px]">*</Text> : null}
         </View>
 
