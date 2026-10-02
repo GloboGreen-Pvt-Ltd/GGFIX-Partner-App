@@ -85,7 +85,7 @@ export default function DeviceInformationScreen({ route, navigation }) {
         {error ? <ErrorState description={error} onRetry={load} className="py-6" /> : null}
 
         <Card>
-          <Text className="text-[14px] font-extrabold text-text mb-2">Price Summary</Text>
+          <Text className="text-[13px] font-extrabold text-text mb-2">Price Summary</Text>
           {lineItems.map((item, index) => (
             <PriceRow
               key={item.id || index}
@@ -96,27 +96,27 @@ export default function DeviceInformationScreen({ route, navigation }) {
           <PriceDivider />
           <View className="flex-row items-center justify-between">
             <Text className="text-[13px] font-bold text-text">Estimated Repair Amount</Text>
-            <Text className="text-[16px] font-extrabold text-primary">₹{formatINR(estimatedTotal)}</Text>
+            <Text className="text-[15px] font-extrabold text-primary">₹{formatINR(estimatedTotal)}</Text>
           </View>
         </Card>
 
         <View className="h-3" />
         <Card>
-          <Text className="text-[14px] font-extrabold text-text mb-1.5">Complaint</Text>
-          <Text className="text-[12.5px] text-text-muted leading-5">{complaint}</Text>
+          <Text className="text-[13px] font-extrabold text-text mb-1.5">Complaint</Text>
+          <Text className="text-[12px] text-text-muted leading-5">{complaint}</Text>
 
           <View className="h-3" />
-          <Text className="text-[14px] font-extrabold text-text mb-1.5">Estimated Time</Text>
-          <Text className="text-[12.5px] text-text-muted">{ticket?.estimatedTime || 'Sat, Dec 27 2025 · 6:30 PM · ~2 Hr'}</Text>
+          <Text className="text-[13px] font-extrabold text-text mb-1.5">Estimated Time</Text>
+          <Text className="text-[12px] text-text-muted">{ticket?.estimatedTime || 'Sat, Dec 27 2025 · 6:30 PM · ~2 Hr'}</Text>
 
           <View className="h-3" />
-          <Text className="text-[14px] font-extrabold text-text mb-1.5">Estimated Delivery</Text>
-          <Text className="text-[12.5px] text-text-muted">{ticket?.estimatedDelivery || 'Sat, Dec 27 2025 · 8:30 PM'}</Text>
+          <Text className="text-[13px] font-extrabold text-text mb-1.5">Estimated Delivery</Text>
+          <Text className="text-[12px] text-text-muted">{ticket?.estimatedDelivery || 'Sat, Dec 27 2025 · 8:30 PM'}</Text>
         </Card>
 
         <View className="h-3" />
         <Card>
-          <Text className="text-[14px] font-extrabold text-text mb-2">Device Photos</Text>
+          <Text className="text-[13px] font-extrabold text-text mb-2">Device Photos</Text>
           <View className="flex-row -mx-1">
             <PhotoBox label="Front Side" hint="Tap to capture" onPress={handlePhotoPress} />
             <PhotoBox label="Back Side" hint="Tap to capture" onPress={handlePhotoPress} />

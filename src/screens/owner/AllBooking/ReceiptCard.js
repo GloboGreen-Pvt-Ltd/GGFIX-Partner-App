@@ -1,33 +1,51 @@
-// Printable booking receipt, shared by the screens that can share one.
+// Booking receipts.
 //
-// Lifted out of TicketDetailScreen so the Bookings list can share the exact
-// same receipt from its action sheet — two copies of this markup would drift
-// the moment either side gained a field.
+// <ReceiptSlip> is THE receipt image — the GGFix "Booking Receipt" slip. It is
+// what every share sends: the Bookings list / Ticket Detail "Share image" sheet
+// shows and captures it through <ReceiptCard> (from the saved ticket), and the
+// Booking Thank You screen captures it from an off-screen copy (from the
+// booking it just created). Two copies of this markup would drift the moment
+// either side gained a field.
 //
-// Rendered off-screen inside a <ViewShot> and captured to PNG; it is never
-// laid out as a visible part of any screen. Everything here is plain inline
-// styles on purpose: NativeWind classes are not applied reliably inside a
-// collapsable={false} view-shot subtree.
-import React from 'react';
-import { Text, View } from 'react-native';
+// <BookingReceipt> is the Thank You screen's on-screen layout only — it is
+// never sent.
+//
+// Captured to PNG inside a <ViewShot>. Everything here is plain inline styles
+// on purpose: NativeWind classes are not applied reliably inside a
+// collapsable={false} view-shot subtree. No transparent fills either — a
+// transparent pixel renders as black in most chat apps.
+import React, { useState } from 'react';
+import { Image, Pressable, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  Calendar, CircleCheck, Clock, Hash, MapPin, Palette, Phone, ScanLine, Smartphone, User, Wrench,
+} from 'lucide-react-native';
 
-const BRAND_GREEN_DARK = '#087A0A';
+// GGFIX palette.
+const GREEN = '#09AD2A';
+const GREEN_DEEP = '#078F23';
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const HAIR = '#F3F3F3';
+const BORDER = '#E6E6E6';
 
-const STATUS_LABEL = {
-  CREATED: 'Service Accepted',
-  ASSIGNED: 'Technician Assigned',
-  IN_DIAGNOSIS: 'In Diagnosis',
-  IN_REPAIR: 'In Service',
-  QUOTED: 'Re-Estimated',
-  APPROVED: 'Approved',
-  READY: 'Ready for Delivery',
-  RETURN_DELIVERY: 'Return Delivery',
-  INVOICE_GENERATED: 'Billing & Delivery Invoice Generated',
-  INVOICE_READY: 'Invoice Sent',
-  DELIVERED_PROCESSING: 'Delivery Processing',
-  DELIVERED: 'Delivered',
-  CANCELLED: 'Cancelled',
+const cardShadow = {
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.04,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
 };
+
+// Shop number printed on every receipt. Hardcoded per the owner's explicit
+// instruction ("for now display this exact shop number") — it lived on the
+// Thank You screen and moved here so both receipts print the same value.
+export const RECEIPT_SHOP_NUMBER = '9500824814';
+
+const LOGO = require('../../../../assets/logo.png');
 
 // Services + prices come back three different ways depending on how the ticket
 // was created (wizard, pickup conversion, legacy import) — normalise them.
@@ -115,225 +133,283 @@ export function paymentAcrossTickets(tickets, applicableTotal) {
   };
 }
 
-// Plain-text fallback used when image capture or the share sheet is unavailable.
-export function buildReceiptMessage(ticket) {
-  if (!ticket) return '';
-  const lineItems = priceItemsFromTicket(ticket);
-  const total = estimatedTotalOf(ticket, lineItems);
+// Ticket status → the label the receipt prints. CREATED reads "Order Placed",
+// the same words the Thank You receipt uses for a booking it just made.
+const RECEIPT_STATUS_LABEL = {
+  CREATED: 'Order Placed',
+  ASSIGNED: 'Technician Assigned',
+  IN_DIAGNOSIS: 'In Diagnosis',
+  IN_REPAIR: 'In Service Process',
+  QUOTED: 'Re-Estimated',
+  APPROVED: 'Customer Approved',
+  READY: 'Ready for Delivery',
+  INVOICE_GENERATED: 'Invoice Generated',
+  INVOICE_READY: 'Invoice Ready',
+  DELIVERED_PROCESSING: 'Delivered Processing',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+  RETURNED: 'Returned',
+};
+
+export function receiptStatusLabel(status) {
+  const key = String(status || '').toUpperCase();
+  if (!key) return 'Order Placed';
+  return RECEIPT_STATUS_LABEL[key]
+    || key.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Shop name + picture off the logged-in session — the same image the Home
+// header shows (shop front photo, else the owner's avatar).
+export function receiptShopFromSession(session) {
+  const active = session?.activeShop || session?.shops?.find?.((x) => x.isActive) || null;
+  return {
+    name: session?.shopName || active?.name || '',
+    imageUrl: active?.frontImageUrl || session?.avatarUrl || null,
+  };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "02 Oct 2026" / "06:58 PM". Formatted by hand rather than toLocaleString so
+// the receipt reads the same on every device and JS engine.
+export function receiptDateParts(value) {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const h = d.getHours();
+  return {
+    date: `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+    time: `${pad(h % 12 || 12)}:${pad(d.getMinutes())} ${h < 12 ? 'AM' : 'PM'}`,
+  };
+}
+
+const inr2 = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+/**
+ * The plain-text twin of <BookingReceipt>, used when the image can't be
+ * captured or shared. Same sections, same order.
+ *
+ * `devices` = [{ modelName, serviceNames: string[], price }].
+ */
+export function buildBookingReceiptText({
+  shop = {}, createdAt, customer = {}, devices = [], trackingId, statusLabel, total = 0, payment = null,
+}) {
+  const when = receiptDateParts(createdAt);
+  const tid = String(trackingId || '').replace(/^#+/, '');
+  const deviceLines = devices.map((d, i) => {
+    const svcs = (d.serviceNames || []).join(', ') || '-';
+    const price = d.price != null ? `\n   Price: ₹${(Number(d.price) || 0).toLocaleString('en-IN')}` : '';
+    return `${i + 1}. ${d.modelName || 'Device'}\n   Services: ${svcs}${price}`;
+  }).join('\n');
   return (
-    `🧾 GGFix Booking Receipt\n\n` +
-    `Tracking ID: ${ticket.trackingId || ticket.id}\n` +
-    `Customer: ${ticket.customerName || '-'}\n` +
-    `Mobile: ${ticket.customerPhone || '-'}\n` +
-    `Device: ${ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || '-'}\n` +
-    `Status: ${ticket.status || '-'}\n\n` +
-    `Services:\n` +
-    lineItems.map((i) => `  • ${i.label} — ₹${i.amount}`).join('\n') +
-    `\n\nEstimated Total: ₹${total}\n` +
-    paymentLines(paymentFromTicket(ticket, total)) +
+    `🧾 GGFix Booking Receipt\n` +
+    (when ? `${when.date} · ${when.time}\n` : '') +
+    `\n— SHOP INFORMATION —\n` +
+    `Shop: ${shop.name || 'Your Shop'}\n` +
+    `Mobile: ${RECEIPT_SHOP_NUMBER}\n` +
+    `\n— CUSTOMER DETAILS —\n` +
+    `Name: ${customer.name || '-'}\n` +
+    `Mobile: ${customer.phone || '-'}\n` +
+    (customer.address ? `Address: ${customer.address}\n` : '') +
+    `\n— DEVICE & REPAIR DETAILS —\n${deviceLines || '-'}\n\n` +
+    `— SERVICE INFORMATION —\n` +
+    `Tracking ID: #${tid}\n` +
+    `Service Status: ${statusLabel || 'Order Placed'}\n` +
+    `Estimated Repair Price: ${inr2(total)}\n` +
+    (payment
+      ? `${payment.label}: ${inr2(payment.amount)}\nBalance Amount: ${inr2(payment.balance)}\n`
+      : '') +
     `\nTrack your repair in the GGFix app.`
   );
 }
 
-// Shared by every plain-text receipt so the wording can't drift between them.
-// Empty string when nothing was collected — the receipt then reads exactly as
-// it did before payments existed.
-function paymentLines(payment) {
-  if (!payment) return '';
-  return `${payment.label}: ₹${payment.amount}\nBalance Amount: ₹${payment.balance}\n`;
+// A saved ticket → the props <BookingReceipt> takes. One ticket is one device.
+function receiptPropsFromTicket(ticket, shop) {
+  const items = priceItemsFromTicket(ticket);
+  const total = estimatedTotalOf(ticket, items);
+  return {
+    shop: shop || {},
+    createdAt: ticket.createdAt,
+    customer: {
+      name: ticket.customerName,
+      phone: ticket.customerPhone,
+      address: ticket.customerAddress,
+    },
+    devices: [{
+      modelName: ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || 'Device',
+      imageUrl: ticket.deviceImageUrl || null,
+      variant: [ticket.ramLabel, ticket.storageLabel, ticket.color].filter(Boolean).join(' · '),
+      imei: ticket.imei || null,
+      serviceNames: items.map((i) => i.label || i.serviceName || i.name).filter(Boolean),
+    }],
+    trackingId: ticket.trackingId || ticket.id,
+    statusLabel: receiptStatusLabel(ticket.status),
+    total,
+    payment: paymentFromTicket(ticket, total),
+  };
 }
 
-export function ReceiptCard({ ticket, lineItems, estimatedTotal, technicianName }) {
+// Plain-text fallback for the Share image sheet — same details as the image.
+export function buildReceiptMessage(ticket, shop) {
+  if (!ticket) return '';
+  return buildBookingReceiptText(receiptPropsFromTicket(ticket, shop));
+}
+
+// The receipt slip for a saved ticket (Bookings list / Ticket Detail share sheet).
+export function ReceiptCard({ ticket, shop }) {
   if (!ticket) return null;
-  const items = lineItems || priceItemsFromTicket(ticket);
-  const total = estimatedTotal != null ? estimatedTotal : estimatedTotalOf(ticket, items);
-  const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  const trackingId = ticket.trackingId || ticket.id;
-  const deviceName = ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || '—';
-  const variant = [ticket.ramLabel, ticket.storageLabel, ticket.color].filter(Boolean).join(' · ');
-  const generated = new Date().toLocaleString('en-IN', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-  const status = STATUS_LABEL[String(ticket.status || '').toUpperCase()] || ticket.status || 'Pending';
-  const payment = paymentFromTicket(ticket, total);
+  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop)} />;
+}
+
+// Splits "CSPEN8324788" so the digits can print in brand green.
+function splitTrackingId(id) {
+  const str = String(id ?? '').replace(/^#+/, '');
+  const m = str.match(/^(\D*)(\d.*)$/);
+  return m ? { prefix: m[1], digits: m[2] } : { prefix: str, digits: '' };
+}
+
+/**
+ * The GGFix "Booking Receipt" slip — the image every share sends.
+ *
+ *   shop      { name, imageUrl }
+ *   customer  { name, phone, address }
+ *   devices   [{ modelName, variant, imei, serviceNames }]
+ */
+export function ReceiptSlip({
+  shop = {}, createdAt, customer = {}, devices = [], trackingId, statusLabel, total = 0, payment = null,
+}) {
+  const tid = splitTrackingId(trackingId);
+  const when = receiptDateParts(createdAt);
+  const fmt0 = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const multi = devices.length > 1;
 
   return (
-    <View style={{ backgroundColor: '#FFFFFF', padding: 20 }}>
-      {/* Brand header */}
-      <View
-        style={{
-          backgroundColor: BRAND_GREEN_DARK,
-          paddingVertical: 16,
-          paddingHorizontal: 16,
-          borderRadius: 12,
-          marginBottom: 16,
-        }}
+    <View style={{ backgroundColor: '#FFFFFF' }}>
+      {/* Brand header — GGFix avatar + name */}
+      <LinearGradient
+        colors={[GREEN, GREEN_DEEP]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 34, overflow: 'hidden' }}
       >
-        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>GGFix</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }}>
-          Booking Receipt
-        </Text>
-      </View>
-
-      {/* Tracking */}
-      <View
-        style={{
-          backgroundColor: '#F0F8EF',
-          borderWidth: 1,
-          borderColor: '#C8EEBF',
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 14,
-        }}
-      >
-        <Text style={{ fontSize: 10, fontWeight: '700', color: '#087A0A', letterSpacing: 1 }}>
-          TRACKING ID
-        </Text>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: '#172117', marginTop: 2 }}>
-          #{trackingId}
-        </Text>
-        <Text style={{ fontSize: 11, color: '#667066', marginTop: 4 }}>
-          Status: <Text style={{ fontWeight: '700', color: '#087A0A' }}>{status}</Text>
-        </Text>
-      </View>
-
-      {/* Customer */}
-      <ReceiptSection title="Customer">
-        <ReceiptRow label="Name" value={ticket.customerName || '—'} />
-        <ReceiptRow label="Mobile" value={ticket.customerPhone || '—'} />
-        {ticket.customerAddress ? (
-          <ReceiptRow label="Address" value={ticket.customerAddress} />
-        ) : null}
-      </ReceiptSection>
-
-      {/* Device */}
-      <ReceiptSection title="Device">
-        <ReceiptRow label="Model" value={deviceName} />
-        {variant ? <ReceiptRow label="Variant" value={variant} /> : null}
-        {ticket.imei ? <ReceiptRow label="IMEI" value={String(ticket.imei)} /> : null}
-      </ReceiptSection>
-
-      {/* Technician */}
-      {technicianName ? (
-        <ReceiptSection title="Technician">
-          <ReceiptRow label="Assigned" value={technicianName} />
-        </ReceiptSection>
-      ) : null}
-
-      {/* Services */}
-      <ReceiptSection title="Services">
-        {items.length === 0 ? (
-          <Text style={{ fontSize: 12, color: '#667066' }}>No services recorded.</Text>
-        ) : (
-          items.map((it, idx) => (
-            <View
-              key={it.id || idx}
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                paddingVertical: 4,
-              }}
-            >
-              <Text style={{ fontSize: 12, color: '#172117', flex: 1, paddingRight: 8 }} numberOfLines={2}>
-                {idx + 1}. {it.label}
-              </Text>
-              <Text style={{ fontSize: 12, color: '#172117', fontWeight: '700' }}>
-                ₹{fmt(it.amount)}
-              </Text>
+        <View style={{ position: 'absolute', top: -46, right: -34, width: 130, height: 130, borderRadius: 65, borderWidth: 18, borderColor: 'rgba(255,255,255,0.09)' }} />
+        <View style={{ position: 'absolute', bottom: -26, right: 72, width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 54, height: 54, borderRadius: 27, padding: 3, backgroundColor: 'rgba(255,255,255,0.3)' }}>
+            <View style={{ flex: 1, borderRadius: 24, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <Image source={LOGO} style={{ width: 46, height: 46 }} resizeMode="contain" />
             </View>
-          ))
-        )}
-      </ReceiptSection>
-
-      {/* Total */}
-      <View
-        style={{
-          marginTop: 4,
-          padding: 12,
-          backgroundColor: '#087A0A',
-          borderRadius: 10,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>
-          Estimated Total
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
-          ₹{fmt(total)}
-        </Text>
-      </View>
-
-      {/* Payment — printed under the total, in the same order the Device
-          Details Price Summary uses. Omitted entirely when nothing was
-          collected, so a pay-on-delivery receipt is unchanged. */}
-      {payment ? (
-        <View
-          style={{
-            marginTop: 8,
-            borderWidth: 1,
-            borderColor: '#C8EEBF',
-            borderRadius: 10,
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#172117', fontSize: 12, fontWeight: '700' }}>{payment.label}</Text>
-            <Text style={{ color: BRAND_GREEN_DARK, fontSize: 13, fontWeight: '800' }}>
-              − ₹{fmt(payment.amount)}
-            </Text>
           </View>
-          <View
-            style={{
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-              marginTop: 6, borderTopWidth: 1, borderTopColor: '#EFF5EE', paddingTop: 6,
-            }}
-          >
-            <Text style={{ color: '#172117', fontSize: 12, fontWeight: '700' }}>Balance Amount</Text>
-            <Text
-              style={{ fontSize: 14, fontWeight: '800', color: payment.balance > 0 ? '#B45309' : BRAND_GREEN_DARK }}
-            >
-              ₹{fmt(payment.balance)}
-            </Text>
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>GGFix</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, marginTop: 1 }}>Booking Receipt</Text>
           </View>
         </View>
-      ) : null}
+      </LinearGradient>
 
-      {/* Footer */}
-      <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 10, color: '#8FA08F' }}>
-          Generated {generated}
+      {/* Tracking ID + booking date/time — overlaps the header */}
+      <View
+        style={{
+          marginHorizontal: 14, marginTop: -20, paddingVertical: 11, paddingHorizontal: 12,
+          borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, alignItems: 'center',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Hash size={11} color={MUTED} />
+          <Text style={{ marginLeft: 4, fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1.2 }}>TRACKING ID</Text>
+        </View>
+        <Text style={{ marginTop: 3, fontSize: 17, fontWeight: '800', letterSpacing: 0.4 }}>
+          <Text style={{ color: INK }}>#{tid.prefix}</Text>
+          <Text style={{ color: GREEN }}>{tid.digits}</Text>
         </Text>
-        <Text style={{ fontSize: 10, color: '#8FA08F', marginTop: 2 }}>
-          Track your repair in the GGFix app.
-        </Text>
+        {when ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+            <Calendar size={11} color={GREEN} />
+            <Text style={{ marginLeft: 4, fontSize: 11, fontWeight: '700', color: INK }}>{when.date}</Text>
+            <View style={{ width: 1, height: 10, backgroundColor: BORDER, marginHorizontal: 8 }} />
+            <Clock size={11} color={GREEN} />
+            <Text style={{ marginLeft: 4, fontSize: 11, fontWeight: '700', color: INK }}>{when.time}</Text>
+          </View>
+        ) : null}
       </View>
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 6 }}>
+        <SlipSection title="Shop Information">
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7 }}>
+            <ShopAvatar uri={shop.imageUrl} size={36} />
+            <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>{shop.name || 'Your Shop'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <Phone size={10} color={GREEN_DEEP} />
+                <Text style={{ marginLeft: 4, fontSize: 11, fontWeight: '700', color: MUTED }}>{RECEIPT_SHOP_NUMBER}</Text>
+              </View>
+            </View>
+          </View>
+        </SlipSection>
+
+        <SlipSection title="Customer Details">
+          <SlipRow icon={User} label="Name" value={customer.name || '—'} />
+          <SlipRow icon={Phone} label="Mobile" value={customer.phone || '—'} isLast={!customer.address} />
+          {customer.address ? <SlipRow icon={MapPin} label="Address" value={customer.address} isLast /> : null}
+        </SlipSection>
+
+        <SlipSection title="Device Details">
+          {devices.map((d, i) => (
+            <View key={i}>
+              <SlipRow icon={Smartphone} label="Model" value={`${multi ? `${i + 1}. ` : ''}${d.modelName || '—'}`} />
+              {d.variant ? <SlipRow icon={Palette} label="Variant" value={d.variant} /> : null}
+              {d.imei ? <SlipRow icon={ScanLine} label="IMEI" value={String(d.imei)} /> : null}
+              <SlipRow icon={Wrench} label="Services" value={(d.serviceNames || []).join(', ') || '—'} />
+            </View>
+          ))}
+          <SlipRow icon={CircleCheck} label="Status" value={statusLabel || 'Order Placed'} valueColor={GREEN_DEEP} isLast />
+        </SlipSection>
+      </View>
+
+      {/* Tear line */}
+      <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12 }}>
+        {Array.from({ length: 26 }).map((_, i) => (
+          <View key={i} style={{ flex: 1, height: 1.5, marginHorizontal: 2, borderRadius: 1, backgroundColor: '#D6D6D6' }} />
+        ))}
+      </View>
+
+      {/* Estimated total (+ what was paid, only when a payment was recorded) */}
+      <View
+        style={{
+          marginHorizontal: 14, marginTop: 12, marginBottom: 16, paddingHorizontal: 14, paddingVertical: 12,
+          borderRadius: 14, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1 }}>ESTIMATED TOTAL</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: INK, marginTop: 1 }}>Repair Estimate</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: GREEN_DEEP }}>₹{fmt0(total)}</Text>
+        </View>
+        {payment ? (
+          <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: MINT_LINE }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 11, color: MUTED }}>{payment.label}</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: INK }}>₹{fmt0(payment.amount)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+              <Text style={{ fontSize: 11, color: MUTED }}>Balance Amount</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: INK }}>₹{fmt0(payment.balance)}</Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <LinearGradient colors={[GREEN, GREEN_DEEP]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 5 }} />
     </View>
   );
 }
 
-function ReceiptSection({ title, children }) {
+function SlipSection({ title, children }) {
   return (
-    <View
-      style={{
-        marginBottom: 12,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8E2',
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 10,
-          fontWeight: '800',
-          color: '#087A0A',
-          letterSpacing: 1,
-          marginBottom: 6,
-        }}
-      >
+    <View style={{ marginTop: 12 }}>
+      <Text style={{ fontSize: 10, fontWeight: '800', color: GREEN_DEEP, letterSpacing: 1, marginBottom: 2 }}>
         {title.toUpperCase()}
       </Text>
       {children}
@@ -341,12 +417,267 @@ function ReceiptSection({ title, children }) {
   );
 }
 
-function ReceiptRow({ label, value }) {
+function SlipRow({ icon: Icon, label, value, isLast, valueColor }) {
   return (
-    <View style={{ flexDirection: 'row', paddingVertical: 2 }}>
-      <Text style={{ fontSize: 11, color: '#667066', width: 70 }}>{label}</Text>
-      <Text style={{ fontSize: 12, color: '#172117', flex: 1, fontWeight: '600' }}>
-        {value}
+    <View
+      style={{
+        flexDirection: 'row', alignItems: 'center', paddingVertical: 7,
+        borderBottomWidth: isLast ? 0 : 1, borderBottomColor: HAIR,
+      }}
+    >
+      <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+        <Icon size={11} color={GREEN_DEEP} />
+      </View>
+      <Text style={{ fontSize: 11, color: MUTED, width: 58 }}>{label}</Text>
+      <Text style={{ fontSize: 12, color: valueColor || INK, flex: 1, fontWeight: '700', textAlign: 'right' }}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * The booking receipt itself — what the Thank You screen shows and what both
+ * share flows capture.
+ *
+ *   shop      { name, imageUrl }        printed in the header with date & time
+ *   customer  { name, phone, address }
+ *   devices   [{ modelName, imageUrl, serviceNames }]
+ *   onCopyTrackingId  optional; makes the tracking pill a copy button
+ *   contentStyle      optional width cap (tablet column)
+ */
+export function BookingReceipt({
+  shop = {}, createdAt, customer = {}, devices = [], trackingId, statusLabel = 'Order Placed',
+  total = 0, payment = null, onCopyTrackingId, padding = 14, contentStyle,
+}) {
+  const when = receiptDateParts(createdAt);
+  const tid = String(trackingId || '').replace(/^#+/, '');
+  const Pill = onCopyTrackingId ? Pressable : View;
+
+  return (
+    <LinearGradient
+      colors={[MINT, '#F8F8F8']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={{ paddingHorizontal: padding, paddingTop: 12, paddingBottom: padding }}
+    >
+      <View style={contentStyle}>
+        {/* Shop header — avatar, shop name, booking date & time. */}
+        <View
+          style={{
+            flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 10, marginBottom: 12,
+            backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, ...cardShadow,
+          }}
+        >
+          <ShopAvatar uri={shop.imageUrl} />
+          <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>
+              {shop.name || 'Your Shop'}
+            </Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Booking Receipt</Text>
+          </View>
+          {when ? (
+            <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="calendar-outline" size={11} color={GREEN} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: INK, marginLeft: 4 }}>{when.date}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                <Ionicons name="time-outline" size={11} color={GREEN} />
+                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{when.time}</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Thank You block */}
+        <View style={{ alignItems: 'center', marginBottom: 14 }}>
+          <View style={{ width: 72, height: 72 }}>
+            <Ionicons name="sparkles" size={12} color="#F3BF23" style={{ position: 'absolute', left: -4, top: 4 }} />
+            <Ionicons name="sparkles" size={9} color={GREEN} style={{ position: 'absolute', right: -2, top: 2 }} />
+            <Ionicons name="sparkles-outline" size={10} color={GREEN} style={{ position: 'absolute', right: 2, bottom: 2 }} />
+            <View
+              style={{
+                position: 'absolute', left: 6, top: 6, height: 60, width: 60, borderRadius: 30,
+                backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE, alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <View
+                style={{
+                  height: 46, width: 46, borderRadius: 23, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center',
+                  shadowColor: GREEN, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                }}
+              >
+                <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+              </View>
+            </View>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: GREEN_DEEP, marginTop: 8 }}>Thank You!</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Your booking has been placed.</Text>
+          <Pill
+            {...(onCopyTrackingId ? { onPress: onCopyTrackingId, accessibilityRole: 'button', accessibilityLabel: 'Copy tracking ID' } : {})}
+            style={{
+              flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 10,
+              backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE,
+            }}
+          >
+            <Ionicons name="pricetag-outline" size={12} color={GREEN} />
+            <Text style={{ fontSize: 12, fontWeight: '800', color: GREEN_DEEP, marginLeft: 5 }}>#{tid}</Text>
+            {onCopyTrackingId ? (
+              <>
+                <View style={{ width: 1, height: 12, backgroundColor: BORDER, marginHorizontal: 8 }} />
+                <Ionicons name="copy-outline" size={12} color={MUTED} />
+              </>
+            ) : null}
+          </Pill>
+        </View>
+
+        <ReceiptSection label="Shop Information" right="YOUR SERVICE PARTNER">
+          <ReceiptRow icon="storefront-outline" label="Shop Name" value={shop.name || 'Your Shop'} />
+          <ReceiptRow icon="call-outline" label="Mobile Number" value={RECEIPT_SHOP_NUMBER} last />
+        </ReceiptSection>
+
+        <ReceiptSection label="Customer Details" right="OUR VALUED CUSTOMER">
+          <ReceiptRow icon="person-outline" label="Customer Name" value={customer.name} />
+          <ReceiptRow icon="call-outline" label="Mobile Number" value={customer.phone} />
+          <ReceiptRow icon="location-outline" label="Address" value={customer.address} last />
+        </ReceiptSection>
+
+        <ReceiptSection label="Device & Repair Details" right="GETTING YOU FIXED">
+          {devices.map((d, i) => {
+            const last = i === devices.length - 1;
+            return (
+              <View
+                key={i}
+                style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  marginBottom: last ? 0 : 8, paddingBottom: last ? 0 : 8, borderBottomWidth: last ? 0 : 1, borderBottomColor: HAIR,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: MUTED }}>DEVICE</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <View
+                      style={{
+                        height: 34, width: 32, borderRadius: 9, marginRight: 8, overflow: 'hidden',
+                        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {d.imageUrl ? (
+                        <Image source={{ uri: d.imageUrl }} style={{ width: 26, height: 30 }} resizeMode="contain" />
+                      ) : (
+                        <Ionicons name="phone-portrait-outline" size={15} color={GREEN} />
+                      )}
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: INK }} numberOfLines={2}>
+                      {devices.length > 1 ? `${i + 1}. ` : ''}{d.modelName || 'Device'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ width: 1, height: 36, backgroundColor: HAIR, marginHorizontal: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="build-outline" size={11} color={GREEN} />
+                    <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: MUTED, marginLeft: 4 }}>REPAIR SERVICES</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '700', marginTop: 4, color: INK }} numberOfLines={3}>
+                    {(d.serviceNames || []).join(', ') || '—'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </ReceiptSection>
+
+        <ReceiptSection label="Service Information" right="TRACK YOUR REPAIR" noMargin>
+          <ReceiptRow icon="pricetag-outline" label="Tracking ID" value={`#${tid}`} bold />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: 108 }}>
+              <Ionicons name="time-outline" size={12} color={GREEN} style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED }}>Status</Text>
+            </View>
+            <View style={{ flex: 1, alignItems: 'flex-start' }}>
+              <View style={{ borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: GREEN_DEEP }}>{statusLabel || 'Order Placed'}</Text>
+              </View>
+            </View>
+          </View>
+          <ReceiptRow icon="cash-outline" label="Estimated Repair Price" value={inr2(total)} last={!payment} />
+          {/* Only when a payment was actually recorded — the same rule the
+              Device Details Price Summary follows, so the receipt and the
+              screen can never tell the customer two different stories. */}
+          {payment ? (
+            <>
+              <ReceiptRow icon="checkmark-done-outline" label={payment.label} value={inr2(payment.amount)} />
+              <ReceiptRow icon="wallet-outline" label="Balance Amount" value={inr2(payment.balance)} last />
+            </>
+          ) : null}
+        </ReceiptSection>
+      </View>
+    </LinearGradient>
+  );
+}
+
+// Shop picture in a ring; the GGFix logo when the shop has none (or it fails).
+function ShopAvatar({ uri, size = 40 }) {
+  const [broken, setBroken] = useState(false);
+  const showPhoto = !!uri && !broken;
+  const logo = Math.round(size * 0.75);
+  return (
+    <View
+      style={{
+        width: size, height: size, borderRadius: size / 2, overflow: 'hidden',
+        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE, alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <Image
+        source={showPhoto ? { uri } : LOGO}
+        onError={() => setBroken(true)}
+        style={showPhoto ? { width: '100%', height: '100%' } : { width: logo, height: logo }}
+        resizeMode={showPhoto ? 'cover' : 'contain'}
+      />
+    </View>
+  );
+}
+
+function ReceiptSection({ label, right, children, noMargin }) {
+  return (
+    <View style={{ marginBottom: noMargin ? 0 : 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+        <View style={{ width: 3, height: 13, borderRadius: 2, backgroundColor: GREEN, marginRight: 7 }} />
+        <Text style={{ flexShrink: 1, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>{label}</Text>
+        <View style={{ flex: 1 }} />
+        {right ? (
+          <View style={{ marginLeft: 8, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: GREEN_DEEP }} numberOfLines={1}>
+              {right}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <View
+        style={{
+          borderRadius: 14, paddingHorizontal: 11, paddingVertical: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, ...cardShadow,
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
+// Fixed-width LEFT column (icon + label) and a `flex: 1` RIGHT column for the
+// value, both top-aligned — a long value (an address) gets the full remaining
+// width to wrap into instead of being squeezed by the label.
+function ReceiptRow({ icon, label, value, bold, last }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: last ? 0 : 7 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', width: 108 }}>
+        {icon ? <Ionicons name={icon} size={12} color={GREEN} style={{ marginRight: 6 }} /> : null}
+        <Text style={{ flex: 1, fontSize: 11, fontWeight: '600', color: MUTED, lineHeight: 14 }} numberOfLines={2}>
+          {label}
+        </Text>
+      </View>
+      <Text style={{ flex: 1, fontSize: 12, color: INK, fontWeight: bold ? '800' : '700', lineHeight: 16 }}>
+        {value || '—'}
       </Text>
     </View>
   );

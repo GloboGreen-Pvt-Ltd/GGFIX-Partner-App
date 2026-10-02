@@ -111,7 +111,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
 
   const Stat = ({ label, value, focal }) => (
     <View className="items-center px-2">
-      <Text className="text-[15px] font-extrabold" style={{ color: focal ? meta.accent : '#172117' }}>
+      <Text className="text-[13px] font-extrabold" style={{ color: focal ? meta.accent : '#172117' }}>
         {value}
       </Text>
       <Text className="text-[9px] font-bold mt-0.5" style={{ color: focal ? meta.accent : '#8FA08F' }}>
@@ -137,7 +137,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
           <Text className="text-[13px] font-extrabold" style={{ color: GREEN_DARK }}>{initials}</Text>
         </View>
         <View className="flex-1 mr-2">
-          <Text className="text-[14px] font-extrabold text-gray-900" numberOfLines={1}>{e.name || 'Staff'}</Text>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{e.name || 'Staff'}</Text>
           {e.roleLabel ? (
             <Text className="text-[11px] text-gray-500" numberOfLines={1}>{e.roleLabel}</Text>
           ) : null}
@@ -174,7 +174,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
             </Pressable>
             <View className="flex-1 flex-row items-center justify-center">
               <HeaderIcon size={16} color="#172117" />
-              <Text className="text-center text-text text-[18px] font-extrabold ml-1.5">{meta.title}</Text>
+              <Text className="text-center text-text text-[17px] font-extrabold ml-1.5">{meta.title}</Text>
             </View>
             <View className="h-9 w-9" />
           </View>
@@ -185,7 +185,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
               <Pressable onPress={() => stepMonth(-1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
                 <ChevronLeft size={16} color="#172117" />
               </Pressable>
-              <Text className="text-text text-[12.5px] font-extrabold px-1.5">{MONTHS[month - 1]} {year}</Text>
+              <Text className="text-text text-[12px] font-extrabold px-1.5">{MONTHS[month - 1]} {year}</Text>
               <Pressable onPress={() => stepMonth(1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
                 <ChevronRight size={16} color="#172117" />
               </Pressable>
@@ -202,7 +202,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
       {error ? (
         <View className="px-4 mt-3">
           <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}>
-            <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
+            <Text className="text-[12px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
           </View>
         </View>
       ) : null}
@@ -223,7 +223,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
               <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
                 <Users size={28} color={GREEN_DARK} />
               </View>
-              <Text className="text-[15px] font-extrabold text-gray-700">No staff yet</Text>
+              <Text className="text-[13px] font-extrabold text-gray-700">No staff yet</Text>
               <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">
                 Add employees to see their {meta.title.toLowerCase()} here.
               </Text>

@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   content: { padding: 12, paddingBottom: 32 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: 14, color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   statsCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12 },
   statsHeader: {
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  statsHeaderTitle: { fontSize: 14, fontWeight: '700', color: '#172117' },
+  statsHeaderTitle: { fontSize: 13, fontWeight: '700', color: '#172117' },
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statTileTopText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-  statTileValue: { fontSize: 18, fontWeight: '800', color: '#172117', marginTop: 6 },
+  statTileValue: { fontSize: 17, fontWeight: '800', color: '#172117', marginTop: 6 },
   statTileHint: { fontSize: 9, color: '#8FA08F', marginTop: 1, fontWeight: '600' },
 
   sectionHeader: { fontSize: 13, fontWeight: '700', color: '#172117', marginTop: 14, marginBottom: 8 },
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   pickupTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pickupDate: { fontSize: 12, fontWeight: '700', color: '#172117' },
   pickupTracking: { fontSize: 11, color: '#667066', fontWeight: '600' },
-  pickupAssignee: { fontSize: 11.5, color: '#087A0A', fontWeight: '700', marginLeft: 4 },
+  pickupAssignee: { fontSize: 11, color: '#087A0A', fontWeight: '700', marginLeft: 4 },
   pickupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   pickupMetaText: { fontSize: 11, color: '#172117', flex: 1 },
   pickupBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },

@@ -1,51 +1,96 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { addToCart } from '../../api/marketplace';
+import { listingConditionLabel, listingCustomerName, listingPriceLabel } from '../../api/nearbyListings';
+import { getBrands, getDeviceCategories } from '../../api/masterData';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { notify } from '../../components/confirm';
 
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
 const PALETTE = {
-  primary: '#004C40',
-  accentOrange: '#F59E0B',
-  text: '#172117',
-  muted: '#667066',
-  border: '#E2E8E2',
-  bg: '#F7FAF7',
-  success: '#004C40',
-  awaiting: '#004C40',
-  awaitingBg: '#F0F8EF',
+  primary: '#09AD2A',
+  primaryDark: '#078F23',
+  mint: '#EAF8EC',
+  text: '#1E1E1E',
+  muted: '#6B6B6B',
+  border: '#E6E6E6',
+  soft: '#F3F3F3',
+  page: '#F8F8F8',
+  card: '#FFFFFF',
+  danger: '#DC2626',
+  amberDark: '#B45309',
+  amberLight: '#FEF3C7',
 };
+
+const titleCase = (v) => String(v || '').toLowerCase().replace(/(^|[\s_])([a-z])/g, (_, sp, ch) => `${sp === '_' ? ' ' : sp}${ch.toUpperCase()}`);
+
+function formatListedOn(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
+}
 
 /**
  * Shop-owner-side detail page for a marketplace Buy listing.
  *
  * Accepts the listing on `route.params.listing` (full object from
  * /marketplace/buy/nearby) so we don't need a separate GET-by-id endpoint.
- * Renders the Figma "Buying Details" layout: hero image, price (or "Awaiting
- * your quote" for customer requests), spec rows, refund/warranty pill, and the
- * Contact + Order Now bottom actions.
+ * Hero image, price (or "Awaiting your quote" for customer requests), spec
+ * rows, refund/warranty pills, and the contact / quote bottom actions.
  */
 export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const listing = route.params?.listing || {};
   const isCustomer = listing.sellerType === 'CUSTOMER';
   const priceNum = listing.expectedPrice != null ? Number(listing.expectedPrice) : null;
   const isAwaitingQuote = priceNum != null && priceNum === 0;
 
   // Catalog products (shop inventory / spare parts) can go in the cart. Peer
-  // sell listings can't — they route to Contact / Order Now instead.
+  // sell listings can't — they route to the contact / quote actions instead.
   const isProduct = listing.source === 'product' && !!listing.id;
   const [adding, setAdding] = useState(false);
+  // In-page explanation when an action can't complete (see callSeller / sendQuote).
+  const [blocked, setBlocked] = useState(null); // { icon, title, message }
+
+  // Category + brand names for the listing's categoryId / brandId. The Buy
+  // screen passes the ones it already loaded; otherwise (e.g. opened from
+  // Home) read them from the same master-data lists.
+  const [names, setNames] = useState({ category: listing.categoryName || null, brand: listing.brandName || null });
+  useEffect(() => {
+    let cancelled = false;
+    const needCat = !names.category && listing.categoryId;
+    const needBrand = !names.brand && listing.brandId;
+    if (!needCat && !needBrand) return undefined;
+    (async () => {
+      const [cats, brands] = await Promise.all([
+        needCat ? getDeviceCategories().catch(() => []) : Promise.resolve([]),
+        needBrand ? getBrands().catch(() => []) : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+      setNames((n) => ({
+        category: n.category || (Array.isArray(cats) ? cats : []).find((c) => c.id === listing.categoryId)?.name || null,
+        brand: n.brand || (Array.isArray(brands) ? brands : []).find((b) => b.id === listing.brandId)?.name || null,
+      }));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listing.categoryId, listing.brandId]);
 
   const onAddToCart = async () => {
     if (!isProduct || adding) return;
@@ -60,20 +105,53 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
     }
   };
 
-  // The contact phone is supplied either by the listing (shop seller — we
-  // hydrate it via the BuyScreen card) or by the listing's seller record.
-  // For customer sellers we don't yet expose the phone, so fall back to a
-  // "no phone" Alert.
-  const contactPhone = listing.contactPhone || listing.sellerPhone || null;
-  const contactName = listing.sellerType === 'SHOP'
-    ? (listing.shopName || 'Shop')
-    : 'Customer';
+  // Seller shown on the page: the customer's own name (listingCustomerName —
+  // "Unknown Customer" while the API sends none) or the shop's name.
+  const sellerName = isCustomer ? listingCustomerName(listing) : (listing.shopName || 'Shop');
+  const conditionText = listingConditionLabel(listing.condition) || 'Good';
+  const priceText = listingPriceLabel(listing);
+  const area = [listing.city, listing.state, listing.pincode].filter(Boolean).join(', ');
+  const listedOn = formatListedOn(listing.createdAt);
+  const listingRef = listing.id ? `#${String(listing.id).split('-')[0].toUpperCase()}` : null;
 
+  // The listing's phone, when the API provides one. Customer listings don't
+  // carry the customer's number today.
+  const contactPhone = listing.contactPhone || listing.sellerPhone || null;
+
+  const dial = (phone) => {
+    const tel = String(phone).replace(/[^\d+]/g, '');
+    Linking.openURL(`tel:${tel}`).catch(() => {
+      notify('Could not start the call', `Dial ${phone} manually.`, { preset: 'error' });
+    });
+  };
+
+  // Dials when the listing has a number; otherwise says why, on the page
+  // (a toast was easy to miss and read as "the button does nothing").
   const callSeller = () => {
-    if (!contactPhone) {
-      return;
-    }
-    Linking.openURL(`tel:${contactPhone}`).catch(() => {});
+    if (contactPhone) { dial(contactPhone); return; }
+    setBlocked({
+      icon: 'call-outline',
+      title: isCustomer ? "Customer's number isn't shared" : "Shop's number isn't available",
+      message: isCustomer
+        ? "This listing doesn't include the customer's phone number, so the call can't be started from the app. It will dial automatically once the listing carries a number."
+        : "This shop listing doesn't include a phone number.",
+    });
+  };
+
+  // Quotes are sent against the listing's Sell Order (/sell-orders/{id}/quotations)
+  // and this listing doesn't carry that id — so it is not guessed from other
+  // fields; the sheet says exactly what's missing instead.
+  const sendQuote = () => {
+    setBlocked({
+      icon: 'pricetag-outline',
+      title: "Quote can't be sent yet",
+      message: "This listing isn't linked to its sell order, which quotes are sent against. Once the listing includes that link (sellOrderId), this button will open the quote form.",
+    });
+  };
+
+  const orderNow = () => {
+    if (contactPhone) { dial(contactPhone); return; }
+    callSeller();
   };
 
   const openMap = () => {
@@ -91,7 +169,7 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7} accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={20} color={PALETTE.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -100,131 +178,131 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 110 + insets.bottom }}>
+        {/* Hero — white card so the product photos (shot on white) blend in. */}
         <View style={styles.hero}>
           {listing.productImage ? (
             <Image source={{ uri: normalizeDeviceImageUrl(listing.productImage) }} style={styles.heroImage} resizeMode="contain" />
           ) : (
-            <Ionicons name="phone-portrait-outline" size={88} color="#CBD5CB" />
+            <Ionicons name="phone-portrait-outline" size={80} color="#D6D6D6" />
           )}
-          <View style={styles.priceBar}>
-            {isAwaitingQuote ? (
-              <Text style={styles.awaitingPill}>Awaiting your quote</Text>
-            ) : priceNum != null && priceNum > 0 ? (
-              <Text style={styles.priceText}>
+          {isAwaitingQuote ? (
+            <View style={[styles.priceBar, { backgroundColor: PALETTE.amberLight }]}>
+              <Ionicons name="time-outline" size={13} color={PALETTE.amberDark} />
+              <Text style={[styles.priceBarText, { color: PALETTE.amberDark }]}>Awaiting your quote</Text>
+            </View>
+          ) : priceNum != null && priceNum > 0 ? (
+            <View style={[styles.priceBar, { backgroundColor: PALETTE.mint }]}>
+              <Text style={[styles.priceBarText, { color: PALETTE.primaryDark, fontSize: 13 }]}>
                 ₹{priceNum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Text>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
 
-        <View style={styles.section}>
+        {/* Every field the listing carries, grouped. A row shows only when the
+            API has a value for it. */}
+        <View style={styles.card}>
           <Text style={styles.modelName}>{listing.productName || 'Listing'}</Text>
-
-          <SpecRow
-            icon="phone-portrait-outline"
-            label="Condition"
-            value={listing.condition || 'Good'}
-          />
+          <Text style={styles.groupTitle}>DEVICE DETAILS</Text>
+          {names.category ? <SpecRow icon="grid-outline" label="Category" value={names.category} /> : null}
+          {names.brand ? <SpecRow icon="pricetags-outline" label="Brand" value={names.brand} /> : null}
+          <SpecRow icon="phone-portrait-outline" label="Condition" value={conditionText} />
           {listing.description ? (
-            <SpecRow
-              icon="information-circle-outline"
-              label="Specs"
-              value={listing.description}
-            />
+            <SpecRow icon="information-circle-outline" label="Specs" value={listing.description} last />
           ) : null}
-          {isCustomer ? (
-            <SpecRow
-              icon="person-outline"
-              label="Sold by"
-              value="Customer"
-            />
-          ) : (
-            <SpecRow
-              icon="storefront-outline"
-              label="Sold by"
-              value={listing.shopName || 'Shop'}
-            />
-          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.groupTitle}>PRICE &amp; SELLER</Text>
+          {priceText ? (
+            <SpecRow icon="cash-outline" label="Price" value={priceText} valueColor={isAwaitingQuote ? PALETTE.amberDark : PALETTE.primaryDark} />
+          ) : null}
+          <SpecRow icon={isCustomer ? 'person-outline' : 'storefront-outline'} label="Sold by" value={sellerName} />
+          <SpecRow icon="people-outline" label="Seller type" value={isCustomer ? 'Customer' : 'Shop'} last />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.groupTitle}>LOCATION</Text>
+          {listing.address ? <SpecRow icon="home-outline" label="Address" value={listing.address} /> : null}
           <SpecRow
             icon="location-outline"
-            label="Location"
-            value={[listing.city, listing.state, listing.pincode].filter(Boolean).join(', ') || '—'}
+            label="Area"
+            value={area || '—'}
             onPress={openMap}
             actionLabel="View on map"
+            last={listing.distanceKm == null}
           />
           {listing.distanceKm != null ? (
-            <SpecRow
-              icon="navigate-outline"
-              label="Distance"
-              value={`${Number(listing.distanceKm).toFixed(1)} km`}
-            />
+            <SpecRow icon="navigate-outline" label="Distance" value={`${Number(listing.distanceKm).toFixed(1)} km away`} last />
           ) : null}
         </View>
 
-        <View style={[styles.section, { flexDirection: 'row', gap: 8 }]}>
+        <View style={styles.card}>
+          <Text style={styles.groupTitle}>LISTING</Text>
+          {listing.status ? <SpecRow icon="checkmark-circle-outline" label="Status" value={titleCase(listing.status)} /> : null}
+          {listedOn ? <SpecRow icon="calendar-outline" label="Listed on" value={listedOn} /> : null}
+          {listingRef ? <SpecRow icon="barcode-outline" label="Listing ID" value={listingRef} last /> : null}
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           <View style={styles.warrantyPill}>
-            <Ionicons name="calendar-outline" size={14} color={PALETTE.success} />
-            <Text style={styles.warrantyText}>15 Days Refund*</Text>
+            <Ionicons name="calendar-outline" size={14} color={PALETTE.primary} />
+            <Text style={styles.warrantyText} numberOfLines={1}>15 Days Refund*</Text>
           </View>
           <View style={styles.warrantyPill}>
-            <Ionicons name="shield-checkmark-outline" size={14} color={PALETTE.success} />
-            <Text style={styles.warrantyText}>Upto 06 Months Warranty*</Text>
+            <Ionicons name="shield-checkmark-outline" size={14} color={PALETTE.primary} />
+            <Text style={styles.warrantyText} numberOfLines={1}>Upto 06 Months Warranty*</Text>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.disclaimer}>
-            * Contact the seller after placing your order.
-          </Text>
-        </View>
+        <Text style={styles.disclaimer}>* Contact the seller after placing your order.</Text>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
         {isProduct ? (
-          <TouchableOpacity style={styles.cartBtn} onPress={onAddToCart} disabled={adding} activeOpacity={0.9}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={onAddToCart} disabled={adding} activeOpacity={0.85}>
             <Ionicons name="cart-outline" size={17} color="#FFFFFF" />
-            <Text style={styles.cartText}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
+            <Text style={styles.primaryText}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
           </TouchableOpacity>
         ) : (
           <>
-            <TouchableOpacity style={styles.contactBtn} onPress={callSeller} disabled={!contactPhone}>
-              <Ionicons name="call-outline" size={16} color={PALETTE.primary} />
-              <Text style={styles.contactText}>
-                {contactPhone ? 'Contact' : `Call ${contactName}`}
+            <TouchableOpacity style={styles.outlineBtn} onPress={callSeller} activeOpacity={0.8} accessibilityRole="button">
+              <Ionicons name="call-outline" size={16} color={PALETTE.primaryDark} />
+              <Text style={styles.outlineText} numberOfLines={1}>
+                {contactPhone ? 'Contact' : (isCustomer ? 'Call Customer' : 'Call Shop')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.orderBtn}
-              onPress={() => {
-                // Order Now currently routes to the seller via phone — quotation
-                // flow for customer sells lands here too.
-                if (contactPhone) {
-                  Linking.openURL(`tel:${contactPhone}`).catch(() => {});
-                }
-              }}
+              style={styles.primaryBtn}
+              onPress={isAwaitingQuote ? sendQuote : orderNow}
+              activeOpacity={0.85}
+              accessibilityRole="button"
             >
-              <Text style={styles.orderText}>{isAwaitingQuote ? 'Send Quote' : 'Order Now'}</Text>
+              <Ionicons name={isAwaitingQuote ? 'pricetag-outline' : 'bag-check-outline'} size={16} color="#FFFFFF" />
+              <Text style={styles.primaryText}>{isAwaitingQuote ? 'Send Quote' : 'Order Now'}</Text>
             </TouchableOpacity>
           </>
         )}
       </View>
+
+      <BlockedSheet info={blocked} onClose={() => setBlocked(null)} bottomInset={insets.bottom} />
     </SafeAreaView>
   );
 }
 
-function SpecRow({ icon, label, value, onPress, actionLabel }) {
+function SpecRow({ icon, label, value, valueColor, onPress, actionLabel, last }) {
   return (
-    <View style={styles.specRow}>
+    <View style={[styles.specRow, last ? null : styles.specRowLine]}>
       <View style={styles.specIconWrap}>
         <Ionicons name={icon} size={16} color={PALETTE.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.specLabel}>{label}</Text>
-        <Text style={styles.specValue}>{value}</Text>
+        <Text style={[styles.specValue, valueColor ? { color: valueColor, fontWeight: '800' } : null]}>{value}</Text>
       </View>
       {onPress ? (
-        <TouchableOpacity onPress={onPress}>
+        <TouchableOpacity onPress={onPress} hitSlop={8} style={styles.specActionBtn}>
           <Text style={styles.specAction}>{actionLabel || 'View'}</Text>
         </TouchableOpacity>
       ) : null}
@@ -232,8 +310,28 @@ function SpecRow({ icon, label, value, onPress, actionLabel }) {
   );
 }
 
+/** Bottom sheet that says why an action can't complete, with one OK. */
+function BlockedSheet({ info, onClose, bottomInset }) {
+  return (
+    <Modal visible={!!info} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        <Pressable style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 12) + 12 }]} onPress={() => {}}>
+          <View style={styles.sheetIcon}>
+            <Ionicons name={info?.icon || 'information-circle-outline'} size={22} color={PALETTE.amberDark} />
+          </View>
+          <Text style={styles.sheetTitle}>{info?.title}</Text>
+          <Text style={styles.sheetMessage}>{info?.message}</Text>
+          <TouchableOpacity style={[styles.primaryBtn, { flex: 0, marginTop: 16 }]} onPress={onClose} activeOpacity={0.85}>
+            <Text style={styles.primaryText}>OK</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  safe: { flex: 1, backgroundColor: PALETTE.page },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -241,7 +339,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: PALETTE.border,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: PALETTE.card,
   },
   headerBtn: {
     width: 36,
@@ -250,115 +348,128 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 18,
   },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '700', color: PALETTE.text },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '800', color: PALETTE.text },
   hero: {
-    height: 260,
-    backgroundColor: PALETTE.bg,
+    height: 240,
+    backgroundColor: PALETTE.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.soft,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-  },
-  heroImage: { width: '70%', height: '85%' },
-  priceBar: {
-    position: 'absolute',
-    bottom: 12,
-    right: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    shadowColor: '#172117',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  priceText: { fontSize: 14, fontWeight: '800', color: PALETTE.text },
-  awaitingPill: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: PALETTE.awaiting,
-    backgroundColor: PALETTE.awaitingBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
     overflow: 'hidden',
   },
-  section: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
+  heroImage: { width: '80%', height: '86%' },
+  priceBar: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
   },
-  modelName: { fontSize: 15, fontWeight: '700', color: PALETTE.text, marginBottom: 8 },
-  specRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  priceBarText: { fontSize: 12, fontWeight: '800' },
+  card: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.soft,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    marginTop: 10,
+  },
+  modelName: { fontSize: 15, fontWeight: '800', color: PALETTE.text, marginBottom: 8 },
+  groupTitle: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, color: PALETTE.muted, marginBottom: 2 },
+  specRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
+  specRowLine: { borderBottomWidth: 1, borderBottomColor: PALETTE.soft },
   specIconWrap: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F0F8EF',
+    backgroundColor: PALETTE.mint,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   specLabel: { fontSize: 11, color: PALETTE.muted, marginBottom: 1 },
   specValue: { fontSize: 13, fontWeight: '600', color: PALETTE.text },
-  specAction: { fontSize: 12, fontWeight: '700', color: PALETTE.primary },
+  specActionBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: PALETTE.mint },
+  specAction: { fontSize: 11, fontWeight: '700', color: PALETTE.primaryDark },
   warrantyPill: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F8EF',
+    backgroundColor: PALETTE.card,
+    borderWidth: 1,
+    borderColor: PALETTE.soft,
     borderRadius: 12,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     gap: 6,
   },
-  warrantyText: { fontSize: 11, fontWeight: '700', color: PALETTE.success },
-  disclaimer: { fontSize: 11, color: '#DC2626', textAlign: 'center' },
+  warrantyText: { flexShrink: 1, fontSize: 11, fontWeight: '700', color: PALETTE.primaryDark },
+  disclaimer: { fontSize: 11, color: PALETTE.danger, textAlign: 'center', marginTop: 12 },
   bottomBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: PALETTE.card,
     borderTopWidth: 1,
     borderTopColor: PALETTE.border,
   },
-  contactBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+  outlineBtn: {
+    flex: 1,
+    minHeight: 46,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: PALETTE.primary,
+    backgroundColor: PALETTE.card,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
-  contactText: { fontSize: 13, fontWeight: '700', color: PALETTE.primary },
-  orderBtn: {
+  outlineText: { fontSize: 13, fontWeight: '800', color: PALETTE.primaryDark },
+  primaryBtn: {
     flex: 1,
-    backgroundColor: PALETTE.accentOrange,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orderText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  cartBtn: {
-    flex: 1,
-    backgroundColor: PALETTE.success,
-    paddingVertical: 12,
+    minHeight: 46,
+    backgroundColor: PALETTE.primary,
+    paddingHorizontal: 14,
     borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 7,
   },
-  cartText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  primaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(30,30,30,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: PALETTE.card,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  sheetIcon: {
+    height: 44,
+    width: 44,
+    borderRadius: 22,
+    backgroundColor: PALETTE.amberLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  sheetTitle: { fontSize: 15, fontWeight: '800', color: PALETTE.text },
+  sheetMessage: { fontSize: 13, color: PALETTE.muted, marginTop: 6, lineHeight: 19 },
 });

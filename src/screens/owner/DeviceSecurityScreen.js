@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     padding: 11,
     marginBottom: 12,
   },
-  title: { fontSize: 14, fontWeight: '700', color: '#172117', marginBottom: 4 },
+  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 4 },
   subtitle: { fontSize: 12, color: '#667066', marginBottom: 8 },
   optionRow: {
     flexDirection: 'row',
@@ -92,6 +92,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
   },
-  buttonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  buttonText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 });
 

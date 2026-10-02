@@ -77,11 +77,11 @@ export default function ForgotPasswordOtpScreen({ navigation, route }) {
           <Text style={{ fontSize: 13, fontWeight: '700', color: seconds > 0 ? MUTED : GREEN }}>Resend code</Text>
         </Pressable>
         {seconds > 0 ? (
-          <Text style={{ fontSize: 12.5, color: MUTED, marginLeft: 8 }}>· wait {seconds}s</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>· wait {seconds}s</Text>
         ) : null}
       </View>
 
-      {note ? <Text style={{ fontSize: 12.5, color: GREEN, marginTop: 8 }}>{note}</Text> : null}
+      {note ? <Text style={{ fontSize: 12, color: GREEN, marginTop: 8 }}>{note}</Text> : null}
       <ErrorBox msg={error} />
 
       <Button
@@ -90,7 +90,7 @@ export default function ForgotPasswordOtpScreen({ navigation, route }) {
         fullWidth
         size="lg"
         style={{ marginTop: 13, height: 46, borderRadius: 16 }}
-        textClassName="text-[15px] font-extrabold tracking-wide"
+        textClassName="text-[13px] font-extrabold tracking-wide"
       >
         Submit code
       </Button>

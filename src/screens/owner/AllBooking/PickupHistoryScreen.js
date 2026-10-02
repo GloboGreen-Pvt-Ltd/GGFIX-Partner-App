@@ -131,7 +131,7 @@ function EventRow({ event, first, last }) {
       <View className="flex-1 pb-3">
         <Text className="text-[13px] font-extrabold text-gray-900">{labelFor(event.status)}</Text>
         {event.note ? (
-          <Text className="text-[11.5px] text-gray-600 mt-0.5">{event.note}</Text>
+          <Text className="text-[11px] text-gray-600 mt-0.5">{event.note}</Text>
         ) : null}
         <Text className="text-[10.5px] text-gray-400 mt-0.5">
           {fmtWhen(event.createdAt)}
@@ -245,7 +245,7 @@ export default function PickupHistoryScreen({ route }) {
                   <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                     Current Status
                   </Text>
-                  <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5">
+                  <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5">
                     {currentLabel || 'Pickup Requested'}
                   </Text>
                 </View>
@@ -260,7 +260,7 @@ export default function PickupHistoryScreen({ route }) {
                 <View className="mt-2.5 pt-2.5 flex-row items-center" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
                   <UserCheck size={12} color="#8FA08F" />
                   <Text className="ml-1.5 text-[11px] text-gray-500">Pickup By</Text>
-                  <Text className="ml-2 text-[11.5px] font-extrabold text-gray-900" numberOfLines={1}>
+                  <Text className="ml-2 text-[11px] font-extrabold text-gray-900" numberOfLines={1}>
                     {data.pickupPersonName}
                   </Text>
                 </View>
@@ -278,7 +278,7 @@ export default function PickupHistoryScreen({ route }) {
           {error ? (
             <View className="px-4 mt-3">
               <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}>
-                <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
+                <Text className="text-[12px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
               </View>
             </View>
           ) : null}
@@ -288,7 +288,7 @@ export default function PickupHistoryScreen({ route }) {
             <View className="bg-white rounded-2xl p-3" style={cardShadow}>
               <SectionHeader icon={History} label="PICKUP TIMELINE" />
               {events.length === 0 ? (
-                <Text className="text-[12.5px] text-gray-500">
+                <Text className="text-[12px] text-gray-500">
                   No events recorded for this pickup yet.
                 </Text>
               ) : (

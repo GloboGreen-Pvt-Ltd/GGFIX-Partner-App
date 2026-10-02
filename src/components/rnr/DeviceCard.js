@@ -62,7 +62,7 @@ export function DeviceCard({
         ) : Icon ? (
           <Icon size={36} color={tokens.primary} />
         ) : (
-          <Text className="text-[28px] font-extrabold text-primary">
+          <Text className="text-[22px] font-extrabold text-primary">
             {(title || '?').toString().trim().charAt(0).toUpperCase()}
           </Text>
         )}
@@ -79,7 +79,7 @@ export function DeviceCard({
         ) : null}
       </View>
       <View className="px-3 py-3">
-        <Text numberOfLines={1} className="text-[13.5px] font-extrabold text-text">{title}</Text>
+        <Text numberOfLines={1} className="text-[13px] font-extrabold text-text">{title}</Text>
         {subtitle ? (
           <Text numberOfLines={1} className="text-[11px] text-text-muted mt-0.5">{subtitle}</Text>
         ) : null}

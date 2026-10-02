@@ -12,21 +12,21 @@ const styles = StyleSheet.create({
   // `components/ui` automatically inherits these tighter defaults.
   pillBtn: { paddingVertical: 11, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
   primary: { backgroundColor: colors.primary },
-  primaryText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  primaryText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   outline: { borderWidth: 1, borderColor: colors.primary, backgroundColor: '#fff' },
   outlineText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   danger: { borderWidth: 1, borderColor: colors.danger, backgroundColor: '#fff' },
   dangerText: { color: colors.danger, fontSize: 13, fontWeight: '700' },
 
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 12, marginVertical: 5, borderWidth: 1, borderColor: colors.border },
-  cardTitle: { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 4 },
+  cardTitle: { fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 4 },
   cardSubtitle: { fontSize: 12, color: colors.textMuted },
 
   input: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: colors.text },
   label: { fontSize: 11, color: colors.textMuted, marginBottom: 4, marginTop: 8 },
 
   section: { padding: 12 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 8 },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 8 },
 
   empty: { padding: 24, alignItems: 'center' },
   emptyText: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },

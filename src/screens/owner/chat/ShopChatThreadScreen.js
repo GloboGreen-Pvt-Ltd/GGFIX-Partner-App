@@ -156,7 +156,7 @@ function MessageBubble({ m, mine }) {
           <AudioRow url={m.attachmentUrl} mine={mine} />
         ) : null}
         {m.body ? (
-          <Text className={`text-[13.5px] leading-5 px-1 ${txtColor}`}>{m.body}</Text>
+          <Text className={`text-[13px] leading-5 px-1 ${txtColor}`}>{m.body}</Text>
         ) : null}
         <View className="flex-row items-center justify-end mt-1 px-1">
           <Text className={`text-[10px] ${metaColor}`}>
@@ -392,7 +392,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             )}
           </View>
           <View className="flex-1 ml-2.5">
-            <Text className="text-text text-[14px] font-extrabold" numberOfLines={1}>{name}</Text>
+            <Text className="text-text text-[13px] font-extrabold" numberOfLines={1}>{name}</Text>
             <View className="flex-row items-center mt-0.5">
               {online ? <View className="h-1.5 w-1.5 rounded-full bg-primary mr-1" /> : null}
               <Text className="text-text-muted text-[10px]" numberOfLines={1}>
@@ -483,7 +483,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
                   onChangeText={onChangeText}
                   multiline
                   maxLength={1000}
-                  className="flex-1 text-text text-[14px] py-2 px-1"
+                  className="flex-1 text-text text-[13px] py-2 px-1"
                   style={{ maxHeight: 100 }}
                 />
                 <Pressable onPress={() => setText((t) => `${t || ''}😊`)} className="h-9 w-9 items-center justify-center active:opacity-70">

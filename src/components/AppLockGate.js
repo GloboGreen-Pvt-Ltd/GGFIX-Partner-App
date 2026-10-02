@@ -78,7 +78,7 @@ export default function AppLockGate({ children, onLogout }) {
           <View style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
             <Lock size={20} color="#FFFFFF" />
           </View>
-          <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>App Locked</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>App Locked</Text>
           <Text style={{ color: '#E6F7E3', fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 18 }}>
             Unlock with your fingerprint, pattern or PIN to continue.
           </Text>
@@ -87,7 +87,7 @@ export default function AppLockGate({ children, onLogout }) {
             disabled={checking}
             style={{ marginTop: 22, backgroundColor: '#087A0A', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 14, opacity: checking ? 0.6 : 1, minWidth: 150, alignItems: 'center' }}
           >
-            {checking ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>Unlock</Text>}
+            {checking ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Unlock</Text>}
           </Pressable>
           <Pressable onPress={onLogout} style={{ marginTop: 16 }}>
             <Text style={{ color: '#C8EEBF', fontSize: 13, fontWeight: '700' }}>Log out instead</Text>

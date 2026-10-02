@@ -322,7 +322,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
               <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                 From
               </Text>
-              <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+              <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
                 {t.shopName || 'GGFix Service Center'}
               </Text>
               <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={2}>
@@ -446,11 +446,11 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                     {i + 1}
                   </Text>
                 </View>
-                <Text className="text-[12.5px] text-gray-800 flex-1 pl-2 pr-2" numberOfLines={2}>
+                <Text className="text-[12px] text-gray-800 flex-1 pl-2 pr-2" numberOfLines={2}>
                   {item.label}
                 </Text>
                 <Text
-                  className="text-[12.5px] font-bold text-gray-900 text-right"
+                  className="text-[12px] font-bold text-gray-900 text-right"
                   style={{ width: 76 }}
                 >
                   ₹{Number(item.amount || 0).toLocaleString('en-IN')}
@@ -464,13 +464,13 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             >
               <View className="flex-row justify-between py-1">
                 <Text className="text-[12px] text-gray-600">Subtotal</Text>
-                <Text className="text-[12.5px] font-bold text-gray-900">
+                <Text className="text-[12px] font-bold text-gray-900">
                   ₹{subtotal.toLocaleString('en-IN')}
                 </Text>
               </View>
               <View className="flex-row justify-between py-1">
                 <Text className="text-[12px] text-gray-600">GST (18%)</Text>
-                <Text className="text-[12.5px] font-bold text-gray-900">
+                <Text className="text-[12px] font-bold text-gray-900">
                   ₹{tax.toLocaleString('en-IN')}
                 </Text>
               </View>
@@ -486,10 +486,10 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                   >
                     <IndianRupee size={14} color="#FFFFFF" />
                   </View>
-                  <Text className="text-[13.5px] font-extrabold text-gray-900">Total</Text>
+                  <Text className="text-[13px] font-extrabold text-gray-900">Total</Text>
                 </View>
                 <Text
-                  className="text-[18px] font-extrabold"
+                  className="text-[17px] font-extrabold"
                   style={{ color: BRAND_GREEN_DARK }}
                 >
                   ₹{total.toLocaleString('en-IN')}
@@ -506,7 +506,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             style={cardShadow}
           >
             <SectionHeader icon={ListChecks} label="BILLING & HANDOVER" />
-            <Text className="text-[11.5px] text-gray-500 mb-3 leading-4">
+            <Text className="text-[11px] text-gray-500 mb-3 leading-4">
               Record each step as it happens. The booking advances through
               Invoice Generated → Invoice Ready → Delivered Processing →
               Delivered to Customer.
@@ -622,7 +622,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
           }}
         >
           <Printer size={16} color={BRAND_GREEN_DARK} />
-          <Text className="ml-2 text-[14px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+          <Text className="ml-2 text-[13px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
             Print
           </Text>
         </TouchableOpacity>
@@ -645,7 +645,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             }}
           >
             <Share2 size={16} color="#FFFFFF" />
-            <Text className="ml-2 text-white text-[14px] font-extrabold">Share</Text>
+            <Text className="ml-2 text-white text-[13px] font-extrabold">Share</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

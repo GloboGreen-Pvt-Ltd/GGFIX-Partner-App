@@ -7,6 +7,7 @@ import {
   type PressableProps,
   type StyleProp,
   type ViewStyle,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Check, ChevronRight, type LucideIcon } from 'lucide-react-native';
@@ -97,10 +98,12 @@ export function glyphOn(tone: string): string {
 }
 
 // Booking status chip tones — a soft wash of the hue plus its deep text.
+// Status pills — GGFIX palette: green (#09AD2A) done, yellow (#F3BF23)
+// waiting, neutral grey with a green dot while in progress.
 export const STATUS_TONES: Record<'done' | 'pending' | 'active', StatusTone> = {
-  done: { dot: GREEN_LIGHT, text: GREEN_DARK, bg: withAlpha(GREEN_LIGHT, 0.18) },
-  pending: { dot: C.warn, text: '#8A5A00', bg: 'rgba(245,158,11,0.16)' },
-  active: { dot: GREEN, text: GREEN_DARK, bg: withAlpha(GREEN, 0.12) },
+  done: { dot: '#09AD2A', text: '#078F23', bg: '#EAF8EC' },
+  pending: { dot: '#F3BF23', text: '#8A6A00', bg: '#FFF8E1' },
+  active: { dot: '#09AD2A', text: '#1E1E1E', bg: '#F3F3F3' },
 };
 
 // "INVOICE_GENERATED" → "Invoice Generated".
@@ -164,6 +167,10 @@ export const T = {
 } as const;
 
 // iOS 26 corner scale.
+// Premium serif for the Home headings / shop name — the platform's own
+// system serif (no font package): Georgia on iOS, Noto Serif on Android.
+export const SERIF = Platform.select({ ios: 'Georgia', android: 'serif', default: undefined });
+
 export const R = {
   card: 26,
   control: 999,
@@ -321,7 +328,7 @@ export function Glass({ radius = R.card, style, className, fill = GLASS.card, sh
       <View
         pointerEvents="none"
         style={{
-          ...StyleSheet.absoluteFillObject,
+          ...StyleSheet.absoluteFill,
           borderRadius: radius,
           borderWidth: HAIRLINE,
           borderColor: tinted ? 'rgba(255,255,255,0.35)' : GLASS.hairline,

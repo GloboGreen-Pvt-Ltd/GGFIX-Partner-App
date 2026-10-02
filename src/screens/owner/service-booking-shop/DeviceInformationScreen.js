@@ -27,32 +27,27 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { createAudioPlayer } from 'expo-audio';
-import { LinearGradient } from 'expo-linear-gradient';
 import { notify } from '../../../components/confirm';
 import { uploadMedia } from '../../../api/masterData';
 import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
-import { rf, rs } from '../../../utils/responsive';
+import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 
-// One deep green for the whole screen, matching the rest of the booking flow.
-//
-// Explicit values, not `text-primary`/`bg-success` classes: those tokens DO point
-// at #004C40 in tailwind.config.js, but NativeWind compiles its stylesheet at
-// build time and the cached copy in this project still holds the old #087A0A —
-// which is why the classes kept painting green. A value cannot go stale.
-const ACCENT = '#004C40';       // Dark Green
-const PRIMARY = '#006B57';      // Primary Green
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F2FBF7';
-const PAGE_BG = '#F8FAF9';
+// GGFIX palette — explicit values, not `text-primary` / `text-text` classes: the
+// shared Tailwind tokens still resolve to the old teal theme.
+const ACCENT = '#09AD2A';       // GGFIX green — fills, icons, selected
+const PRIMARY = '#078F23';      // deeper green — green TEXT on white / mint
+const MINT = '#EAF8EC';         // light green tint
+const MINT_LINE = '#CDEFD4';    // its border
+const SOFT = '#F8F8F8';         // soft inner panels
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_SECONDARY = '#667085';
-const WARNING = '#E53935';
-const ACCENT_06 = 'rgba(0, 76, 64, 0.06)';
-const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';
-const ACCENT_14 = 'rgba(0, 76, 64, 0.14)';
-const ACCENT_35 = 'rgba(0, 76, 64, 0.35)';
+const BORDER = '#E6E6E6';
+const HAIR = '#F3F3F3';         // card hairline on the grey page
+const INK = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const WARNING = '#F84141';
+const AMBER_TEXT = '#8A6A00';
 
 // Front and Back are REQUIRED — without them the technician can't prove the
 // device's pre-repair state. The coverage video is optional but encouraged.
@@ -206,30 +201,26 @@ export default function DeviceInformationScreen({ navigation, route }) {
 
   const r = useResponsive();
   // Tablet / large-screen: cap the column and centre it, same convention as
-  // the other booking-flow screens (ServicePriceEstimate, DeviceServices).
-  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null;
+  // the other booking-flow screens.
+  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 720), alignSelf: 'center' } : null;
+  const specLine = [params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ');
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      {/* ── White header — matches app's other white headers ─────── */}
+      {/* ── Header ─────────────────────────────────────────────── */}
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(10), paddingBottom: rs(14), paddingHorizontal: rs(16), borderBottomWidth: 1, borderBottomColor: BORDER }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(12), paddingHorizontal: rs(14), borderBottomWidth: 1, borderBottomColor: BORDER }}
       >
-        <View className="relative flex-row items-center justify-center">
+        <View className="relative flex-row items-center justify-center" style={colStyle}>
           <Pressable
             onPress={() => navigation.goBack()}
             className="absolute left-0 items-center justify-center active:opacity-70"
-            style={{ height: rs(38), width: rs(38), borderRadius: rs(19), backgroundColor: '#F4F7F5', borderWidth: 1, borderColor: BORDER }}
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT, borderWidth: 1, borderColor: BORDER }}
           >
-            <ArrowLeft size={19} color="#172117" />
+            <ArrowLeft size={18} color={INK} />
           </Pressable>
-
           <View className="items-center px-12">
-            <Text
-              className="text-text font-bold text-center"
-              style={{ fontSize: rf(15) }}
-              numberOfLines={1}
-            >
+            <Text className="font-extrabold text-center" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
               Device Information
             </Text>
           </View>
@@ -237,417 +228,294 @@ export default function DeviceInformationScreen({ navigation, route }) {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: 0, paddingBottom: rs(160) }}
+        contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(12), paddingBottom: insets.bottom + rs(requiredMissing.length > 0 ? 140 : 100) }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Device hero — brand label + model + specs, compact mint chips
-            (same real data as before), plus a static trust strip. ───────── */}
-        <View className="px-4" style={{ marginTop: rs(14) }}>
-          <View style={colStyle}>
-            <LinearGradient
-              colors={['#EAF7F1', '#FFFFFF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                borderRadius: rs(22),
-                padding: rs(16),
-                borderWidth: 1,
-                borderColor: BORDER,
-                shadowColor: '#0B1F14',
-                shadowOpacity: 0.06,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 3,
-              }}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className="items-center justify-center overflow-hidden mr-3.5"
-                  style={{ height: rs(84), width: rs(84), borderRadius: rs(18), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_10 }}
-                >
-                  {params.imageUrl ? (
-                    <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  ) : (
-                    <Smartphone size={34} color={ACCENT} />
-                  )}
-                </View>
-                <View className="flex-1">
-                  {params.brandName ? (
-                    <Text style={{ fontSize: rf(10), fontWeight: '800', letterSpacing: 1, color: PRIMARY, marginBottom: 2 }} numberOfLines={1}>
-                      {String(params.brandName).toUpperCase()}
-                    </Text>
-                  ) : null}
-                  <Text className="font-extrabold text-text" style={{ fontSize: rf(16) }} numberOfLines={2}>
-                    {params.modelName || 'Device'}
-                  </Text>
-                  <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: 2 }} numberOfLines={1}>
-                    {[params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
+        <View style={colStyle}>
+          {/* ── Device hero ─────────────────────────────────────── */}
+          <View
+            style={{
+              backgroundColor: CARD_BG, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: HAIR,
+              shadowColor: INK, shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+            }}
+          >
+            <View className="flex-row items-center">
+              <View
+                className="items-center justify-center overflow-hidden"
+                style={{ height: 62, width: 58, borderRadius: 14, marginRight: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR }}
+              >
+                {params.imageUrl ? (
+                  <Image source={{ uri: params.imageUrl }} style={{ width: 50, height: 56 }} resizeMode="contain" />
+                ) : (
+                  <Smartphone size={24} color={ACCENT} />
+                )}
               </View>
-
-              {/* Chips — same real data as before (modelNumber / service
-                  count / total), restyled into compact pills. */}
-              <View className="flex-row items-center flex-wrap" style={{ gap: rs(6), marginTop: rs(12) }}>
-                {params.modelNumber ? (
-                  <View
-                    className="flex-row items-center rounded-full"
-                    style={{ paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_10 }}
-                  >
-                    <Hash size={10} color={ACCENT} />
-                    <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT, marginLeft: 3 }}>
-                      {params.modelNumber}
-                    </Text>
-                  </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                {params.brandName ? (
+                  <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: PRIMARY }} numberOfLines={1}>
+                    {String(params.brandName).toUpperCase()}
+                  </Text>
                 ) : null}
-                <View
-                  className="flex-row items-center rounded-full"
-                  style={{ paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_10 }}
-                >
-                  <ReceiptText size={10} color={ACCENT} />
-                  <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT, marginLeft: 3 }}>
-                    {services.length} service{services.length === 1 ? '' : 's'}
-                  </Text>
-                </View>
-                <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(5), backgroundColor: ACCENT }}>
-                  <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: '#fff' }}>
-                    ₹{formatINR(total)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Trust strip — static/presentational only, no data behind it. */}
-              <View
-                className="flex-row items-center"
-                style={{ marginTop: rs(12), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: BORDER }}
-              >
-                <View
-                  className="items-center justify-center mr-2.5"
-                  style={{ height: rs(30), width: rs(30), borderRadius: rs(10), backgroundColor: '#FFFFFF' }}
-                >
-                  <ShieldCheck size={15} color={ACCENT} />
-                </View>
-                <Text className="flex-1" style={{ fontSize: rf(10.5), fontWeight: '600', color: TEXT_SECONDARY }} numberOfLines={1}>
-                  In Safe Hands · Genuine Parts · Trusted Service
+                <Text className="font-extrabold" style={{ fontSize: 15, lineHeight: 19, color: INK, marginTop: 1 }} numberOfLines={2}>
+                  {params.modelName || 'Device'}
                 </Text>
+                {specLine ? (
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={2}>{specLine}</Text>
+                ) : null}
               </View>
-            </LinearGradient>
-          </View>
-        </View>
+            </View>
 
-        {/* ── Price summary ────────────────────────────────────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
-          <View style={colStyle}>
-            <Card>
-              <SectionHeader icon={ReceiptText} label="Price Summary" subtitle="Service details and estimated cost" />
-              {services.map((s, i) => (
-                <View key={i} className="flex-row items-center" style={{ marginBottom: rs(10) }}>
-                  <View
-                    className="items-center justify-center mr-2.5"
-                    style={{ height: rs(24), width: rs(24), borderRadius: rs(8), backgroundColor: MINT }}
-                  >
-                    <Text style={{ fontSize: rf(10.5), fontWeight: '800', color: ACCENT }}>{i + 1}</Text>
-                  </View>
-                  <Text className="flex-1 text-text" style={{ fontSize: rf(13) }} numberOfLines={1}>{s.serviceName}</Text>
-                  <Text className="text-text font-extrabold" style={{ fontSize: rf(13) }}>₹{formatINR(s.price)}</Text>
-                </View>
-              ))}
-              <View
-                className="flex-row items-center"
-                style={{ marginTop: rs(4), borderRadius: rs(12), paddingHorizontal: rs(12), paddingVertical: rs(10), backgroundColor: MINT }}
-              >
-                <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(13) }}>Estimated Repair Amount</Text>
-                <Text style={{ fontSize: rf(17), fontWeight: '800', color: ACCENT }}>₹{formatINR(total)}</Text>
-              </View>
-            </Card>
-          </View>
-        </View>
-
-        {/* ── Complaint summary + voice-note playback ───────────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
-          <View style={colStyle}>
-            <Card>
-              <SectionHeader icon={MessageSquareText} label="Complaint Issue" subtitle="What seems to be the problem?" />
-              <View style={{ borderRadius: rs(14), backgroundColor: SOFT_MINT, padding: rs(12) }}>
-                <Text className="text-text" style={{ fontSize: rf(13), lineHeight: rf(19) }}>
-                  {params.complaint || (issueAudioUrl ? 'See voice note below.' : 'No issue described.')}
-                </Text>
-              </View>
-
-              {issueAudioUrl ? (
-                <View
-                  className="flex-row items-center"
-                  style={{ marginTop: rs(12), borderRadius: rs(16), padding: rs(10), backgroundColor: ACCENT_10, borderWidth: 1, borderColor: ACCENT_35 }}
-                >
-                  <Pressable
-                    onPress={toggleIssuePlayback}
-                    className="items-center justify-center active:opacity-80"
-                    style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: ACCENT }}
-                    accessibilityRole="button"
-                    accessibilityLabel={isPlayingIssue ? 'Pause voice note' : 'Play voice note'}
-                  >
-                    {isPlayingIssue ? (
-                      <Pause size={16} color="#fff" fill="#fff" />
-                    ) : (
-                      <Play size={16} color="#fff" fill="#fff" />
-                    )}
-                  </Pressable>
-                  <View className="flex-1" style={{ marginLeft: rs(10) }}>
-                    <View className="flex-row items-center">
-                      <Mic size={12} color={ACCENT} />
-                      <Text className="text-text font-extrabold" style={{ fontSize: rf(12.5), marginLeft: rs(6) }}>
-                        Customer's voice note
-                      </Text>
-                    </View>
-                    <Text className="text-text-muted" style={{ fontSize: rf(10.5), marginTop: 2 }}>
-                      {isPlayingIssue ? 'Playing…' : 'Tap to play'}
-                    </Text>
-                  </View>
+            {/* Chips — model number / service count / total (real data). */}
+            <View className="flex-row items-center flex-wrap" style={{ gap: 6, marginTop: 10 }}>
+              {params.modelNumber ? (
+                <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
+                  <Hash size={10} color={PRIMARY} />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 3 }}>{params.modelNumber}</Text>
                 </View>
               ) : null}
-            </Card>
-          </View>
-        </View>
-
-        {/* ── Timeline card — Received / Duration / Ready By, connected by
-            a dotted progress track. The centre "Duration" node only renders
-            when `durationHours` is actually present on params (it's passed
-            from ServicePriceEstimateScreen's `effectiveHours`) — no invented
-            number is shown when it isn't. ─────────────────────────────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
-          <View style={colStyle}>
-            <Card>
-              <SectionHeader icon={Timer} label="Repair Timeline" subtitle="Track your device repair progress" />
-              <View className="flex-row items-center">
-                <View style={{ flex: 1 }}>
-                  <View style={{ borderRadius: rs(14), borderWidth: 1, borderColor: BORDER, backgroundColor: SOFT_MINT, padding: rs(10) }}>
-                    <Text style={{ fontSize: rf(9.5), fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: rs(4) }}>
-                      RECEIVED
-                    </Text>
-                    <View className="flex-row items-center">
-                      <Calendar size={13} color={ACCENT} />
-                      <Text className="text-text" style={{ fontSize: rf(11), marginLeft: rs(5), flex: 1 }} numberOfLines={2}>
-                        {params.estimatedAt || '—'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Connector: dot — dashed line, reading as a small progress
-                    track between the timeline blocks. */}
-                <View className="items-center" style={{ width: rs(22) }}>
-                  <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: ACCENT }} />
-                  <View style={{ flex: 1, minHeight: rs(20), width: 1, borderLeftWidth: 1, borderLeftColor: ACCENT_35, borderStyle: 'dashed', marginVertical: 2 }} />
-                </View>
-
-                {params.durationHours ? (
-                  <>
-                    <View
-                      className="items-center"
-                      style={{ borderRadius: rs(14), backgroundColor: ACCENT, paddingHorizontal: rs(10), paddingVertical: rs(10) }}
-                    >
-                      <Timer size={14} color="#fff" />
-                      <Text className="text-white font-extrabold" style={{ fontSize: rf(12), marginTop: rs(3) }} numberOfLines={1}>
-                        {params.durationHours} Hr
-                      </Text>
-                      <Text style={{ fontSize: rf(8.5), color: 'rgba(255,255,255,0.85)', marginTop: 1 }} numberOfLines={1}>
-                        Duration
-                      </Text>
-                    </View>
-                    <View className="items-center" style={{ width: rs(22) }}>
-                      <View style={{ flex: 1, minHeight: rs(20), width: 1, borderLeftWidth: 1, borderLeftColor: ACCENT_35, borderStyle: 'dashed', marginVertical: 2 }} />
-                      <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: ACCENT_35 }} />
-                    </View>
-                  </>
-                ) : null}
-
-                <View style={{ flex: 1 }}>
-                  <View style={{ borderRadius: rs(14), borderWidth: 1, borderColor: BORDER, backgroundColor: SOFT_MINT, padding: rs(10) }}>
-                    <Text style={{ fontSize: rf(9.5), fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: rs(4) }}>
-                      READY BY
-                    </Text>
-                    <View className="flex-row items-center">
-                      <Clock size={13} color={ACCENT} />
-                      <Text className="text-text" style={{ fontSize: rf(11), marginLeft: rs(5), flex: 1 }} numberOfLines={2}>
-                        {params.estimatedDelivery || '—'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </Card>
-          </View>
-        </View>
-
-        {/* ── Customer approval — its own banner, still driven by the exact
-            same `params.customerApproved` condition as before (not
-            hardcoded); pending state uses the existing data too. ─────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
-          <View style={colStyle}>
-            {params.customerApproved ? (
-              <View
-                className="flex-row items-center"
-                style={{ borderRadius: rs(20), backgroundColor: MINT, borderWidth: 1, borderColor: ACCENT_35, padding: rs(16) }}
-              >
-                <View
-                  className="items-center justify-center mr-3"
-                  style={{ height: rs(46), width: rs(46), borderRadius: rs(23), backgroundColor: ACCENT }}
-                >
-                  <CircleCheck size={22} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: ACCENT }}>Customer Approval</Text>
-                  <Text style={{ fontSize: rf(11.5), color: ACCENT, marginTop: 2 }}>
-                    You have approved the repair estimate.
-                  </Text>
-                </View>
-                <View className="rounded-full" style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: ACCENT }}>
-                  <Text className="text-white font-extrabold" style={{ fontSize: rf(11) }}>Approved</Text>
-                </View>
-              </View>
-            ) : (
-              <View
-                className="flex-row items-center"
-                style={{ borderRadius: rs(18), backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, padding: rs(14) }}
-              >
-                <View
-                  className="items-center justify-center mr-3"
-                  style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: '#F4F7F5' }}
-                >
-                  <ShieldCheck size={18} color="#8FA08F" />
-                </View>
-                <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(12.5) }}>Customer Approval</Text>
-                {/* #F59E0B measured 2.15:1 on this row's white fill; #B45309
-                    is the palette's amber-700 and measures 5.02:1. */}
-                <Text style={{ fontSize: rf(12), color: '#B45309', fontWeight: '700' }}>Pending</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ── Device photos — 3-slot grid ──────────────────────────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
-          <View style={colStyle}>
-            <Card>
-              <SectionHeader
-                icon={Camera}
-                label="Device Files"
-                subtitle={`Front + Back required · Coverage video optional${photoCount ? ` · ${photoCount}/3 added` : ''}`}
-              />
-              <View className="flex-row" style={{ gap: rs(8) }}>
-                {SLOTS.map((slot) => {
-                  const url = photos[slot.key];
-                  const busy = uploading === slot.key;
-                  const SlotIcon = slot.icon;
-                  return (
-                    <View key={slot.key} className="flex-1 items-center">
-                      <Pressable
-                        onPress={() => promptPick(slot)}
-                        disabled={busy}
-                        className="w-full items-center justify-center overflow-hidden"
-                        style={{
-                          height: rs(108),
-                          borderRadius: rs(16),
-                          borderWidth: 2,
-                          borderStyle: 'dashed',
-                          borderColor: url ? ACCENT : '#CBD5CB',
-                          backgroundColor: url ? ACCENT_06 : SOFT_MINT,
-                        }}
-                      >
-                        {busy ? (
-                          <ActivityIndicator color={ACCENT} />
-                        ) : url ? (
-                          <>
-                            {slot.isVideo ? (
-                              <View className="absolute inset-0 bg-text/90 items-center justify-center">
-                                <Video size={24} color="#fff" />
-                                <Text className="text-white font-extrabold" style={{ fontSize: rf(9), marginTop: rs(4), letterSpacing: 1 }}>VIDEO</Text>
-                              </View>
-                            ) : (
-                              <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                            )}
-                            <Pressable
-                              onPress={() => remove(slot.key)}
-                              className="absolute items-center justify-center"
-                              style={{ right: rs(6), top: rs(6), height: rs(24), width: rs(24), borderRadius: rs(12), backgroundColor: 'rgba(23, 33, 23, 0.75)' }}
-                            >
-                              <X size={13} color="#fff" />
-                            </Pressable>
-                            <View
-                              className="absolute flex-row items-center"
-                              style={{ left: rs(6), bottom: rs(6), borderRadius: rs(999), paddingHorizontal: rs(6), paddingVertical: rs(3), backgroundColor: ACCENT }}
-                            >
-                              <CircleCheck size={10} color="#fff" />
-                              <Text className="text-white font-extrabold" style={{ fontSize: rf(8), marginLeft: 2 }}>ADDED</Text>
-                            </View>
-                          </>
-                        ) : (
-                          <>
-                            <View
-                              className="items-center justify-center"
-                              style={{ height: rs(40), width: rs(40), borderRadius: rs(13), backgroundColor: MINT }}
-                            >
-                              <SlotIcon size={19} color={ACCENT} />
-                            </View>
-                            <View className="flex-row items-center" style={{ marginTop: rs(7) }}>
-                              <Plus size={11} color={ACCENT} />
-                              <Text className="font-extrabold" style={{ fontSize: rf(10.5), marginLeft: 2, color: ACCENT }}>Add</Text>
-                            </View>
-                          </>
-                        )}
-                      </Pressable>
-                      <Text className="text-text font-bold text-center" style={{ fontSize: rf(10.5), marginTop: rs(6) }} numberOfLines={2}>
-                        {slot.label}
-                        {slot.required ? <Text style={{ color: WARNING }}> *</Text> : null}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-
-              {/* Info strip — same message as before, restyled into a soft
-                  mint box. */}
-              <View
-                className="flex-row items-start"
-                style={{ marginTop: rs(12), borderRadius: rs(12), padding: rs(10), backgroundColor: SOFT_MINT }}
-              >
-                <Info size={13} color={ACCENT} style={{ marginTop: 1 }} />
-                <Text className="text-text-muted flex-1" style={{ fontSize: rf(10.5), marginLeft: rs(7), lineHeight: rf(15) }}>
-                  Photos help the customer verify the device's condition before and after repair.
+              <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
+                <ReceiptText size={10} color={PRIMARY} />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 3 }}>
+                  {services.length} service{services.length === 1 ? '' : 's'}
                 </Text>
               </View>
-            </Card>
+              <View className="rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ACCENT }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>₹{formatINR(total)}</Text>
+              </View>
+            </View>
+
+            {/* Trust strip — static/presentational only. */}
+            <View className="flex-row items-center" style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: MINT_LINE }}>
+              <ShieldCheck size={13} color={ACCENT} />
+              <Text style={{ flex: 1, marginLeft: 6, fontSize: 10, fontWeight: '600', color: TEXT_SECONDARY }} numberOfLines={1}>
+                In Safe Hands · Genuine Parts · Trusted Service
+              </Text>
+            </View>
           </View>
-        </View>
 
-      </ScrollView>
-
-      {/* ── Sticky bottom action — warning card (only while photos are
-          missing) stacked above the CTA, full width on any phone size so
-          neither the message nor the button label ever clips. Same
-          `requiredMissing`/`isReady`/`onContinue` as before — only how they
-          render changed. ─────────────────────────────────────────────── */}
-      <View
-        className="absolute left-0 right-0"
-        style={{ bottom: insets.bottom + rs(4), paddingHorizontal: rs(16) }}
-      >
-        <View style={colStyle}>
-          {/* Neutral mint state, not a red alert — the underlying gate is
-              still exactly `requiredMissing.length > 0` / `isReady` below;
-              only the presentation changed (was a full-width red warning
-              card). */}
-          {requiredMissing.length > 0 ? (
+          {/* ── Price summary ───────────────────────────────────── */}
+          <Card>
+            <SectionHeader icon={ReceiptText} label="Price Summary" subtitle="Service details and estimated cost" />
+            {services.map((s, i) => (
+              <View key={i} className="flex-row items-center" style={{ paddingVertical: 5 }}>
+                <View className="items-center justify-center" style={{ height: 20, width: 20, borderRadius: 7, marginRight: 9, backgroundColor: MINT }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{i + 1}</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 12, color: INK }} numberOfLines={2}>{s.serviceName}</Text>
+                <Text className="font-extrabold" style={{ fontSize: 12, color: INK, marginLeft: 8 }}>₹{formatINR(s.price)}</Text>
+              </View>
+            ))}
             <View
               className="flex-row items-center"
-              style={{ marginBottom: rs(8), borderRadius: rs(16), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER, padding: rs(11) }}
+              style={{ marginTop: 6, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: MINT }}
             >
+              <Text className="font-extrabold" style={{ flex: 1, fontSize: 12, color: INK }}>Estimated Repair Amount</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: PRIMARY }}>₹{formatINR(total)}</Text>
+            </View>
+          </Card>
+
+          {/* ── Complaint summary + voice-note playback ───────────── */}
+          <Card>
+            <SectionHeader icon={MessageSquareText} label="Complaint Issue" subtitle="What seems to be the problem?" />
+            <View style={{ borderRadius: 12, backgroundColor: SOFT, paddingHorizontal: 12, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 12, lineHeight: 17, color: INK }}>
+                {params.complaint || (issueAudioUrl ? 'See voice note below.' : 'No issue described.')}
+              </Text>
+            </View>
+
+            {issueAudioUrl ? (
               <View
-                className="items-center justify-center mr-2.5"
-                style={{ height: rs(32), width: rs(32), borderRadius: rs(11), backgroundColor: '#FFFFFF' }}
+                className="flex-row items-center"
+                style={{ marginTop: 8, borderRadius: 12, padding: 8, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}
               >
-                <Info size={16} color={ACCENT} />
+                <Pressable
+                  onPress={toggleIssuePlayback}
+                  className="items-center justify-center active:opacity-80"
+                  style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: ACCENT }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isPlayingIssue ? 'Pause voice note' : 'Play voice note'}
+                >
+                  {isPlayingIssue ? (
+                    <Pause size={14} color="#fff" fill="#fff" />
+                  ) : (
+                    <Play size={14} color="#fff" fill="#fff" />
+                  )}
+                </Pressable>
+                <View style={{ flex: 1, marginLeft: 9 }}>
+                  <View className="flex-row items-center">
+                    <Mic size={11} color={PRIMARY} />
+                    <Text className="font-extrabold" style={{ fontSize: 12, marginLeft: 5, color: INK }}>Customer's voice note</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, marginTop: 1, color: TEXT_SECONDARY }}>
+                    {isPlayingIssue ? 'Playing…' : 'Tap to play'}
+                  </Text>
+                </View>
               </View>
-              <Text style={{ flex: 1, fontSize: rf(11.5), fontWeight: '600', color: ACCENT }}>
+            ) : null}
+          </Card>
+
+          {/* ── Repair timeline — Received / Duration / Ready By. The
+              Duration node only renders when `durationHours` is on params. ── */}
+          <Card>
+            <SectionHeader icon={Timer} label="Repair Timeline" subtitle="Track your device repair progress" />
+            <View className="flex-row items-stretch" style={{ gap: 6 }}>
+              <View style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: HAIR, backgroundColor: SOFT, padding: 8 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: 3 }}>RECEIVED</Text>
+                <View className="flex-row items-start">
+                  <Calendar size={12} color={ACCENT} style={{ marginTop: 1 }} />
+                  <Text style={{ fontSize: 11, marginLeft: 4, flex: 1, color: INK }}>{params.estimatedAt || '—'}</Text>
+                </View>
+              </View>
+
+              {params.durationHours ? (
+                <View className="items-center justify-center" style={{ borderRadius: 12, backgroundColor: ACCENT, paddingHorizontal: 10, paddingVertical: 8 }}>
+                  <Timer size={13} color="#fff" />
+                  <Text className="text-white font-extrabold" style={{ fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                    {params.durationHours} Hr
+                  </Text>
+                  <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', marginTop: 1 }} numberOfLines={1}>Duration</Text>
+                </View>
+              ) : null}
+
+              <View style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: HAIR, backgroundColor: SOFT, padding: 8 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: 3 }}>READY BY</Text>
+                <View className="flex-row items-start">
+                  <Clock size={12} color={ACCENT} style={{ marginTop: 1 }} />
+                  <Text style={{ fontSize: 11, marginLeft: 4, flex: 1, color: INK }}>{params.estimatedDelivery || '—'}</Text>
+                </View>
+              </View>
+            </View>
+          </Card>
+
+          {/* ── Customer approval — same `params.customerApproved` condition. ── */}
+          {params.customerApproved ? (
+            <View
+              className="flex-row items-center"
+              style={{ marginTop: 10, borderRadius: 16, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE, padding: 12 }}
+            >
+              <View className="items-center justify-center" style={{ height: 34, width: 34, borderRadius: 17, marginRight: 10, backgroundColor: ACCENT }}>
+                <CircleCheck size={17} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text className="font-extrabold" style={{ fontSize: 13, color: INK }}>Customer Approval</Text>
+                <Text style={{ fontSize: 11, color: PRIMARY, marginTop: 1 }}>You have approved the repair estimate.</Text>
+              </View>
+              <View className="rounded-full" style={{ paddingHorizontal: 9, paddingVertical: 4, backgroundColor: ACCENT }}>
+                <Text className="text-white font-extrabold" style={{ fontSize: 10 }}>Approved</Text>
+              </View>
+            </View>
+          ) : (
+            <View
+              className="flex-row items-center"
+              style={{ marginTop: 10, borderRadius: 16, backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR, padding: 12 }}
+            >
+              <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 16, marginRight: 10, backgroundColor: SOFT }}>
+                <ShieldCheck size={16} color={TEXT_SECONDARY} />
+              </View>
+              <Text className="font-extrabold" style={{ flex: 1, fontSize: 12, color: INK }}>Customer Approval</Text>
+              <View className="rounded-full" style={{ paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#FFF8E1' }}>
+                <Text style={{ fontSize: 10, color: AMBER_TEXT, fontWeight: '800' }}>Pending</Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── Device photos — 3-slot grid ───────────────────────── */}
+          <Card>
+            <SectionHeader
+              icon={Camera}
+              label="Device Files"
+              subtitle={`Front + Back required · Coverage video optional${photoCount ? ` · ${photoCount}/3 added` : ''}`}
+            />
+            <View className="flex-row" style={{ gap: 8 }}>
+              {SLOTS.map((slot) => {
+                const url = photos[slot.key];
+                const busy = uploading === slot.key;
+                const SlotIcon = slot.icon;
+                return (
+                  <View key={slot.key} className="flex-1 items-center">
+                    <Pressable
+                      onPress={() => promptPick(slot)}
+                      disabled={busy}
+                      className="w-full items-center justify-center overflow-hidden"
+                      style={{
+                        height: rs(80),
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        borderStyle: 'dashed',
+                        borderColor: url ? ACCENT : '#D6D6D6',
+                        backgroundColor: url ? MINT : SOFT,
+                      }}
+                    >
+                      {busy ? (
+                        <ActivityIndicator color={ACCENT} />
+                      ) : url ? (
+                        <>
+                          {slot.isVideo ? (
+                            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(30,30,30,0.9)' }}>
+                              <Video size={20} color="#fff" />
+                              <Text className="text-white font-extrabold" style={{ fontSize: 9, marginTop: 3, letterSpacing: 1 }}>VIDEO</Text>
+                            </View>
+                          ) : (
+                            <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          )}
+                          <Pressable
+                            onPress={() => remove(slot.key)}
+                            className="absolute items-center justify-center"
+                            style={{ right: 5, top: 5, height: 22, width: 22, borderRadius: 11, backgroundColor: 'rgba(30,30,30,0.75)' }}
+                          >
+                            <X size={12} color="#fff" />
+                          </Pressable>
+                          <View
+                            className="absolute flex-row items-center"
+                            style={{ left: 5, bottom: 5, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: ACCENT }}
+                          >
+                            <CircleCheck size={9} color="#fff" />
+                            <Text className="text-white font-extrabold" style={{ fontSize: 8, marginLeft: 2 }}>ADDED</Text>
+                          </View>
+                        </>
+                      ) : (
+                        <>
+                          <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 11, backgroundColor: MINT }}>
+                            <SlotIcon size={16} color={ACCENT} />
+                          </View>
+                          <View className="flex-row items-center" style={{ marginTop: 5 }}>
+                            <Plus size={10} color={PRIMARY} />
+                            <Text className="font-extrabold" style={{ fontSize: 10, marginLeft: 2, color: PRIMARY }}>Add</Text>
+                          </View>
+                        </>
+                      )}
+                    </Pressable>
+                    <Text className="font-bold text-center" style={{ fontSize: 11, marginTop: 5, color: INK }} numberOfLines={2}>
+                      {slot.label}
+                      {slot.required ? <Text style={{ color: WARNING }}> *</Text> : null}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            <View className="flex-row items-start" style={{ marginTop: 10, borderRadius: 10, padding: 8, backgroundColor: SOFT }}>
+              <Info size={12} color={ACCENT} style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, fontSize: 10, marginLeft: 6, lineHeight: 14, color: TEXT_SECONDARY }}>
+                Photos help the customer verify the device's condition before and after repair.
+              </Text>
+            </View>
+          </Card>
+        </View>
+      </ScrollView>
+
+      {/* ── Sticky bottom bar — a solid bar (never floats over the cards),
+          with the photo hint above the CTA while it's needed. Same
+          `requiredMissing` / `isReady` / `onContinue` gate as before. ── */}
+      <View
+        className="absolute left-0 right-0 bottom-0"
+        style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: rs(14), paddingTop: 10, paddingBottom: insets.bottom + 10 }}
+      >
+        <View style={colStyle}>
+          {requiredMissing.length > 0 ? (
+            <View className="flex-row items-center" style={{ marginBottom: 8 }}>
+              <Info size={13} color={PRIMARY} />
+              <Text style={{ flex: 1, marginLeft: 6, fontSize: 11, fontWeight: '600', color: PRIMARY }}>
                 Add Front Side and Back Side photos to continue.
               </Text>
             </View>
@@ -657,30 +525,26 @@ export default function DeviceInformationScreen({ navigation, route }) {
             onPress={onContinue}
             disabled={!isReady}
             className="active:opacity-90"
-            style={{
-              borderRadius: rs(18),
-              overflow: 'hidden',
-              opacity: isReady ? 1 : 0.6,
-            }}
+            style={{ borderRadius: 14, overflow: 'hidden', opacity: isReady ? 1 : 0.45 }}
           >
             <View
               style={{
-                backgroundColor: isReady ? ACCENT : '#8FA08F',
-                paddingHorizontal: rs(16),
-                paddingVertical: rs(14),
+                backgroundColor: ACCENT,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Text className="text-white font-extrabold" style={{ fontSize: rf(15) }}>
+              <Text className="text-white font-extrabold" style={{ fontSize: 13 }}>
                 Next: Device Security
               </Text>
-              <ChevronRight size={18} color="#fff" style={{ marginLeft: rs(6) }} />
+              <ChevronRight size={17} color="#fff" style={{ marginLeft: 6 }} />
             </View>
           </Pressable>
           {!isReady && uploading ? (
-            <Text className="text-text-muted text-center" style={{ fontSize: rf(10.5), marginTop: rs(8) }}>
+            <Text className="text-center" style={{ fontSize: 10, marginTop: 6, color: TEXT_SECONDARY }}>
               Uploading photo… please wait.
             </Text>
           ) : null}
@@ -712,16 +576,17 @@ function Card({ children }) {
   return (
     <View
       style={{
+        marginTop: 10,
         backgroundColor: CARD_BG,
-        borderRadius: rs(20),
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: BORDER,
-        padding: rs(16),
-        shadowColor: '#0B1F14',
+        borderColor: HAIR,
+        padding: 12,
+        shadowColor: INK,
         shadowOpacity: 0.05,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 2,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
       }}
     >
       {children}
@@ -731,17 +596,14 @@ function Card({ children }) {
 
 function SectionHeader({ icon: Icon, label, subtitle }) {
   return (
-    <View className="flex-row items-center" style={{ marginBottom: rs(12) }}>
-      <View
-        className="items-center justify-center mr-3"
-        style={{ height: rs(38), width: rs(38), borderRadius: rs(12), backgroundColor: MINT }}
-      >
-        <Icon size={17} color={ACCENT} />
+    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+      <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, marginRight: 9, backgroundColor: MINT }}>
+        <Icon size={14} color={ACCENT} />
       </View>
-      <View className="flex-1">
-        <Text className="text-text font-bold" style={{ fontSize: rf(13.5) }}>{label}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text className="font-extrabold" style={{ fontSize: 13, color: INK }}>{label}</Text>
         {subtitle ? (
-          <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: 1 }} numberOfLines={1}>{subtitle}</Text>
+          <Text style={{ fontSize: 11, marginTop: 1, color: TEXT_SECONDARY }} numberOfLines={2}>{subtitle}</Text>
         ) : null}
       </View>
     </View>

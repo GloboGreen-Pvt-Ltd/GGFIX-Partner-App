@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   newCustomerCard: {
     alignSelf: 'center',

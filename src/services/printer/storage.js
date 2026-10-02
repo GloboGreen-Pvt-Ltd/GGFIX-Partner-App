@@ -34,3 +34,16 @@ export async function saveLastDevice(device) {
     }),
   );
 }
+
+// Page Setup preset id (labelPresets.js) the shop last picked on the Print
+// QR Label sheet — just the id, validated against LABEL_PRESETS on read.
+const LABEL_PRESET_KEY = 'printer.labelPreset';
+
+export async function getLabelPresetId() {
+  return AsyncStorage.getItem(LABEL_PRESET_KEY);
+}
+
+export async function saveLabelPresetId(id) {
+  if (!id) return;
+  await AsyncStorage.setItem(LABEL_PRESET_KEY, String(id));
+}

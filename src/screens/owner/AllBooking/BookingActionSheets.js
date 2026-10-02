@@ -4,8 +4,7 @@
 // Four bottom sheets — the first two for tickets, the last two for pickup
 // rows, which are repair-bookings and have their own verbs:
 //   TechnicianPickerSheet — the technician list on its own
-//   ShareReceiptSheet     — image-to-WhatsApp vs details-by-SMS, the same two
-//                           options TicketDetailScreen offers.
+//   ShareReceiptSheet     — the booking receipt, shared to WhatsApp only.
 //   PickupStatusSheet     — where the pickup is, and the one stage move the
 //                           shop can make from here
 //   PickupPersonPickerSheet — the pickup-eligible staff list
@@ -19,14 +18,14 @@
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, Share, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View,
   useWindowDimensions,
   // Aliased: `Keyboard` below is the lucide GLYPH used on the "Enter IMEI" row.
   Keyboard as RNKeyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Sharing from 'expo-sharing';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import { Ionicons } from '@expo/vector-icons';
+import ViewShot from 'react-native-view-shot';
 import {
   Share2,
   ChevronRight,
@@ -35,19 +34,12 @@ import {
   Check,
   UserRound,
   UserCog,
-  Phone,
-  MessageSquare,
   CheckCircle2,
   PackageCheck,
   Truck,
   Keyboard,
   ScanLine,
   X,
-  Pencil,
-  Send,
-  MoreHorizontal,
-  Mail,
-  FolderOpen,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import {
@@ -56,7 +48,9 @@ import {
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
-import { ReceiptCard, buildReceiptMessage } from './ReceiptCard';
+import { ReceiptCard, buildReceiptMessage, receiptShopFromSession } from './ReceiptCard';
+import { getSession } from '../../../auth/session';
+import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 
 const BRAND_GREEN_DARK = '#087A0A';
 // The currently-assigned pickup person is marked in red so the owner can see
@@ -149,9 +143,9 @@ function SheetShell({ visible, onClose, title, subtitle, children, maxHeightRati
               backgroundColor: '#E2E8E2', marginBottom: 14,
             }}
           />
-          <Text className="text-[15px] font-extrabold text-gray-900">{title}</Text>
+          <Text className="text-[13px] font-extrabold text-gray-900">{title}</Text>
           {subtitle ? (
-            <Text className="text-[11.5px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
+            <Text className="text-[11px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
           ) : (
             <View style={{ height: 12 }} />
           )}
@@ -176,7 +170,7 @@ function ActionRow({ icon, tint, title, onPress, disabled }) {
       <View className="w-9 h-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: tint.bg }}>
         {icon}
       </View>
-      <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
+      <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
       <ChevronRight size={16} color="#CBD5CB" />
     </Pressable>
   );
@@ -315,7 +309,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
           opacity: disabled ? 0.5 : 1,
         }}
       >
-        <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+        <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
           {value?.label || 'Select'}
         </Text>
         <ChevronDown
@@ -345,7 +339,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
               >
                 <View className="flex-1">
                   <Text
-                    className="text-[13.5px] text-gray-900"
+                    className="text-[13px] text-gray-900"
                     style={{ fontWeight: selected ? '800' : '600' }}
                     numberOfLines={1}
                   >
@@ -479,7 +473,7 @@ export function ServiceStatusSheet({
             style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
           >
             <Text className="text-[10px] text-gray-500">Current status</Text>
-            <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+            <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
               {doneLabel}
             </Text>
           </View>
@@ -488,14 +482,14 @@ export function ServiceStatusSheet({
         {loadingSteps ? (
           <View className="items-center py-8">
             <ActivityIndicator color={BRAND_GREEN_DARK} />
-            <Text className="text-[11.5px] text-gray-500 mt-2">Checking what&apos;s next…</Text>
+            <Text className="text-[11px] text-gray-500 mt-2">Checking what&apos;s next…</Text>
           </View>
         ) : finished ? (
           <View className="items-center py-6 px-2">
-            <Text className="text-[13.5px] font-extrabold text-gray-900 text-center">
+            <Text className="text-[13px] font-extrabold text-gray-900 text-center">
               This booking is closed
             </Text>
-            <Text className="text-[11.5px] text-gray-500 text-center mt-1">
+            <Text className="text-[11px] text-gray-500 text-center mt-1">
               {completed.has('CANCELLED')
                 ? 'The repair was cancelled — there is no further status to record.'
                 : 'The device is with the customer — there is no further status to record.'}
@@ -533,7 +527,7 @@ export function ServiceStatusSheet({
               {saving
                 ? <ActivityIndicator color="#FFFFFF" />
                 : (
-                  <Text className="text-white text-[14px] font-extrabold">
+                  <Text className="text-white text-[13px] font-extrabold">
                     {status?.action === 'INVOICE' ? 'Generate Invoice' : 'Update Status'}
                   </Text>
                 )}
@@ -652,7 +646,7 @@ export function ImeiGateSheet({
     >
       {mode === 'choose' ? (
         <>
-          <Text className="text-[12.5px] text-gray-500 mb-4">
+          <Text className="text-[12px] text-gray-500 mb-4">
             IMEI number is not available for this device. Please enter or scan the IMEI number.
           </Text>
           <ActionRow
@@ -684,7 +678,7 @@ export function ImeiGateSheet({
             editable={!busy}
             className="text-gray-900"
             style={{
-              fontSize: 17, fontWeight: '800', letterSpacing: 1.5,
+              fontSize: 15, fontWeight: '800', letterSpacing: 1.5,
               borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF',
               borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
             }}
@@ -694,7 +688,7 @@ export function ImeiGateSheet({
               {IMEI_MIN}–{IMEI_MAX} digits. Dial *#06# on the device to display it.
             </Text>
             <Pressable onPress={() => { onClose?.(); onScanRequest?.(booking); }} disabled={busy} hitSlop={8}>
-              <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+              <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                 Scan instead
               </Text>
             </Pressable>
@@ -716,7 +710,7 @@ export function ImeiGateSheet({
             >
               {busy
                 ? <ActivityIndicator color="#FFFFFF" />
-                : <Text className="text-white text-[13.5px] font-extrabold">Verify &amp; Continue</Text>}
+                : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
             </Pressable>
           </View>
         </>
@@ -887,7 +881,7 @@ export function TechnicianPickerSheet({
           />
         ) : techs.length === 0 ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               No technicians yet. Add one from Employee Management.
             </Text>
           </View>
@@ -904,7 +898,7 @@ export function TechnicianPickerSheet({
                 className="flex-row items-center mb-2.5 active:opacity-70"
               >
                 <ChevronLeft size={15} color={BRAND_GREEN_DARK} />
-                <Text className="text-[11.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>
+                <Text className="text-[11px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>
                   Back to assigned technician
                 </Text>
               </Pressable>
@@ -943,7 +937,7 @@ export function TechnicianPickerSheet({
                     <UserRound size={18} color="#667066" />
                   </View>
                   <View className="flex-1 pr-2">
-                    <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
                       {t.name || 'Technician'}
                     </Text>
                     <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -964,7 +958,7 @@ export function TechnicianPickerSheet({
                   ) : (
                     // "Re-Assign" once somebody holds the booking — tapping
                     // this row takes it off them, which "Assign" hid.
-                    <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                    <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                       {hasAssignee ? 'Re-Assign' : 'Assign'}
                     </Text>
                   )}
@@ -1003,7 +997,7 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
           <UserRound size={18} color={BRAND_GREEN_DARK} />
         </View>
         <View className="flex-1 pr-2">
-          <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
             {tech?.name || 'Technician'}
           </Text>
           <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -1025,15 +1019,6 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
           ? 'This technician has accepted the service.'
           : 'Awaiting this technician’s acceptance.'}
       </Text>
-
-      {phone ? (
-        <ActionRow
-          icon={<Phone size={18} color={TINT.green.fg} />}
-          tint={TINT.green}
-          title={`Call ${phone}`}
-          onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
-        />
-      ) : null}
 
       <ActionRow
         icon={<UserCog size={18} color={TINT.amber.fg} />}
@@ -1058,70 +1043,54 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
 //
 // GGFIX palette — same values used across the rest of the app's redesigned
 // screens this pass.
-const SHARE_ACCENT = '#004C40';
-const SHARE_PRIMARY = '#006B57';
-const SHARE_BRIGHT = '#00A86B';
-const SHARE_MINT = '#E8F7F2';
-const SHARE_SOFT_MINT = '#F4FBF8';
-const SHARE_BORDER = '#DCE7E2';
-const SHARE_TEXT_SECONDARY = '#667085';
+const SHARE_ACCENT = '#09AD2A';
+const SHARE_SOFT_MINT = '#F8F8F8';
+const SHARE_BORDER = '#E6E6E6';
+const SHARE_TEXT_SECONDARY = '#6B6B6B';
 
-// All five "Share to" shortcuts open the SAME real native share sheet with
-// the SAME captured receipt image. Expo/RN has no reliable, cross-platform
-// way to hand an image directly to one specific installed app (WhatsApp's
-// own URL scheme only accepts text, not an attachment) without a native
-// module this project doesn't have — rather than fake a direct launch that
-// silently drops the image, every shortcut is honest about triggering the
-// real OS share sheet, where the labelled app is picked from if installed.
-const SHARE_TARGETS = [
-  { key: 'whatsapp', label: 'WhatsApp Business', icon: MessageSquare },
-  { key: 'gmail', label: 'Gmail', icon: Mail },
-  { key: 'quickshare', label: 'Quick Share', icon: Send },
-  { key: 'files', label: 'File Manager', icon: FolderOpen },
-  { key: 'more', label: 'More', icon: MoreHorizontal },
-];
-
-export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, preparing }) {
+// One action: Share to WhatsApp (lib/whatsappShare) — the receipt image goes
+// straight into WhatsApp / WhatsApp Business, never the system share sheet or
+// any other app.
+export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
-  const previewWidth = Math.round(Math.min(winW * 0.76, 340));
+  // Receipt preview: most of a phone's width, capped so it stays a receipt
+  // (not a poster) on tablets. The sheet's content column is capped too.
+  const previewWidth = Math.round(Math.min(winW - 56, 360));
+  const columnStyle = { width: '100%', maxWidth: 560, alignSelf: 'center' };
   const receiptRef = useRef(null);
   const [sharing, setSharing] = useState(false);
+  // Shop name + picture for the receipt header, off the logged-in session.
+  const [shop, setShop] = useState(null);
+  useEffect(() => {
+    if (!visible) return undefined;
+    let cancelled = false;
+    getSession()
+      .then((sess) => { if (!cancelled) setShop(receiptShopFromSession(sess)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [visible]);
 
-  const doShareImage = useCallback(async () => {
+  const doShareWhatsApp = useCallback(async () => {
     if (!ticket || sharing) return;
     setSharing(true);
     try {
-      // The receipt can still be laying out on the very first open — retry
-      // briefly rather than dropping straight to a text-only share, which
-      // would look like the image share is broken.
-      let uri = null;
-      for (const wait of [0, 150, 400]) {
-        if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-        try {
-          uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
-          break;
-        } catch (_) { /* not laid out yet — retry, then fall back */ }
-      }
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-      await Share.share({ message: buildReceiptMessage(ticket), title: `Booking ${ticket.trackingId || ticket.id}` });
+      await shareReceiptToWhatsApp({
+        viewRef: receiptRef,
+        message: buildReceiptMessage(ticket, shop),
+        phone: ticket.customerPhone,
+        filename: `ggfix-receipt-${String(ticket.trackingId || ticket.id || '').replace(/^#+/, '')}`,
+      });
     } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
+      notify('Share failed', e?.message || 'Could not open WhatsApp.', { preset: 'error' });
     } finally {
       setSharing(false);
     }
-  }, [ticket, sharing]);
+  }, [ticket, sharing, shop]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(11, 31, 20, 0.55)', justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.55)', justifyContent: 'flex-end' }}>
         <View
           style={{
             backgroundColor: '#FFFFFF',
@@ -1133,12 +1102,13 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
         >
           <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: SHARE_BORDER, marginTop: 10, marginBottom: 4 }} />
 
+          <View style={[columnStyle, { flexShrink: 1 }]}>
           {/* Header */}
           <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: 20, color: '#111827' }}>Share image</Text>
-              <Text style={{ fontSize: 12.5, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
-                Share this booking receipt via your favourite apps
+              <Text className="font-extrabold" style={{ fontSize: 17, color: '#1E1E1E' }}>Share image</Text>
+              <Text style={{ fontSize: 11, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
+                Share this booking receipt on WhatsApp
               </Text>
             </View>
             <Pressable
@@ -1147,13 +1117,12 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
               className="items-center justify-center"
               style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
             >
-              <X size={18} color="#111827" />
+              <X size={18} color="#1E1E1E" />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
-            {/* Receipt preview — ONLY this View is captured for the shared
-                image; the floating edit button below sits outside it. */}
+            {/* Receipt preview — ONLY the ViewShot is captured for the shared image. */}
             <View className="items-center" style={{ marginTop: 14 }}>
               <View style={{ width: previewWidth }}>
                 {!ticket ? (
@@ -1166,79 +1135,49 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
                 ) : (
                   <View
                     style={{
-                      borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER,
-                      shadowColor: '#0B1F14', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
+                      borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: '#FFFFFF',
+                      shadowColor: '#1E1E1E', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
                     }}
                   >
                     <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-                      <ReceiptCard ticket={ticket} technicianName={technicianName} />
+                      <ReceiptCard ticket={ticket} shop={shop} />
                     </ViewShot>
                   </View>
                 )}
-                {/* Floating edit/customize button — no receipt-customization
-                    feature exists yet in this app, so this says so rather
-                    than pretending to open one. */}
-                <Pressable
-                  onPress={() => notify('Coming soon', "Customizing the receipt before sharing isn't available yet.")}
-                  className="items-center justify-center"
-                  style={{
-                    position: 'absolute', right: -8, bottom: -8,
-                    height: 44, width: 44, borderRadius: 22,
-                    backgroundColor: SHARE_MINT, borderWidth: 3, borderColor: '#FFFFFF',
-                    alignItems: 'center', justifyContent: 'center',
-                    shadowColor: '#0B1F14', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
-                  }}
-                >
-                  <View className="items-center justify-center" style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: SHARE_ACCENT }}>
-                    <Pencil size={14} color="#FFFFFF" />
-                  </View>
-                </Pressable>
               </View>
             </View>
 
-            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 22, marginHorizontal: 18 }} />
+            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 18, marginHorizontal: 18 }} />
 
-            {/* Share to */}
-            <View className="flex-row items-center justify-between" style={{ marginTop: 16, marginHorizontal: 18 }}>
-              <Text className="font-extrabold" style={{ fontSize: 14, color: '#111827' }}>Share to</Text>
-            </View>
-            <View className="flex-row" style={{ marginTop: 12, paddingHorizontal: 18 }}>
-              {SHARE_TARGETS.map((t, i) => (
-                <ShareTargetButton
-                  key={t.key}
-                  icon={t.icon}
-                  label={t.label}
-                  selected={i === 0}
-                  disabled={!ticket || sharing}
-                  busy={sharing}
-                  onPress={doShareImage}
-                />
-              ))}
+            {/* Share to WhatsApp — the only share action. */}
+            <View style={{ marginTop: 16, marginHorizontal: 18 }}>
+              <Pressable
+                onPress={doShareWhatsApp}
+                disabled={!ticket || sharing}
+                accessibilityRole="button"
+                accessibilityLabel="Share to WhatsApp"
+                style={{
+                  height: 48, borderRadius: 14, backgroundColor: SHARE_ACCENT,
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  opacity: !ticket ? 0.5 : sharing ? 0.8 : 1,
+                  shadowColor: SHARE_ACCENT, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+                }}
+              >
+                {sharing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                    <Text style={{ marginLeft: 8, fontSize: 15, fontWeight: '800', color: '#FFFFFF' }}>Share to WhatsApp</Text>
+                  </>
+                )}
+              </Pressable>
             </View>
           </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
-  );
-}
-
-function ShareTargetButton({ icon: Icon, label, selected, disabled, busy, onPress }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} className="items-center" style={{ flex: 1, opacity: disabled && !busy ? 0.5 : 1 }}>
-      <View
-        className="items-center justify-center"
-        style={{
-          height: 52, width: 52, borderRadius: 16,
-          backgroundColor: selected ? SHARE_MINT : SHARE_SOFT_MINT,
-          borderWidth: 1, borderColor: selected ? SHARE_BRIGHT : SHARE_BORDER,
-        }}
-      >
-        {busy ? <ActivityIndicator size="small" color={SHARE_ACCENT} /> : <Icon size={22} color={SHARE_ACCENT} />}
-      </View>
-      <Text className="text-center font-semibold" style={{ fontSize: 10, color: '#111827', marginTop: 6 }} numberOfLines={2}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -1296,7 +1235,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
         style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
       >
         <Text className="text-[10px] text-gray-500">Current status</Text>
-        <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+        <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
           {statusLabel || booking?.status || 'Pending'}
         </Text>
       </View>
@@ -1331,7 +1270,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
 
       {!isUnconfirmed && !atShop ? (
         <View style={{ paddingVertical: 4, paddingHorizontal: 2 }}>
-          <Text className="text-[12.5px] text-gray-500">
+          <Text className="text-[12px] text-gray-500">
             Nothing for the shop to do at this stage — the pickup person moves it
             from here in the employee app. Open Details for the full timeline.
           </Text>
@@ -1452,7 +1391,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
       <View>
         {isUnconfirmed ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               Confirm the pickup request first — Service Status → Confirm pickup
               request — then come back to assign someone.
             </Text>
@@ -1463,7 +1402,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
           </View>
         ) : people.length === 0 ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               No pickup persons yet. Add staff with the "Pickup Person" role from
               Employee Management.
             </Text>
@@ -1504,7 +1443,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                         assigned/unassigned swap can't be lost to className
                         merging. */}
                     <Text
-                      className="text-[13.5px] font-extrabold"
+                      className="text-[13px] font-extrabold"
                       style={{ color: isAssigned ? ASSIGNED_RED : TEXT_DARK }}
                       numberOfLines={1}
                     >
@@ -1526,7 +1465,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                   ) : (
                     // "Reassign" once somebody holds the pickup — tapping this
                     // row takes it off them, which "Assign" hid.
-                    <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                    <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                       {hasAssignee ? 'Reassign' : 'Assign'}
                     </Text>
                   )}

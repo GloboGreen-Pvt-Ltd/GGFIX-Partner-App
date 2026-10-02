@@ -55,7 +55,7 @@ export function ScreenHeader({
         <View className="h-9 w-9" />
       )}
       <View className={cn('flex-1 px-2', align === 'left' ? 'items-start' : 'items-center')}>
-        <Text numberOfLines={1} className="text-[16px] font-extrabold text-text">{title}</Text>
+        <Text numberOfLines={1} className="text-[17px] font-extrabold text-text">{title}</Text>
         {subtitle ? (
           <Text numberOfLines={1} className="text-[11px] text-text-muted mt-0.5">{subtitle}</Text>
         ) : null}

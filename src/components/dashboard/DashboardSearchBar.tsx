@@ -12,7 +12,7 @@ export interface DashboardSearchBarProps {
 
 // Light mint wash — the same tone family as the Sell rail's tiles — instead
 // of a plain gray fill, so the field reads as a soft branded surface.
-const SEARCH_BG = '#EAF7F2';
+const SEARCH_BG = '#F1F4F3';
 const ACCENT = '#004C40';
 const SCAN_BTN_BG = '#FFFFFF';
 
@@ -24,8 +24,10 @@ export function DashboardSearchBar({ pad, onSearchPress, onScanPress }: Dashboar
     <View
       style={{
         marginHorizontal: pad,
-        borderRadius: R.control,
+        borderRadius: 24,
         backgroundColor: SEARCH_BG,
+        borderWidth: 1,
+        borderColor: '#E8ECEF',
         flexDirection: 'row',
         alignItems: 'center',
         paddingRight: 6,
@@ -40,11 +42,11 @@ export function DashboardSearchBar({ pad, onSearchPress, onScanPress }: Dashboar
         onPress={onSearchPress}
         accessibilityRole="search"
         accessibilityLabel="Search"
-        style={{ flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }}
+        style={{ flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }}
         pressedStyle={{ opacity: 0.6 }}
       >
-        <Search size={18} color={C.placeholder} strokeWidth={ICON_STROKE} />
-        <Text style={{ flex: 1, marginLeft: 8, fontSize: T.callout, color: C.placeholder, letterSpacing: -0.3 }} numberOfLines={1}>
+        <Search size={18} color="#111827" strokeWidth={ICON_STROKE} />
+        <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, color: C.placeholder, letterSpacing: -0.2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           Search Device, Ticket ID, Customer…
         </Text>
       </Touchable>
@@ -78,6 +80,11 @@ function ScanButton({
         backgroundColor: SCAN_BTN_BG,
         alignItems: 'center', justifyContent: 'center',
         marginLeft: 6, marginRight: last ? 0 : 0,
+        shadowColor: '#0B1F14',
+        shadowOpacity: 0.08,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
       }}
       pressedStyle={{ opacity: 0.6 }}
     >

@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#DC2626' },
 
   fyCard: {
     flexDirection: 'row',
@@ -259,8 +259,8 @@ const styles = StyleSheet.create({
   fyLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flex: 1 },
   fyIconWrap: { width: rs(38), height: rs(38), borderRadius: rs(11), backgroundColor: '#E6F7E3', alignItems: 'center', justifyContent: 'center' },
   fyTextWrap: {},
-  fyLabel: { fontSize: rf(11.5), color: '#8FA08F', fontWeight: '600' },
-  fyValue: { fontSize: rf(21), fontWeight: '800', color: '#172117', marginTop: rs(2) },
+  fyLabel: { fontSize: 11, color: '#8FA08F', fontWeight: '600' },
+  fyValue: { fontSize: 20, fontWeight: '800', color: '#172117', marginTop: rs(2) },
 
   yearPill: {
     flexDirection: 'row',
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     gap: rs(7),
   },
-  yearPillText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
+  yearPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   yearPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
 
   summaryRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(10) },
@@ -293,11 +293,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: rs(8),
   },
-  summaryValue: { fontSize: rf(18), fontWeight: '800', color: '#172117' },
-  summaryLabel: { fontSize: rf(11.5), color: '#172117', fontWeight: '700', marginTop: rs(3) },
-  summarySub: { fontSize: rf(10), color: '#8FA08F', marginTop: rs(2) },
+  summaryValue: { fontSize: 17, fontWeight: '800', color: '#172117' },
+  summaryLabel: { fontSize: 11, color: '#172117', fontWeight: '700', marginTop: rs(3) },
+  summarySub: { fontSize: 10, color: '#8FA08F', marginTop: rs(2) },
 
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
 
   monthCard: {
     flexDirection: 'row',
@@ -322,17 +322,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthIndexText: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  monthIndexText: { fontSize: 12, fontWeight: '800', color: '#004C40' },
 
   monthMain: { flex: 1, minWidth: 0 },
   monthHeaderRow: { flexDirection: 'row', alignItems: 'baseline', gap: rs(6) },
-  monthName: { fontSize: rf(14), fontWeight: '800', color: '#172117' },
-  monthYear: { fontSize: rf(11.5), color: '#8FA08F', fontWeight: '600' },
+  monthName: { fontSize: 13, fontWeight: '800', color: '#172117' },
+  monthYear: { fontSize: 11, color: '#8FA08F', fontWeight: '600' },
   monthBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(5) },
   monthMeta: { flexDirection: 'row', alignItems: 'center', gap: rs(4) },
-  monthMetaText: { fontSize: rf(11.5), color: '#667066', fontWeight: '500' },
+  monthMetaText: { fontSize: 11, color: '#667066', fontWeight: '500' },
   monthSpacer: { flex: 1 },
-  monthSalary: { fontSize: rf(13.5), fontWeight: '800' },
+  monthSalary: { fontSize: 13, fontWeight: '800' },
   monthSalaryPaid: { color: '#004C40' },
   monthSalaryEmpty: { color: '#8FA08F' },
 
@@ -350,5 +350,5 @@ const styles = StyleSheet.create({
   statusPillPaid: { borderColor: '#004C40' },
   statusPillUnpaid: { borderColor: '#FDE68A' },
   statusPillEmpty: { borderColor: '#E2E8E2' },
-  statusPillText: { fontSize: rf(10.5), fontWeight: '800' },
+  statusPillText: { fontSize: 10.5, fontWeight: '800' },
 });

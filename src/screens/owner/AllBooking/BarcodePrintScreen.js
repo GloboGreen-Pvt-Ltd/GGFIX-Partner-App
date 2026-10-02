@@ -1,49 +1,79 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, Share, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
-import { captureRef } from 'react-native-view-shot';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Share2,
   Printer,
   Smartphone,
   Wrench,
   ChevronLeft,
-  Check,
   QrCode,
   Copy,
+  Hash,
+  User,
+  Lock,
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
-import { rf, rs } from '../../../utils/responsive';
+import { getModelsByBrand } from '../../../api/masterData';
+import { resolveDeviceImageSource } from '../../../utils/images';
+import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import LabelPreview from './LabelPreview';
 import PrinterConnectSheet from './PrinterConnectSheet';
+import { useLabelPreset } from '../../../services/printer/useLabelPreset';
+import { presetSizeText } from '../../../services/printer/labelPresets';
 
-// GGFIX palette for this screen — aligned to this pass's exact hex values.
-const ACCENT = '#004C40';       // Deep Green
-const PRIMARY = '#006B57';      // Dark Green
-const MINT = '#DFF7EF';
-const SOFT_MINT = '#F1FBF7';
-const PAGE_BG = '#F8FBFA';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3
+// (same as Home / Buy and the Print QR Label sheet).
+const ACCENT = '#09AD2A';       // GGFIX green — icons, chips, accents
+const PRIMARY = '#078F23';      // deeper green — gradient partner on Print QR Slip
+const MINT = '#EAF8EC';         // light green tint
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#10201B';
-const TEXT_SECONDARY = '#77817F';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
-  shadowOpacity: 0.06,
-  shadowRadius: 16,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 5,
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2,
 };
+
+const card = {
+  backgroundColor: CARD_BG,
+  borderRadius: 18,
+  padding: 12,
+  borderWidth: 1,
+  borderColor: '#F3F3F3',
+  ...cardShadow,
+};
+
+// Booking-card detail line: icon + label left, full value right (wraps, never
+// truncates).
+function DetailRow({ icon: Icon, label, children, isLast }) {
+  return (
+    <View
+      className="flex-row items-center"
+      style={{ paddingVertical: 7, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F3F3' }}
+    >
+      <View className="items-center justify-center" style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: MINT, marginRight: 8 }}>
+        <Icon size={11} color={ACCENT} />
+      </View>
+      <Text style={{ width: 78, fontSize: 11, color: TEXT_SECONDARY, fontWeight: '600' }}>{label}</Text>
+      <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}>{children}</View>
+    </View>
+  );
+}
 
 // Turn the stored device-security type/value into a human-readable line for the
 // slip. Pattern values are stored as "1,2,3,6" — kept as-is so the technician
@@ -80,16 +110,14 @@ function fmtCreatedOn(iso) {
   return { date: `${wd}, ${d.getDate()} ${mo} ${d.getFullYear()}`, time };
 }
 
-// The ACTUAL fixed physical media the target printer (TVS/SNBC LP46 Dlite /
-// Dlite Plus) takes: a die-cut 38mm x 25mm barcode stock (confirmed against
-// the printer driver's own "BarCode (38.0mm x 25.0mm)" stock, not an
-// arbitrary/custom size) — feeding the print CSS anything else makes Chrome
-// fall back to the driver's default media instead of this exact one, which
-// is what produced the multi-page, oversized-QR print bug. The on-screen
-// "Print Size" picker that used to sit next to Number of Copies offered
-// 58mm/80mm and never actually drove this — it's been removed entirely.
-const LABEL_WIDTH_MM = 38;
-const LABEL_HEIGHT_MM = 25;
+// Label media size comes from the Page Setup preset the shop picked on the
+// Print QR Label sheet (src/services/printer/labelPresets.js — BarCode
+// 38.0 x 25.0mm by default, or BarCode1 50.0 x 25.0mm), never an arbitrary
+// size: feeding the print CSS anything other than the printer driver's own
+// stock makes Chrome fall back to the driver's default media, which is what
+// produced the multi-page, oversized-QR print bug. The on-screen "Print Size"
+// picker that used to sit next to Number of Copies offered 58mm/80mm and
+// never actually drove this — it's been removed entirely.
 
 // expo-print's web implementation (node_modules/expo-print/build/ExponentPrint.web.js)
 // is a stub that ignores the `html` option entirely and just calls
@@ -155,10 +183,13 @@ export default function BarcodePrintScreen({ navigation, route }) {
   // — "Print QR Slip" opens this sheet there instead of the browser/expo-print
   // flow below, which stays only for web/iOS (see handlePrint).
   const [printerSheetOpen, setPrinterSheetOpen] = useState(false);
+  // Page Setup label size — shared with PrinterConnectSheet, where it's picked.
+  const [labelPreset] = useLabelPreset();
   // Ref to the on-screen QR so we can rasterise it to a PNG for the print HTML.
   const qrRef = useRef(null);
-  // Ref to the whole slip card so Share can rasterise it to a PNG image file.
-  const slipRef = useRef(null);
+  // The model's catalogue photo, for bookings without a deviceImageUrl — the
+  // same fallback Home and Device Details use.
+  const [modelImage, setModelImage] = useState(null);
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -166,6 +197,15 @@ export default function BarcodePrintScreen({ navigation, route }) {
     try {
       const t = await ticketApi.get(`/tickets/${ticketId}`).catch(() => null);
       setTicket(t);
+      if (t && !t.deviceImageUrl && t.brandId && t.modelId) {
+        getModelsByBrand(t.brandId)
+          .then((models) => {
+            const m = (models || []).find((x) => x.id === t.modelId);
+            const url = resolveDeviceImageSource({ url: m?.imageUrl, base64: m?.imageBase64 });
+            if (url) setModelImage(url);
+          })
+          .catch(() => {});
+      }
     } finally {
       setLoading(false);
     }
@@ -192,7 +232,8 @@ export default function BarcodePrintScreen({ navigation, route }) {
   // Same field TicketDetailScreen.js reads off this same GET /tickets/:id
   // response (raw, no catalog-image normalization — that's only needed for
   // master_models' own .avif catalog images, not this ticket-level field).
-  const deviceImageUrl = ticket?.deviceImageUrl || null;
+  const deviceImageUrl = ticket?.deviceImageUrl || modelImage || null;
+  const variant = [ticket?.ramLabel, ticket?.storageLabel, ticket?.color].filter(Boolean).join(' · ');
   const services = ticket?.repairServicesSummary
     || ticket?.services?.map?.((s) => s.serviceName).join(', ')
     || '—';
@@ -225,7 +266,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
     });
 
   // Builds the physical print document: ONE <div class="label"> per copy,
-  // each sized to exactly LABEL_WIDTH_MM x LABEL_HEIGHT_MM (the target
+  // each sized to exactly the Page Setup preset's width x height (the target
   // printer's real die-cut stock). No headings anywhere — same content/order
   // as the Bluetooth path (src/services/printer/tspl.js) and the on-screen
   // LabelPreview: service number centered on top, QR + brand/customer/
@@ -244,6 +285,8 @@ export default function BarcodePrintScreen({ navigation, route }) {
   const ICON_PHONE = '<svg viewBox="0 0 24 24" class="icon"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1v3.4c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" fill="#000"/></svg>';
 
   const buildSlipHtml = (qrBase64) => {
+    const LABEL_WIDTH_MM = labelPreset.widthMm;
+    const LABEL_HEIGHT_MM = labelPreset.heightMm;
     const qrCell = qrBase64
       ? `<img class="qr" src="data:image/png;base64,${qrBase64}" />`
       : `<div class="qr qr-fallback">${esc(String(trackingId).toUpperCase())}</div>`;
@@ -306,7 +349,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
                       margin-top: 0.4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .main-row { flex: 1; min-height: 0; display: flex; flex-direction: row; align-items: center;
                     gap: 1mm; margin-top: 0.4mm; }
-        .qr-wrap { flex: 0 0 35%; max-width: 35%; display: flex; align-items: center; justify-content: center; }
+        .qr-wrap { flex: 0 0 12.5mm; max-width: 12.5mm; display: flex; align-items: center; justify-content: center; }
         .qr { width: 11mm; height: 11mm; }
         .qr-fallback { width: 11mm; height: 11mm; display: flex; align-items: center; justify-content: center;
                        border: 0.2mm solid #000; font-weight: 700; font-size: 3.5pt; text-align: center;
@@ -331,36 +374,6 @@ export default function BarcodePrintScreen({ navigation, route }) {
       notify('Copied', `Service number ${trackingId} copied.`, { preset: 'done' });
     } catch (e) {
       notify('Copy failed', e?.message || 'Could not copy to clipboard.');
-    }
-  };
-
-  const handleShare = async () => {
-    // Rasterise the slip card to a PNG and share the image file so WhatsApp,
-    // Gmail, etc. attach it as a picture (not plain text). Falls back to a
-    // text share on any capture / sharing failure (older builds / web).
-    try {
-      const uri = await captureRef(slipRef, { format: 'png', quality: 1, result: 'tmpfile' });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `QR Slip ${trackingId}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-    } catch (_) { /* fall through to text share */ }
-    const msg =
-      `📦 GGFix QR Slip\n\n` +
-      `Service No: ${trackingId}\n` +
-      `Customer: ${customerName}\n` +
-      `Device: ${deviceName}\n` +
-      `Service: ${services}\n` +
-      `Device Security: ${security}\n\n` +
-      `Stick this slip on the device before placing it on the workbench.`;
-    try {
-      await Share.share({ message: msg, title: `QR Slip ${trackingId}` });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Try again');
     }
   };
 
@@ -393,60 +406,45 @@ export default function BarcodePrintScreen({ navigation, route }) {
 
   // Tablet / large-screen: cap the column and centre it, same convention as
   // the rest of the booking flow.
-  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 920), alignSelf: 'center' } : null;
+  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 640), alignSelf: 'center' } : null;
+  // Label preview width — small enough to read as the sticker it is.
+  const previewW = Math.min(250, r.width - 80);
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Subtle decorative mint curved shapes — purely decorative,
-          non-interactive, sit behind everything. Plain positioned circles
-          rather than an SVG wave (no new dependency, and at this low an
-          opacity the exact silhouette doesn't read anyway). */}
-      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: rs(260), overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', top: -rs(90), right: -rs(70), height: rs(220), width: rs(220), borderRadius: rs(110), backgroundColor: MINT, opacity: 0.5 }} />
-        <View style={{ position: 'absolute', top: rs(40), left: -rs(90), height: rs(180), width: rs(180), borderRadius: rs(90), backgroundColor: SOFT_MINT, opacity: 0.6 }} />
-      </View>
-
-      {/* Header — circular back button, title, subtitle, service-id pill
-          (real `trackingId`, unchanged), and a small decorative brand mark
-          in the top-right of the page background. */}
+      {/* Header */}
       <View
         style={{
-          backgroundColor: 'transparent',
-          paddingTop: insets.top + rs(10),
-          paddingBottom: rs(14),
-          paddingHorizontal: rs(16),
+          backgroundColor: '#FFFFFF',
+          paddingTop: insets.top + rs(8),
+          paddingBottom: rs(12),
+          paddingHorizontal: rs(14),
+          borderBottomWidth: 1,
+          borderBottomColor: BORDER,
         }}
       >
         <View style={colStyle}>
-          <View className="flex-row items-start">
+          <View className="flex-row items-center">
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
+              hitSlop={6}
               style={{
-                height: rs(52), width: rs(52), borderRadius: rs(26), marginRight: rs(12),
-                alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
-                borderWidth: 1, borderColor: BORDER, ...cardShadow, shadowOpacity: 0.05,
+                height: 36, width: 36, borderRadius: 18, marginRight: 10,
+                alignItems: 'center', justifyContent: 'center', backgroundColor: PAGE_BG,
+                borderWidth: 1, borderColor: BORDER,
               }}
             >
-              <ChevronLeft size={rf(24)} color={TEXT_PRIMARY} />
+              <ChevronLeft size={19} color={TEXT_PRIMARY} />
             </TouchableOpacity>
-            <View style={{ flex: 1, paddingTop: rs(2) }}>
-              <Text style={{ fontSize: rf(22), fontWeight: '800', color: TEXT_PRIMARY }} numberOfLines={1}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: TEXT_PRIMARY }} numberOfLines={1}>
                 QR E-Print
               </Text>
-              <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(3) }} numberOfLines={1}>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={2}>
                 Generate and print a QR slip for easy tracking
-              </Text>
-            </View>
-            <View
-              className="items-center justify-center"
-              style={{ maxWidth: rs(170), height: rs(46), borderRadius: 999, paddingHorizontal: rs(12), backgroundColor: MINT }}
-            >
-              <Text style={{ fontSize: rf(10.5), fontWeight: '800' }} numberOfLines={1}>
-                <Text style={{ color: TEXT_PRIMARY }}>#{tid.prefix}</Text>
-                <Text style={{ color: ACCENT }}>{tid.digits}</Text>
               </Text>
             </View>
           </View>
@@ -456,164 +454,108 @@ export default function BarcodePrintScreen({ navigation, route }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 90 }}
       >
-        {/* Hero banner — "One Scan. Complete Service Details." An icon-based
-            phone+QR mark stands in for a full illustration graphic (no image
-            asset was supplied and adding one is out of scope for a UI-only
-            pass), paired with the REPAIR / TRACK / RESOLVE checklist moved
-            up from the header into its proper spot here. */}
-        <View className="px-4" style={{ marginTop: rs(6) }}>
-          <View style={colStyle}>
-            <LinearGradient
-              colors={[MINT, SOFT_MINT]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ borderRadius: rs(22), padding: rs(16), borderWidth: 1, borderColor: BORDER }}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className="items-center justify-center"
-                  style={{ height: rs(46), width: rs(46), borderRadius: rs(15), marginRight: rs(12), backgroundColor: '#FFFFFF' }}
-                >
-                  <QrCode size={rf(21)} color={ACCENT} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text className="font-extrabold" style={{ fontSize: rf(15), lineHeight: rf(19), color: TEXT_PRIMARY }}>
-                    One Scan.{'\n'}Complete Service Details.
-                  </Text>
-                  <Text style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, marginTop: rs(3) }} numberOfLines={1}>
-                    Faster service. Better tomorrow.
-                  </Text>
-                </View>
-                {/* Compact phone + QR mark, standing in for a full illustration. */}
-                <View
-                  className="items-center justify-center"
-                  style={{ height: rs(50), width: rs(38), borderRadius: rs(10), marginLeft: rs(8), backgroundColor: ACCENT }}
-                >
-                  <View
-                    className="items-center justify-center"
-                    style={{ height: rs(24), width: rs(24), borderRadius: rs(5), backgroundColor: '#FFFFFF' }}
-                  >
-                    <QrCode size={rf(14)} color={ACCENT} />
-                  </View>
-                </View>
-              </View>
-
-              <View style={{ height: 1, backgroundColor: BORDER, marginVertical: rs(12) }} />
-
-              <View className="flex-row" style={{ justifyContent: 'space-between' }}>
-                {['REPAIR', 'TRACK', 'RESOLVE'].map((w) => (
-                  <View key={w} className="flex-row items-center">
-                    <View
-                      className="items-center justify-center"
-                      style={{ height: rs(16), width: rs(16), borderRadius: rs(8), backgroundColor: ACCENT, marginRight: rs(5) }}
-                    >
-                      <Check size={rf(10)} color="#FFFFFF" strokeWidth={3} />
-                    </View>
-                    <Text style={{ fontSize: rf(10), fontWeight: '800', letterSpacing: 0.8, color: TEXT_PRIMARY }}>{w}</Text>
-                  </View>
-                ))}
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        {/* Booking summary card */}
-        <View className="px-4" style={{ marginTop: rs(14) }}>
-          <View style={colStyle}>
-            <View
-              className="flex-row items-center"
-              style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(14), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
-            >
+        <View style={colStyle}>
+          {/* ── Booking card: photo, full device name, variant, services,
+              then tracking ID / customer / services / device lock ── */}
+          <View style={card}>
+            <View className="flex-row items-center">
               <View
-                className="items-center justify-center overflow-hidden"
                 style={{
-                  height: rs(58), width: rs(58), borderRadius: rs(18), marginRight: rs(12),
-                  backgroundColor: MINT, borderWidth: 1, borderColor: BORDER,
+                  height: 64, width: 60, borderRadius: 14, marginRight: 12, backgroundColor: '#FFFFFF',
+                  borderWidth: 1, borderColor: '#F3F3F3', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}
               >
                 {deviceImageUrl ? (
-                  <Image source={{ uri: deviceImageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <Image source={{ uri: deviceImageUrl }} style={{ width: 52, height: 56 }} resizeMode="contain" />
                 ) : (
-                  <Smartphone size={rf(24)} color={ACCENT} />
+                  <Smartphone size={24} color={ACCENT} />
                 )}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text className="uppercase font-bold" style={{ fontSize: rf(10), letterSpacing: 0.7, color: TEXT_SECONDARY }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.7, color: TEXT_SECONDARY }}>
                   Booking
                 </Text>
-                <Text className="font-extrabold" style={{ fontSize: rf(18), marginTop: rs(2), color: TEXT_PRIMARY }} numberOfLines={1}>
+                <Text className="font-extrabold" style={{ fontSize: 15, lineHeight: 19, marginTop: 1, color: TEXT_PRIMARY }}>
                   {deviceName}
                 </Text>
-                <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(6) }}>
-                  <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT, marginRight: rs(6), marginBottom: rs(2) }}>
-                    <Text style={{ fontSize: rf(10), fontWeight: '700', color: ACCENT }} numberOfLines={1}>
-                      #{trackingId}
-                    </Text>
+                {variant ? (
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }}>{variant}</Text>
+                ) : null}
+                {serviceCountLabel ? (
+                  <View className="flex-row items-center rounded-full" style={{ alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: MINT }}>
+                    <Wrench size={10} color={PRIMARY} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 4 }}>{serviceCountLabel}</Text>
                   </View>
-                  {serviceCountLabel ? (
-                    <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT, marginBottom: rs(2) }}>
-                      <Wrench size={rf(9.5)} color={ACCENT} />
-                      <Text style={{ fontSize: rf(10), fontWeight: '700', color: ACCENT, marginLeft: rs(4) }} numberOfLines={1}>
-                        {serviceCountLabel}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                ) : null}
               </View>
-              <TouchableOpacity
-                onPress={handleCopy}
-                activeOpacity={0.8}
-                className="flex-row items-center"
-                style={{
-                  borderRadius: 999, paddingHorizontal: rs(14), paddingVertical: rs(10), backgroundColor: MINT,
-                  borderWidth: 1, borderColor: ACCENT,
-                }}
-              >
-                <Copy size={rf(13)} color={ACCENT} />
-                <Text
-                  className="font-extrabold"
-                  style={{ fontSize: rf(11), letterSpacing: 0.8, color: ACCENT, marginLeft: rs(6) }}
-                >
-                  COPY
+            </View>
+
+            <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F3F3' }}>
+              <DetailRow icon={Hash} label="Tracking ID">
+                <View className="flex-row items-center">
+                  <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 0.2 }}>
+                    <Text style={{ color: TEXT_PRIMARY }}>#{tid.prefix}</Text>
+                    <Text style={{ color: ACCENT }}>{tid.digits}</Text>
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleCopy}
+                    activeOpacity={0.8}
+                    hitSlop={6}
+                    className="flex-row items-center"
+                    style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: MINT }}
+                  >
+                    <Copy size={11} color={PRIMARY} />
+                    <Text style={{ marginLeft: 4, fontSize: 10, fontWeight: '800', color: PRIMARY }}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
+              </DetailRow>
+              <DetailRow icon={User} label="Customer">
+                <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>
+                  {[customerName, customerPhone].filter((v) => v && v !== '—').join(' · ') || '—'}
                 </Text>
-              </TouchableOpacity>
+              </DetailRow>
+              <DetailRow icon={Wrench} label="Services">
+                <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{services}</Text>
+              </DetailRow>
+              <DetailRow icon={Lock} label="Device Lock" isLast>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{security}</Text>
+              </DetailRow>
             </View>
           </View>
-        </View>
 
-        {/* QR label preview — compact, matches the physical 38x25mm printed
-            label exactly: no headings, service number centered on top, QR +
-            brand/model / customer / device security on the right, created-on
-            centered on the bottom (LabelPreview.js — the same component the
-            Bluetooth print sheet shows, and the same content/order as the
-            Bluetooth TSPL label and the web-print fallback below). */}
-        <View className="px-4" style={{ marginTop: rs(16) }}>
-          <View style={colStyle}>
-            <View
-              ref={slipRef}
-              collapsable={false}
-              style={{
-                borderRadius: rs(20), padding: rs(16), backgroundColor: CARD_BG,
-                borderWidth: 1, borderColor: BORDER, ...cardShadow, alignItems: 'center',
-              }}
-            >
-              <View style={{ width: '100%', maxWidth: rs(340) }}>
+          {/* ── QR label preview — the same LabelPreview the print sheet shows,
+              drawn from the printer's own layout for the selected preset ── */}
+          <View style={[card, { marginTop: 10 }]}>
+            <View className="flex-row items-center">
+              <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT, marginRight: 9 }}>
+                <QrCode size={14} color={ACCENT} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY }}>QR Label</Text>
+                <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }}>
+                  {labelPreset.name} · {presetSizeText(labelPreset)}
+                </Text>
+              </View>
+            </View>
+            <View style={{ alignItems: 'center', marginTop: 12, marginBottom: 4 }}>
+              <View style={{ width: previewW }}>
                 <LabelPreview
+                  preset={labelPreset}
                   trackingId={trackingId}
                   brandModel={brandModel}
                   customerName={customerName}
                   deviceSecurity={security}
                   createdOn={createdOn}
-                  scale={1.8}
+                  scale={1.4}
                 />
               </View>
             </View>
           </View>
         </View>
 
-        {/* Off-screen QR, purely so getQrPng() can rasterise a PNG for the
+      {/* Off-screen QR, purely so getQrPng() can rasterise a PNG for the
             web/iOS expo-print fallback below (handlePrint) — the physical
             Android print doesn't use this: the Bluetooth printer generates
             its own QR from TSPL's QRCODE command (src/services/printer/tspl.js).
@@ -640,48 +582,34 @@ export default function BarcodePrintScreen({ navigation, route }) {
 
       {/* Sticky action bar */}
       <View
-        className="absolute left-0 right-0 bottom-0 flex-row"
+        className="absolute left-0 right-0 bottom-0"
         style={{
-          paddingHorizontal: rs(16),
-          paddingTop: rs(12),
-          paddingBottom: insets.bottom + rs(12),
-          backgroundColor: 'rgba(244, 251, 248, 0.97)',
+          paddingHorizontal: 14,
+          paddingTop: 10,
+          paddingBottom: insets.bottom + 10,
+          backgroundColor: 'rgba(255, 255, 255, 0.97)',
           borderTopWidth: 1,
           borderTopColor: BORDER,
         }}
       >
-        <View style={[{ flexDirection: 'row', flex: 1 }, colStyle]}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleShare}
-            className="flex-row items-center justify-center"
-            style={{
-              flex: 1, marginRight: rs(8), borderRadius: rs(20), paddingVertical: rs(16),
-              backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT, ...cardShadow,
-            }}
-          >
-            <Share2 size={rf(17)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: ACCENT, marginLeft: rs(8) }} numberOfLines={1}>
-              Share QR Slip
-            </Text>
-          </TouchableOpacity>
+        <View style={colStyle}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={handlePrint}
             disabled={printing}
-            style={{ flex: 1, marginLeft: rs(8), borderRadius: rs(20), overflow: 'hidden', ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.28 }}
+            style={{ borderRadius: 14, overflow: 'hidden' }}
           >
             <LinearGradient
-              colors={[PRIMARY, ACCENT]}
+              colors={[ACCENT, PRIMARY]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={{
-                paddingVertical: rs(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                 opacity: printing ? 0.7 : 1,
               }}
             >
-              <Printer size={rf(17)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ fontSize: rf(14.5), marginLeft: rs(8) }} numberOfLines={1}>
+              <Printer size={16} color="#FFFFFF" />
+              <Text className="text-white font-extrabold" style={{ fontSize: 13, marginLeft: 8 }} numberOfLines={1}>
                 {printing ? 'Printing…' : 'Print QR Slip'}
               </Text>
             </LinearGradient>

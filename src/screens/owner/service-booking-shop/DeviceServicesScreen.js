@@ -64,31 +64,44 @@ import { useResponsive } from '../../../theme/responsive';
 // GGFIX palette (kept as the same named constants used throughout this file,
 // values aligned to the app's Primary/Dark/Bright green + mint system so the
 // screen reads as one premium surface rather than a plain form).
-const BRAND_GREEN = '#004C40'; // warranty / category-chip active fill — Dark Green
+const BRAND_GREEN = '#09AD2A'; // warranty / category-chip active fill — GGFIX green
 
 // Page background is the soft off-white token so white cards read as
 // elevated surfaces against it, instead of white-on-white with only a
 // shadow to separate them.
-const SCREEN_BG = '#F8FAF9';
+const SCREEN_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER_SOFT = '#DDE7E3';
+const CARD_LINE = '#F3F3F3';   // outer card hairline (cards sit on the grey page)
+const BORDER_SOFT = '#E6E6E6'; // inner borders on white (inputs, chips, dividers)
 // Service row surface — a real white card now (was a flat grey fill), so it
 // sits above the page background instead of blending into it.
 const ROW_BG = '#FFFFFF';
-const ICON_DISC = '#E8F7F2'; // mint icon-tile background
-const ICON_TINT = '#004C40';
+const ICON_DISC = '#EAF8EC'; // mint icon-tile background
+const ICON_TINT = '#09AD2A'; // icons / fills
+const TEXT_GREEN = '#078F23'; // green text on white / mint
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const PLACEHOLDER = '#8A8A8A';
 
-// Add button uses the brighter accent so it reads as the primary action,
-// distinct from the darker green used for icon tiles/labels. Disabled fill
-// is the same hue at 35% rather than a separate grey.
-const ADD_BG = '#00A86B';
-const ADD_BG_OFF = 'rgba(0, 168, 107, 0.35)';
+// Add button uses the GGFIX green so it reads as the primary action.
+// Disabled fill is the same hue at 35% rather than a separate grey.
+const ADD_BG = '#09AD2A';
+const ADD_BG_OFF = 'rgba(9, 173, 42, 0.35)';
 
 // Picked-state wash — a service card and its ADDED pill both use this once a
 // service is added, replacing the old red "REMOVE" treatment (which read as
 // a warning rather than a confirmation).
-const MINT_BG = '#E8F7F2';
-const ACCENT_20 = 'rgba(0, 76, 64, 0.20)';
+const MINT_BG = '#EAF8EC';
+const ACCENT_20 = '#CDEFD4'; // mint border
+
+// Soft card shadow (palette: ink, ≤0.06 opacity, ≤10 radius, y ≤3).
+const CARD_SHADOW = {
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.05,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
+};
 
 const WARRANTY_OPTIONS = [
   { code: 'W_3M', label: '3 Months' },
@@ -374,10 +387,14 @@ export default function DeviceServicesScreen({ navigation, route }) {
     return (
       <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
         <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 12, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}
         >
-          <Pressable onPress={() => navigation.goBack()} className="h-10 w-10 rounded-full bg-surface-muted items-center justify-center">
-            <ArrowLeft size={20} color="#172117" />
+          <Pressable
+            onPress={() => navigation.goBack()}
+            className="items-center justify-center"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
+          >
+            <ArrowLeft size={18} color={INK} />
           </Pressable>
         </View>
         <View className="flex-1 items-center justify-center">
@@ -393,20 +410,21 @@ export default function DeviceServicesScreen({ navigation, route }) {
     <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
       {/* ── White header — matches app's other white headers ─────── */}
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 20, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}
       >
-        <View className="relative flex-row items-center justify-center">
+        <View className="relative flex-row items-center justify-center" style={{ minHeight: 36 }}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="absolute left-0 h-10 w-10 rounded-full bg-surface-muted items-center justify-center active:opacity-70"
+            className="absolute left-0 items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={18} color={INK} />
           </Pressable>
 
           <View className="items-center px-12">
             <Text
-              className="text-text font-medium text-center"
-              style={{ fontSize: rf(13) }}
+              className="text-center"
+              style={{ fontSize: 17, fontWeight: '800', color: INK }}
               numberOfLines={1}
             >
               Add Issue Services
@@ -432,7 +450,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
         bottomOffset={rs(140)}
         contentContainerStyle={{
           paddingTop: 0,
-          paddingBottom: rs(160),
+          paddingBottom: rs(120),
           // Tablets: cap the column and centre it. Full-bleed rows on a 10"
           // screen put the price field and its ADD button a hand's width
           // apart, which is a worse form than a narrow one.
@@ -441,46 +459,49 @@ export default function DeviceServicesScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* ── Device summary card — mint accent header, soft shadow ──────── */}
-        <View className="px-4" style={{ marginTop: 14 }}>
+        {/* ── Device summary card — plain white, soft shadow ──────── */}
+        <View className="px-4" style={{ marginTop: 12 }}>
           <View
             style={{
               backgroundColor: CARD_BG,
-              borderRadius: rs(18),
+              borderRadius: 16,
               borderWidth: 1,
-              borderColor: BORDER_SOFT,
+              borderColor: CARD_LINE,
               overflow: 'hidden',
-              shadowColor: '#0B1F14',
-              shadowOpacity: 0.08,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 5,
+              ...CARD_SHADOW,
+              shadowOpacity: 0.06,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 2,
             }}
           >
-            <View style={{ backgroundColor: MINT_BG, paddingHorizontal: rs(14), paddingVertical: rs(12) }}>
+            <View style={{ backgroundColor: CARD_BG, paddingHorizontal: 12, paddingVertical: 10 }}>
               <View className="flex-row items-center">
                 <View
                   className="items-center justify-center overflow-hidden mr-3"
-                  style={{ height: rs(56), width: rs(56), borderRadius: rs(16), backgroundColor: '#FFFFFF' }}
+                  style={{ height: 52, width: 52, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_20 }}
                 >
                   {params.imageUrl ? (
-                    <Image source={{ uri: params.imageUrl }} style={{ width: rs(56), height: rs(56) }} resizeMode="cover" />
+                    <Image source={{ uri: params.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="cover" />
                   ) : (
-                    <Smartphone size={24} color={ICON_TINT} />
+                    <Smartphone size={22} color={ICON_TINT} />
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="font-semibold text-text" style={{ fontSize: rf(14) }} numberOfLines={1}>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: INK }} numberOfLines={2}>
                     {params.modelName || 'Device'}
                   </Text>
-                  <Text className="text-text-muted mt-0.5" style={{ fontSize: rf(11.5) }} numberOfLines={1}>
+                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={2}>
                     {[params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ')}
                   </Text>
                   {params.modelNumber ? (
-                    <View className="flex-row items-center mt-1.5">
-                      <View className="flex-row items-center bg-card rounded-md px-1.5 py-0.5">
+                    <View className="flex-row items-center" style={{ marginTop: 5 }}>
+                      <View
+                        className="flex-row items-center"
+                        style={{ backgroundColor: '#FFFFFF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: ACCENT_20 }}
+                      >
                         <Hash size={10} color={ICON_TINT} />
-                        <Text className="font-medium ml-0.5" style={{ fontSize: rf(11.5), color: ICON_TINT }}>{params.modelNumber}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 2 }}>{params.modelNumber}</Text>
                       </View>
                     </View>
                   ) : null}
@@ -494,15 +515,15 @@ export default function DeviceServicesScreen({ navigation, route }) {
             {totalSelected > 0 ? (
               <View
                 className="flex-row items-center justify-between"
-                style={{ paddingHorizontal: rs(14), paddingVertical: rs(9), borderTopWidth: 1, borderTopColor: BORDER_SOFT }}
+                style={{ paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: ACCENT_20 }}
               >
                 <View className="flex-row items-center">
                   <Check size={12} color={ICON_TINT} strokeWidth={3} />
-                  <Text className="font-medium ml-1.5" style={{ fontSize: rf(11.5), color: ICON_TINT }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 6 }}>
                     {totalSelected} service{totalSelected === 1 ? '' : 's'} selected
                   </Text>
                 </View>
-                <Text className="font-bold" style={{ fontSize: rf(12), color: ICON_TINT }}>₹{formatINR(cartTotal)}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: TEXT_GREEN }}>₹{formatINR(cartTotal)}</Text>
               </View>
             ) : null}
           </View>
@@ -511,16 +532,16 @@ export default function DeviceServicesScreen({ navigation, route }) {
         {/* ── Section header ─────────────────────────────────────────────
             Title Case, no letter-spacing: `tracking-widest` only exists to
             make all-caps legible. */}
-        <View className="px-4 pt-5 pb-2 flex-row items-center">
+        <View className="px-4 flex-row items-center" style={{ paddingTop: 14, paddingBottom: 8 }}>
           <View
             className="items-center justify-center mr-2"
-            style={{ height: rs(24), width: rs(24), borderRadius: rs(7), backgroundColor: MINT_BG }}
+            style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT_BG }}
           >
-            <Sparkles size={13} color={ICON_TINT} />
+            <Sparkles size={14} color={ICON_TINT} />
           </View>
           <View className="flex-1">
-            <Text className="text-text font-semibold" style={{ fontSize: rf(13.5) }}>Recommended Repairs</Text>
-            <Text className="text-text-muted" style={{ fontSize: rf(11) }}>Tap a category to see issues & pricing</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>Recommended Repairs</Text>
+            <Text style={{ fontSize: 11, color: MUTED }}>Tap a category to see issues & pricing</Text>
           </View>
         </View>
 
@@ -563,15 +584,15 @@ export default function DeviceServicesScreen({ navigation, route }) {
                     <GroupIcon size={18} color={ICON_TINT} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-semibold text-text" style={{ fontSize: rf(13.5) }} numberOfLines={1}>{g.name}</Text>
+                    <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>{g.name}</Text>
                     <View className="flex-row items-center mt-0.5">
-                      <Text className="text-text-muted" style={{ fontSize: rf(11.5) }}>
+                      <Text className="text-text-muted" style={{ fontSize: 11 }}>
                         {g.services.length} {g.services.length === 1 ? 'option' : 'options'}
                       </Text>
                       {pickedInGroup ? (
                         <>
                           <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                          <Text className="font-semibold" style={{ fontSize: rf(11.5), color: ICON_TINT }}>
+                          <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>
                             {pickedInGroup} added
                           </Text>
                         </>
@@ -646,13 +667,13 @@ export default function DeviceServicesScreen({ navigation, route }) {
                 <Sparkles size={18} color={ICON_TINT} />
               </View>
               <View className="flex-1">
-                <Text className="font-semibold text-text" style={{ fontSize: rf(13.5) }} numberOfLines={1}>Others</Text>
+                <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>Others</Text>
                 <View className="flex-row items-center mt-0.5">
-                  <Text className="text-text-muted" style={{ fontSize: rf(11.5) }}>Add a custom issue</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 11 }}>Add a custom issue</Text>
                   {customIssues.length ? (
                     <>
                       <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                      <Text className="font-semibold" style={{ fontSize: rf(11.5), color: ICON_TINT }}>{customIssues.length} added</Text>
+                      <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>{customIssues.length} added</Text>
                     </>
                   ) : null}
                 </View>
@@ -683,8 +704,8 @@ export default function DeviceServicesScreen({ navigation, route }) {
                         <Sparkles size={18} color={ICON_TINT} />
                       </View>
                       <View className="flex-1 pr-1.5">
-                        <Text className="font-medium text-text " style={{ fontSize: rf(13) }} numberOfLines={2}>{c.name}</Text>
-                        <Text className="text-text-muted mt-0.5" style={{ fontSize: rf(11.5) }} numberOfLines={1}>
+                        <Text className="font-medium text-text " style={{ fontSize: 13 }} numberOfLines={2}>{c.name}</Text>
+                        <Text className="text-text-muted mt-0.5" style={{ fontSize: 11 }} numberOfLines={1}>
                           {c.categoryName}
                           {Number(c.price) > 0
                             ? ` · ₹${Number(c.price).toLocaleString('en-IN')}`
@@ -697,7 +718,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                         style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
                       >
                         <X size={12} color="#DC2626" />
-                        <Text className="text-danger font-medium ml-1" style={{ fontSize: rf(11.5) }}>REMOVE</Text>
+                        <Text className="text-danger font-medium ml-1" style={{ fontSize: 11 }}>REMOVE</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -705,7 +726,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
 
                 {/* Draft: enter issue → pick condition category → price + warranty → ADD */}
                 <View className="rounded-2xl bg-background border-border" style={{ borderWidth: 1, padding: 10 }}>
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>ISSUE</Text>
+                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>ISSUE</Text>
                   <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5">
                     <TextInput
                       key={`other-name-${otherFormKey}`}
@@ -714,13 +735,13 @@ export default function DeviceServicesScreen({ navigation, route }) {
                       placeholder="Describe the issue (e.g. Face ID not working)"
                       placeholderTextColor="#8FA08F"
                       className="text-text"
-                      style={{ paddingVertical: rs(8), fontSize: rf(13) }}
+                      style={{ paddingVertical: rs(8), fontSize: 13 }}
                     />
                   </View>
 
                   {groups.length ? (
                     <>
-                      <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>CONDITION CATEGORY</Text>
+                      <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>CONDITION CATEGORY</Text>
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -737,7 +758,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                               className="mr-2 px-3 py-1.5 rounded-full"
                               style={{ backgroundColor: active ? BRAND_GREEN : '#fff', borderWidth: 1, borderColor: active ? BRAND_GREEN : '#E2E8E2' }}
                             >
-                              <Text className={`font-medium ${active ? 'text-white' : 'text-text'}`} style={{ fontSize: rf(11.5) }}>{g.name}</Text>
+                              <Text className={`font-medium ${active ? 'text-white' : 'text-text'}`} style={{ fontSize: 11 }}>{g.name}</Text>
                             </Pressable>
                           );
                         })}
@@ -745,9 +766,9 @@ export default function DeviceServicesScreen({ navigation, route }) {
                     </>
                   ) : null}
 
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>PRICE (₹)</Text>
+                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>PRICE (₹)</Text>
                   <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5 flex-row items-center">
-                    <Text className="text-text-muted font-bold mr-1" style={{ fontSize: rf(15) }}>₹</Text>
+                    <Text className="text-text-muted font-bold mr-1" style={{ fontSize: 13 }}>₹</Text>
                     <TextInput
                       key={`other-price-${otherFormKey}`}
                       defaultValue=""
@@ -756,7 +777,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                       placeholderTextColor="#8FA08F"
                       keyboardType="numeric"
                       className="flex-1 text-text"
-                      style={{ paddingVertical: rs(8), fontSize: rf(13) }}
+                      style={{ paddingVertical: rs(8), fontSize: 13 }}
                     />
                   </View>
 
@@ -767,7 +788,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                     style={{ backgroundColor: otherHasName ? ADD_BG : ADD_BG_OFF }}
                   >
                     <Plus size={14} color="#fff" />
-                    <Text className="text-white font-medium ml-1" style={{ fontSize: rf(13) }}>ADD ISSUE</Text>
+                    <Text className="text-white font-medium ml-1" style={{ fontSize: 13 }}>ADD ISSUE</Text>
                   </Pressable>
                 </View>
               </View>
@@ -812,13 +833,13 @@ export default function DeviceServicesScreen({ navigation, route }) {
             <View className="flex-1">
               <Text
                 className="font-bold"
-                style={{ fontSize: rf(11.5), color: totalSelected > 0 ? '#FFFFFF' : '#667085', opacity: totalSelected > 0 ? 0.9 : 1 }}
+                style={{ fontSize: 11, color: totalSelected > 0 ? '#FFFFFF' : '#667085', opacity: totalSelected > 0 ? 0.9 : 1 }}
               >
                 {totalSelected} Service{totalSelected === 1 ? '' : 's'} Selected
               </Text>
               <Text
                 className="font-medium"
-                style={{ fontSize: rf(13), color: totalSelected > 0 ? '#FFFFFF' : ICON_TINT }}
+                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : ICON_TINT }}
               >
                 {totalSelected > 0 ? `Estimated ₹${formatINR(cartTotal)}` : 'Add a service to continue'}
               </Text>
@@ -826,7 +847,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
             <View className="flex-row items-center">
               <Text
                 className="font-medium"
-                style={{ fontSize: rf(13), color: totalSelected > 0 ? '#FFFFFF' : '#9AA6A0', marginRight: 2 }}
+                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : '#9AA6A0', marginRight: 2 }}
               >
                 Continue
               </Text>
@@ -871,7 +892,7 @@ function ServiceItem({
         >
           <Icon size={19} color={ICON_TINT} />
         </View>
-        <Text className="flex-1 font-semibold text-text" style={{ fontSize: rf(13.5) }} numberOfLines={2}>{name}</Text>
+        <Text className="flex-1 font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={2}>{name}</Text>
       </View>
 
       {/* Row 2 — price action row: [₹ input] [Last 5 prices] [+ Add / ✓ Added],
@@ -882,7 +903,7 @@ function ServiceItem({
           className="flex-row items-center rounded-full px-3"
           style={{ height: rs(34), borderWidth: 1, borderColor: isPicked ? ICON_TINT : BORDER_SOFT, backgroundColor: '#FFFFFF' }}
         >
-          <Text className="text-text-muted mr-1 font-semibold" style={{ fontSize: rf(11.5) }}>₹</Text>
+          <Text className="text-text-muted mr-1 font-semibold" style={{ fontSize: 11 }}>₹</Text>
           <TextInput
             placeholder="0"
             placeholderTextColor="#8FA08F"
@@ -893,7 +914,7 @@ function ServiceItem({
             importantForAutofill="no"
             textContentType="none"
             className="text-text font-bold"
-            style={{ paddingVertical: 0, fontSize: rf(13), minWidth: rs(42) }}
+            style={{ paddingVertical: 0, fontSize: 13, minWidth: rs(42) }}
           />
         </View>
 
@@ -905,7 +926,7 @@ function ServiceItem({
               #004C40, but NativeWind compiles classes at BUILD time, so a
               token change only lands after `expo start --clear` — and this
               link kept rendering the old green from a warm cache. */}
-          <Text numberOfLines={1} style={{ fontSize: rf(10.5), fontWeight: '600', color: ICON_TINT }}>Last 5 prices</Text>
+          <Text numberOfLines={1} style={{ fontSize: 10.5, fontWeight: '600', color: ICON_TINT }}>Last 5 prices</Text>
         </Pressable>
 
         <View style={{ marginLeft: 'auto' }}>
@@ -920,7 +941,7 @@ function ServiceItem({
               style={{ height: rs(34), paddingHorizontal: rs(11), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ICON_TINT }}
             >
               <Check size={12} color={ICON_TINT} strokeWidth={3} />
-              <Text className="font-semibold ml-1" style={{ fontSize: rf(11.5), color: ICON_TINT }}>Added</Text>
+              <Text className="font-semibold ml-1" style={{ fontSize: 11, color: ICON_TINT }}>Added</Text>
             </Pressable>
           ) : (
             <Pressable
@@ -939,7 +960,7 @@ function ServiceItem({
               }}
             >
               <Plus size={13} color="#fff" strokeWidth={2.5} />
-              <Text className="text-white font-semibold ml-1" style={{ fontSize: rf(11.5) }}>Add</Text>
+              <Text className="text-white font-semibold ml-1" style={{ fontSize: 11 }}>Add</Text>
             </Pressable>
           )}
         </View>
@@ -947,7 +968,7 @@ function ServiceItem({
 
       {/* Row 3 — warranty chips */}
       <View className="mt-3">
-        <Text className="font-semibold text-text-muted mb-1.5" style={{ fontSize: rf(11.5) }}>Warranty</Text>
+        <Text className="font-semibold text-text-muted mb-1.5" style={{ fontSize: 11 }}>Warranty</Text>
         <View className="flex-row -mx-1">
           {WARRANTY_OPTIONS.map((w) => {
             const active = warranty === w.code;
@@ -972,7 +993,7 @@ function ServiceItem({
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.85}
-                  style={{ fontSize: rf(11.5) }}
+                  style={{ fontSize: 11 }}
                   className={`font-medium ${active ? 'text-white' : 'text-text'}`}
                 >
                   {w.label}

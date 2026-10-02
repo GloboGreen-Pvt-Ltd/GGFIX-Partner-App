@@ -17,6 +17,8 @@ export interface DashboardBookingCardProps {
   width: number;
 }
 export function DashboardBookingCard({ image, device, ticketNo, customer, date, status, tone, onPress, width }: DashboardBookingCardProps) {
+  // Two-per-row cards on a phone are narrow: shrink the thumbnail to give the text room.
+  const narrow = width < 230;
   return (
     <Touchable
       onPress={onPress}
@@ -24,7 +26,7 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
       accessibilityLabel={`${device}, ticket ${ticketNo}, ${customer}, ${status}`}
       style={{
         width,
-        minHeight: 132,
+        minHeight: narrow ? 118 : 128,
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: 18,
@@ -32,8 +34,8 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         paddingHorizontal: 10,
         paddingVertical: 10,
         borderWidth: 1,
-        borderColor: '#E7ECEA',
-        shadowColor: '#0B1F14',
+        borderColor: '#F3F3F3',
+        shadowColor: '#1E1E1E',
         shadowOpacity: 0.05,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
@@ -43,17 +45,17 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
     >
       <View
         style={{
-          width: 72,
-          height: 88,
+          width: narrow ? 50 : 66,
+          height: narrow ? 70 : 84,
           borderRadius: 12,
           backgroundColor: '#FFFFFF',
           alignItems: 'center',
           justifyContent: 'center',
-          marginRight: 10,
+          marginRight: narrow ? 8 : 10,
         }}
       >
         {image ? (
-          <Image source={{ uri: image }} style={{ width: 60, height: 78 }} resizeMode="contain" />
+          <Image source={{ uri: image }} style={{ width: narrow ? 42 : 56, height: narrow ? 62 : 76 }} resizeMode="contain" />
         ) : (
           <Smartphone size={26} color={C.placeholder} strokeWidth={ICON_STROKE} />
         )}
@@ -78,10 +80,10 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
           </Text>
         </View>
 
-        <Text style={{ fontSize: 13, lineHeight: 17, fontWeight: '700', color: C.label, letterSpacing: -0.2, marginTop: 5 }} numberOfLines={1} ellipsizeMode="tail">
+        <Text style={{ fontSize: narrow ? 12.5 : 13, lineHeight: narrow ? 16 : 17, fontWeight: '700', color: C.label, letterSpacing: -0.2, marginTop: 5 }} numberOfLines={narrow ? 2 : 1} ellipsizeMode="tail">
           {device}
         </Text>
-        <Text style={{ fontSize: 11, lineHeight: 15, color: C.label2, fontWeight: '500', marginTop: 2, letterSpacing: 0.1 }} numberOfLines={1}>
+        <Text style={{ fontSize: narrow ? 10.5 : 11, lineHeight: 15, color: C.label2, fontWeight: '500', marginTop: 2, letterSpacing: 0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           #{ticketNo}
         </Text>
 
@@ -99,7 +101,7 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         </View>
       </View>
 
-      <ChevronRight size={18} color={C.tint} strokeWidth={ICON_STROKE} style={{ marginLeft: 4 }} />
+      <ChevronRight size={18} color="#16A34A" strokeWidth={ICON_STROKE} style={{ marginLeft: 2 }} />
     </Touchable>
   );
 }

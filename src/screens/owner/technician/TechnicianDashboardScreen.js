@@ -23,7 +23,7 @@ function StatTile({ icon: Icon, label, value, tone = 'primary' }) {
         <View className={`h-10 w-10 rounded-2xl items-center justify-center mb-2 ${tones.bg}`}>
           <Icon size={18} color={tones.fg} />
         </View>
-        <Text className="text-[20px] font-extrabold text-text">{value}</Text>
+        <Text className="text-[17px] font-extrabold text-text">{value}</Text>
         <Text className="text-[11px] text-text-muted mt-0.5">{label}</Text>
       </Card>
     </View>

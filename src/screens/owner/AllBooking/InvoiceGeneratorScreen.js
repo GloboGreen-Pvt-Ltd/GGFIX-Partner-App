@@ -547,7 +547,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         <View className="px-4" style={{ marginTop: 12 }}>
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13.5px] font-bold text-gray-900">
+              <Text className="text-[13px] font-bold text-gray-900">
                 (A) Service Charges
               </Text>
               <View
@@ -694,7 +694,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             <PlainTotalRow label="(2) Service Charges"      value={`₹${fmt(totals.serviceCharges)}`} />
             <PlainTotalRow label="(3) Spare Utility Charges (Taxable Value)" value={`₹${fmt(totals.spareUtility)}`} />
             <View className="flex-row items-center py-1.5">
-              <Text className="text-[12.5px] font-semibold text-gray-700 flex-1">
+              <Text className="text-[12px] font-semibold text-gray-700 flex-1">
                 (4) Discount
               </Text>
               <View
@@ -790,7 +790,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   }}
                 >
                   <Text
-                    className="text-[12.5px] font-extrabold"
+                    className="text-[12px] font-extrabold"
                     style={{ color: '#172117' }}
                     numberOfLines={1}
                   >
@@ -870,7 +870,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               <Text className="text-[13px] font-extrabold text-gray-900">
                 Final Payable Amount (₹)
               </Text>
-              <Text className="text-[14px] font-extrabold text-gray-900">
+              <Text className="text-[13px] font-extrabold text-gray-900">
                 ₹{fmt(totals.finalPayable)}
               </Text>
             </View>
@@ -911,7 +911,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               <Text className="text-[13px] font-extrabold text-gray-900">
                 Net Payable Now
               </Text>
-              <Text className="text-[14px] font-extrabold" style={{ color: ACCENT_GREEN }}>
+              <Text className="text-[13px] font-extrabold" style={{ color: ACCENT_GREEN }}>
                 ₹{fmt(pay.netPayable)}
               </Text>
             </View>
@@ -940,13 +940,13 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             >
               <View className="flex-row items-center justify-between">
                 <Text
-                  className="text-[12.5px] font-extrabold"
+                  className="text-[12px] font-extrabold"
                   style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
                 >
                   {pay.settled ? 'Balance Payable' : 'Credit Amount (Balance Payable)'}
                 </Text>
                 <Text
-                  className="text-[16px] font-extrabold"
+                  className="text-[15px] font-extrabold"
                   style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
                 >
                   ₹{fmt(pay.credit)}
@@ -983,7 +983,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   </View>
                   <View className="flex-1 ml-2">
                     <Text
-                      className="text-[11.5px] font-extrabold"
+                      className="text-[11px] font-extrabold"
                       style={{ color: creditTrackable ? ACCENT_GREEN : '#B91C1C' }}
                     >
                       {creditTrackable
@@ -1062,7 +1062,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               {pay.settled ? 'BALANCE PAYABLE' : 'CREDIT / BALANCE'}
             </Text>
             <Text
-              className="text-[21px] font-extrabold"
+              className="text-[20px] font-extrabold"
               style={{ color: pay.settled ? BRAND_GREEN_DARK : CREDIT_AMBER }}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -1100,7 +1100,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               ) : (
                 <CheckCircle2 size={18} color="#FFFFFF" />
               )}
-              <Text className="ml-2 text-white text-[15px] font-extrabold">
+              <Text className="ml-2 text-white text-[13px] font-extrabold">
                 {submitting ? 'Generating…' : 'Generate Invoice'}
               </Text>
             </LinearGradient>
@@ -1182,7 +1182,7 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
         placeholderTextColor="#8FA08F"
         style={{
           flex: 1,
-          fontSize: 11.5,
+          fontSize: 11,
           fontWeight: '700',
           color: accent || '#172117',
           padding: 0,
@@ -1225,7 +1225,7 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
         }}
       >
         <Text
-          className="text-[12.5px] font-bold"
+          className="text-[12px] font-bold"
           style={{ color: disabled ? '#8FA08F' : '#172117' }}
           numberOfLines={1}
         >
@@ -1267,7 +1267,7 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
                   }}
                 >
                   <Text
-                    className="text-[13.5px] font-bold"
+                    className="text-[13px] font-bold"
                     style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
                   >
                     {lbl}
@@ -1326,7 +1326,7 @@ function PlainTotalRow({ label, value, divider }) {
           : null
       }
     >
-      <Text className="text-[12.5px] font-semibold text-gray-700 flex-1 pr-2">
+      <Text className="text-[12px] font-semibold text-gray-700 flex-1 pr-2">
         {label}
       </Text>
       <Text className="text-[13px] font-extrabold text-gray-900">{value}</Text>
@@ -1346,7 +1346,7 @@ function MoneyInputRow({ label, hint, value, onChange, action, readOnly }) {
   return (
     <View className="py-2">
       <View className="flex-row items-center">
-        <Text className="text-[12.5px] font-semibold text-gray-700 flex-1 pr-2">
+        <Text className="text-[12px] font-semibold text-gray-700 flex-1 pr-2">
           {label}
         </Text>
         {action ? (
@@ -1404,7 +1404,7 @@ function NumberedRow({ no, label, value }) {
       >
         <Text className="text-[10.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{no}</Text>
       </View>
-      <Text className="text-[12.5px] text-gray-700 flex-1">{label}</Text>
+      <Text className="text-[12px] text-gray-700 flex-1">{label}</Text>
       <Text className="text-[13px] font-extrabold text-gray-900">{value}</Text>
     </View>
   );

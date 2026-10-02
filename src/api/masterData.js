@@ -231,6 +231,42 @@ export async function getDeviceCategories() {
   return unwrap(await masterApi.get('/master/device-categories'));
 }
 
+// Admin-managed Category Menu (Management Portal → Category Menu) — the menu
+// rows shown on the Repair / Sell / Buy entry screens: menuName, imageUrl,
+// description, isActive, sortOrder. Read-only here.
+export async function getCategoryMenu(categoryType) {
+  return unwrap(await masterApi.get(`/master/category-menu?categoryType=${encodeURIComponent(categoryType)}`));
+}
+
+/**
+ * Key that lines a Category Menu row up with a device category by name:
+ * drops the "Buy / Sell / Repair" prefix, punctuation and a plural ending, so
+ * "Buy Smartwatch" meets "Smartwatches" and "Sell Audio Device" meets "Audio Device".
+ */
+export function categoryMenuKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^\s*(buy|sell|repair)\s+/, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(es|s)$/, '');
+}
+
+/**
+ * { categoryMenuKey: imageUrl } for one menu type. Never rejects.
+ * Active rows only, unless `includeInactive` — for screens that use the menu
+ * purely as tile art for categories they list anyway (an active row's image
+ * still wins over an inactive one with the same key).
+ */
+export async function getCategoryMenuImages(categoryType, { includeInactive = false } = {}) {
+  const rows = await getCategoryMenu(categoryType).catch(() => []);
+  const out = {};
+  const usable = (Array.isArray(rows) ? rows : [])
+    .filter((m) => m && (includeInactive || m.isActive === true) && m.imageUrl && String(m.imageUrl).trim())
+    .sort((a, b) => Number(a.isActive === true) - Number(b.isActive === true));
+  usable.forEach((m) => { out[categoryMenuKey(m.menuName)] = String(m.imageUrl).trim(); });
+  return out;
+}
+
 export async function getSeriesByBrand(brandId) {
   if (!brandId) return [];
   return unwrap(await masterApi.get(`/master/brands/${brandId}/series`));

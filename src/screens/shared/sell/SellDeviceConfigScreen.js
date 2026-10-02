@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react-native';
-import {
-  AppHeader, Card, BottomActionBar, Loader, ScreenContainer, useBottomBarInset,
-} from '../../../components/rnr';
-import { tokens } from '../../../theme/colors';
+import { Loader } from '../../../components/rnr';
 import { getConfigFields } from '../../../api/masterData';
+import { SELL, SellButton, SellCard, SellFooter, SellIntro } from './sellTheme';
 
 export default function SellDeviceConfigScreen({ navigation, route }) {
   const params = route.params || {};
@@ -13,7 +11,6 @@ export default function SellDeviceConfigScreen({ navigation, route }) {
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState({}); // { [fieldId]: { id, value } }
   const [loading, setLoading] = useState(true);
-  const insetBottom = useBottomBarInset();
 
   useEffect(() => {
     let cancelled = false;
@@ -57,58 +54,67 @@ export default function SellDeviceConfigScreen({ navigation, route }) {
 
   const allChosen = fields.every((f) => selected[f.id]);
 
+  // The stack header (OwnerNavigator: "Device Configuration") is this
+  // screen's only header — it used to draw a second one of its own below it.
   return (
-    <ScreenContainer>
-      <AppHeader title="Device Configuration" subtitle="Tell us about the device" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 96 }}>
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+        <SellIntro title="Device configuration" caption="Tell us about the device's configuration." />
         {fields.map((f) => {
           const sel = selected[f.id];
           const opts = f.options || [];
           const open = openId === f.id;
           return (
-            <View key={f.id} className="mb-3">
-              <Card padded={false}>
-                <View className="p-4">
-                  <Text className="text-[13px] font-extrabold text-text mb-2">{f.name}</Text>
-                  <Pressable
-                    onPress={() => setOpenId(open ? null : f.id)}
-                    className={`flex-row items-center bg-surface-muted px-3 py-3 ${open ? 'border border-primary' : 'border border-transparent'}`}
-                    style={{ borderRadius: 12 }}
-                  >
-                    <Text className={`flex-1 text-[13px] ${sel ? 'text-text font-bold' : 'text-text-subtle'}`} numberOfLines={1}>
-                      {sel ? sel.value : `Select ${f.name}`}
-                    </Text>
-                    {open ? <ChevronUp size={16} color={tokens.textMuted} /> : <ChevronDown size={16} color={tokens.textMuted} />}
-                  </Pressable>
+            <SellCard key={f.id} style={{ padding: 0, overflow: 'hidden' }}>
+              <View style={{ padding: 14 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink, marginBottom: 8 }}>{f.name}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setOpenId(open ? null : f.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', minHeight: 46, paddingHorizontal: 12, borderRadius: 12,
+                    borderWidth: 1.5, borderColor: open || sel ? SELL.green : SELL.line, backgroundColor: sel ? SELL.greenLight : SELL.card,
+                  }}
+                >
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: sel ? '700' : '500', color: sel ? SELL.greenDark : SELL.subtle }} numberOfLines={1}>
+                    {sel ? sel.value : `Select ${f.name}`}
+                  </Text>
+                  {open ? <ChevronUp size={18} color={SELL.muted} /> : <ChevronDown size={18} color={SELL.muted} />}
+                </TouchableOpacity>
+              </View>
+              {open ? (
+                <View style={{ borderTopWidth: 1, borderTopColor: SELL.soft }}>
+                  {opts.map((o, idx) => {
+                    const active = sel?.id === o.id;
+                    return (
+                      <TouchableOpacity
+                        key={o.id}
+                        activeOpacity={0.7}
+                        onPress={() => choose(f.id, o)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: active }}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13,
+                          borderBottomWidth: idx < opts.length - 1 ? 1 : 0, borderBottomColor: SELL.soft,
+                          backgroundColor: active ? SELL.greenLight : SELL.card,
+                        }}
+                      >
+                        <Text style={{ flex: 1, fontSize: 13, fontWeight: active ? '700' : '500', color: active ? SELL.greenDark : SELL.ink }}>{o.value}</Text>
+                        {active ? <Check size={18} color={SELL.green} strokeWidth={2.6} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-                {open ? (
-                  <View className="border-t border-border">
-                    {opts.map((o, idx) => {
-                      const active = sel?.id === o.id;
-                      return (
-                        <Pressable
-                          key={o.id}
-                          onPress={() => choose(f.id, o)}
-                          className={`flex-row items-center px-4 py-3 ${idx < opts.length - 1 ? 'border-b border-border' : ''} active:opacity-70`}
-                        >
-                          <Text className={`flex-1 text-[13px] ${active ? 'text-primary font-extrabold' : 'text-text'}`}>{o.value}</Text>
-                          {active ? <Check size={16} color={tokens.primary} /> : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </Card>
-            </View>
+              ) : null}
+            </SellCard>
           );
         })}
       </ScrollView>
-      <BottomActionBar
-        title="Continue"
-        onPress={onContinue}
-        disabled={!allChosen}
-        insetBottom={insetBottom}
-      />
-    </ScreenContainer>
+      <SellFooter caption={fields.length ? `${fields.filter((f) => selected[f.id]).length} of ${fields.length} selected` : null}>
+        <SellButton title="Continue" arrow onPress={onContinue} disabled={!allChosen} />
+      </SellFooter>
+    </View>
   );
 }

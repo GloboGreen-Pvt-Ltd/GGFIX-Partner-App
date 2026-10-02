@@ -116,8 +116,8 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           <View className="h-14 w-14 rounded-3xl bg-success/10 items-center justify-center mb-2.5">
             <ScanLine size={26} color={ACCENT} />
           </View>
-          <Text className="text-[17px] font-extrabold text-text text-center">Scan or enter the IMEI</Text>
-          <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5 px-4">
+          <Text className="text-[15px] font-extrabold text-text text-center">Scan or enter the IMEI</Text>
+          <Text className="text-[12px] text-text-muted text-center mt-1.5 leading-5 px-4">
             We’ll auto-detect the brand and model, then you just pick the colour, RAM and storage.
           </Text>
         </View>
@@ -138,8 +138,8 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
               <ScanLine size={20} color="#fff" />
             </View>
             <View className="flex-1">
-              <Text className="text-[14px] font-extrabold text-text">Scan IMEI barcode</Text>
-              <Text className="text-[11.5px] text-text-muted mt-0.5">Point the camera at the box or *#06# screen</Text>
+              <Text className="text-[13px] font-extrabold text-text">Scan IMEI barcode</Text>
+              <Text className="text-[11px] text-text-muted mt-0.5">Point the camera at the box or *#06# screen</Text>
             </View>
             <ChevronRight size={18} color={ACCENT_DARK} />
           </View>
@@ -164,7 +164,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           >
             <Smartphone size={16} color="#8FA08F" />
             <TextInput
-              className="flex-1 py-3 ml-2 text-text text-[15px]"
+              className="flex-1 py-3 ml-2 text-text text-[13px]"
               style={{ letterSpacing: 1 }}
               placeholder="e.g. 356938035643809"
               placeholderTextColor="#8FA08F"
@@ -201,7 +201,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
             ) : (
               <Search size={18} color="#fff" />
             )}
-            <Text className="text-white text-[15px] font-extrabold ml-2">
+            <Text className="text-white text-[13px] font-extrabold ml-2">
               {loading ? 'Detecting device…' : 'Detect Device'}
             </Text>
           </View>

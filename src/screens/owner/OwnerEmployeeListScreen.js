@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,14 +31,15 @@ import { notify } from '../../components/confirm';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
 
-// Pine — the deep green this app is migrating to (tokens.primary / green-600).
-// Fill and text are the SAME value here: #004C40 is 9.5:1 on white, so unlike
-// #16BB05 it needs no darker twin to carry small text and icons.
-const BRAND_GREEN      = '#004C40';
-const BRAND_GREEN_DARK = '#004C40';
+// GGFIX palette — green #09AD2A (fills, rings, dots) with #078F23 for green
+// text/icons; ink #1E1E1E; neutrals #F8F8F8 / #F3F3F3; yellow #F3BF23.
+const BRAND_GREEN      = '#09AD2A';
+const BRAND_GREEN_DARK = '#078F23';
+const MINT             = '#EAF8EC';
+const PAGE_BG          = '#F8F8F8';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
@@ -47,8 +49,8 @@ const cardShadow = {
 const PICKUP_ROLE = 'Pickup Person';
 
 // Amber for "at the ceiling" — the shop is not broken, it is full.
-const BRAND_AMBER      = '#F59E0B';
-const BRAND_AMBER_DARK = '#B45309';
+const BRAND_AMBER      = '#F3BF23';
+const BRAND_AMBER_DARK = '#8A6A00';
 
 /**
  * "Used / allowance" ring.
@@ -76,7 +78,7 @@ function ProgressRing({ active, total, size = 52, stroke = 5 }) {
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} style={{ position: 'absolute' }}>
-        <Circle cx={half} cy={half} r={r} stroke="#E6F7E3" strokeWidth={stroke} fill="none" />
+        <Circle cx={half} cy={half} r={r} stroke={MINT} strokeWidth={stroke} fill="none" />
         <Circle
           cx={half}
           cy={half}
@@ -89,7 +91,7 @@ function ProgressRing({ active, total, size = 52, stroke = 5 }) {
           transform={`rotate(-90 ${half} ${half})`}
         />
       </Svg>
-      <Text className="text-[11.5px] font-extrabold text-gray-900">
+      <Text className="text-[11px] font-extrabold text-gray-900">
         {unlimited ? active : `${active}/${total}`}
       </Text>
     </View>
@@ -97,6 +99,9 @@ function ProgressRing({ active, total, size = 52, stroke = 5 }) {
 }
 
 export default function OwnerEmployeeListScreen({ navigation, route }) {
+  const { width: winW } = useWindowDimensions();
+  const cols = winW >= 700 ? 2 : 1;
+  const capStyle = winW >= 768 ? { width: Math.min(winW - 32, 1000), alignSelf: 'center' } : null;
   const assignFor = route?.params?.assignFor || null;
   const bookingId = route?.params?.bookingId || null;
   const isPickupPicker = assignFor === 'pickup' && !!bookingId;
@@ -232,7 +237,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
   const ringTotal = (isPickupPicker || !seats) ? visibleList.length : seatLimit;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
@@ -240,21 +245,21 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
           style={{
             backgroundColor: '#FFFFFF',
             paddingTop: 6,
-            paddingBottom: 14,
+            paddingBottom: 11,
             paddingHorizontal: 16,
             borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
+            borderBottomColor: '#E6E6E6',
           }}
         >
-          <View className="flex-row items-center">
+          <View className="flex-row items-center" style={capStyle}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
               className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
             >
-              <ChevronLeft size={20} color="#172117" />
+              <ChevronLeft size={20} color="#1E1E1E" />
             </TouchableOpacity>
-            <Text className="flex-1 text-text text-[18px] font-extrabold" numberOfLines={1}>
+            <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
               {isPickupPicker ? 'Select Pickup Person' : 'Employees'}
             </Text>
             {!isPickupPicker ? (
@@ -270,13 +275,13 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                 accessibilityLabel={canAdd
                   ? 'Add Employee'
                   : `Employee limit reached. Your ${planLabel} plan allows up to ${seats?.limit} per shop. Tap for upgrade options.`}
-                className="flex-row items-center px-2.5 py-1.5 rounded-full"
-                style={{ backgroundColor: canAdd ? '#E6F7E3' : '#FEF3C7' }}
+                className="flex-row items-center px-3 py-1.5 rounded-full"
+                style={{ backgroundColor: canAdd ? BRAND_GREEN : '#FFF8E1' }}
               >
-                <UserPlus size={14} color={canAdd ? BRAND_GREEN_DARK : BRAND_AMBER_DARK} />
+                <UserPlus size={14} color={canAdd ? '#FFFFFF' : BRAND_AMBER_DARK} />
                 <Text
-                  className="ml-1.5 text-[11.5px] font-extrabold"
-                  style={{ color: canAdd ? BRAND_GREEN_DARK : BRAND_AMBER_DARK }}
+                  className="ml-1.5 text-[11px] font-extrabold"
+                  style={{ color: canAdd ? '#FFFFFF' : BRAND_AMBER_DARK }}
                 >
                   {canAdd ? 'Add Employee' : 'Limit reached'}
                 </Text>
@@ -293,7 +298,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
       ) : (
         <>
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}
+            contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }, capStyle]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -307,12 +312,12 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             {/* Summary card with active / total progress ring */}
             <View
               className="rounded-2xl p-3 mb-2.5 flex-row items-center"
-              style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#E6F7E3' }}
+              style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F3F3', ...cardShadow }}
             >
               <View style={{ position: 'relative' }}>
                 <View
                   className="w-11 h-11 rounded-full items-center justify-center"
-                  style={{ backgroundColor: '#E6F7E3' }}
+                  style={{ backgroundColor: MINT }}
                 >
                   <Users size={21} color={BRAND_GREEN_DARK} />
                 </View>
@@ -320,12 +325,12 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                   style={{
                     position: 'absolute', right: 0, bottom: 1,
                     width: 11, height: 11, borderRadius: 6,
-                    backgroundColor: BRAND_GREEN, borderWidth: 2, borderColor: '#F0F8EF',
+                    backgroundColor: BRAND_GREEN, borderWidth: 2, borderColor: '#FFFFFF',
                   }}
                 />
               </View>
               <View className="flex-1 ml-3">
-                <Text className="text-[14.5px] font-extrabold text-gray-900">
+                <Text className="text-[13px] font-extrabold text-gray-900">
                   {isPickupPicker ? 'Pickup-eligible staff' : 'All Employees'}
                 </Text>
                 {/* "3 active · 5 total" — the ring carries the allowance, so
@@ -333,7 +338,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                     on file including deactivated ones, which is what makes the
                     two numbers differ and shows that an inactive employee is
                     not holding a seat. */}
-                <Text className="text-[11.5px] text-gray-500 mt-0.5">
+                <Text className="text-[11px] text-gray-500 mt-0.5">
                   {isPickupPicker
                     ? `${activeCount} active · ${visibleList.length} total`
                     : `${seatUsage} active · ${list.length} total`}
@@ -359,15 +364,15 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             {showLimitNotice ? (
               <View
                 className="rounded-2xl p-3.5 mb-2.5"
-                style={{ backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' }}
+                style={{ backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F8E3A0' }}
               >
                 <View className="flex-row items-center">
                   <ShieldCheck size={15} color={BRAND_AMBER_DARK} />
-                  <Text className="ml-2 text-[12.5px] font-extrabold" style={{ color: BRAND_AMBER_DARK }}>
+                  <Text className="ml-2 text-[12px] font-extrabold" style={{ color: BRAND_AMBER_DARK }}>
                     {seats?.expired ? 'Subscription expired' : 'Employee limit reached'}
                   </Text>
                 </View>
-                <Text className="text-[11.5px] text-gray-600 mt-1.5 leading-[17px]">
+                <Text className="text-[11px] text-gray-600 mt-1.5 leading-[17px]">
                   {seats?.message
                     || `Your ${planLabel} plan allows up to ${seats?.limit} active employees per shop.`}
                 </Text>
@@ -387,30 +392,32 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
               <View className="items-center pt-8 px-8">
                 <View
                   className="w-16 h-16 rounded-full items-center justify-center mb-3.5"
-                  style={{ backgroundColor: '#E6F7E3' }}
+                  style={{ backgroundColor: MINT }}
                 >
                   <Users size={26} color={BRAND_GREEN_DARK} />
                 </View>
-                <Text className="text-[13.5px] font-extrabold text-gray-700 text-center">
+                <Text className="text-[13px] font-extrabold text-gray-700 text-center">
                   {isPickupPicker ? 'No pickup persons yet' : 'No employees yet'}
                 </Text>
-                <Text className="text-[11.5px] text-gray-500 mt-1.5 text-center leading-[17px]">
+                <Text className="text-[11px] text-gray-500 mt-1.5 text-center leading-[17px]">
                   {isPickupPicker
                     ? 'Add staff with the "Pickup Person" role to assign pickups.'
                     : 'Tap "Add" to add your first staff member.'}
                 </Text>
               </View>
-            ) : visibleList.map((e) => {
+            ) : (
+            <View className="flex-row flex-wrap" style={{ marginHorizontal: cols === 2 ? -5 : 0 }}>
+            {visibleList.map((e) => {
               const isActive = e.isAvailable !== false;
               const initial = (e.name || '?').trim().charAt(0).toUpperCase();
               const role = e.roleLabel || 'Technician';
               const isPickup = role.toLowerCase() === PICKUP_ROLE.toLowerCase();
               const RoleIcon = isPickup ? Truck : Wrench;
-              const roleTint = isPickup ? '#FEF3C7' : '#E6F7E3';
-              const roleAccent = isPickup ? '#B45309' : BRAND_GREEN_DARK;
+              const roleTint = isPickup ? '#FFF8E1' : MINT;
+              const roleAccent = isPickup ? BRAND_AMBER_DARK : BRAND_GREEN_DARK;
               return (
+                <View key={e.id} style={{ width: cols === 2 ? '50%' : '100%', paddingHorizontal: cols === 2 ? 5 : 0 }}>
                 <TouchableOpacity
-                  key={e.id}
                   onPress={() =>
                     isPickupPicker
                       ? handlePickPickupPerson(e)
@@ -419,20 +426,20 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                   activeOpacity={0.85}
                   disabled={isPickupPicker && (assigning !== null || !isActive)}
                   className="bg-white rounded-2xl p-3 mb-2.5 flex-row items-center"
-                  style={[cardShadow, { opacity: isActive ? 1 : 0.72 }]}
+                  style={[cardShadow, { borderWidth: 1, borderColor: '#F3F3F3', opacity: isActive ? 1 : 0.72 }]}
                 >
                   {/* Avatar */}
                   <View style={{ position: 'relative' }}>
                     <View
                       style={{
                         width: 46, height: 46, borderRadius: 23,
-                        backgroundColor: isActive ? '#E6F7E3' : '#EFF5EE',
+                        backgroundColor: isActive ? MINT : '#F3F3F3',
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >
                       <Text
-                        className="text-[18px] font-extrabold"
-                        style={{ color: isActive ? BRAND_GREEN_DARK : '#8FA08F' }}
+                        className="text-[17px] font-extrabold"
+                        style={{ color: isActive ? BRAND_GREEN_DARK : '#8E8E8E' }}
                       >
                         {initial}
                       </Text>
@@ -442,19 +449,19 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                         position: 'absolute',
                         right: 0, bottom: 1,
                         width: 12, height: 12, borderRadius: 6,
-                        backgroundColor: isActive ? BRAND_GREEN : '#8FA08F',
+                        backgroundColor: isActive ? BRAND_GREEN : '#8E8E8E',
                         borderWidth: 2, borderColor: '#FFFFFF',
                       }}
                     />
                   </View>
 
                   <View className="flex-1 ml-2.5 pr-1">
-                    <Text className="text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
                       {e.name || '—'}
                     </Text>
                     <View className="flex-row items-center mt-1">
                       <Phone size={11} color={BRAND_GREEN} />
-                      <Text className="text-[11.5px] text-gray-600 ml-1.5" numberOfLines={1}>
+                      <Text className="text-[11px] text-gray-600 ml-1.5" numberOfLines={1}>
                         {e.phone || e.email || '—'}
                       </Text>
                     </View>
@@ -486,7 +493,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                       <View className="items-center mr-1">
                         <Text
                           className="text-[10px] font-extrabold mb-0.5"
-                          style={{ color: isActive ? BRAND_GREEN_DARK : '#8FA08F' }}
+                          style={{ color: isActive ? BRAND_GREEN_DARK : '#8E8E8E' }}
                         >
                           {isActive ? 'Active' : 'Inactive'}
                         </Text>
@@ -497,8 +504,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                             style={{ transform: [{ scale: 0.85 }] }}
                             value={isActive}
                             onValueChange={(v) => onToggleActive(e, v)}
-                            trackColor={{ false: '#CBD5CB', true: '#9DC6BF' }}
-                            thumbColor={isActive ? BRAND_GREEN : '#8FA08F'}
+                            trackColor={{ false: '#D6D6D6', true: '#A8E3B4' }}
+                            thumbColor={isActive ? BRAND_GREEN : '#8E8E8E'}
                           />
                         )}
                       </View>
@@ -507,31 +514,34 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                         hitSlop={8}
                         className="ml-0.5"
                       >
-                        <ChevronRight size={18} color="#8FA08F" />
+                        <ChevronRight size={18} color="#8E8E8E" />
                       </Pressable>
                     </View>
                   )}
                 </TouchableOpacity>
+                </View>
               );
             })}
+            </View>
+            )}
 
             {!isPickupPicker && visibleList.length > 0 ? (
               <View
                 className="rounded-2xl p-3 mt-1 flex-row items-center"
-                style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#E6F7E3' }}
+                style={{ backgroundColor: MINT }}
               >
                 <View
-                  className="w-9 h-9 rounded-full items-center justify-center mr-2.5"
-                  style={{ backgroundColor: BRAND_GREEN_DARK }}
+                  className="w-8 h-8 rounded-full items-center justify-center mr-2.5"
+                  style={{ backgroundColor: BRAND_GREEN }}
                 >
-                  <Info size={16} color="#FFFFFF" />
+                  <Info size={15} color="#FFFFFF" />
                 </View>
                 <Text className="flex-1 text-[11px] text-gray-600 leading-[16px]">
                   You can add, edit or deactivate employees. Only active employees can access the shop.
                 </Text>
                 <View
-                  className="w-9 h-9 rounded-full items-center justify-center ml-2"
-                  style={{ backgroundColor: '#E6F7E3' }}
+                  className="w-8 h-8 rounded-full items-center justify-center ml-2"
+                  style={{ backgroundColor: '#FFFFFF' }}
                 >
                   <ShieldCheck size={16} color={BRAND_GREEN_DARK} />
                 </View>

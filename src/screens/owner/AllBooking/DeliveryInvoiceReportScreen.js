@@ -132,7 +132,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   if (!invoice) {
     return (
       <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: '#F0F8EF' }}>
-        <Text className="text-[15px] font-extrabold text-gray-700">No invoice generated yet</Text>
+        <Text className="text-[13px] font-extrabold text-gray-700">No invoice generated yet</Text>
         <Text className="text-[12px] text-gray-500 mt-2 text-center">
           Open the Invoice Generator from the Invoices screen to create one.
         </Text>
@@ -507,7 +507,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             <Text className="text-[9.5px] font-bold text-text-muted" style={{ letterSpacing: 0.8 }}>
               INVOICE TOTAL
             </Text>
-            <Text className="text-text text-[27px] font-extrabold" style={{ marginTop: 1, letterSpacing: -0.5 }}>
+            <Text className="text-text text-[22px] font-extrabold" style={{ marginTop: 1, letterSpacing: -0.5 }}>
               ₹{fmt(invoice.finalPayableAmount)}
             </Text>
           </View>
@@ -533,7 +533,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-start">
               <View className="flex-1 pr-3">
-                <Text className="text-[18px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                <Text className="text-[17px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                   {shopName}
                 </Text>
                 {ownerDisplayName ? (
@@ -785,25 +785,25 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             <SectionLabel>Total Payable Summary</SectionLabel>
             <View className="flex-row justify-between py-1">
               <Text className="text-[12px] text-gray-700">Taxable Amount</Text>
-              <Text className="text-[12.5px] font-bold text-gray-900">₹{fmt(grandTotalBreak.base)}</Text>
+              <Text className="text-[12px] font-bold text-gray-900">₹{fmt(grandTotalBreak.base)}</Text>
             </View>
             <View className="flex-row justify-between py-1">
               <Text className="text-[12px] text-gray-700">Total GST Tax (₹)</Text>
-              <Text className="text-[12.5px] font-bold text-gray-900">₹{fmt(grandTotalBreak.totalGst)}</Text>
+              <Text className="text-[12px] font-bold text-gray-900">₹{fmt(grandTotalBreak.totalGst)}</Text>
             </View>
             <View
               className="flex-row justify-between py-1"
               style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE', borderStyle: 'dashed' }}
             >
               <Text className="text-[12px] text-gray-700">Discount</Text>
-              <Text className="text-[12.5px] font-bold" style={{ color: '#B45309' }}>− ₹{fmt(invoice.discount)}</Text>
+              <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>− ₹{fmt(invoice.discount)}</Text>
             </View>
             <View
               className="mt-3 p-3 rounded-2xl flex-row items-center justify-between"
               style={{ backgroundColor: BRAND_GREEN_DARK }}
             >
-              <Text className="text-white text-[13.5px] font-extrabold">Invoice Total</Text>
-              <Text className="text-white text-[18px] font-extrabold">
+              <Text className="text-white text-[13px] font-extrabold">Invoice Total</Text>
+              <Text className="text-white text-[17px] font-extrabold">
                 ₹{fmt(invoice.finalPayableAmount)}
               </Text>
             </View>
@@ -824,19 +824,19 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 {advancePaid > 0 ? (
                   <View className="flex-row justify-between py-1">
                     <Text className="text-[12px] text-gray-700">Advance Already Paid</Text>
-                    <Text className="text-[12.5px] font-bold" style={{ color: '#B45309' }}>
+                    <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>
                       − ₹{fmt(advancePaid)}
                     </Text>
                   </View>
                 ) : null}
                 <View className="flex-row justify-between py-1">
                   <Text className="text-[12px] text-gray-700">Net Payable</Text>
-                  <Text className="text-[12.5px] font-bold text-gray-900">₹{fmt(netPayable)}</Text>
+                  <Text className="text-[12px] font-bold text-gray-900">₹{fmt(netPayable)}</Text>
                 </View>
                 {amountPaid > 0 ? (
                   <View className="flex-row justify-between py-1">
                     <Text className="text-[12px] text-gray-700">Amount Paid</Text>
-                    <Text className="text-[12.5px] font-bold" style={{ color: '#B45309' }}>
+                    <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>
                       − ₹{fmt(amountPaid)}
                     </Text>
                   </View>
@@ -846,13 +846,13 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                   style={{ backgroundColor: creditAmount > 0 ? '#FEF3C7' : '#E6F7E3' }}
                 >
                   <Text
-                    className="text-[12.5px] font-extrabold"
+                    className="text-[12px] font-extrabold"
                     style={{ color: creditAmount > 0 ? '#B45309' : BRAND_GREEN_DARK }}
                   >
                     {creditAmount > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}
                   </Text>
                   <Text
-                    className="text-[16px] font-extrabold"
+                    className="text-[15px] font-extrabold"
                     style={{ color: creditAmount > 0 ? '#B45309' : BRAND_GREEN_DARK }}
                   >
                     ₹{fmt(creditAmount)}
@@ -927,7 +927,7 @@ function SectionLabel({ children, color = BRAND_GREEN_DARK }) {
   return (
     <View className="flex-row items-center mb-2">
       <View style={{ width: 3, height: 13, borderRadius: 2, backgroundColor: BRAND_GREEN, marginRight: 7 }} />
-      <Text className="text-[11.5px] font-extrabold" style={{ color, letterSpacing: 0.4 }}>
+      <Text className="text-[11px] font-extrabold" style={{ color, letterSpacing: 0.4 }}>
         {children}
       </Text>
     </View>

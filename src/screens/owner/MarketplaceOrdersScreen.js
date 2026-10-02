@@ -43,27 +43,28 @@ import { marketplaceApi } from '../../api/client';
 import { getModelsByBrand } from '../../api/masterData';
 import { resolveDeviceImageSource, normalizeDeviceImageUrl } from '../../utils/images';
 import { selectShopId, selectUserId } from '../../store/authSlice';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const MINT = '#E7F7F1';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FCFA';
+// GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
+// neutrals #F8F8F8 / #F3F3F3.
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
-const PENDING_FG = '#F59E0B';
-const PENDING_BG = '#FFF3CD';
-const CANCELLED_FG = '#EF4444';
-const CANCELLED_BG = '#FEE2E2';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const PENDING_FG = '#B7860B'; // yellow #F3BF23 family, dark enough to read as text
+const PENDING_BG = '#FFF8E1';
+const CANCELLED_FG = '#F84141';
+const CANCELLED_BG = '#FEECEC';
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.05,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -88,7 +89,7 @@ function statusMeta(rawStatus, type) {
   const s = String(rawStatus || '').toUpperCase();
   const sell = type !== 'BUY';
   if (s === 'SOLD' || s === 'COMPLETED') {
-    return { key: 'DONE', short: sell ? 'Sold' : 'Done', accent: ACCENT, tint: MINT, Icon: CheckCircle2 };
+    return { key: 'DONE', short: sell ? 'Sold' : 'Done', accent: PRIMARY, tint: MINT, Icon: CheckCircle2 };
   }
   if (s === 'CANCELLED' || s === 'CANCELED') {
     return { key: 'CANCELLED', short: 'Cancelled', accent: CANCELLED_FG, tint: CANCELLED_BG, Icon: XCircle };
@@ -118,7 +119,7 @@ function SellProgressTracker({ statusKey, dateLabel }) {
   const completed = sellStepIndex(statusKey);
   return (
     <View
-      style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: rs(8), paddingTop: rs(8), borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
+      style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: SOFT_MINT }}
     >
       {SELL_STEPS.map((step, i) => {
         const done = i < completed;
@@ -126,30 +127,30 @@ function SellProgressTracker({ statusKey, dateLabel }) {
         const StepIcon = step.Icon;
         return (
           <React.Fragment key={step.key}>
-            <View style={{ alignItems: 'center', width: rs(52) }}>
+            <View style={{ alignItems: 'center', width: 54 }}>
               <View
                 style={{
-                  width: rs(23), height: rs(23), borderRadius: rs(12),
-                  backgroundColor: done ? ACCENT : '#E7ECE9',
+                  width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: done ? ACCENT : BORDER,
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                <StepIcon size={rf(11)} color={done ? '#FFFFFF' : '#9AA6A0'} strokeWidth={2.4} />
+                <StepIcon size={11} color={done ? '#FFFFFF' : '#9E9E9E'} strokeWidth={2.4} />
               </View>
               <Text
                 numberOfLines={2}
-                style={{ fontSize: rf(8.5), lineHeight: rf(10.5), fontWeight: '700', color: done ? ACCENT : TEXT_SECONDARY, marginTop: rs(4), textAlign: 'center' }}
+                style={{ fontSize: 9, lineHeight: 11, fontWeight: '700', color: done ? PRIMARY : TEXT_SECONDARY, marginTop: 4, textAlign: 'center' }}
               >
                 {step.label}
               </Text>
               {i === 0 && dateLabel ? (
-                <Text style={{ fontSize: rf(7.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                <Text style={{ fontSize: 7.5, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
                   {dateLabel}
                 </Text>
               ) : null}
             </View>
             {!isLast ? (
-              <View style={{ flex: 1, height: 2, marginTop: rs(11), backgroundColor: i < completed - 1 ? ACCENT : '#E7ECE9' }} />
+              <View style={{ flex: 1, height: 2, marginTop: 10, borderRadius: 1, backgroundColor: i < completed - 1 ? ACCENT : BORDER }} />
             ) : null}
           </React.Fragment>
         );
@@ -178,29 +179,29 @@ function OrderCard({ item, showPrice, isSell, onPress }) {
       onPress={onPress}
       className="active:opacity-90"
       style={{
-        backgroundColor: CARD_BG, borderRadius: rs(18), padding: rs(11), marginBottom: rs(9),
-        borderWidth: 1, borderColor: BORDER, ...cardShadow,
+        backgroundColor: CARD_BG, borderRadius: 16, padding: 11, marginBottom: 9,
+        borderWidth: 1, borderColor: SOFT_MINT, ...cardShadow,
       }}
     >
-      <View className="flex-row items-center justify-between" style={{ marginBottom: rs(7) }}>
+      <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
         <View
           className="flex-row items-center rounded-full"
-          style={{ paddingHorizontal: rs(9), paddingVertical: rs(4), backgroundColor: meta.tint }}
+          style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: meta.tint }}
         >
-          <StatusIcon size={rf(11)} color={meta.accent} strokeWidth={2.4} />
-          <Text className="font-extrabold" style={{ marginLeft: rs(4), fontSize: rf(9.5), color: meta.accent, letterSpacing: 0.3 }}>
+          <StatusIcon size={11} color={meta.accent} strokeWidth={2.4} />
+          <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 9.5, color: meta.accent, letterSpacing: 0.3 }}>
             {meta.short.toUpperCase()}
           </Text>
         </View>
         <View className="flex-row items-center">
-          <Text className="font-bold" style={{ fontSize: rf(10), color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
+          <Text className="font-bold" style={{ fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
             #GGFIX{orderId}
           </Text>
           {/* Same real destination as the whole card — a decorative
               affordance, not a second, fabricated actions menu (there is no
               per-order edit/delete action beyond opening its detail page). */}
-          <Pressable onPress={onPress} hitSlop={8} style={{ marginLeft: rs(6) }}>
-            <EllipsisVertical size={rf(15)} color={TEXT_SECONDARY} />
+          <Pressable onPress={onPress} hitSlop={8} style={{ marginLeft: 6 }}>
+            <EllipsisVertical size={14} color={TEXT_SECONDARY} />
           </Pressable>
         </View>
       </View>
@@ -208,32 +209,32 @@ function OrderCard({ item, showPrice, isSell, onPress }) {
       <View className="flex-row items-center">
         <View
           className="items-center justify-center overflow-hidden"
-          style={{ width: rs(56), height: rs(56), borderRadius: rs(15), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER, marginRight: rs(10) }}
+          style={{ width: 52, height: 52, borderRadius: 13, backgroundColor: CARD_BG, borderWidth: 1, borderColor: SOFT_MINT, marginRight: 10 }}
         >
           {imageSrc ? (
-            <Image source={{ uri: imageSrc }} style={{ width: rs(56), height: rs(56) }} resizeMode="cover" />
+            <Image source={{ uri: imageSrc }} style={{ width: 48, height: 48 }} resizeMode="contain" />
           ) : (
-            <Smartphone size={rf(21)} color={ACCENT} />
+            <Smartphone size={20} color={ACCENT} />
           )}
         </View>
 
-        <View className="flex-1" style={{ paddingRight: rs(6) }}>
-          <Text className="font-extrabold" style={{ fontSize: rf(14), color: TEXT_PRIMARY, lineHeight: rf(18) }} numberOfLines={2}>
+        <View className="flex-1" style={{ paddingRight: 6, minWidth: 0 }}>
+          <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY, lineHeight: 17 }} numberOfLines={2}>
             {item.title || 'Item'}
           </Text>
-          <View className="flex-row items-center justify-between" style={{ marginTop: rs(5) }}>
-            <Text className="flex-1" style={{ fontSize: rf(11.5), color: TEXT_SECONDARY }} numberOfLines={1}>
+          <View className="flex-row items-center justify-between" style={{ marginTop: 4 }}>
+            <Text className="flex-1" style={{ fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
               {specs || dateLabel || ''}
             </Text>
             {showPrice && item.price != null ? (
-              <Text className="font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(14), color: ACCENT }}>
+              <Text className="font-extrabold" style={{ marginLeft: 8, fontSize: 13, color: PRIMARY }}>
                 ₹{Number(item.price).toLocaleString('en-IN')}
               </Text>
             ) : null}
           </View>
         </View>
 
-        <ChevronRight size={rf(18)} color={BORDER} />
+        <ChevronRight size={16} color="#BDBDBD" />
       </View>
 
       {isSell ? <SellProgressTracker statusKey={meta.key} dateLabel={dateLabel} /> : null}
@@ -254,9 +255,9 @@ function OrderTab({ label, Icon, active, onPress }) {
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { backgroundColor: ACCENT, borderRadius: 999 }, fillStyle]}
       />
-      <View className="items-center justify-center flex-row" style={{ paddingVertical: rs(12) }}>
-        <Icon size={rf(16)} color={active ? '#FFFFFF' : TEXT_SECONDARY} />
-        <Text className="font-extrabold" style={{ marginLeft: rs(7), fontSize: rf(14), color: active ? '#FFFFFF' : TEXT_SECONDARY }}>
+      <View className="items-center justify-center flex-row" style={{ paddingVertical: 8 }}>
+        <Icon size={13} color={active ? '#FFFFFF' : TEXT_SECONDARY} strokeWidth={2.2} />
+        <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 12, color: active ? '#FFFFFF' : TEXT_SECONDARY }}>
           {label}
         </Text>
       </View>
@@ -271,15 +272,17 @@ function FilterChip({ label, Icon, count, active, tint, fg, onPress }) {
       onPress={onPress}
       className="flex-row items-center rounded-full"
       style={{
-        paddingHorizontal: rs(11), paddingVertical: rs(7), marginRight: rs(8),
+        paddingHorizontal: 10, paddingVertical: 6, marginRight: 7,
         backgroundColor: active ? tint : '#FFFFFF',
         borderWidth: 1, borderColor: active ? fg : BORDER,
       }}
     >
-      {Icon ? <Icon size={rf(11)} color={active ? fg : TEXT_SECONDARY} style={{ marginRight: rs(5) }} /> : null}
-      <Text className="font-bold" style={{ fontSize: rf(11.5), color: active ? fg : TEXT_PRIMARY }}>{label}</Text>
+      {Icon ? <Icon size={11} color={active ? fg : TEXT_SECONDARY} style={{ marginRight: 4 }} /> : null}
+      <Text className="font-bold" style={{ fontSize: 11, color: active ? fg : TEXT_PRIMARY }}>{label}</Text>
       {typeof count === 'number' ? (
-        <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11), color: active ? fg : TEXT_SECONDARY }}>{count}</Text>
+        <View style={{ marginLeft: 5, minWidth: 16, paddingHorizontal: 4, borderRadius: 8, backgroundColor: active ? CARD_BG : SOFT_MINT, alignItems: 'center' }}>
+          <Text className="font-extrabold" style={{ fontSize: 10, color: active ? fg : TEXT_SECONDARY }}>{count}</Text>
+        </View>
       ) : null}
     </Pressable>
   );
@@ -304,10 +307,10 @@ function BottomNavMimic({ navigation, activeKey }) {
       style={{
         flexDirection: 'row',
         backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: rs(22),
-        borderTopRightRadius: rs(22),
-        paddingTop: rs(10),
-        paddingBottom: insets.bottom + rs(8),
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 8,
+        paddingBottom: insets.bottom + 6,
         borderTopWidth: 1,
         borderTopColor: BORDER,
         ...cardShadow,
@@ -325,14 +328,14 @@ function BottomNavMimic({ navigation, activeKey }) {
           >
             <View
               style={{
-                width: rs(38), height: rs(38), borderRadius: rs(19),
+                width: 34, height: 34, borderRadius: 17,
                 alignItems: 'center', justifyContent: 'center',
                 backgroundColor: active ? MINT : 'transparent',
               }}
             >
-              <ItemIcon size={rf(18)} color={active ? ACCENT : TEXT_PRIMARY} strokeWidth={2} />
+              <ItemIcon size={18} color={active ? ACCENT : TEXT_PRIMARY} strokeWidth={2} />
             </View>
-            <Text className="font-bold" style={{ fontSize: rf(10), color: active ? ACCENT : TEXT_PRIMARY, marginTop: rs(3) }}>
+            <Text className="font-bold" style={{ fontSize: 10, color: active ? PRIMARY : TEXT_PRIMARY, marginTop: 2 }}>
               {it.label}
             </Text>
           </Pressable>
@@ -386,10 +389,30 @@ export default function MarketplaceOrdersScreen({ navigation }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await marketplaceApi.get('/marketplace/products', {
-        query: { type: tab.toUpperCase() },
+      const fetchProducts = async (extra) => {
+        const data = await marketplaceApi.get('/marketplace/products', {
+          query: { type: tab.toUpperCase(), ...extra },
+        });
+        return Array.isArray(data) ? data : (data?.content || data?.data || []);
+      };
+      // The list endpoint takes a `status` filter, and without one it can hand
+      // back only live (ACTIVE) listings — which hid a listing the moment it
+      // was marked Selling Completed (SOLD) or Cancelled, leaving the
+      // Completed chip at 0. Ask for the finished statuses explicitly too and
+      // merge them in, de-duplicated by id. A failed extra request just
+      // contributes nothing; only the main request failing is an error.
+      const [base, ...finished] = await Promise.all([
+        fetchProducts({}),
+        ...['SOLD', 'COMPLETED', 'CANCELLED'].map((status) => fetchProducts({ status }).catch(() => [])),
+      ]);
+      const seen = new Set();
+      const list = [...base, ...finished.flat()].filter((p) => {
+        const key = p?.id != null ? String(p.id) : null;
+        if (!key) return true;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
-      const list = Array.isArray(data) ? data : (data?.content || data?.data || []);
       const filtered = tab === 'Sell'
         ? list.filter((p) =>
             (userId && p.sellerUserId === userId) ||
@@ -450,9 +473,9 @@ export default function MarketplaceOrdersScreen({ navigation }) {
         <View
           style={{
             backgroundColor: '#FFFFFF',
-            paddingTop: rs(10),
-            paddingBottom: rs(16),
-            paddingHorizontal: rs(16),
+            paddingTop: 8,
+            paddingBottom: 11,
+            paddingHorizontal: 16,
             borderBottomWidth: 1,
             borderBottomColor: BORDER,
           }}
@@ -462,15 +485,15 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
               className="items-center justify-center"
-              style={{ height: rs(44), width: rs(44), borderRadius: rs(22), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER, marginRight: rs(12) }}
+              style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: SOFT_MINT, marginRight: 10 }}
             >
-              <ChevronLeft size={rf(21)} color={TEXT_PRIMARY} />
+              <ChevronLeft size={19} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: rf(21), color: TEXT_PRIMARY }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
                 My Orders
               </Text>
-              <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>
                 {loading ? 'Loading…' : `${visible.length} ${tab.toLowerCase()} order${visible.length === 1 ? '' : 's'}`}
               </Text>
             </View>
@@ -486,13 +509,13 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               }}
               className="items-center justify-center"
               style={{
-                height: rs(44), width: rs(44), borderRadius: rs(22),
-                backgroundColor: searchOpen ? ACCENT : SOFT_MINT, borderWidth: 1, borderColor: searchOpen ? ACCENT : BORDER,
+                height: 38, width: 38, borderRadius: 19,
+                backgroundColor: searchOpen ? ACCENT : MINT,
               }}
             >
               {searchOpen
-                ? <X size={rf(17)} color="#FFFFFF" />
-                : <Search size={rf(17)} color={ACCENT} />}
+                ? <X size={16} color="#FFFFFF" />
+                : <Search size={16} color={PRIMARY} />}
             </Pressable>
           </View>
         </View>
@@ -507,20 +530,20 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               paddingHorizontal: rs(13), paddingVertical: rs(2),
             }, capStyle]}
           >
-            <Search size={rf(15)} color={TEXT_SECONDARY} />
+            <Search size={15} color={TEXT_SECONDARY} />
             <TextInput
               value={query}
               onChangeText={setQuery}
               autoFocus
               placeholder="Search by device, colour or order id"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#8E8E8E"
               returnKeyType="search"
               className="flex-1"
-              style={{ fontSize: rf(12.5), paddingVertical: rs(9), marginLeft: rs(8), color: TEXT_PRIMARY }}
+              style={{ fontSize: 12, paddingVertical: rs(9), marginLeft: rs(8), color: TEXT_PRIMARY }}
             />
             {query ? (
               <Pressable onPress={() => setQuery('')} hitSlop={10}>
-                <X size={rf(15)} color={TEXT_SECONDARY} />
+                <X size={15} color={TEXT_SECONDARY} />
               </Pressable>
             ) : null}
           </View>
@@ -528,10 +551,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
       ) : null}
 
       {/* Buy / Sell segmented control */}
-      <View className="px-4" style={{ marginTop: rs(12) }}>
+      <View className="px-4" style={{ marginTop: 10 }}>
         <View
           className="flex-row rounded-full"
-          style={[{ backgroundColor: '#FFFFFF', padding: rs(4), borderWidth: 1, borderColor: BORDER, ...cardShadow }, capStyle]}
+          style={[{ backgroundColor: '#FFFFFF', padding: 3, borderWidth: 1, borderColor: BORDER }, capStyle]}
         >
           {['Buy', 'Sell'].map((t) => (
             <OrderTab
@@ -547,8 +570,8 @@ export default function MarketplaceOrdersScreen({ navigation }) {
 
       {/* Status filter chips — only the 3 real, distinguishable buckets this
           data actually carries (no fabricated Processing/Shipped split). */}
-      <View style={{ marginTop: rs(12) }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: rs(16) }}>
+      <View style={{ marginTop: 10, marginBottom: 4 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
           <View style={[{ flexDirection: 'row' }, capStyle]}>
             {FILTERS.map((f) => (
               <FilterChip
@@ -576,21 +599,21 @@ export default function MarketplaceOrdersScreen({ navigation }) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: rs(32) }}>
             <View style={capStyle}>
               {/* Buy empty state */}
-              <View className="items-center" style={{ paddingHorizontal: rs(32), paddingTop: rs(28) }}>
+              <View className="items-center" style={{ paddingHorizontal: 32, paddingTop: 24 }}>
                 <View
                   className="items-center justify-center"
-                  style={{ height: rs(150), width: rs(150), borderRadius: rs(75), backgroundColor: MINT, opacity: 0.6, marginBottom: -rs(150) }}
+                  style={{ height: 112, width: 112, borderRadius: 56, backgroundColor: MINT, marginBottom: -112 }}
                 />
-                <View className="items-center justify-center" style={{ height: rs(150), width: rs(150) }}>
-                  <View className="items-center justify-center" style={{ height: rs(96), width: rs(96), borderRadius: rs(24), backgroundColor: PRIMARY }}>
-                    <ShoppingBag size={rf(40)} color="#FFFFFF" />
+                <View className="items-center justify-center" style={{ height: 112, width: 112 }}>
+                  <View className="items-center justify-center" style={{ height: 68, width: 68, borderRadius: 20, backgroundColor: ACCENT }}>
+                    <ShoppingBag size={30} color="#FFFFFF" />
                   </View>
-                  <Send size={rf(20)} color={BRIGHT} style={{ position: 'absolute', top: rs(4), right: rs(8) }} />
+                  <Send size={17} color={PRIMARY} style={{ position: 'absolute', top: 4, right: 6 }} />
                 </View>
-                <Text className="font-extrabold text-center" style={{ fontSize: rf(20), color: TEXT_PRIMARY, marginTop: rs(18) }}>
+                <Text className="font-extrabold text-center" style={{ fontSize: 15, color: TEXT_PRIMARY, marginTop: 14 }}>
                   No buy orders yet
                 </Text>
-                <Text className="text-center" style={{ fontSize: rf(12.5), color: TEXT_SECONDARY, marginTop: rs(6) }}>
+                <Text className="text-center" style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 4 }}>
                   Your marketplace purchases will appear here.
                 </Text>
               </View>
@@ -598,10 +621,10 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               {/* Benefits panel — static, generic reassurance copy (no
                   fabricated business data), same precedent as the trust
                   banners elsewhere in this app. */}
-              <View className="px-4" style={{ marginTop: rs(24) }}>
+              <View className="px-4" style={{ marginTop: 18 }}>
                 <View
                   className="flex-row"
-                  style={{ backgroundColor: SOFT_MINT, borderRadius: rs(20), padding: rs(14), borderWidth: 1, borderColor: BORDER }}
+                  style={{ backgroundColor: CARD_BG, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 8, borderWidth: 1, borderColor: SOFT_MINT }}
                 >
                   {[
                     { Icon: ShieldCheck, title: 'Secure Payments', sub: '100% safe transactions' },
@@ -609,13 +632,13 @@ export default function MarketplaceOrdersScreen({ navigation }) {
                     { Icon: Package, title: 'Genuine Products', sub: 'Buy with confidence' },
                   ].map((b, i) => (
                     <React.Fragment key={b.title}>
-                      {i > 0 ? <View style={{ width: 1, backgroundColor: BORDER, marginHorizontal: rs(4) }} /> : null}
-                      <View className="flex-1 items-center" style={{ paddingHorizontal: rs(4) }}>
-                        <View className="items-center justify-center" style={{ height: rs(34), width: rs(34), borderRadius: rs(17), backgroundColor: '#FFFFFF', marginBottom: rs(6) }}>
-                          <b.Icon size={rf(15)} color={ACCENT} />
+                      {i > 0 ? <View style={{ width: 1, backgroundColor: SOFT_MINT, marginHorizontal: 4 }} /> : null}
+                      <View className="flex-1 items-center" style={{ paddingHorizontal: 4 }}>
+                        <View className="items-center justify-center" style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: MINT, marginBottom: 5 }}>
+                          <b.Icon size={14} color={ACCENT} />
                         </View>
-                        <Text className="font-extrabold text-center" style={{ fontSize: rf(10.5), color: TEXT_PRIMARY }} numberOfLines={1}>{b.title}</Text>
-                        <Text className="text-center" style={{ fontSize: rf(9), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={2}>{b.sub}</Text>
+                        <Text className="font-extrabold text-center" style={{ fontSize: 10.5, color: TEXT_PRIMARY }} numberOfLines={1}>{b.title}</Text>
+                        <Text className="text-center" style={{ fontSize: 9.5, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={2}>{b.sub}</Text>
                       </View>
                     </React.Fragment>
                   ))}
@@ -623,17 +646,17 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               </View>
 
               {/* Explore Products — same real Buy tab, no new route. */}
-              <View className="px-4" style={{ marginTop: rs(18) }}>
+              <View className="px-4" style={{ marginTop: 14 }}>
                 <Pressable
                   onPress={() => navigation.navigate('OwnerTabs', { screen: 'Buy' })}
                   className="flex-row items-center justify-center active:opacity-90"
-                  style={{ borderRadius: 999, backgroundColor: ACCENT, paddingVertical: rs(15), ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.28 }}
+                  style={{ borderRadius: 999, backgroundColor: ACCENT, minHeight: 46, ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.25 }}
                 >
-                  <ShoppingBag size={rf(16)} color="#FFFFFF" />
-                  <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(14) }}>Explore Products</Text>
-                  <ArrowRight size={rf(16)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
+                  <ShoppingBag size={15} color="#FFFFFF" />
+                  <Text className="text-white font-extrabold" style={{ marginLeft: 8, fontSize: 13 }}>Explore Products</Text>
+                  <ArrowRight size={15} color="#FFFFFF" style={{ marginLeft: 8 }} />
                 </Pressable>
-                <Text className="text-center" style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(10) }}>
+                <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 8 }}>
                   Start shopping and find great deals!
                 </Text>
               </View>
@@ -643,16 +666,16 @@ export default function MarketplaceOrdersScreen({ navigation }) {
           <View className="flex-1 items-center justify-center" style={{ paddingHorizontal: rs(32) }}>
             <View
               className="items-center justify-center"
-              style={{ height: rs(96), width: rs(96), borderRadius: rs(48), backgroundColor: MINT, marginBottom: rs(16) }}
+              style={{ height: 84, width: 84, borderRadius: 42, backgroundColor: MINT, marginBottom: 14 }}
             >
-              <View className="items-center justify-center" style={{ height: rs(64), width: rs(64), borderRadius: rs(32), backgroundColor: '#FFFFFF' }}>
-                <ShoppingBag size={rf(26)} color={ACCENT} />
+              <View className="items-center justify-center" style={{ height: 56, width: 56, borderRadius: 28, backgroundColor: '#FFFFFF' }}>
+                <ShoppingBag size={24} color={ACCENT} />
               </View>
             </View>
-            <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }}>
+            <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY }}>
               {q ? 'No matches' : `No ${tab.toLowerCase()} orders yet`}
             </Text>
-            <Text className="text-center" style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(8), lineHeight: rf(17) }}>
+            <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6, lineHeight: 17 }}>
               {q
                 ? `Nothing in ${tab} matches "${query.trim()}".`
                 : tab === 'Sell'
@@ -663,7 +686,7 @@ export default function MarketplaceOrdersScreen({ navigation }) {
         )
       ) : (
         <ScrollView
-          contentContainerStyle={[{ paddingHorizontal: rs(16), paddingTop: rs(4), paddingBottom: rs(24) }, capStyle]}
+          contentContainerStyle={[{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 20 }, capStyle]}
           showsVerticalScrollIndicator={false}
         >
           {visible.map((item) => (

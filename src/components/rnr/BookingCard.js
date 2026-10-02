@@ -40,10 +40,10 @@ export function BookingCard({
             <Smartphone size={20} color={tokens.primary} />
           </View>
           <View className="flex-1 pr-2">
-            <Text numberOfLines={1} className="text-[15px] font-extrabold text-text">
+            <Text numberOfLines={1} className="text-[13px] font-extrabold text-text">
               {device || 'Device'}
             </Text>
-            <Text numberOfLines={1} className="text-[11.5px] text-text-muted mt-0.5">
+            <Text numberOfLines={1} className="text-[11px] text-text-muted mt-0.5">
               {brand ? `${brand} · ` : ''}{bookingId ? `#${bookingId}` : ''}
             </Text>
           </View>
@@ -68,7 +68,7 @@ export function BookingCard({
               <View className="flex-row items-center justify-between mt-1">
                 <View className="flex-row items-center">
                   <IndianRupee size={13} color={tokens.text} />
-                  <Text className="ml-0.5 text-[14px] font-extrabold text-text">{amount}</Text>
+                  <Text className="ml-0.5 text-[13px] font-extrabold text-text">{amount}</Text>
                   <Text className="ml-2 text-[11px] text-text-muted">{amountCaption}</Text>
                 </View>
                 {rightLabel ? (

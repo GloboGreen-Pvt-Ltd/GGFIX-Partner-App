@@ -89,7 +89,9 @@ export function Select({
           className,
         )}
       >
-        <Text className={cn('text-base', selected ? 'text-text' : 'text-text-muted')}>{label}</Text>
+        {/* One line, shrinking before the chevron: a long value ("Andhra
+            Pradesh") in a half-width field must not wrap past the box. */}
+        <Text numberOfLines={1} style={{ flexShrink: 1, marginRight: 6 }} className={cn('text-base', selected ? 'text-text' : 'text-text-muted')}>{label}</Text>
         <Ionicons name="chevron-down" size={16} color="#667066" />
       </Pressable>
 

@@ -353,8 +353,8 @@ export default function ScanSearchScreen({ navigation, route }) {
           <View className="items-center justify-center" style={{ height: rs(64), width: rs(64), borderRadius: rs(32), backgroundColor: '#FEF3C7', marginBottom: rs(16) }}>
             <CameraIcon size={rf(28)} color="#B45309" />
           </View>
-          <Text className="font-extrabold text-center" style={{ fontSize: rf(16) }}>Camera access is required to scan.</Text>
-          <Text className="text-center" style={{ fontSize: rf(12.5), color: '#667085', marginTop: rs(8), lineHeight: rf(18) }}>
+          <Text className="font-extrabold text-center" style={{ fontSize: 15 }}>Camera access is required to scan.</Text>
+          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(8), lineHeight: rf(18) }}>
             GGFIX needs your camera to scan QR codes, barcodes and devices.
           </Text>
           <View className="flex-row" style={{ marginTop: rs(22) }}>
@@ -393,7 +393,7 @@ export default function ScanSearchScreen({ navigation, route }) {
         <Pressable onPress={() => navigation.goBack()} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: 'rgba(255,255,255,0.15)', marginRight: rs(12) }}>
           <ChevronLeft size={rf(22)} color="#FFFFFF" />
         </Pressable>
-        <Text className="flex-1 text-white font-extrabold" style={{ fontSize: rf(16) }} numberOfLines={1}>
+        <Text className="flex-1 text-white font-extrabold" style={{ fontSize: 17 }} numberOfLines={1}>
           {isLens ? 'Visual Device Scanner' : 'Scan QR or Barcode'}
         </Text>
         <Pressable onPress={() => setTorchOn((v) => !v)} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: 'rgba(255,255,255,0.15)' }}>
@@ -429,7 +429,7 @@ export default function ScanSearchScreen({ navigation, route }) {
           </View>
           <View className="flex-row items-center" style={{ marginTop: rs(20), paddingHorizontal: rs(30) }}>
             {isLens ? <ScanSearch size={rf(15)} color="#FFFFFF" /> : <ScanLine size={rf(15)} color="#FFFFFF" />}
-            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: rf(12.5) }}>
+            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: 12 }}>
               {isLens
                 ? 'Point the camera at the device, label, model number or barcode.'
                 : 'Align the QR code or barcode inside the frame'}
@@ -460,7 +460,7 @@ export default function ScanSearchScreen({ navigation, route }) {
               style={{ paddingHorizontal: rs(18), paddingVertical: rs(11), backgroundColor: 'rgba(255,255,255,0.18)' }}
             >
               <SearchIcon size={rf(15)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(13) }}>Search manually</Text>
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 13 }}>Search manually</Text>
             </Pressable>
           )}
         </View>
@@ -475,8 +475,8 @@ export default function ScanSearchScreen({ navigation, route }) {
               <Image source={{ uri: ocrPhotoUri }} style={{ width: rs(56), height: rs(56), borderRadius: rs(14), marginRight: rs(12) }} />
             ) : null}
             <View className="flex-1">
-              <Text className="font-extrabold" style={{ fontSize: rf(14) }}>Search manually</Text>
-              <Text style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(2) }}>
+              <Text className="font-extrabold" style={{ fontSize: 13 }}>Search manually</Text>
+              <Text style={{ fontSize: 11, color: '#667085', marginTop: rs(2) }}>
                 Type the model, brand, IMEI or tracking ID and it'll search GGFIX for you.
               </Text>
             </View>
@@ -489,7 +489,7 @@ export default function ScanSearchScreen({ navigation, route }) {
             placeholderTextColor="#8FA08F"
             returnKeyType="search"
             onSubmitEditing={confirmManualShot}
-            style={{ borderWidth: 1, borderColor: '#DCE7E2', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: rf(13.5) }}
+            style={{ borderWidth: 1, borderColor: '#DCE7E2', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: 13 }}
           />
           <View className="flex-row" style={{ marginTop: rs(14) }}>
             <Pressable onPress={reset} style={{ paddingHorizontal: rs(18), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
@@ -512,7 +512,7 @@ export default function ScanSearchScreen({ navigation, route }) {
           {loading ? (
             <View className="items-center justify-center" style={{ paddingVertical: rs(40) }}>
               <ActivityIndicator size="large" color={ACCENT} />
-              <Text className="font-semibold" style={{ color: '#667085', fontSize: rf(12.5), marginTop: rs(12) }}>{loadingStage}</Text>
+              <Text className="font-semibold" style={{ color: '#667085', fontSize: 12, marginTop: rs(12) }}>{loadingStage}</Text>
             </View>
           ) : (
             <ResultBody
@@ -544,24 +544,24 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <View className="items-center justify-center" style={{ height: rs(28), width: rs(28), borderRadius: rs(14), backgroundColor: MINT, marginBottom: rs(8) }}>
             <BadgeCheck size={rf(15)} color={BRIGHT} />
           </View>
-          <Text className="font-extrabold" style={{ fontSize: rf(15) }}>Device Found</Text>
+          <Text className="font-extrabold" style={{ fontSize: 13 }}>Device Found</Text>
         </View>
 
         <View className="items-center justify-center overflow-hidden self-center" style={{ height: rs(120), width: rs(120), borderRadius: rs(18), backgroundColor: MINT, marginTop: rs(10), marginBottom: rs(12) }}>
           {d.imageUrl ? <Image source={{ uri: d.imageUrl }} style={{ width: '82%', height: '82%' }} resizeMode="contain" /> : <Smartphone size={rf(34)} color={ACCENT} />}
         </View>
 
-        <Text className="font-bold text-center" style={{ fontSize: rf(12.5), color: '#667085' }}>{d.brand}</Text>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(17), marginTop: rs(2) }}>{d.modelName}</Text>
+        <Text className="font-bold text-center" style={{ fontSize: 12, color: '#667085' }}>{d.brand}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 15, marginTop: rs(2) }}>{d.modelName}</Text>
         {(d.colors && d.colors.length) || d.modelCode ? (
-          <Text className="text-center" style={{ fontSize: rf(12), color: '#667085', marginTop: rs(6) }}>
+          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6) }}>
             {[d.colors && d.colors.length ? `Color: ${d.colors.join(', ')}` : null, d.modelCode ? `SKU: ${d.modelCode}` : null].filter(Boolean).join('   ·   ')}
           </Text>
         ) : null}
 
         {typeof d.similarity === 'number' ? (
           <View className="self-center flex-row items-center" style={{ marginTop: rs(10), backgroundColor: MINT, borderRadius: rs(10), paddingHorizontal: rs(12), paddingVertical: rs(5) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(11.5), color: ACCENT }}>Match confidence: {Math.round(d.similarity * 100)}%</Text>
+            <Text className="font-extrabold" style={{ fontSize: 11, color: ACCENT }}>Match confidence: {Math.round(d.similarity * 100)}%</Text>
           </View>
         ) : null}
 
@@ -584,8 +584,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
     const [best, ...rest] = result.matches;
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(15), marginBottom: rs(2) }}>Visual matches</Text>
-        <Text style={{ fontSize: rf(11.5), color: '#667085', marginBottom: rs(14) }}>
+        <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Visual matches</Text>
+        <Text style={{ fontSize: 11, color: '#667085', marginBottom: rs(14) }}>
           Closest matches from the GGFIX device catalogue — confirm before opening.
         </Text>
 
@@ -600,29 +600,29 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <View className="flex-1">
             <View className="flex-row items-center">
               <View style={{ backgroundColor: BRIGHT, borderRadius: rs(8), paddingHorizontal: rs(8), paddingVertical: rs(2), marginRight: rs(8) }}>
-                <Text className="text-white font-extrabold" style={{ fontSize: rf(9) }}>BEST MATCH</Text>
+                <Text className="text-white font-extrabold" style={{ fontSize: 9 }}>BEST MATCH</Text>
               </View>
               {typeof best.similarity === 'number' ? (
-                <Text className="font-bold" style={{ fontSize: rf(10.5), color: ACCENT }}>{Math.round(best.similarity * 100)}% match</Text>
+                <Text className="font-bold" style={{ fontSize: 10.5, color: ACCENT }}>{Math.round(best.similarity * 100)}% match</Text>
               ) : null}
             </View>
-            <Text className="font-extrabold" style={{ fontSize: rf(14), marginTop: rs(4) }} numberOfLines={1}>{best.displayName}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13, marginTop: rs(4) }} numberOfLines={1}>{best.displayName}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
           <ChevronRight size={rf(18)} color={ACCENT} />
         </Pressable>
 
         {rest.length ? (
           <View style={{ marginTop: rs(14) }}>
-            <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), color: '#667085', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
+            <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
             {rest.slice(0, 4).map((m) => (
               <Pressable key={m.id} onPress={() => onOpenVisualMatch(m)} className="flex-row items-center" style={{ paddingVertical: rs(9), borderTopWidth: 1, borderTopColor: '#F0F4F2' }}>
                 <View className="items-center justify-center overflow-hidden" style={{ height: rs(40), width: rs(40), borderRadius: rs(11), backgroundColor: MINT, marginRight: rs(10) }}>
                   {m.imageUrl ? <Image source={{ uri: m.imageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(17)} color={ACCENT} />}
                 </View>
                 <View className="flex-1">
-                  <Text className="font-bold" style={{ fontSize: rf(12.5) }} numberOfLines={1}>{m.displayName}</Text>
-                  <Text style={{ fontSize: rf(10.5), color: '#667085' }} numberOfLines={1}>
+                  <Text className="font-bold" style={{ fontSize: 12 }} numberOfLines={1}>{m.displayName}</Text>
+                  <Text style={{ fontSize: 10.5, color: '#667085' }} numberOfLines={1}>
                     {typeof m.similarity === 'number' ? `${Math.round(m.similarity * 100)}% match` : 'Possible match'}
                   </Text>
                 </View>
@@ -648,8 +648,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEF3C7', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B45309" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>Device search failed</Text>
-        <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>{result.message || 'Please try again.'}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Device search failed</Text>
+        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>{result.message || 'Please try again.'}</Text>
         <View className="flex-row" style={{ marginTop: rs(18) }}>
           <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
@@ -673,10 +673,10 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             <BadgeCheck size={rf(19)} color={ACCENT} />
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>
               {t.deviceDisplayName || t.deviceModelName || 'Booking found'}
             </Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }}>#{t.trackingId || t.id}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }}>#{t.trackingId || t.id}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenTicket(t)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -698,8 +698,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             <Truck size={rf(19)} color={ACCENT} />
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>{p.issueSummary || 'Pickup request'}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{p.issueSummary || 'Pickup request'}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenPickup(p)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -721,8 +721,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             {d.modelImageUrl ? <Image source={{ uri: d.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(20)} color={ACCENT} />}
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>{d.displayName}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{d.displayName}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
         </View>
         <Pressable onPress={() => onSearchManually(d.displayName)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -738,8 +738,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
   if (result.kind === 'multi') {
     return (
       <View style={{ padding: rs(18) }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(15), marginBottom: rs(4) }}>Matches found</Text>
-        <Text style={{ fontSize: rf(12), color: '#667085', marginBottom: rs(16) }}>
+        <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(4) }}>Matches found</Text>
+        <Text style={{ fontSize: 12, color: '#667085', marginBottom: rs(16) }}>
           {result.count} records matched — pick the right one.
         </Text>
         <Pressable onPress={() => onSearchManually(result.query)} className="flex-row items-center" style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), paddingHorizontal: rs(16), justifyContent: 'center' }}>
@@ -759,8 +759,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B91C1C" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(14.5) }}>Search failed</Text>
-        <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6) }}>{result.message}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Search failed</Text>
+        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6) }}>{result.message}</Text>
         <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ marginTop: rs(18), backgroundColor: ACCENT, borderRadius: rs(16), paddingHorizontal: rs(24), paddingVertical: rs(13) }}>
           <RotateCcw size={rf(15)} color="#FFFFFF" />
           <Text className="text-white font-extrabold" style={{ marginLeft: rs(8) }}>Try again</Text>
@@ -775,13 +775,13 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEF3C7', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B45309" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>Couldn't read device details</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Couldn't read device details</Text>
         {result.devBuildRequired ? (
-          <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
             {result.message}
           </Text>
         ) : (
-          <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
             Try:{'\n'}• move closer{'\n'}• improve lighting{'\n'}• keep the model label visible
           </Text>
         )}
@@ -808,15 +808,15 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
       <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
         <AlertTriangle size={rf(24)} color="#B91C1C" />
       </View>
-      <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>No matching GGFIX record found</Text>
-      <Text className="text-center" style={{ fontSize: rf(12), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching GGFIX record found</Text>
+      <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
         {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in GGFIX.` : "Couldn't match that to anything in GGFIX."}
       </Text>
       {detectedLines.length ? (
         <View style={{ marginTop: rs(12), alignSelf: 'stretch', backgroundColor: '#F7FAF7', borderRadius: rs(14), padding: rs(12) }}>
-          <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), color: '#667085', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
+          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
           {detectedLines.slice(0, 4).map((line, i) => (
-            <Text key={i} className="font-extrabold" style={{ fontSize: rf(13), color: '#111827' }} numberOfLines={1}>{line}</Text>
+            <Text key={i} className="font-extrabold" style={{ fontSize: 13, color: '#111827' }} numberOfLines={1}>{line}</Text>
           ))}
         </View>
       ) : null}
@@ -840,7 +840,7 @@ function ScanHeader({ title, onBack, light }) {
       <Pressable onPress={onBack} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: MINT, marginRight: rs(12) }}>
         <ChevronLeft size={rf(20)} color={ACCENT} />
       </Pressable>
-      <Text className="font-extrabold" style={{ fontSize: rf(16) }}>{title}</Text>
+      <Text className="font-extrabold" style={{ fontSize: 17 }}>{title}</Text>
     </View>
   );
 }

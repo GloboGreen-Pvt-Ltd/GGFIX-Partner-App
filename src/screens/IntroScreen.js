@@ -30,7 +30,7 @@ function BenefitItem({ icon, label, tablet }) {
   return (
     <View style={styles.benefitItem}>
       <View style={[styles.benefitIconWrap, tablet && { width: rs(58), height: rs(58), borderRadius: rs(29) }]}>{icon}</View>
-      <Text style={[styles.benefitLabel, tablet && { fontSize: rf(12), lineHeight: rf(15) }]}>{label}</Text>
+      <Text style={[styles.benefitLabel, tablet && { fontSize: 12, lineHeight: rf(15) }]}>{label}</Text>
     </View>
   );
 }
@@ -100,7 +100,7 @@ export default function IntroScreen({ navigation, onDone }) {
       <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
 
       {/* Decorative only — soft mint shapes, never intercept touches. */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <View style={[styles.blob, { width: rs(220), height: rs(220), top: -rs(70), left: -rs(80), backgroundColor: MINT }]} />
         <View
           style={[
@@ -138,12 +138,12 @@ export default function IntroScreen({ navigation, onDone }) {
             </Pressable>
           </View>
 
-          <Text style={[styles.heading, { fontSize: rf(isTablet ? 32 : shortDevice ? 21 : 25), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
+          <Text style={[styles.heading, { fontSize: (isTablet ? 28 : shortDevice ? 20 : 22), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
             <Text style={{ color: PRIMARY_GREEN }}>Manage Repairs, Pickups, Buy &amp; Sell </Text>
             <Text style={{ color: DARK_TEXT }}>Devices — All in One Place</Text>
           </Text>
 
-          <Text style={[styles.description, isTablet && { fontSize: rf(16), lineHeight: rf(24), marginTop: rs(18) }]}>
+          <Text style={[styles.description, isTablet && { fontSize: 15, lineHeight: rf(24), marginTop: rs(18) }]}>
             Grow your business with GGFIX. Handle service orders, manage pickups, buy and sell devices, and serve more
             customers — faster and easier.
           </Text>
@@ -185,7 +185,7 @@ export default function IntroScreen({ navigation, onDone }) {
             accessibilityRole="button"
             style={[styles.cta, isTablet && { minHeight: rs(62) }]}
           >
-            <Text style={[styles.ctaText, isTablet && { fontSize: rf(18) }]}>Get Started</Text>
+            <Text style={[styles.ctaText, isTablet && { fontSize: 17 }]}>Get Started</Text>
             <ArrowRight size={rs(isTablet ? 20 : 18)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
           </Pressable>
         </View>
@@ -208,14 +208,14 @@ const styles = StyleSheet.create({
     marginBottom: rs(20),
   },
   wordmark: {
-    fontSize: rf(20),
+    fontSize: 17,
     fontWeight: '800',
     color: DARK_GREEN,
     letterSpacing: -0.3,
   },
   wordmarkSub: {
     marginTop: rs(2),
-    fontSize: rf(9),
+    fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1.4,
     color: MUTED_TEXT,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   description: {
     marginTop: rs(12),
     textAlign: 'center',
-    fontSize: rf(13),
+    fontSize: 13,
     lineHeight: rf(19),
     color: MUTED_TEXT,
   },
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   benefitLabel: {
-    fontSize: rf(9.5),
+    fontSize: 9.5,
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: rf(12),
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     color: '#FFFFFF',
-    fontSize: rf(16),
+    fontSize: 15,
     fontWeight: '800',
   },
 });

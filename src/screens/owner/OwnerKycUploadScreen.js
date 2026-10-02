@@ -104,8 +104,8 @@ function HeroBanner() {
           <ShieldCheck size={22} color="#FFFFFF" strokeWidth={2.2} />
         </View>
         <View className="flex-1">
-          <Text className="text-white text-[16px] font-extrabold">Verify Your Identity</Text>
-          <Text className="text-white/85 text-[11.5px] mt-1 leading-4">
+          <Text className="text-white text-[15px] font-extrabold">Verify Your Identity</Text>
+          <Text className="text-white/85 text-[11px] mt-1 leading-4">
             A secure and trusted marketplace starts with verified users.
           </Text>
         </View>
@@ -153,8 +153,8 @@ function StepRail({ stepState }) {
 function SectionLabel({ title, subtitle }) {
   return (
     <View className="mt-5 mb-2">
-      <Text className="text-[15px] font-extrabold text-text">{title}</Text>
-      {subtitle ? <Text className="text-[11.5px] text-text-muted mt-0.5 leading-4">{subtitle}</Text> : null}
+      <Text className="text-[13px] font-extrabold text-text">{title}</Text>
+      {subtitle ? <Text className="text-[11px] text-text-muted mt-0.5 leading-4">{subtitle}</Text> : null}
     </View>
   );
 }
@@ -172,7 +172,7 @@ function DocCard({ doc, file, onPick, onRemove, index }) {
           >
             <Icon size={15} color={tokens.primary} />
           </View>
-          <Text className="flex-1 text-[14px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
+          <Text className="flex-1 text-[13px] font-extrabold text-text" numberOfLines={1}>{doc.title}</Text>
           {doc.required ? <Text className="text-danger font-extrabold text-[13px]">*</Text> : null}
         </View>
 
@@ -200,7 +200,7 @@ function DocCard({ doc, file, onPick, onRemove, index }) {
             <View className="h-10 w-10 rounded-full bg-primary items-center justify-center">
               <Upload size={18} color="#fff" />
             </View>
-            <Text className="text-[12.5px] font-extrabold text-text mt-2">Tap to upload</Text>
+            <Text className="text-[12px] font-extrabold text-text mt-2">Tap to upload</Text>
             <Text className="text-[10.5px] text-text-muted mt-0.5">JPG, PNG, WebP · Max 5MB</Text>
           </Pressable>
         )}

@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Image, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, ScrollView, TextInput, Image, Modal } from 'react-native';
+import { Check, IndianRupee, Smartphone, Tag, Wrench } from 'lucide-react-native';
 import { useSelector } from 'react-redux';
 import { ScreenHeader } from '../../components/rnr';
 import { notify } from '../../components/confirm';
 import { marketplaceApi } from '../../api/client';
 import { selectShopId } from '../../store/authSlice';
+import { SELL, SellButton, SellFooter, sellShadow } from '../shared/sell/sellTheme';
+
+const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
   const params = route?.params || {};
@@ -18,6 +21,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
   const [partPriceTexts, setPartPriceTexts] = useState({}); // { [idx]: string } for spare parts mode
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const toNum = (s) => {
     const n = Number(String(s ?? '').replace(/[^0-9.]/g, ''));
@@ -135,177 +139,180 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
     }
   };
 
+  const canSubmit = isSparePartsMode ? pricedPartsCount > 0 : priceNum > 0;
+  const total = isSparePartsMode ? totalPartsPrice : priceNum;
+  const modalImage = isSparePartsMode ? Object.values(images).filter(Boolean)[0] : device.imageUrl;
+
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
       <ScreenHeader title="Sell your Gadget" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 130 }}>
-        <View className="bg-success/10 px-4 py-2 rounded-full self-center mb-3">
-          <Text className="text-success text-[12px] font-extrabold tracking-widest">SELL NOW FOR AMAZING PRICE</Text>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.greenLight, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 14 }}>
+          <Tag size={13} color={SELL.greenDark} />
+          <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 1, color: SELL.greenDark, marginLeft: 6 }}>SELL NOW FOR AMAZING PRICE</Text>
         </View>
 
         {isSparePartsMode ? (
           <>
-            <Text className="text-danger text-[12px] font-bold text-center mb-3">
-              Enter price for each spare part you want to list
+            <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink, paddingHorizontal: 2 }}>Set part prices</Text>
+            <Text style={{ fontSize: 13, color: SELL.muted, marginTop: 3, marginBottom: 12, paddingHorizontal: 2 }}>
+              Enter a price for each part you want to list. Parts left at 0 are skipped.
             </Text>
             {spareParts.map((p, idx) => {
               const priceTxt = partPriceTexts[idx] || '';
               const hasPrice = toNum(priceTxt) > 0;
               return (
-                <View key={`${p.groupKey}-${p.partName}-${idx}`} className={`bg-card border rounded-2xl p-3 mb-2.5 ${hasPrice ? 'border-primary/40' : 'border-border'}`}>
-                  <View className="flex-row items-center">
-                    <View className="w-14 h-14 rounded-md overflow-hidden bg-background items-center justify-center mr-3">
-                      {p.imageUrl ? (
-                        <Image source={{ uri: p.imageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-                      ) : (
-                        <Ionicons name="construct-outline" size={22} color="#8FA08F" />
-                      )}
-                    </View>
-                    <View className="flex-1 pr-2">
-                      <Text className="text-text font-extrabold text-[13px]" numberOfLines={1}>{p.partName}</Text>
-                      <Text className="text-text-muted text-[10px] mt-0.5" numberOfLines={1}>{p.group}</Text>
-                    </View>
-                    <View
-                      style={{ width: 130 }}
-                      className={`flex-row items-center rounded-lg border px-2.5 py-1.5 ${hasPrice ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}
-                    >
-                      <Text className="text-text text-[14px] font-extrabold mr-1">₹</Text>
-                      <TextInput
-                        className="text-text text-[14px] font-extrabold"
-                        placeholder="0.00"
-                        placeholderTextColor="#8FA08F"
-                        keyboardType="numeric"
-                        value={priceTxt}
-                        onChangeText={(v) => setPartPriceTexts((s) => ({ ...s, [idx]: v }))}
-                        style={{ flex: 1, paddingVertical: 2, minWidth: 0, width: '100%' }}
-                      />
-                    </View>
+                <View
+                  key={`${p.groupKey}-${p.partName}-${idx}`}
+                  style={{ backgroundColor: SELL.card, borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1.5, borderColor: hasPrice ? SELL.green : SELL.soft, flexDirection: 'row', alignItems: 'center', ...sellShadow }}
+                >
+                  <View style={{ height: 52, width: 52, borderRadius: 12, overflow: 'hidden', backgroundColor: SELL.soft, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    {p.imageUrl ? (
+                      <Image source={{ uri: p.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="cover" />
+                    ) : (
+                      <Wrench size={20} color={SELL.muted} />
+                    )}
+                  </View>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink }} numberOfLines={1}>{p.partName}</Text>
+                    <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 1 }} numberOfLines={1}>{p.group}</Text>
+                  </View>
+                  <View
+                    style={{
+                      width: 124, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
+                      borderColor: hasPrice ? SELL.green : SELL.line, backgroundColor: hasPrice ? SELL.greenLight : SELL.card, paddingHorizontal: 10,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: SELL.ink, marginRight: 4 }}>₹</Text>
+                    <TextInput
+                      placeholder="0"
+                      placeholderTextColor={SELL.subtle}
+                      keyboardType="numeric"
+                      value={priceTxt}
+                      onChangeText={(v) => setPartPriceTexts((st) => ({ ...st, [idx]: v }))}
+                      style={{ flex: 1, minWidth: 0, paddingVertical: 8, fontSize: 13, fontWeight: '800', color: SELL.ink }}
+                    />
                   </View>
                 </View>
               );
             })}
 
-            {/* Total */}
-            <View className="bg-card border border-success/40 rounded-2xl p-3 flex-row items-center mt-1">
-              <View className="flex-1">
-                <Text className="text-text-muted text-[10px] uppercase tracking-widest">Total ({pricedPartsCount}/{spareParts.length} priced)</Text>
-                <Text className="text-success text-[18px] font-extrabold mt-0.5">
-                  ₹ {totalPartsPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
+            <View style={{ backgroundColor: SELL.greenLight, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: SELL.muted }}>TOTAL · {pricedPartsCount}/{spareParts.length} PRICED</Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: SELL.greenDark, marginTop: 2 }}>₹{fmt(totalPartsPrice)}</Text>
               </View>
-              <Ionicons name="pricetags-outline" size={22} color="#004C40" />
+              <View style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: SELL.card, alignItems: 'center', justifyContent: 'center' }}>
+                <IndianRupee size={18} color={SELL.green} />
+              </View>
             </View>
           </>
         ) : (
-          <View className="bg-card border border-border rounded-2xl p-3 items-center" style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
-            {device.imageUrl ? (
-              <Image source={{ uri: device.imageUrl }} style={{ width: 110, height: 130, marginBottom: 8 }} resizeMode="contain" />
-            ) : (
-              <View className="w-[110px] h-[130px] mb-2 bg-background rounded-xl items-center justify-center">
-                <Ionicons name="phone-portrait-outline" size={36} color="#8FA08F" />
-              </View>
-            )}
-            <Text className="text-text font-extrabold text-[14px] text-center" numberOfLines={2}>
-              {device.modelName || 'Device'}{specs ? `, ${specs}` : ''}{device.color ? ` · ${device.color}` : ''}
+          <View style={{ backgroundColor: SELL.card, borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: SELL.soft, ...sellShadow }}>
+            <View style={{ height: 150, width: 150, borderRadius: 75, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              {device.imageUrl ? (
+                <Image source={{ uri: device.imageUrl }} style={{ width: 110, height: 130 }} resizeMode="contain" />
+              ) : (
+                <Smartphone size={44} color={SELL.green} />
+              )}
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink, textAlign: 'center' }} numberOfLines={2}>
+              {device.modelName || 'Device'}
             </Text>
+            {specs || device.color ? (
+              <Text style={{ fontSize: 13, color: SELL.muted, marginTop: 3, textAlign: 'center' }} numberOfLines={1}>
+                {[specs, device.color].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
 
-            <Text className="text-danger text-[12px] font-bold mt-3 mb-2">Kindly enter the device price amount</Text>
-
-            <View className="flex-row items-center bg-background border border-border rounded-xl px-3 py-2 self-stretch">
-              <Text className="text-text text-[16px] font-extrabold mr-2">₹</Text>
-              <TextInput
-                className="flex-1 text-text text-[16px] font-extrabold"
-                placeholder="0.00"
-                placeholderTextColor="#8FA08F"
-                keyboardType="numeric"
-                value={priceText}
-                onChangeText={setPriceText}
-              />
+            <View style={{ alignSelf: 'stretch', marginTop: 18 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink }}>Your selling price</Text>
+              <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 2, marginBottom: 8 }}>Buyers nearby will see this price.</Text>
+              <View
+                style={{
+                  flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14,
+                  borderColor: focused || priceNum > 0 ? SELL.green : SELL.line, backgroundColor: SELL.card,
+                }}
+              >
+                <Text style={{ fontSize: 20, fontWeight: '800', color: SELL.ink, marginRight: 8 }}>₹</Text>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor={SELL.subtle}
+                  keyboardType="numeric"
+                  value={priceText}
+                  onChangeText={setPriceText}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  style={{ flex: 1, paddingVertical: 12, fontSize: 20, fontWeight: '800', color: SELL.ink }}
+                />
+              </View>
+              {priceNum > 0 ? (
+                <Text style={{ fontSize: 12, fontWeight: '700', color: SELL.greenDark, marginTop: 6 }}>Listing price: ₹{fmt(priceNum)}</Text>
+              ) : null}
             </View>
           </View>
         )}
       </ScrollView>
 
-      <View className="absolute left-0 right-0 bottom-0 p-3 bg-card border-t border-border" style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
-        <Pressable
+      <SellFooter caption={canSubmit ? null : (isSparePartsMode ? 'Price at least one part to continue' : 'Enter a price to continue')}>
+        <SellButton
+          title={isSparePartsMode ? `Submit (${pricedPartsCount})` : 'Submit'}
           onPress={() => setConfirming(true)}
-          disabled={isSparePartsMode ? pricedPartsCount === 0 : priceNum <= 0}
-          className={`rounded-2xl py-3 items-center ${(isSparePartsMode ? pricedPartsCount > 0 : priceNum > 0) ? 'bg-success active:opacity-80' : 'bg-success/40'}`}
-        >
-          <Text className="text-white text-[15px] font-extrabold">
-            {isSparePartsMode ? `Submit (${pricedPartsCount})` : 'Submit'}
-          </Text>
-        </Pressable>
-      </View>
+          disabled={!canSubmit}
+        />
+      </SellFooter>
 
-      {/* Confirm Sale modal */}
-      {confirming ? (
-        <View className="absolute inset-0 bg-black/50 items-center justify-center px-6">
-          <View className="bg-card rounded-3xl p-4 w-full" style={{ maxWidth: 420 }}>
-            <View className="items-center mb-2">
-              <View className="bg-success rounded-full p-1.5 mb-1">
-                <Ionicons name="checkmark" size={22} color="#fff" />
+      {/* Confirm Sale */}
+      <Modal visible={confirming} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (!submitting) setConfirming(false); }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(30,30,30,0.5)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }}>
+          <View style={{ backgroundColor: SELL.card, borderRadius: 24, padding: 18, width: '100%', maxWidth: 420 }}>
+            <View style={{ alignItems: 'center' }}>
+              <View style={{ height: 52, width: 52, borderRadius: 26, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                <View style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SELL.green, alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={20} color="#FFFFFF" strokeWidth={3} />
+                </View>
               </View>
-              <Text className="text-text text-[18px] font-extrabold">Confirm Your Sale</Text>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: SELL.ink }}>Confirm your sale</Text>
             </View>
 
-            <View className="flex-row items-center mt-3">
-              <View className="flex-1">
-                <Text className="text-text text-[20px] font-extrabold" numberOfLines={1}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, backgroundColor: SELL.page, borderRadius: 16, padding: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink }} numberOfLines={2}>
                   {isSparePartsMode ? `Spare Parts (${pricedPartsCount})` : (device.modelName || 'Device')}
                 </Text>
                 {isSparePartsMode ? (
-                  <Text className="text-text-muted text-[12px] mt-1" numberOfLines={3}>
+                  <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 3 }} numberOfLines={3}>
                     {partsWithPrice.filter((p) => p._price > 0).map((p) => p.partName).join(', ')}
                   </Text>
-                ) : (specs ? <Text className="text-text-muted text-[12px] mt-1">{specs}</Text> : null)}
-                <View className="bg-success rounded-full px-3 py-1 self-start mt-2 flex-row items-center">
-                  <Ionicons name="pricetag" size={11} color="#fff" />
-                  <Text className="text-white text-[11px] font-extrabold ml-1">BEST DEAL</Text>
+                ) : (specs ? <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 3 }}>{specs}</Text> : null)}
+                <View style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.green, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                  <Tag size={11} color="#FFFFFF" />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', marginLeft: 4 }}>BEST DEAL</Text>
                 </View>
               </View>
-              {isSparePartsMode ? (
-                Object.values(images).filter(Boolean)[0] ? (
-                  <Image source={{ uri: Object.values(images).filter(Boolean)[0] }} style={{ width: 90, height: 110, marginLeft: 8 }} resizeMode="cover" />
-                ) : null
-              ) : (device.imageUrl ? (
-                <Image source={{ uri: device.imageUrl }} style={{ width: 90, height: 110, marginLeft: 8 }} resizeMode="contain" />
-              ) : null)}
+              {modalImage ? (
+                <Image source={{ uri: modalImage }} style={{ width: 76, height: 92, marginLeft: 10 }} resizeMode={isSparePartsMode ? 'cover' : 'contain'} />
+              ) : null}
             </View>
 
-            <Text className="text-text mt-3 text-[13px]">
+            <Text style={{ fontSize: 13, color: SELL.ink, marginTop: 14, lineHeight: 19 }}>
               {isSparePartsMode
                 ? `We'll list ${pricedPartsCount} spare part${pricedPartsCount === 1 ? '' : 's'} separately. Confirm to proceed.`
                 : 'Should we proceed with selling this product? Please confirm.'}
             </Text>
 
-            <Text className="text-primary mt-3 text-[14px] font-extrabold">
-              {isSparePartsMode ? 'Total: ' : 'Price: '}₹ {(isSparePartsMode ? totalPartsPrice : priceNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.muted }}>{isSparePartsMode ? 'Total' : 'Price'}</Text>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: SELL.greenDark, marginLeft: 8 }}>₹{fmt(total)}</Text>
+            </View>
 
-            <View className="flex-row mt-4">
-              <Pressable
-                onPress={() => setConfirming(false)}
-                disabled={submitting}
-                className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
-              >
-                <Text className="text-text-muted text-[14px] font-extrabold">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submit}
-                disabled={submitting}
-                className="flex-1 rounded-2xl bg-success py-3 items-center active:opacity-80"
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white text-[14px] font-extrabold">Sell Now</Text>
-                )}
-              </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <SellButton title="Cancel" variant="outline" onPress={() => setConfirming(false)} disabled={submitting} style={{ flex: 1 }} />
+              <SellButton title="Sell Now" onPress={submit} loading={submitting} style={{ flex: 1 }} />
             </View>
           </View>
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 }

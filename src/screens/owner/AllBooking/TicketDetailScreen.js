@@ -602,7 +602,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 )}
               </View>
               <View className="ml-3.5 flex-1">
-                <Text className="text-[17px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
+                <Text className="text-[15px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
                 {(ramLabel || storageLabel || color) ? (
                   <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
                     {[ramLabel, storageLabel, color].filter(Boolean).join(' · ')}
@@ -623,7 +623,7 @@ export default function TicketDetailScreen({ route, navigation }) {
             <View className="flex-row items-center justify-between">
               <View>
                 <Text className="text-[10px] text-text-muted">Tracking ID</Text>
-                <Text className="text-[14px] font-extrabold text-primary">#{trackingId}</Text>
+                <Text className="text-[13px] font-extrabold text-primary">#{trackingId}</Text>
               </View>
               {ticket.createdAt ? (
                 <View className="items-end">
@@ -657,7 +657,7 @@ export default function TicketDetailScreen({ route, navigation }) {
         <View className="px-4">
           <View className="bg-card rounded-2xl p-4" style={cardShadow}>
             {lineItems.length === 0 ? (
-              <Text className="text-[12.5px] text-text-muted">No service items recorded.</Text>
+              <Text className="text-[12px] text-text-muted">No service items recorded.</Text>
             ) : (
               lineItems.map((item, idx) => (
                 <View
@@ -674,8 +674,8 @@ export default function TicketDetailScreen({ route, navigation }) {
               ))
             )}
             <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2' }}>
-              <Text className="flex-1 font-extrabold text-text text-[13.5px]">Estimated Total</Text>
-              <Text className="font-extrabold text-[17px]" style={{ color: ACCENT_GREEN }}>
+              <Text className="flex-1 font-extrabold text-text text-[13px]">Estimated Total</Text>
+              <Text className="font-extrabold text-[15px]" style={{ color: ACCENT_GREEN }}>
                 ₹{Number(estimatedTotal || 0).toLocaleString('en-IN')}
               </Text>
             </View>
@@ -687,14 +687,14 @@ export default function TicketDetailScreen({ route, navigation }) {
               <>
                 <View className="flex-row items-center pt-2">
                   <Text className="flex-1 text-text text-[13px] font-semibold">{payment.label}</Text>
-                  <Text className="font-extrabold text-[13.5px]" style={{ color: ACCENT_GREEN }}>
+                  <Text className="font-extrabold text-[13px]" style={{ color: ACCENT_GREEN }}>
                     − ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </Text>
                 </View>
                 <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
-                  <Text className="flex-1 font-extrabold text-text text-[13.5px]">Balance Amount</Text>
+                  <Text className="flex-1 font-extrabold text-text text-[13px]">Balance Amount</Text>
                   <Text
-                    className="font-extrabold text-[15px]"
+                    className="font-extrabold text-[13px]"
                     style={{ color: payment.balance > 0 ? '#B45309' : ACCENT_GREEN }}
                   >
                     ₹{Number(payment.balance).toLocaleString('en-IN')}
@@ -711,7 +711,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           <View className="bg-card rounded-2xl p-4" style={cardShadow}>
             {ticket.issueDescription ? (
               <View className="flex-row items-start py-1.5">
-                <Text className="text-[12.5px] text-text-muted" style={{ width: 96 }}>Complaint</Text>
+                <Text className="text-[12px] text-text-muted" style={{ width: 96 }}>Complaint</Text>
                 <Text className="flex-1 text-[13px] text-text font-bold leading-5" numberOfLines={3}>
                   {ticket.issueDescription}
                 </Text>
@@ -745,7 +745,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#F0F8EF' }}>
                 <ShieldCheck size={14} color={ACCENT_GREEN} />
               </View>
-              <Text className="flex-1 text-[12.5px] text-text-muted">Repair Approval</Text>
+              <Text className="flex-1 text-[12px] text-text-muted">Repair Approval</Text>
               {ticket.customerApproval ? (
                 <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E6F7E3' }}>
                   <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
@@ -780,7 +780,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   >
                     <User size={20} color={ACCENT_GREEN} />
                   </View>
-                  <Text className="flex-1 text-[12.5px] text-text-muted">
+                  <Text className="flex-1 text-[12px] text-text-muted">
                     No technician assigned to this booking yet.
                   </Text>
                 </View>
@@ -795,7 +795,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <UserPlus size={15} color="#fff" />
-                    <Text className="text-white text-[13.5px] font-extrabold ml-1.5">Assign Technician</Text>
+                    <Text className="text-white text-[13px] font-extrabold ml-1.5">Assign Technician</Text>
                   </LinearGradient>
                 </Pressable>
               </>
@@ -805,7 +805,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   className="h-11 w-11 rounded-full items-center justify-center mr-3"
                   style={{ backgroundColor: ACCENT_GREEN }}
                 >
-                  <Text className="text-white text-[14px] font-extrabold">
+                  <Text className="text-white text-[13px] font-extrabold">
                     {(techName || '?').slice(0, 2).toUpperCase()}
                   </Text>
                 </View>
@@ -1066,7 +1066,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           style={{ borderWidth: 1.5, borderColor: ACCENT_GREEN, paddingVertical: 14 }}
         >
           <Phone size={16} color={ACCENT_GREEN} />
-          <Text className="text-[14px] font-extrabold ml-2" style={{ color: ACCENT_GREEN }}>
+          <Text className="text-[13px] font-extrabold ml-2" style={{ color: ACCENT_GREEN }}>
             Contact Customer
           </Text>
         </Pressable>
@@ -1081,7 +1081,7 @@ export default function TicketDetailScreen({ route, navigation }) {
             style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
           >
             <ClipboardList size={16} color="#FFFFFF" />
-            <Text className="text-white text-[14px] font-extrabold ml-2">Update Status</Text>
+            <Text className="text-white text-[13px] font-extrabold ml-2">Update Status</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -1114,7 +1114,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           >
             <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
             <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-[15px] font-extrabold text-gray-900">Update Status</Text>
+              <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
               <Pressable
                 onPress={() => setStatusOpen(false)}
                 hitSlop={8}
@@ -1124,7 +1124,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <X size={14} color="#172117" />
               </Pressable>
             </View>
-            <Text className="text-[11.5px] text-text-muted mb-3">
+            <Text className="text-[11px] text-text-muted mb-3">
               Booking #{trackingId} moves forward one stage at a time.
             </Text>
 
@@ -1138,7 +1138,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               </Text>
               <View className="flex-row items-center">
                 <View className="w-2.5 h-2.5 rounded-full mr-2.5" style={{ backgroundColor: statusTone.fg }} />
-                <Text className="flex-1 text-[14px] font-extrabold text-text">{statusMeta.label}</Text>
+                <Text className="flex-1 text-[13px] font-extrabold text-text">{statusMeta.label}</Text>
                 <View className="flex-row items-center">
                   <CheckCircle2 size={14} color={BRAND_GREEN_DARK} />
                   <Text className="text-[10.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Current</Text>
@@ -1197,7 +1197,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                         <Text className="text-[10px] uppercase font-extrabold" style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8 }}>
                           Advance To
                         </Text>
-                        <Text className="text-white text-[15px] font-extrabold mt-0.5">{nextMeta.label}</Text>
+                        <Text className="text-white text-[13px] font-extrabold mt-0.5">{nextMeta.label}</Text>
                       </View>
                       {advancing
                         ? <ActivityIndicator size="small" color="#FFFFFF" />
@@ -1211,7 +1211,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     className="rounded-2xl border mt-2.5 py-3 items-center"
                     style={{ borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}
                   >
-                    <Text className="text-[12.5px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
+                    <Text className="text-[12px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
                   </TouchableOpacity>
                 </>
               );
@@ -1236,7 +1236,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E6F7E3' }}>
                 <ScanLine size={20} color={BRAND_GREEN_DARK} />
               </View>
-              <Text className="text-text text-[16px] font-extrabold">Enter IMEI Number</Text>
+              <Text className="text-text text-[15px] font-extrabold">Enter IMEI Number</Text>
               <Text className="text-text-muted text-[12px] text-center mt-1">
                 Add the device IMEI number for this booking.
               </Text>
@@ -1244,7 +1244,7 @@ export default function TicketDetailScreen({ route, navigation }) {
 
             <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
               <TextInput
-                className="flex-1 py-3 text-text text-[15px] font-bold"
+                className="flex-1 py-3 text-text text-[13px] font-bold"
                 placeholder="Enter 15-digit IMEI"
                 placeholderTextColor="#8FA08F"
                 keyboardType="number-pad"
@@ -1273,7 +1273,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 disabled={imeiSaving}
                 className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
               >
-                <Text className="text-text-muted text-[14px] font-extrabold">Cancel</Text>
+                <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={saveImeiAndContinue}
@@ -1281,7 +1281,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
                 style={{ backgroundColor: BRAND_GREEN }}
               >
-                {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[14px] font-extrabold">Save</Text>}
+                {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
               </Pressable>
             </View>
           </Pressable>
@@ -1310,7 +1310,7 @@ function SectionHeader({ icon: Icon, label }) {
   return (
     <View className="px-4 pt-5 pb-2 flex-row items-center">
       <Icon size={14} color={BRAND_GREEN_DARK} />
-      <Text className="text-text font-extrabold text-[12.5px] tracking-widest ml-1.5">{label}</Text>
+      <Text className="text-text font-extrabold text-[12px] tracking-widest ml-1.5">{label}</Text>
       <View className="flex-1 h-px bg-border ml-2" />
     </View>
   );

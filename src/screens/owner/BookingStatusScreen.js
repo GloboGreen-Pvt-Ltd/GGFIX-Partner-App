@@ -24,44 +24,47 @@ import {
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { Loader } from '../../components/rnr';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FCFA';
+// GGFIX palette.
+const GREEN = '#09AD2A';
+const GREEN_DEEP = '#078F23';
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
-const WARNING_RED = '#FF3B5C';
-const WARNING_ORANGE = '#FF9F1A';
-const SUCCESS_GREEN = '#16A34A';
+const HAIR = '#F3F3F3';
+const BORDER = '#E6E6E6';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const SUBTLE = '#8A8A8A';
+const RED = '#F84141';
+const RED_TINT = '#FEECEC';
+const RED_TEXT = '#D63232';
+const YELLOW_TINT = '#FFF8E1';
+const YELLOW_TEXT = '#8A6A00';
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
-  shadowOpacity: 0.06,
-  shadowRadius: 16,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 4,
+  shadowColor: INK,
+  shadowOpacity: 0.04,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
 };
 
 // Status tile config. `statusList` maps to the canonical backend status values
 // used to query /tickets?status= on the report screen; an empty statusList means
 // "every status", which the report screen fetches as one unfiltered page.
 //
-// 'Total Booking' leads as a prominent tinted card — it's the parent number the
+// 'Total Booking' leads as a prominent green card — it's the parent number the
 // rest break down, and it replaced the old TOTAL/ACTIVE/DELIVERED KPI strip that
 // showed the same figures a second time.
 // `reportBg` — the tint handed to BookingStatusReportScreen's `bg` param —
 // is kept at its exact pre-redesign value (every one of these tiles used the
 // iOS theme's C.blue/green/teal/cyan/indigo, which all resolve to the same
 // '#16BB05') even though the tile itself no longer shows that colour here;
-// this screen's own icon-tile colour is a separate, purely visual change.
+// this screen's own colours are a separate, purely visual change.
 const REPORT_BG_BRAND = '#16BB05';
 
 const TOTAL_TILE = {
@@ -85,20 +88,24 @@ const TILES = [
 // repair hasn't started) or because the customer hasn't answered the quote yet
 // (QUOTED). Both live in one grouped card so the owner sees the stalled total
 // first and can then open whichever half is blocking them.
+// `tint` / `ink` are this screen's icon-well colours (GGFIX red / yellow /
+// green); `reportBg` is the unchanged drill-down tint.
 const WORK_PENDING_TILE = {
   key: 'WORK_PENDING',
   label: 'Working Pending',
   statusList: ['APPROVED', 'QUOTED'],
   icon: AlertTriangle,
-  color: WARNING_RED,
+  color: RED,
+  tint: RED_TINT,
+  ink: RED_TEXT,
   reportBg: '#DC2626', // unchanged from the old C.red this tile used for the drill-down tint
   breakdown: [
-    { key: 'SPARE_PARTS_PENDING',       label: 'Spare parts pending',       statusList: ['APPROVED'], countKey: 'APPROVED', icon: Package,   color: WARNING_ORANGE, reportBg: '#F59E0B' },
-    { key: 'CUSTOMER_APPROVAL_PENDING', label: 'Customer approval pending', statusList: ['QUOTED'],   countKey: 'QUOTED',   icon: UserCheck, color: SUCCESS_GREEN,  reportBg: REPORT_BG_BRAND },
+    { key: 'SPARE_PARTS_PENDING',       label: 'Spare parts pending',       statusList: ['APPROVED'], countKey: 'APPROVED', icon: Package,   tint: YELLOW_TINT, ink: YELLOW_TEXT, reportBg: '#F59E0B' },
+    { key: 'CUSTOMER_APPROVAL_PENDING', label: 'Customer approval pending', statusList: ['QUOTED'],   countKey: 'QUOTED',   icon: UserCheck, tint: MINT,        ink: GREEN_DEEP,  reportBg: REPORT_BG_BRAND },
   ],
 };
 
-// Every bucket the screen can drill into — feeds the section header's count.
+// Every bucket the screen can drill into — feeds the header's count.
 const ALL_TILES = [TOTAL_TILE, ...TILES, WORK_PENDING_TILE, ...WORK_PENDING_TILE.breakdown];
 
 function sumKeys(counts, keys) {
@@ -150,7 +157,7 @@ export default function BookingStatusScreen({ navigation }) {
       statusKey: tile.key,
       label: tile.label,
       statusList: tile.statusList,
-      bg: tile.reportBg || tile.color || ACCENT,
+      bg: tile.reportBg || tile.color || GREEN,
       icon: tile.key,
     }),
     [navigation],
@@ -160,38 +167,49 @@ export default function BookingStatusScreen({ navigation }) {
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header — decorative mint leaf shapes behind the title block, same
-          low-risk plain-View approximation used elsewhere in this app. */}
-      <View style={{ paddingHorizontal: rs(16), paddingTop: insets.top + rs(8), paddingBottom: rs(14), overflow: 'hidden' }}>
-        <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
-        <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(40), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
-
+      {/* Header — white bar, title 17/800 + subtitle 11. */}
+      <View
+        style={{
+          backgroundColor: CARD_BG, paddingHorizontal: 14, paddingTop: insets.top + 8, paddingBottom: 10,
+          borderBottomWidth: 1, borderBottomColor: BORDER,
+        }}
+      >
         <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             style={{
-              height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
-              alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+              height: 36, width: 36, borderRadius: 18, marginRight: 10,
+              alignItems: 'center', justifyContent: 'center', backgroundColor: PAGE_BG,
               borderWidth: 1, borderColor: BORDER,
             }}
           >
-            <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
+            <ChevronLeft size={19} color={INK} />
           </TouchableOpacity>
-          <Text className="font-extrabold flex-1" style={{ fontSize: rf(22), color: TEXT_PRIMARY }} numberOfLines={1}>
-            Booking Status
-          </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
+              Booking Status
+            </Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
+              All time · {ALL_TILES.length} statuses
+            </Text>
+          </View>
           <TouchableOpacity
             onPress={() => navigation.navigate('BookingPreviousReport')}
             activeOpacity={0.8}
-            className="flex-row items-center rounded-full"
-            style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT }}
+            accessibilityRole="button"
+            style={{
+              flexDirection: 'row', alignItems: 'center', borderRadius: 999,
+              paddingHorizontal: 11, paddingVertical: 7, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
+            }}
           >
-            <History size={rf(13)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: ACCENT }}>
+            <History size={13} color={GREEN_DEEP} />
+            <Text className="font-extrabold" style={{ marginLeft: 5, fontSize: 11, color: GREEN_DEEP }}>
               Previous
             </Text>
           </TouchableOpacity>
@@ -201,93 +219,83 @@ export default function BookingStatusScreen({ navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: insets.bottom + rs(28) }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 24 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={ACCENT} colors={[ACCENT]} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />
         }
       >
         <View style={capStyle}>
           {/* Previous Reports */}
-          <View
-            className="flex-row items-center"
-            style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(13), borderWidth: 1, borderColor: BORDER, overflow: 'hidden', ...cardShadow }}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('BookingPreviousReport')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            style={{
+              flexDirection: 'row', alignItems: 'center', backgroundColor: CARD_BG, borderRadius: 14,
+              paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: HAIR, ...cardShadow,
+            }}
           >
-            <View pointerEvents="none" style={{ position: 'absolute', right: -rs(16), bottom: -rs(20), width: rs(90), height: rs(90), borderRadius: rs(45), backgroundColor: SOFT_MINT }} />
-            <View className="items-center justify-center" style={{ width: rs(44), height: rs(44), borderRadius: rs(15), backgroundColor: MINT, marginRight: rs(12) }}>
-              <History size={rf(19)} color={ACCENT} />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+              <History size={16} color={GREEN} />
             </View>
-            <View className="flex-1">
-              <Text className="font-extrabold" style={{ fontSize: rf(14.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text className="font-extrabold" style={{ fontSize: 13, color: INK }} numberOfLines={1}>
                 Previous Reports
               </Text>
-              <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+              <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
                 Month-by-month status snapshots
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('BookingPreviousReport')}
-              activeOpacity={0.7}
-              hitSlop={8}
-            >
-              <ChevronRight size={rf(19)} color={TEXT_SECONDARY} />
-            </TouchableOpacity>
-          </View>
+            <ChevronRight size={16} color={SUBTLE} />
+          </TouchableOpacity>
 
           {error ? (
-            <View style={{ marginTop: rs(12) }}>
-              <Text style={{ fontSize: rf(12), color: WARNING_RED }}>{error}</Text>
+            <View style={{ marginTop: 10, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: RED_TINT }}>
+              <Text style={{ fontSize: 12, color: RED_TEXT }}>{error}</Text>
             </View>
           ) : null}
 
           {/* Section header */}
-          <View style={{ marginTop: rs(20), marginBottom: rs(12) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(21), color: TEXT_PRIMARY }}>Booking status</Text>
-            <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }}>
-              All time · {ALL_TILES.length} statuses
-            </Text>
-          </View>
+          <SectionHeader title="Booking status" subtitle="Tap a card to see its bookings" />
 
-          {/* Total Booking hero card */}
+          {/* Total Booking card */}
           <TouchableOpacity
             onPress={() => openReport(TOTAL_TILE)}
             activeOpacity={0.9}
-            style={{ borderRadius: rs(22), overflow: 'hidden', ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.28 }}
+            accessibilityRole="button"
+            style={{ borderRadius: 14, overflow: 'hidden', shadowColor: GREEN, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}
           >
             <LinearGradient
-              colors={[BRIGHT, ACCENT]}
+              colors={[GREEN, GREEN_DEEP]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ flexDirection: 'row', alignItems: 'center', padding: rs(16) }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11 }}
             >
               <View
                 style={{
-                  width: rs(48), height: rs(48), borderRadius: rs(15),
-                  backgroundColor: 'rgba(255,255,255,0.22)',
-                  alignItems: 'center', justifyContent: 'center',
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
-                  marginRight: rs(13),
+                  width: 36, height: 36, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.2)',
+                  alignItems: 'center', justifyContent: 'center', marginRight: 10,
                 }}
               >
-                <ClipboardList size={rf(22)} color="#FFFFFF" />
+                <ClipboardList size={18} color="#FFFFFF" />
               </View>
-              <View className="flex-1">
-                <Text className="font-extrabold" style={{ fontSize: rf(16.5), color: '#FFFFFF' }} numberOfLines={1}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text className="font-extrabold" style={{ fontSize: 13, color: '#FFFFFF' }} numberOfLines={1}>
                   {TOTAL_TILE.label}
                 </Text>
-                <Text style={{ fontSize: rf(11.5), color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 1 }} numberOfLines={1}>
                   Every booking in the shop
                 </Text>
               </View>
-              <View style={{ width: 1, height: rs(30), backgroundColor: 'rgba(255,255,255,0.4)', marginHorizontal: rs(12) }} />
-              <Text className="font-extrabold" style={{ fontSize: rf(28), color: '#FFFFFF' }} numberOfLines={1}>
+              <Text className="font-extrabold" style={{ fontSize: 20, color: '#FFFFFF', marginLeft: 8 }} numberOfLines={1}>
                 {pad2(countFor(TOTAL_TILE))}
               </Text>
-              <ChevronRight size={rf(20)} color="rgba(255,255,255,0.85)" style={{ marginLeft: rs(4) }} />
+              <ChevronRight size={16} color="rgba(255,255,255,0.85)" style={{ marginLeft: 4 }} />
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* 2x2 metric grid */}
-          <View className="flex-row flex-wrap" style={{ marginTop: rs(11), marginHorizontal: -rs(5) }}>
+          {/* 2x2 metric grid — compact horizontal cards */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
             {TILES.map((t) => (
               <MetricCard
                 key={t.key}
@@ -300,17 +308,13 @@ export default function BookingStatusScreen({ navigation }) {
           </View>
 
           {/* Working Pending */}
-          <View style={{ marginTop: rs(22), marginBottom: rs(12) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY }}>{WORK_PENDING_TILE.label}</Text>
-            <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }}>
-              Waiting on a part or on the customer
-            </Text>
-          </View>
+          <SectionHeader title={WORK_PENDING_TILE.label} subtitle="Waiting on a part or on the customer" />
 
-          <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
+          <View style={{ backgroundColor: CARD_BG, borderRadius: 14, borderWidth: 1, borderColor: HAIR, overflow: 'hidden', ...cardShadow }}>
             <PendingRow
               icon={AlertTriangle}
-              color={WARNING_RED}
+              tint={WORK_PENDING_TILE.tint}
+              ink={WORK_PENDING_TILE.ink}
               label="Stalled bookings"
               value={pad2(countFor(WORK_PENDING_TILE))}
               onPress={() => openReport(WORK_PENDING_TILE)}
@@ -319,7 +323,8 @@ export default function BookingStatusScreen({ navigation }) {
               <PendingRow
                 key={b.key}
                 icon={b.icon}
-                color={b.color}
+                tint={b.tint}
+                ink={b.ink}
                 label={`${i + 1}. ${b.label}`}
                 value={pad2(countFor(b))}
                 onPress={() => openReport(b)}
@@ -333,58 +338,65 @@ export default function BookingStatusScreen({ navigation }) {
   );
 }
 
-// One of the 2x2 metric grid cards — uniform mint icon tile + title + count,
-// matching the reference's flat card style (colour-coding lives on the
-// Working Pending rows below, not here).
+function SectionHeader({ title, subtitle }) {
+  return (
+    <View style={{ marginTop: 16, marginBottom: 8 }}>
+      <Text className="font-extrabold" style={{ fontSize: 15, color: INK }}>{title}</Text>
+      {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+// One of the 2x2 metric cards — small mint icon well beside the count and
+// label (colour-coding lives on the Working Pending rows below, not here).
 function MetricCard({ icon: Icon, label, value, onPress }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
       style={{
-        width: '50%', paddingHorizontal: rs(5), marginBottom: rs(10),
+        flexGrow: 1, flexBasis: '45%',
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: CARD_BG, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9,
+        borderWidth: 1, borderColor: HAIR, ...cardShadow,
       }}
     >
-      <View
-        style={{
-          backgroundColor: CARD_BG, borderRadius: rs(18), padding: rs(13),
-          borderWidth: 1, borderColor: BORDER, overflow: 'hidden', ...cardShadow,
-        }}
-      >
-        <View pointerEvents="none" style={{ position: 'absolute', right: -rs(14), bottom: -rs(16), width: rs(70), height: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT }} />
-        <View className="items-center justify-center" style={{ width: rs(42), height: rs(42), borderRadius: rs(21), backgroundColor: MINT, marginBottom: rs(10) }}>
-          <Icon size={rf(19)} color={ACCENT} />
-        </View>
-        <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
-        <Text className="font-extrabold" style={{ fontSize: rf(22), color: TEXT_PRIMARY, marginTop: rs(2) }}>{value}</Text>
+      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: 9 }}>
+        <Icon size={16} color={GREEN} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>{value}</Text>
+        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-// One row of the Working Pending card — coloured icon tile, label, bold
-// count, chevron, with a divider under every row except the last.
-function PendingRow({ icon: Icon, color, label, value, onPress, last }) {
+// One row of the Working Pending card — tinted icon well, label, bold count,
+// chevron, with a divider under every row except the last.
+function PendingRow({ icon: Icon, tint, ink, label, value, onPress, last }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      className="flex-row items-center"
+      accessibilityRole="button"
       style={{
-        paddingHorizontal: rs(13), paddingVertical: rs(12),
-        borderBottomWidth: last ? 0 : 1, borderBottomColor: SOFT_MINT,
+        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9,
+        borderBottomWidth: last ? 0 : 1, borderBottomColor: HAIR,
       }}
     >
-      <View className="items-center justify-center" style={{ width: rs(42), height: rs(42), borderRadius: rs(14), backgroundColor: color, marginRight: rs(12) }}>
-        <Icon size={rf(18)} color="#FFFFFF" />
+      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: tint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+        <Icon size={16} color={ink} />
       </View>
-      <Text className="flex-1" style={{ fontSize: rf(13.5), color: TEXT_PRIMARY }} numberOfLines={1}>
+      <Text style={{ flex: 1, fontSize: 13, color: INK }} numberOfLines={1}>
         {label}
       </Text>
-      <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY, marginRight: rs(6) }}>
+      <Text className="font-extrabold" style={{ fontSize: 15, color: INK, marginRight: 4 }}>
         {value}
       </Text>
-      <ChevronRight size={rf(16)} color={TEXT_SECONDARY} />
+      <ChevronRight size={15} color={SUBTLE} />
     </TouchableOpacity>
   );
 }

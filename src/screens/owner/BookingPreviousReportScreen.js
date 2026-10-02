@@ -189,7 +189,7 @@ export default function BookingPreviousReportScreen({ navigation }) {
           >
             <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
           </TouchableOpacity>
-          <Text className="font-extrabold flex-1" style={{ fontSize: rf(21), color: TEXT_PRIMARY }} numberOfLines={1}>
+          <Text className="font-extrabold flex-1" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
             Previous Reports
           </Text>
           <View
@@ -197,7 +197,7 @@ export default function BookingPreviousReportScreen({ navigation }) {
             style={{ paddingHorizontal: rs(12), paddingVertical: rs(8), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT }}
           >
             <History size={rf(13)} color={ACCENT} />
-            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: ACCENT }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, color: ACCENT }} numberOfLines={1}>
               {MONTHS_TO_SHOW} months
             </Text>
             <ChevronDown size={rf(13)} color={ACCENT} style={{ marginLeft: rs(3) }} />
@@ -218,14 +218,14 @@ export default function BookingPreviousReportScreen({ navigation }) {
           <View style={{ marginBottom: rs(14) }}>
             <View className="flex-row items-center">
               <Calendar size={rf(12)} color={ACCENT} />
-              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11.5), color: ACCENT, letterSpacing: 1 }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: 11, color: ACCENT, letterSpacing: 1 }}>
                 LAST {MONTHS_TO_SHOW} MONTHS
               </Text>
             </View>
-            <Text className="font-extrabold" style={{ fontSize: rf(26), color: TEXT_PRIMARY, marginTop: rs(4) }}>
+            <Text className="font-extrabold" style={{ fontSize: 22, color: TEXT_PRIMARY, marginTop: rs(4) }}>
               Monthly status snapshots
             </Text>
-            <Text style={{ fontSize: rf(13), color: TEXT_SECONDARY, marginTop: rs(4), lineHeight: rf(19) }}>
+            <Text style={{ fontSize: 13, color: TEXT_SECONDARY, marginTop: rs(4), lineHeight: rf(19) }}>
               A quick overview of your bookings and their status for the last {MONTHS_TO_SHOW} months.
             </Text>
           </View>
@@ -239,10 +239,10 @@ export default function BookingPreviousReportScreen({ navigation }) {
               <TrendingUp size={rf(20)} color={ACCENT} />
             </View>
             <View className="flex-1">
-              <Text className="uppercase font-bold" style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, letterSpacing: 0.7 }}>
+              <Text className="uppercase font-bold" style={{ fontSize: 10.5, color: TEXT_SECONDARY, letterSpacing: 0.7 }}>
                 Total in window
               </Text>
-              <Text className="font-extrabold" style={{ fontSize: rf(19), color: TEXT_PRIMARY, marginTop: rs(1) }}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY, marginTop: rs(1) }}>
                 {grandTotal} bookings
               </Text>
             </View>
@@ -251,7 +251,7 @@ export default function BookingPreviousReportScreen({ navigation }) {
                 <View style={{ width: 1, height: rs(28), backgroundColor: BORDER, marginHorizontal: rs(10) }} />
                 <View className="flex-row items-center">
                   <Calendar size={rf(12)} color={TEXT_SECONDARY} />
-                  <Text style={{ marginLeft: rs(5), fontSize: rf(11.5), color: TEXT_SECONDARY }} numberOfLines={1}>
+                  <Text style={{ marginLeft: rs(5), fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
                     {windowRange}
                   </Text>
                 </View>
@@ -265,7 +265,7 @@ export default function BookingPreviousReportScreen({ navigation }) {
                 className="rounded-2xl"
                 style={{ paddingHorizontal: rs(14), paddingVertical: rs(11), backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
               >
-                <Text className="font-semibold" style={{ fontSize: rf(12.5), color: '#B91C1C' }}>{error}</Text>
+                <Text className="font-semibold" style={{ fontSize: 12, color: '#B91C1C' }}>{error}</Text>
               </View>
             </View>
           ) : null}
@@ -323,7 +323,7 @@ function MonthCard({ month, isCurrent, onTap }) {
         </View>
         <View className="flex-1">
           <View className="flex-row items-center flex-wrap">
-            <Text className="font-extrabold" style={{ fontSize: rf(15.5), color: TEXT_PRIMARY }}>
+            <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }}>
               {month.label}
             </Text>
             {isCurrent ? (
@@ -331,13 +331,13 @@ function MonthCard({ month, isCurrent, onTap }) {
                 className="rounded-full"
                 style={{ marginLeft: rs(8), paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: MINT }}
               >
-                <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: ACCENT, letterSpacing: 0.4 }}>
+                <Text className="font-extrabold" style={{ fontSize: 9.5, color: ACCENT, letterSpacing: 0.4 }}>
                   CURRENT
                 </Text>
               </View>
             ) : null}
           </View>
-          <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(1) }}>
+          <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>
             {month.total} total booking{month.total === 1 ? '' : 's'}
           </Text>
         </View>
@@ -345,7 +345,7 @@ function MonthCard({ month, isCurrent, onTap }) {
           className="items-center justify-center rounded-2xl"
           style={{ minWidth: rs(48), paddingHorizontal: rs(10), paddingVertical: rs(7), backgroundColor: SOFT_MINT }}
         >
-          <Text className="font-extrabold" style={{ fontSize: rf(19), color: ACCENT }}>
+          <Text className="font-extrabold" style={{ fontSize: 17, color: ACCENT }}>
             {pad2(month.total)}
           </Text>
         </View>
@@ -366,10 +366,10 @@ function MonthCard({ month, isCurrent, onTap }) {
               style={{ paddingHorizontal: rs(11), paddingVertical: rs(8), margin: rs(3), backgroundColor: bg }}
             >
               <Icon size={rf(13)} color={fg} />
-              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: rf(11.5), color: fg }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(5), fontSize: 11, color: fg }}>
                 {b.label}
               </Text>
-              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(11.5), color: fg }}>
+              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, color: fg }}>
                 {v}
               </Text>
             </View>
@@ -380,7 +380,7 @@ function MonthCard({ month, isCurrent, onTap }) {
       <View style={{ height: 1, backgroundColor: SOFT_MINT, marginTop: rs(10), marginBottom: rs(9) }} />
 
       <View className="flex-row items-center">
-        <Text className="font-extrabold" style={{ fontSize: rf(12), color: ACCENT }}>
+        <Text className="font-extrabold" style={{ fontSize: 12, color: ACCENT }}>
           View bookings
         </Text>
         <ChevronRight size={rf(14)} color={ACCENT} />

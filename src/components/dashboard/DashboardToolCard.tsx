@@ -20,15 +20,15 @@ const PRESS_SCALE = 0.97;
 // of the icon and its card drifting out of ratio independently.
 function iconSize(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 20 : cls === 'large' ? 19 : 18;
+  return cls === 'tablet' ? 22 : cls === 'large' ? 21 : 20;
 }
 function iconBoxSize(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 38 : cls === 'large' ? 36 : 34;
+  return cls === 'tablet' ? 48 : cls === 'large' ? 46 : 44;
 }
 function cardMinHeight(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 88 : cls === 'large' ? 84 : 80;
+  return cls === 'tablet' ? 100 : cls === 'large' ? 96 : 92;
 }
 function labelFontSize(width: number): number {
   const cls = getSizeClass(width);
@@ -59,6 +59,10 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
   const minHeight = cardMinHeight(winW);
   const fontSize = labelFontSize(winW);
   const tone = tool.color ?? PINE;
+  const glyphColor = tool.iconColor ?? tone;
+  const glyphBg = tool.iconBg ?? withAlpha(tone, 0.16);
+  // Solid glyphs read a touch smaller than outline ones at the same size.
+  const glyphSize = tool.iconColor ? icon + 3 : icon;
 
   return (
     <Pressable
@@ -76,20 +80,13 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
       <Animated.View
         style={[
           {
+            // No tile box: just the pastel icon circle and its label.
             minHeight,
             borderRadius: 16,
-            backgroundColor: C.card,
-            borderWidth: HAIRLINE,
-            borderColor: C.separator,
             alignItems: 'center',
             justifyContent: 'center',
             paddingVertical: 8,
             paddingHorizontal: 6,
-            shadowColor: '#0B1F14',
-            shadowOpacity: 0.04,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 1,
           },
           animatedStyle,
         ]}
@@ -102,13 +99,13 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
           style={{
             width: box,
             height: box,
-            borderRadius: Math.round(box * 0.3),
-            backgroundColor: withAlpha(tone, 0.14),
+            borderRadius: box / 2,
+            backgroundColor: glyphBg,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icon size={icon} color={tone} strokeWidth={2} />
+          <Icon size={glyphSize} color={glyphColor} strokeWidth={2} />
         </View>
         {/* Reserves 2 lines' worth of height even for a short one-line label,
             so a longer translated string never makes one card taller than

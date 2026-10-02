@@ -19,7 +19,6 @@ import {
 } from 'lucide-react-native';
 import { ErrorState, Loader, ScreenHeader, SearchBar } from '../../components/rnr';
 import DeviceImage from '../../components/DeviceImage';
-import { tokens } from '../../theme/colors';
 import {
   getAllModels,
   getBrands,
@@ -57,18 +56,41 @@ import {
  * the wrong display, so the two are never mixed into one list.
  */
 
-const CARD_SHADOW = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.06,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 3,
+// GGFIX palette — explicit values; the shared theme tokens/classes still
+// resolve to the old teal.
+const C = {
+  green: '#09AD2A',       // fills, icons, selected
+  greenDeep: '#078F23',   // green TEXT on white / mint
+  mint: '#EAF8EC',
+  mintLine: '#CDEFD4',
+  ink: '#1E1E1E',
+  muted: '#6B6B6B',
+  subtle: '#8A8A8A',
+  line: '#E6E6E6',
+  hair: '#F3F3F3',
+  soft: '#F3F3F3',
+  page: '#F8F8F8',
+  white: '#FFFFFF',
+  amberBg: '#FFF8E1',
+  amberLine: '#F6DE8C',
+  amberText: '#8A6A00',
 };
+
+const CARD_SHADOW = {
+  shadowColor: C.ink,
+  shadowOpacity: 0.04,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
+};
+
+// White card on the grey page.
+const CARD = { backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.hair, ...CARD_SHADOW };
 
 // Same plain page surface the rest of the owner stack uses (not rnr's
 // ScreenBackground, whose pink→lavender gradient belongs to the booking flow).
 function Screen({ children }) {
-  return <View className="flex-1 bg-background">{children}</View>;
+  return <View className="flex-1" style={{ backgroundColor: C.page }}>{children}</View>;
 }
 
 // Codes are short and alphanumeric-with-dashes. Used only to decide whether the
@@ -103,14 +125,12 @@ function modelLabel(m) {
 }
 
 /**
- * Selected-chip colours. Blue on purpose and hard-coded on purpose: the app's
- * palette is green primary / orange accent with no blue family, so a selection
- * drawn from the palette would read as just another branded pill rather than as
- * "this is the one you picked".
+ * Selected-chip colours: unpicked chips are neutral grey, so the GGFIX green
+ * reads clearly as "this is the one you picked".
  */
-const PICK_BG = '#F0F8EF';      // blue-50
-const PICK_BORDER = '#16BB05';  // blue-600
-const PICK_TEXT = '#16BB05';    // blue-700
+const PICK_BG = C.mint;
+const PICK_BORDER = C.green;
+const PICK_TEXT = C.greenDeep;
 
 /** Distinct brands on a box — still worth counting even though the column is gone. */
 function brandCount(models) {
@@ -318,7 +338,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         model={selected}
         onBack={() => setSelected(null)}
         onOpenModel={openModel}
-        onLookupCode={(code) => { setSelected(null); setCategoryId(null); setQuery(code); }}
+        onLookupCode={(code) => { setSelected(null); setQuery(code); }}
       />
     );
   }
@@ -342,11 +362,11 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
           they were typed against a different list and would silently hide rows
           in the new one. */}
       {tabs.length > 1 ? (
-        <View className="pt-1.5">
+        <View style={{ paddingTop: 8 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 6 }}
+            contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 2 }}
           >
             {tabs.map((t) => (
               <FilterPill
@@ -360,7 +380,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         </View>
       ) : null}
 
-      <View className="px-4 pt-2 pb-1">
+      <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2 }}>
         <SearchBar
           value={query}
           onChangeText={setQuery}
@@ -401,18 +421,18 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.primary} colors={[tokens.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.green} colors={[C.green]} />
         }
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
         ListHeaderComponent={
           <View>
             {/* A refresh that fails still leaves the previously-loaded catalogue
                 on screen, so say so rather than letting the shop believe it is
                 looking at fresh data. */}
             {error ? (
-              <View className="rounded-2xl bg-attention-50 border border-attention-200 p-3.5 mb-4 flex-row">
-                <Info size={15} color={tokens.attentionDark} style={{ marginTop: 1 }} />
-                <Text className="flex-1 ml-2.5 text-[12px] text-text leading-4">
+              <View className="flex-row" style={{ borderRadius: 12, backgroundColor: C.amberBg, borderWidth: 1, borderColor: C.amberLine, padding: 10, marginBottom: 10 }}>
+                <Info size={14} color={C.amberText} style={{ marginTop: 1 }} />
+                <Text style={{ flex: 1, marginLeft: 8, fontSize: 12, lineHeight: 16, color: C.ink }}>
                   Couldn’t refresh the catalogue — showing the last copy. {error}
                 </Text>
               </View>
@@ -427,7 +447,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
               }
             />
             {!trimmed ? (
-              <Text className="text-[11.5px] text-text-muted mb-3 leading-4">
+              <Text style={{ fontSize: 11, lineHeight: 16, color: C.muted, marginBottom: 10 }}>
                 These share a manufacturer part number with at least one other device.
                 Search above to look up any model — including laptops and other categories —
                 or type the code printed on a part.
@@ -440,13 +460,13 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         )}
         ListEmptyComponent={
           <View className="items-center px-8 py-16">
-            <View className="h-20 w-20 rounded-full bg-primary-soft items-center justify-center mb-4">
-              <Search size={34} color={tokens.primary} />
+            <View className="items-center justify-center" style={{ height: 64, width: 64, borderRadius: 32, backgroundColor: C.mint, marginBottom: 12 }}>
+              <Search size={28} color={C.green} />
             </View>
-            <Text className="text-[16px] font-extrabold text-text text-center">
+            <Text style={{ fontSize: 15, fontWeight: '800', color: C.ink, textAlign: 'center' }}>
               {trimmed ? 'No model matched' : 'Nothing to show'}
             </Text>
-            <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5">
+            <Text style={{ fontSize: 12, lineHeight: 18, color: C.muted, textAlign: 'center', marginTop: 6 }}>
               {trimmed
                 ? `Nothing in the catalogue is named or numbered “${trimmed}”. Check the spelling.`
                 : 'No mobile device in the catalogue shares a part number with another yet. Search above to look up any model.'}
@@ -481,15 +501,15 @@ function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh
       keyExtractor={(item) => item.id}
       keyboardShouldPersistTaps="handled"
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.primary} colors={[tokens.primary]} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.green} colors={[C.green]} />
       }
-      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, flexGrow: 1 }}
+      contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
       ListHeaderComponent={
         <View>
           {error ? (
-            <View className="rounded-2xl bg-attention-50 border border-attention-200 p-3.5 mb-4 flex-row">
-              <Info size={15} color={tokens.attentionDark} style={{ marginTop: 1 }} />
-              <Text className="flex-1 ml-2.5 text-[12px] text-text leading-4">
+            <View className="flex-row" style={{ borderRadius: 12, backgroundColor: C.amberBg, borderWidth: 1, borderColor: C.amberLine, padding: 10, marginBottom: 10 }}>
+              <Info size={14} color={C.amberText} style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, marginLeft: 8, fontSize: 12, lineHeight: 16, color: C.ink }}>
                 Couldn’t refresh — showing the last copy. {error}
               </Text>
             </View>
@@ -499,7 +519,7 @@ function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh
             text={query ? `${boxes.length} match${boxes.length === 1 ? '' : 'es'}` : `${typeName} · ${boxes.length}`}
           />
           {!query ? (
-            <Text className="text-[11.5px] text-text-muted mb-3 leading-4">
+            <Text style={{ fontSize: 11, lineHeight: 16, color: C.muted, marginBottom: 10 }}>
               Each card is one box on the shelf and the models its part fits.
               Search a model to find which box to open.
             </Text>
@@ -509,13 +529,13 @@ function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh
       renderItem={({ item }) => <BoxCard box={item} query={query} />}
       ListEmptyComponent={
         <View className="items-center px-8 py-16">
-          <View className="h-20 w-20 rounded-full bg-primary-soft items-center justify-center mb-4">
-            <Boxes size={34} color={tokens.primary} />
+          <View className="items-center justify-center" style={{ height: 64, width: 64, borderRadius: 32, backgroundColor: C.mint, marginBottom: 12 }}>
+            <Boxes size={28} color={C.green} />
           </View>
-          <Text className="text-[16px] font-extrabold text-text text-center">
+          <Text style={{ fontSize: 15, fontWeight: '800', color: C.ink, textAlign: 'center' }}>
             {query ? 'No box matched' : 'No boxes yet'}
           </Text>
-          <Text className="text-[12.5px] text-text-muted text-center mt-1.5 leading-5">
+          <Text style={{ fontSize: 12, lineHeight: 18, color: C.muted, textAlign: 'center', marginTop: 6 }}>
             {query
               ? `Nothing under ${typeName} is numbered “${query}” or lists a matching model.`
               : `No ${typeName} boxes have been set up yet. Add them in the admin panel under Master Data → Model Compatibility.`}
@@ -563,27 +583,27 @@ function BoxCard({ box, query }) {
   const groups = groupModelsByBrand(models);
 
   return (
-    <View className="bg-card rounded-2xl p-3 mb-2" style={CARD_SHADOW}>
+    <View style={[CARD, { padding: 11, marginBottom: 8 }]}>
       {/* Box on the left, its totals on the right. */}
       <View className="flex-row items-center">
         {box.referenceImageUrl ? (
-          <View className="h-11 w-11 rounded-xl bg-surface-muted overflow-hidden mr-3">
-            <DeviceImage url={box.referenceImageUrl} style={{ width: 44, height: 44 }} />
+          <View className="items-center justify-center overflow-hidden" style={{ height: 44, width: 44, borderRadius: 12, marginRight: 10, backgroundColor: C.white, borderWidth: 1, borderColor: C.hair }}>
+            <DeviceImage url={box.referenceImageUrl} style={{ width: 38, height: 38 }} />
           </View>
         ) : null}
-        <Text className="flex-1 text-[15px] font-extrabold text-text" numberOfLines={2}>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: C.ink }} numberOfLines={2}>
           {box.boxName}
-          <Text className="text-[14px] font-bold text-text-muted">{`  -  ${box.boxNo}`}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: C.muted }}>{`  -  ${box.boxNo}`}</Text>
         </Text>
         <View className="ml-2 items-end">
           {matchCount ? (
             // Says how much of the box the search actually hit, so a highlight
             // that scrolled out of view is still accounted for.
-            <Text className="text-[11px] font-extrabold" style={{ color: PICK_TEXT }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: PICK_TEXT }}>
               {matchCount} match{matchCount === 1 ? '' : 'es'}
             </Text>
           ) : null}
-          <Text className="text-[11px] text-text-muted text-right" numberOfLines={2}>
+          <Text style={{ fontSize: 11, color: C.muted, textAlign: 'right' }} numberOfLines={2}>
             {total} model{total === 1 ? '' : 's'}
             {brands ? `\n${brands} brand${brands === 1 ? '' : 's'}` : ''}
           </Text>
@@ -591,15 +611,19 @@ function BoxCard({ box, query }) {
       </View>
 
       {total ? (
-        <View className="mt-3 pt-3 border-t border-border">
+        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.hair }}>
           {groups.map((g, i) => (
             <View
               key={g.key}
               // A rule under every brand except the last — a trailing line above
               // the note (or the card edge) would read as a broken row.
-              className={`flex-row flex-wrap ${i === 0 ? '' : 'pt-2.5'} ${
-                i < groups.length - 1 ? 'pb-1 border-b border-border' : ''
-              }`}
+              className="flex-row flex-wrap"
+              style={{
+                paddingTop: i === 0 ? 0 : 8,
+                paddingBottom: i < groups.length - 1 ? 4 : 0,
+                borderBottomWidth: i < groups.length - 1 ? 1 : 0,
+                borderBottomColor: C.hair,
+              }}
             >
               {g.models.map((m) => {
                 // Blue when the search found it, or when it was tapped — the two
@@ -609,22 +633,24 @@ function BoxCard({ box, query }) {
                   <Pressable
                     key={m.modelId}
                     onPress={() => setPickedId(picked ? null : m.modelId)}
-                    className="rounded-full px-2.5 py-1 mr-1.5 mb-1.5 active:opacity-70"
-                    // Colours as a plain style object rather than classes: the app
-                    // palette has no blue family (primary is the green in the tabs),
-                    // so a selection has to come from outside it.
+                    className="active:opacity-70"
                     style={{
+                      borderRadius: 999,
+                      paddingHorizontal: 9,
+                      paddingVertical: 4,
+                      marginRight: 6,
+                      marginBottom: 6,
                       borderWidth: 1,
-                      backgroundColor: picked ? PICK_BG : tokens.surfaceMuted,
+                      backgroundColor: picked ? PICK_BG : C.soft,
                       borderColor: picked ? PICK_BORDER : 'transparent',
                     }}
                   >
                     {/* With the brand column gone the chip has to carry the brand —
                         modelLabel adds it only when the name doesn't already. */}
                     <Text
-                      className="text-[11px]"
                       style={{
-                        color: picked ? PICK_TEXT : tokens.text,
+                        fontSize: 11,
+                        color: picked ? PICK_TEXT : C.ink,
                         fontWeight: picked ? '800' : '600',
                       }}
                     >
@@ -637,15 +663,15 @@ function BoxCard({ box, query }) {
           ))}
         </View>
       ) : (
-        <Text className="text-[11.5px] text-text-muted mt-3">
+        <Text style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
           No models mapped to this box yet.
         </Text>
       )}
 
       {box.notes ? (
-        <View className="flex-row mt-3 pt-2.5 border-t border-border">
-          <Info size={13} color={tokens.textMuted} style={{ marginTop: 2 }} />
-          <Text className="flex-1 ml-2 text-[11.5px] text-text-muted leading-4">{box.notes}</Text>
+        <View className="flex-row" style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.hair }}>
+          <Info size={12} color={C.muted} style={{ marginTop: 2 }} />
+          <Text style={{ flex: 1, marginLeft: 6, fontSize: 11, lineHeight: 16, color: C.muted }}>{box.notes}</Text>
         </View>
       ) : null}
     </View>
@@ -668,15 +694,15 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
       <ScreenHeader title={entry.name} subtitle={entry.brandName || undefined} onBack={onBack} />
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 36 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <View className="bg-card rounded-3xl p-4 flex-row items-center" style={CARD_SHADOW}>
-          <Thumb model={entry} size={64} />
-          <View className="flex-1 ml-3.5">
-            <Text className="text-[16px] font-extrabold text-text" numberOfLines={2}>{entry.name}</Text>
-            <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
+        <View className="flex-row items-center" style={[CARD, { borderRadius: 14, padding: 10, borderColor: C.mintLine, backgroundColor: C.mint }]}>
+          <Thumb model={entry} size={52} />
+          <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: C.ink }} numberOfLines={2}>{entry.name}</Text>
+            <Text style={{ fontSize: 12, color: C.muted, marginTop: 2 }} numberOfLines={1}>
               {[entry.brandName, entry.categoryName].filter(Boolean).join(' · ') || 'Device'}
             </Text>
           </View>
@@ -684,19 +710,20 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
 
         {/* The device's own part numbers — the thing to read off the label and
             match against the part in hand. Tapping one runs the reverse lookup. */}
-        <SectionLabel icon={Barcode} text="Part numbers on this device" className="mt-6" />
+        <SectionLabel icon={Barcode} text="Part numbers on this device" top={14} />
         {codes.length ? (
-          <View className="flex-row flex-wrap">
+          <View className="flex-row flex-wrap" style={[CARD, { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4 }]}>
             {codes.map((code) => (
               <Pressable
                 key={code}
                 onPress={() => onLookupCode(code)}
-                className="flex-row items-center rounded-full border border-primary-200 bg-primary-50 px-3.5 py-2 mr-2 mb-2 active:opacity-70"
+                className="flex-row items-center active:opacity-70"
+                style={{ borderRadius: 999, borderWidth: 1, borderColor: C.mintLine, backgroundColor: C.mint, paddingHorizontal: 9, paddingVertical: 4, marginRight: 6, marginBottom: 6 }}
               >
-                <Text className="text-[12.5px] font-extrabold text-primary-dark" style={{ letterSpacing: 0.3 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.3, color: C.greenDeep }}>
                   {code}
                 </Text>
-                <Search size={12} color={tokens.primaryDark} style={{ marginLeft: 6 }} />
+                <Search size={10} color={C.greenDeep} style={{ marginLeft: 4 }} />
               </Pressable>
             ))}
           </View>
@@ -711,11 +738,11 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
         <SectionLabel
           icon={Puzzle}
           text={`Interchangeable · ${interchangeable.length}`}
-          className="mt-6"
+          top={14}
         />
         {interchangeable.length ? (
           <>
-            <Text className="text-[11.5px] text-text-muted mb-3 leading-4">
+            <Text style={{ fontSize: 11, lineHeight: 16, color: C.muted, marginBottom: 8 }}>
               Same manufacturer part number — parts for these are the same hardware.
             </Text>
             {interchangeable.map(({ model: m, sharedCodes }) => (
@@ -746,31 +773,31 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
         {/* Handy when ordering a housing / display: the variants this model shipped in. */}
         {specs.length || colors.length ? (
           <>
-            <SectionLabel icon={Boxes} text="Variants on record" className="mt-6" />
-            <View className="bg-card rounded-2xl p-3" style={CARD_SHADOW}>
+            <SectionLabel icon={Boxes} text="Variants on record" top={14} />
+            <View style={[CARD, { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 5 }]}>
               {specs.length ? (
                 <View className="mb-1">
-                  <Text className="text-[10px] font-extrabold uppercase text-text-subtle mb-2" style={{ letterSpacing: 0.8 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, color: C.subtle, marginBottom: 6 }}>
                     RAM / Storage
                   </Text>
                   <View className="flex-row flex-wrap">
                     {specs.map((s) => (
-                      <View key={s} className="rounded-full bg-surface-muted px-3 py-1.5 mr-2 mb-2">
-                        <Text className="text-[11.5px] font-semibold text-text">{s}</Text>
+                      <View key={s} style={{ borderRadius: 999, backgroundColor: C.soft, paddingHorizontal: 9, paddingVertical: 4, marginRight: 5, marginBottom: 5 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: C.ink }}>{s}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
               ) : null}
               {colors.length ? (
-                <View className={specs.length ? 'mt-2' : ''}>
-                  <Text className="text-[10px] font-extrabold uppercase text-text-subtle mb-2" style={{ letterSpacing: 0.8 }}>
+                <View style={specs.length ? { marginTop: 6 } : null}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, color: C.subtle, marginBottom: 6 }}>
                     Colours
                   </Text>
                   <View className="flex-row flex-wrap">
                     {colors.map((c) => (
-                      <View key={c} className="rounded-full bg-surface-muted px-3 py-1.5 mr-2 mb-2">
-                        <Text className="text-[11.5px] font-semibold text-text">{c}</Text>
+                      <View key={c} style={{ borderRadius: 999, backgroundColor: C.soft, paddingHorizontal: 9, paddingVertical: 4, marginRight: 5, marginBottom: 5 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: C.ink }}>{c}</Text>
                       </View>
                     ))}
                   </View>
@@ -790,27 +817,28 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
 // that is the direction a shop is usually working in when it types a code.
 function CodeBanner({ code, hits, onOpenModel }) {
   return (
-    <View className="rounded-2xl bg-primary-50 border border-primary-200 p-4 mb-4">
-      <View className="flex-row items-center mb-1.5">
-        <Barcode size={15} color={tokens.primaryDark} />
-        <Text className="ml-2 text-[12.5px] font-extrabold text-primary-dark" style={{ letterSpacing: 0.3 }}>
+    <View style={{ borderRadius: 14, backgroundColor: C.mint, borderWidth: 1, borderColor: C.mintLine, padding: 11, marginBottom: 10 }}>
+      <View className="flex-row items-center" style={{ marginBottom: 4 }}>
+        <Barcode size={14} color={C.greenDeep} />
+        <Text style={{ marginLeft: 6, fontSize: 12, fontWeight: '800', letterSpacing: 0.3, color: C.greenDeep }}>
           {code}
         </Text>
       </View>
-      <Text className="text-[12.5px] text-text leading-5">
+      <Text style={{ fontSize: 12, lineHeight: 17, color: C.ink }}>
         {hits.length === 1
           ? 'This part number belongs to one model:'
           : `This part number is shared by ${hits.length} models — a part for any one of them fits the rest:`}
       </Text>
-      <View className="mt-2">
+      <View style={{ marginTop: 6 }}>
         {hits.map((m) => (
           <Pressable
             key={m.id}
             onPress={() => onOpenModel(m)}
-            className="flex-row items-center py-1.5 active:opacity-60"
+            className="flex-row items-center active:opacity-60"
+            style={{ paddingVertical: 5 }}
           >
-            <ChevronRight size={14} color={tokens.primaryDark} />
-            <Text className="ml-1 flex-1 text-[13px] font-bold text-primary-dark" numberOfLines={1}>
+            <ChevronRight size={13} color={C.greenDeep} />
+            <Text style={{ marginLeft: 4, flex: 1, fontSize: 13, fontWeight: '700', color: C.greenDeep }} numberOfLines={1}>
               {m.name}
             </Text>
           </Pressable>
@@ -826,52 +854,62 @@ function ModelRow({ model, badge, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center bg-card rounded-2xl p-3 mb-2.5 active:opacity-70"
-      style={CARD_SHADOW}
+      className="flex-row items-center active:opacity-70"
+      style={[CARD, { paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 }]}
     >
       <Thumb model={model} size={44} />
-      <View className="flex-1 ml-3">
-        <Text className="text-[13.5px] font-bold text-text" numberOfLines={1}>{model.name}</Text>
-        <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>
-          {[model.brandName, model.codes?.[0]].filter(Boolean).join(' · ') || '—'}
-        </Text>
+      <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }} numberOfLines={1}>{model.name}</Text>
+        <View className="flex-row items-center" style={{ marginTop: 3 }}>
+          {model.brandName ? (
+            <Text style={{ fontSize: 11, color: C.muted }} numberOfLines={1}>{model.brandName}</Text>
+          ) : null}
+          {model.codes?.[0] ? (
+            <View style={{ marginLeft: model.brandName ? 6 : 0, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: C.soft }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: C.ink, letterSpacing: 0.2 }} numberOfLines={1}>{model.codes[0]}</Text>
+            </View>
+          ) : null}
+          {!model.brandName && !model.codes?.[0] ? <Text style={{ fontSize: 11, color: C.muted }}>—</Text> : null}
+        </View>
       </View>
       {badge ? (
-        <View className="rounded-full px-2.5 py-1 ml-2 bg-primary-soft">
-          <Text
-            className="text-[10px] font-extrabold text-primary-dark"
-            style={{ letterSpacing: 0.3 }}
-            numberOfLines={1}
-          >
+        <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 6, backgroundColor: C.mint, maxWidth: '40%' }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.3, color: C.greenDeep }} numberOfLines={1}>
             {badge}
           </Text>
         </View>
       ) : null}
-      <ChevronRight size={16} color={tokens.textSubtle} style={{ marginLeft: 4 }} />
+      <View className="items-center justify-center" style={{ height: 24, width: 24, borderRadius: 12, marginLeft: 6, backgroundColor: C.mint }}>
+        <ChevronRight size={14} color={C.green} />
+      </View>
     </Pressable>
   );
 }
 
 function Thumb({ model, size }) {
+  const inner = Math.round(size * 0.86);
   return (
     <View
-      className="items-center justify-center rounded-xl bg-surface-muted overflow-hidden"
-      style={{ width: size, height: size }}
+      className="items-center justify-center overflow-hidden"
+      style={{ width: size, height: size, borderRadius: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.hair }}
     >
       {model?.imageUrl ? (
-        <DeviceImage url={model.imageUrl} style={{ width: size, height: size }} />
+        <DeviceImage url={model.imageUrl} style={{ width: inner, height: inner }} />
       ) : (
-        <Smartphone size={Math.round(size * 0.45)} color={tokens.textSubtle} />
+        <Smartphone size={Math.round(size * 0.42)} color={C.subtle} />
       )}
     </View>
   );
 }
 
-function SectionLabel({ icon: Icon, text, className }) {
+// `top` replaces the old `className="mt-6"` spacing hook.
+function SectionLabel({ icon: Icon, text, top = 0 }) {
   return (
-    <View className={`flex-row items-center mb-2 ${className || ''}`}>
-      <Icon size={15} color={tokens.text} />
-      <Text className="ml-2 text-[13.5px] font-extrabold text-text">{text}</Text>
+    <View className="flex-row items-center" style={{ marginTop: top, marginBottom: 6 }}>
+      <View className="items-center justify-center" style={{ height: 24, width: 24, borderRadius: 8, backgroundColor: C.mint, marginRight: 8 }}>
+        <Icon size={13} color={C.green} />
+      </View>
+      <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: C.ink }}>{text}</Text>
     </View>
   );
 }
@@ -880,11 +918,13 @@ function NoticeCard({ text, tone = 'info' }) {
   const warn = tone === 'warn';
   return (
     <View
-      className={`flex-row rounded-2xl p-3.5 ${warn ? 'bg-attention-50 border border-attention-200' : 'bg-card'}`}
-      style={warn ? undefined : CARD_SHADOW}
+      className="flex-row"
+      style={warn
+        ? { borderRadius: 12, padding: 10, backgroundColor: C.amberBg, borderWidth: 1, borderColor: C.amberLine }
+        : [CARD, { padding: 10 }]}
     >
-      <Info size={15} color={warn ? tokens.attentionDark : tokens.textMuted} style={{ marginTop: 1 }} />
-      <Text className="flex-1 ml-2.5 text-[12.5px] text-text-muted leading-5">{text}</Text>
+      <Info size={14} color={warn ? C.amberText : C.muted} style={{ marginTop: 1 }} />
+      <Text style={{ flex: 1, marginLeft: 8, fontSize: 12, lineHeight: 17, color: C.muted }}>{text}</Text>
     </View>
   );
 }
@@ -893,11 +933,18 @@ function FilterPill({ label, active, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      className={`rounded-full border px-4 py-2 mr-2 active:opacity-70 ${
-        active ? 'bg-primary border-primary' : 'bg-card border-border'
-      }`}
+      className="active:opacity-70"
+      style={{
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 13,
+        paddingVertical: 7,
+        marginRight: 6,
+        backgroundColor: active ? C.green : C.white,
+        borderColor: active ? C.green : C.line,
+      }}
     >
-      <Text className={`text-[12px] font-bold ${active ? 'text-white' : 'text-text-muted'}`}>{label}</Text>
+      <Text style={{ fontSize: 12, fontWeight: active ? '800' : '600', color: active ? C.white : C.muted }}>{label}</Text>
     </Pressable>
   );
 }

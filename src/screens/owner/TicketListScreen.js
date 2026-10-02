@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#172117' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#172117' },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',

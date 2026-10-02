@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Smartphone,
@@ -11,32 +11,45 @@ import {
   ChevronRight,
   ArrowLeft,
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Loader, Select } from '../../../components/rnr';
 import { getModelOptions, parseModelNumbers } from '../../../api/masterData';
 
-// Swiggy / Zomato-inspired palette — matches the other booking screens so the
-// whole flow feels like one continuous "order" journey, just in green.
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+// GGFIX palette.
+const GREEN = '#09AD2A';        // fills, icons, selected
+const GREEN_DEEP = '#078F23';   // green TEXT, gradient partner
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const PLACEHOLDER = '#8A8A8A';
+const LINE = '#E6E6E6';
+const HAIR = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 
+// Fallback swatch when a catalogue colour has no hexCode — a best guess at
+// the real device colour from its name (these are product colours, not UI).
 const COLOR_SWATCHES = {
-  black: '#172117',
-  white: '#F7FAF7',
-  silver: '#CBD5CB',
-  gold: '#FDE68A',
-  rose: '#E6F7E3',
-  blue: '#16BB05',
-  red: '#DC2626',
-  green: '#16BB05',
-  purple: '#7ED957',
-  pink: '#16BB05',
-  graphite: '#667066',
-  midnight: '#087A0A',
-  starlight: '#FFFBEB',
-  sierra: '#CBD5CB',
-  alpine: '#667066',
-  sky: '#C8EEBF',
+  black: '#1E1E1E',
+  white: '#F8F8F8',
+  silver: '#D6D9DE',
+  gold: '#F2D58A',
+  rose: '#F4C6CC',
+  blue: '#3B82F6',
+  red: '#E53935',
+  green: '#3FAE6A',
+  purple: '#8B5CF6',
+  pink: '#F48FB1',
+  graphite: '#4B4B4B',
+  midnight: '#1E2A44',
+  starlight: '#F5EBD8',
+  sierra: '#9DB4CF',
+  alpine: '#4F7A5A',
+  sky: '#9CC8EE',
+  orange: '#F59E3B',
+  yellow: '#F3BF23',
+  grey: '#9A9A9A',
+  gray: '#9A9A9A',
 };
 
 function swatchFor(name) {
@@ -44,7 +57,7 @@ function swatchFor(name) {
   for (const key of Object.keys(COLOR_SWATCHES)) {
     if (n.includes(key)) return COLOR_SWATCHES[key];
   }
-  return '#8FA08F';
+  return '#D6D6D6';
 }
 
 /**
@@ -61,35 +74,13 @@ function titleCase(v) {
     .replace(/(^|[\s\-/(])([a-z0-9])/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
 
-// Colour and variant tiles per row. Both were 2, which left ~half of every
-// row empty — a swatch plus "Black" does not need half a phone's width.
-const COLOR_COLUMNS = 3;
-const VARIANT_COLUMNS = 3;
-
-// Tile states, shared by the colour tiles and the RAM/Storage variants.
-//
-// LINE ONLY: neither state paints a fill. Unselected outlines in the light
-// grey border token, selected in #004C40 — so the pick is read by COLOUR, not
-// by a one-pixel weight difference. That is what the two same-coloured lines
-// could not do.
-const TILE_LINE = '#E2E8E2';
-const TILE_LINE_ACTIVE = '#004C40';
-const TILE_LINE_W = 1;
-const TILE_LINE_ACTIVE_W = 2;
-const TILE_TEXT = '#172117';
-
-// The bottom configuration bar. Not ready -> flat #F8F8F8 with dark text;
-// ready -> solid #004C40 with white text. Both are FLAT: the gradient and the
-// coloured drop shadow are gone.
-// Page wash. The sections are surface-less now — no card fills, no rules — so
-// the tiles read against this directly.
-const SCREEN_BG = '#FFFFFF';
-
-const BAR_BG = '#F8F8F8';
-const BAR_BG_READY = '#004C40';
-const BAR_TEXT = '#172117';
-const BAR_TEXT_READY = '#FFFFFF';
-const TILE_TEXT_ACTIVE = '#004C40';
+// Tile states, shared by the colour tiles and the RAM/Storage variants:
+// unselected = white tile with a light line; selected = mint fill, green
+// line, deep-green text.
+const TILE_LINE = LINE;
+const TILE_LINE_ACTIVE = GREEN;
+const TILE_TEXT = INK;
+const TILE_TEXT_ACTIVE = GREEN_DEEP;
 
 export default function DeviceColorStorageScreen({ navigation, route }) {
   const params = route?.params || {};
@@ -205,321 +196,284 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
     ? (!!color.trim() && !!storageText.trim())
     : (!!color && !!storage && (specsStorageOnly || !!ram));
 
+  // Responsive columns: colours 3 / variants 2 on phones, more on tablets.
+  const { width: winW } = useWindowDimensions();
+  const colorCols = winW >= 900 ? 6 : winW >= 600 ? 4 : 3;
+  const variantCols = winW >= 900 ? 4 : winW >= 600 ? 3 : 2;
+  const col = winW >= 600 ? { width: Math.min(winW - 32, 720), alignSelf: 'center' } : null;
+
+  const header = (withSkip) => (
+    <View
+      style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: LINE }}
+    >
+      <View className="relative flex-row items-center justify-center" style={col}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          className="absolute left-0 items-center justify-center active:opacity-70"
+          style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
+        >
+          <ArrowLeft size={18} color={INK} />
+        </Pressable>
+        <View className="items-center px-12">
+          <Text style={{ fontSize: 17, fontWeight: '800', color: INK, textAlign: 'center' }} numberOfLines={1}>
+            Your Device
+          </Text>
+        </View>
+        {withSkip ? (
+          <Pressable
+            onPress={onSkip}
+            className="absolute right-0 items-center justify-center active:opacity-70"
+            style={{ height: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '800', color: MUTED }}>Skip</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
-        <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 12, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
-        >
-          <Pressable onPress={() => navigation.goBack()} className="h-10 w-10 rounded-full bg-surface-muted items-center justify-center">
-            <ArrowLeft size={20} color="#172117" />
-          </Pressable>
-        </View>
+      <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+        {header(false)}
         <Loader label="Loading device options..." />
       </View>
     );
   }
 
+  const inputStyle = {
+    backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: LINE,
+    paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: INK,
+  };
+
   return (
-    <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
-      {/* ── White header — matches app's other white headers ─────── */}
-      <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 20, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
-      >
-        <View className="relative flex-row items-center justify-center">
-          <Pressable
-            onPress={() => navigation.goBack()}
-            className="absolute left-0 h-10 w-10 rounded-full bg-surface-muted items-center justify-center active:opacity-70"
-          >
-            <ArrowLeft size={20} color="#172117" />
-          </Pressable>
-
-          <View className="items-center px-12">
-            <Text
-              className="text-text text-[14px] font-extrabold text-center"
-              numberOfLines={1}
-            >
-              Your Device
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={onSkip}
-            className="absolute right-0 h-10 px-3.5 rounded-full bg-surface-muted items-center justify-center active:opacity-70"
-          >
-            <Text className="text-text-muted text-[12px] font-extrabold">Skip</Text>
-          </Pressable>
-        </View>
-      </View>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+      {header(true)}
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: 0, paddingBottom: 130 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Device summary ───────────────────────────────────────────
-            No card: no fill, no shadow. It sits directly on the white page and
-            is grouped by centring and spacing alone. */}
-        <View className="px-4" style={{ marginTop: 14 }}>
-          <View className="p-3.5">
-            <View className="items-center">
-              {/* Image on the bare page — the tinted box behind it is gone, so
-                  the artwork is the only thing drawn here. Still square via
-                  aspectRatio, and `contain` so nothing is cropped. */}
-              <View
-                className="items-center justify-center overflow-hidden mb-3"
-                style={{ width: '40%', aspectRatio: 1 }}
-              >
-                {params.imageUrl ? (
-                  <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-                ) : (
-                  <Smartphone size={52} color={ACCENT_GREEN} />
-                )}
-              </View>
-              <Text className="text-[14px] font-extrabold text-text text-center" numberOfLines={2}>
-                {params.modelName || 'Device'}
-              </Text>
-              {params.brandName ? (
-                <Text className="text-[12px] text-text-muted mt-0.5 text-center" numberOfLines={1}>
-                  {params.brandName}
-                </Text>
-              ) : null}
-              {modelNumber ? (
-                <View className="mt-1.5 flex-row items-center rounded-full bg-success/10 border border-success/20 px-2.5 py-1">
-                  <Hash size={11} color={ACCENT_GREEN} />
-                  <Text className="text-[11px] font-extrabold text-success ml-1" numberOfLines={1}>
-                    {modelNumber}
-                  </Text>
-                </View>
-              ) : null}
+        <View style={col}>
+          {/* ── Device summary card ─────────────────────────────── */}
+          <View
+            style={{
+              backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: HAIR,
+              paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center',
+              shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+            }}
+          >
+            <View className="items-center justify-center" style={{ width: 120, height: 120 }}>
+              {params.imageUrl ? (
+                <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+              ) : (
+                <Smartphone size={44} color={GREEN} />
+              )}
             </View>
+            <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '800', color: INK, textAlign: 'center' }} numberOfLines={2}>
+              {params.modelName || 'Device'}
+            </Text>
+            {params.brandName ? (
+              <Text style={{ marginTop: 1, fontSize: 12, color: MUTED, textAlign: 'center' }} numberOfLines={1}>
+                {params.brandName}
+              </Text>
+            ) : null}
+            {modelNumber ? (
+              <View className="flex-row items-center rounded-full" style={{ marginTop: 6, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
+                <Hash size={10} color={GREEN} />
+                <Text style={{ fontSize: 11, fontWeight: '800', color: GREEN_DEEP, marginLeft: 3 }} numberOfLines={1}>
+                  {modelNumber}
+                </Text>
+              </View>
+            ) : null}
           </View>
-        </View>
 
-        {/* ── Model number — pick the exact variant when a model has several ── */}
-        {modelNumbers.length > 1 ? (
-          <>
-            <SectionHeader icon={Hash} label="Model Number" subtitle="Pick the exact model number" />
-            <View className="px-4">
+          {/* ── Model number — pick the exact variant when a model has several ── */}
+          {modelNumbers.length > 1 ? (
+            <Card>
+              <SectionHeader icon={Hash} label="Model Number" subtitle="Pick the exact model number" />
               <Select
                 value={modelNumber}
                 onChange={(v) => setModelNumber(v)}
                 placeholder="Select model number"
                 options={modelNumbers.map((n) => ({ value: n, label: n }))}
               />
-            </View>
-          </>
-        ) : null}
+            </Card>
+          ) : null}
 
-        {/* ── Typed variant — a model that isn't in the catalogue ────── */}
-        {isCustomModel ? (
-          <>
-            <SectionHeader icon={Palette} label="Model Color" subtitle="Type the colour" />
-            <View className="px-4">
+          {/* ── Typed variant — a model that isn't in the catalogue ────── */}
+          {isCustomModel ? (
+            <Card>
+              <SectionHeader icon={Palette} label="Model Color" subtitle="Type the colour" />
               <TextInput
                 value={color}
                 onChangeText={setColor}
                 placeholder="e.g. Sea Green"
-                placeholderTextColor="#8FA08F"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
-                style={cardShadow}
+                placeholderTextColor={PLACEHOLDER}
+                style={inputStyle}
               />
-            </View>
-
-            <SectionHeader icon={HardDrive} label="RAM" subtitle="Type the RAM (optional)" />
-            <View className="px-4">
+              <View style={{ height: 10 }} />
+              <SectionHeader icon={HardDrive} label="RAM" subtitle="Type the RAM (optional)" />
               <TextInput
                 value={ramText}
                 onChangeText={setRamText}
                 placeholder="e.g. 8 GB"
-                placeholderTextColor="#8FA08F"
+                placeholderTextColor={PLACEHOLDER}
                 autoCapitalize="characters"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
-                style={cardShadow}
+                style={inputStyle}
               />
-            </View>
-
-            <SectionHeader icon={HardDrive} label="Storage" subtitle="Type the capacity" />
-            <View className="px-4">
+              <View style={{ height: 10 }} />
+              <SectionHeader icon={HardDrive} label="Storage" subtitle="Type the capacity" />
               <TextInput
                 value={storageText}
                 onChangeText={setStorageText}
                 placeholder="e.g. 128 GB"
-                placeholderTextColor="#8FA08F"
+                placeholderTextColor={PLACEHOLDER}
                 autoCapitalize="characters"
-                className="bg-card rounded-2xl px-3.5 py-3 text-[14px] text-text"
-                style={cardShadow}
+                style={inputStyle}
               />
-            </View>
-          </>
-        ) : (
-        <>
-        {/* ── Color section — Swiggy/Zomato menu rhythm ─────────────── */}
-        <SectionHeader icon={Palette} label="Model Color" />
-        <View className="px-4">
-          <View>
-            {colorsList.length > 0 ? (
-              /* Each option = colour swatch circle + colour name in one row. */
-              <View className="flex-row flex-wrap -mx-1">
-                {colorsList.map((c) => {
-                  const active = color === c.name;
-                  const sw = c.hexCode || swatchFor(c.name);
-                  return (
-                    // Three across: at two, each tile ran the half-width of the
-                    // screen for a swatch and a short word, so most of the row
-                    // was empty and six colours took three rows instead of two.
-                    <View key={c.id || c.name} className="p-1" style={{ width: `${100 / COLOR_COLUMNS}%` }}>
-                      <Pressable
-                        onPress={() => setColor(color === c.name ? '' : c.name)}
-                        className="rounded-xl flex-row items-center"
-                        style={{
-                          borderWidth: active ? TILE_LINE_ACTIVE_W : TILE_LINE_W,
-                          borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
-                          // No fill in either state.
-                          paddingVertical: active ? 7 - (TILE_LINE_ACTIVE_W - TILE_LINE_W) : 7,
-                          paddingHorizontal: active ? 8 - (TILE_LINE_ACTIVE_W - TILE_LINE_W) : 8,
-                        }}
-                      >
-                        <View
-                          className="h-5 w-5 rounded-full border border-border"
-                          style={{ backgroundColor: sw }}
-                        />
-                        {/* Two lines + shrink, because three columns leave
-                            44-75pt for the label: short names ("Green", 34pt)
-                            fit outright, but a catalogue name like "Phantom
-                            Silver" needs ~88pt and would otherwise clip to
-                            "Phantom S…". */}
-                        <Text
-                          className="flex-1 text-[12px] font-medium ml-2"
-                          style={{ color: active ? TILE_TEXT_ACTIVE : TILE_TEXT }}
-                          numberOfLines={2}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.8}
-                        >
-                          {titleCase(c.name)}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
-              <View
-                className="flex-row items-center rounded-xl px-3"
-                style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF' }}
-              >
-                <TextInput
-                  placeholder="e.g. Silver Shadow"
-                  placeholderTextColor="#8FA08F"
-                  value={color}
-                  onChangeText={setColor}
-                  className="flex-1 py-3 text-text text-[14px]"
-                />
-              </View>
-            )}
-          </View>
+            </Card>
+          ) : (
+            <>
+              {/* ── Colour ───────────────────────────────────────── */}
+              <Card>
+                <SectionHeader icon={Palette} label="Model Color" />
+                {colorsList.length > 0 ? (
+                  <View className="flex-row flex-wrap" style={{ marginHorizontal: -3 }}>
+                    {colorsList.map((c) => {
+                      const active = color === c.name;
+                      const sw = c.hexCode || swatchFor(c.name);
+                      return (
+                        <View key={c.id || c.name} style={{ width: `${100 / colorCols}%`, padding: 3 }}>
+                          <Pressable
+                            onPress={() => setColor(color === c.name ? '' : c.name)}
+                            className="flex-row items-center"
+                            style={{
+                              minHeight: 40,
+                              borderRadius: 12,
+                              borderWidth: active ? 1.5 : 1,
+                              borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
+                              backgroundColor: active ? MINT : '#FFFFFF',
+                              paddingVertical: active ? 6.5 : 7,
+                              paddingHorizontal: active ? 7.5 : 8,
+                            }}
+                          >
+                            <View
+                              className="items-center justify-center"
+                              style={{ height: 18, width: 18, borderRadius: 9, backgroundColor: sw, borderWidth: 1, borderColor: 'rgba(30,30,30,0.15)' }}
+                            >
+                              {active ? <Check size={10} color={sw === '#F8F8F8' || sw === '#FFFFFF' ? INK : '#FFFFFF'} strokeWidth={3} /> : null}
+                            </View>
+                            <Text
+                              style={{ flex: 1, marginLeft: 7, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? TILE_TEXT_ACTIVE : TILE_TEXT }}
+                              numberOfLines={2}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.85}
+                            >
+                              {titleCase(c.name)}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <TextInput
+                    placeholder="e.g. Silver Shadow"
+                    placeholderTextColor={PLACEHOLDER}
+                    value={color}
+                    onChangeText={setColor}
+                    style={inputStyle}
+                  />
+                )}
+              </Card>
+
+              {specs.length > 0 ? (
+                /* ── Model variants — combined RAM + Storage the model actually ships */
+                <Card>
+                  <SectionHeader icon={HardDrive} label={specsStorageOnly ? 'Storage' : 'RAM & Storage'} />
+                  <VariantGrid
+                    options={specs}
+                    selected={specs.find((x) => x.ramOptionId === ram && x.storageOptionId === storage)?.id || null}
+                    onSelect={(k) => {
+                      if (!k) { setRam(null); setStorage(null); return; }
+                      const sp = specs.find((x) => x.id === k);
+                      if (sp) { setRam(sp.ramOptionId); setStorage(sp.storageOptionId); }
+                    }}
+                    getLabel={(sp) => sp.label}
+                    keyOf={(sp) => sp.id}
+                    columns={variantCols}
+                    showCircle
+                  />
+                </Card>
+              ) : (
+                <>
+                  {/* ── RAM / Storage (fallback: model has no variants) ─── */}
+                  <Card>
+                    <SectionHeader icon={Cpu} label="RAM" subtitle="Pick the memory size" />
+                    <VariantGrid
+                      options={rams}
+                      selected={ram}
+                      onSelect={setRam}
+                      getLabel={(x) => x.label}
+                      keyOf={(x) => x.id}
+                      columns={colorCols}
+                    />
+                  </Card>
+                  <Card>
+                    <SectionHeader icon={HardDrive} label="Storage" subtitle="Pick the capacity" />
+                    <VariantGrid
+                      options={storages}
+                      selected={storage}
+                      onSelect={setStorage}
+                      getLabel={(x) => x.label}
+                      keyOf={(x) => x.id}
+                      columns={colorCols}
+                    />
+                  </Card>
+                </>
+              )}
+            </>
+          )}
         </View>
-
-        {specs.length > 0 ? (
-          /* ── Model variants — combined RAM + Storage the model actually ships */
-          <>
-            <SectionHeader icon={HardDrive} label={specsStorageOnly ? 'Storage' : 'RAM & Storage'} />
-            <View className="px-4">
-              <VariantGrid
-                options={specs}
-                selected={specs.find((x) => x.ramOptionId === ram && x.storageOptionId === storage)?.id || null}
-                onSelect={(k) => {
-                  if (!k) { setRam(null); setStorage(null); return; }
-                  const sp = specs.find((x) => x.id === k);
-                  if (sp) { setRam(sp.ramOptionId); setStorage(sp.storageOptionId); }
-                }}
-                getLabel={(sp) => sp.label}
-                keyOf={(sp) => sp.id}
-                columns={VARIANT_COLUMNS}
-                showCircle
-              />
-            </View>
-          </>
-        ) : (
-          <>
-            {/* ── RAM section (fallback: model has no variants) ─────────── */}
-            <SectionHeader icon={Cpu} label="RAM" subtitle="Pick the memory size" />
-            <View className="px-4">
-              <VariantGrid
-                options={rams}
-                selected={ram}
-                onSelect={setRam}
-                getLabel={(r) => r.label}
-                keyOf={(r) => r.id}
-              />
-            </View>
-
-            {/* ── Storage section (fallback) ───────────────────────────── */}
-            <SectionHeader icon={HardDrive} label="Storage" subtitle="Pick the capacity" />
-            <View className="px-4">
-              <VariantGrid
-                options={storages}
-                selected={storage}
-                onSelect={setStorage}
-                getLabel={(s) => s.label}
-                keyOf={(s) => s.id}
-              />
-            </View>
-          </>
-        )}
-        </>
-        )}
-
       </ScrollView>
 
-      {/* ── Sticky green-gradient CTA — matches sibling screens ─────── */}
+      {/* ── Sticky configuration bar ─────────────────────────────── */}
       <View
-        className="absolute left-0 right-0"
-        style={{ bottom: insets.bottom + 4, paddingHorizontal: 16 }}
+        className="absolute left-0 right-0 bottom-0"
+        style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: LINE, paddingHorizontal: 14, paddingTop: 10, paddingBottom: insets.bottom + 10 }}
       >
-        <Pressable
-          onPress={onContinue}
-          disabled={!ready}
-          className="active:opacity-90"
-          style={{
-            borderRadius: 18,
-            overflow: 'hidden',
-            backgroundColor: ready ? BAR_BG_READY : BAR_BG,
-            // The not-ready state is a light fill, so the old 0.55 opacity is
-            // no longer what signals "disabled" — it would only wash the text
-            // out against #F8F8F8. A 1px border keeps the bar's shape visible.
-            borderWidth: ready ? 0 : 1,
-            borderColor: '#E2E8E2',
-          }}
-        >
-          <View
-            style={{ paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}
+        <View style={col}>
+          <Pressable
+            onPress={onContinue}
+            disabled={!ready}
+            className="active:opacity-90"
+            style={{ borderRadius: 14, overflow: 'hidden', borderWidth: ready ? 0 : 1, borderColor: LINE }}
           >
-            <View className="flex-1">
-              <Text
-                className="text-[12px] font-medium"
-                style={{ color: ready ? BAR_TEXT_READY : BAR_TEXT, opacity: 0.9 }}
+            <LinearGradient
+              colors={ready ? [GREEN, GREEN_DEEP] : [PAGE_BG, PAGE_BG]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 0.6, color: ready ? 'rgba(255,255,255,0.85)' : MUTED }}>
+                  YOUR CONFIGURATION
+                </Text>
+                <Text style={{ marginTop: 1, fontSize: 13, fontWeight: '800', color: ready ? '#FFFFFF' : INK }} numberOfLines={1}>
+                  {summaryLabel(color, rams.find((x) => x.id === ram)?.label, storages.find((x) => x.id === storage)?.label)}
+                </Text>
+              </View>
+              <View
+                className="flex-row items-center"
+                style={{ marginLeft: 10, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10, backgroundColor: ready ? 'rgba(255,255,255,0.2)' : '#FFFFFF' }}
               >
-                YOUR CONFIGURATION
-              </Text>
-              <Text
-                className="text-[14px] font-medium"
-                style={{ color: ready ? BAR_TEXT_READY : BAR_TEXT }}
-                numberOfLines={1}
-              >
-                {summaryLabel(color, rams.find((x) => x.id === ram)?.label, storages.find((x) => x.id === storage)?.label)}
-              </Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text
-                className="text-[14px] font-medium"
-                style={{ color: ready ? BAR_TEXT_READY : BAR_TEXT }}
-              >
-                Continue
-              </Text>
-              <ChevronRight size={18} color={ready ? BAR_TEXT_READY : BAR_TEXT} />
-            </View>
-          </View>
-        </Pressable>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: ready ? '#FFFFFF' : MUTED }}>Continue</Text>
+                <ChevronRight size={16} color={ready ? '#FFFFFF' : MUTED} />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -528,71 +482,78 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Reusable bits
 // ════════════════════════════════════════════════════════════════════════════
+function Card({ children }) {
+  return (
+    <View
+      style={{
+        marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: HAIR,
+        padding: 12, shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 function SectionHeader({ icon: Icon, label, subtitle }) {
   return (
-    <View className="px-4 pt-3 pb-1.5">
-      <View className="flex-row items-center">
-        <Icon size={14} color={BRAND_GREEN_DARK} />
-        <Text className="text-text font-extrabold text-[12.5px] ml-1.5">{label}</Text>
-
+    <View className="flex-row items-center" style={{ marginBottom: 9 }}>
+      <View className="items-center justify-center" style={{ height: 26, width: 26, borderRadius: 9, backgroundColor: MINT, marginRight: 8 }}>
+        <Icon size={13} color={GREEN} />
       </View>
-      {subtitle ? (
-        <Text className="text-text-muted text-[11px] mt-0.5 ml-5">{subtitle}</Text>
-      ) : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>{label}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
+      </View>
     </View>
   );
 }
 
 function VariantGrid({ options, selected, onSelect, getLabel, keyOf, columns = 3, showCircle = false }) {
   return (
-    <View>
-      <View className="flex-row flex-wrap -mx-1">
-        {options.map((o) => {
-          const k = keyOf(o);
-          const active = selected === k;
-          return (
-            <View key={k} className="p-1" style={{ width: `${100 / columns}%` }}>
-              <Pressable
-                onPress={() => onSelect(active ? null : k)}
-                className={`rounded-xl items-center justify-center ${showCircle ? 'flex-row' : ''}`}
-                style={{
-                  borderWidth: active ? TILE_LINE_ACTIVE_W : TILE_LINE_W,
-                  borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
-                  // Padding absorbs the extra border so the label does not
-                  // shift by a pixel when the tile is selected.
-                  paddingVertical: active ? 8 - (TILE_LINE_ACTIVE_W - TILE_LINE_W) : 8,
-                  paddingHorizontal: active ? 6 - (TILE_LINE_ACTIVE_W - TILE_LINE_W) : 6,
-                }}
-              >
-                {showCircle ? (
-                  <View
-                    style={{
-                      height: 18,
-                      width: 18,
-                      borderRadius: 9,
-                      borderWidth: 2,
-                      borderColor: active ? TILE_LINE_ACTIVE : '#CBD5CB',
-                      backgroundColor: 'transparent',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: 8,
-                    }}
-                  >
-                    {active ? <Check size={11} color={TILE_LINE_ACTIVE} strokeWidth={3} /> : null}
-                  </View>
-                ) : null}
-                <Text
-                  className="text-[13px] font-medium"
-                  style={{ color: active ? TILE_TEXT_ACTIVE : TILE_TEXT }}
-                  numberOfLines={1}
+    <View className="flex-row flex-wrap" style={{ marginHorizontal: -3 }}>
+      {options.map((o) => {
+        const k = keyOf(o);
+        const active = selected === k;
+        return (
+          <View key={k} style={{ width: `${100 / columns}%`, padding: 3 }}>
+            <Pressable
+              onPress={() => onSelect(active ? null : k)}
+              className={`items-center justify-center ${showCircle ? 'flex-row' : ''}`}
+              style={{
+                minHeight: 40,
+                borderRadius: 12,
+                borderWidth: active ? 1.5 : 1,
+                borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
+                backgroundColor: active ? MINT : '#FFFFFF',
+                // Padding absorbs the thicker border so the label never shifts.
+                paddingVertical: active ? 7.5 : 8,
+                paddingHorizontal: active ? 7.5 : 8,
+              }}
+            >
+              {showCircle ? (
+                <View
+                  style={{
+                    height: 18, width: 18, borderRadius: 9, borderWidth: 1.5,
+                    borderColor: active ? GREEN : '#D6D6D6', backgroundColor: active ? GREEN : '#FFFFFF',
+                    alignItems: 'center', justifyContent: 'center', marginRight: 7,
+                  }}
                 >
-                  {getLabel(o)}
-                </Text>
-              </Pressable>
-            </View>
-          );
-        })}
-      </View>
+                  {active ? <Check size={11} color="#FFFFFF" strokeWidth={3} /> : null}
+                </View>
+              ) : null}
+              <Text
+                style={{ flexShrink: 1, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? TILE_TEXT_ACTIVE : TILE_TEXT, textAlign: 'center' }}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                {getLabel(o)}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -601,11 +562,3 @@ function summaryLabel(color, ramLabel, storageLabel) {
   const parts = [color, ramLabel, storageLabel].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Pick your variant';
 }
-
-const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 2,
-};

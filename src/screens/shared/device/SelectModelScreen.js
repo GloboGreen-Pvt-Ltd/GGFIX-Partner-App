@@ -46,7 +46,7 @@ const GRID_GAP = PICKER_GAP;
 const SCREEN_BG = '#FFFFFF';
 // Written as a value: the `primary` class points here too, but NativeWind
 // compiles tailwind.config.js at build time, so the class needs a Metro restart.
-const ACCENT = '#004C40';
+const ACCENT = '#09AD2A';
 
 // Full-screen gallery image viewer: two-finger pinch-to-zoom, one-finger pan while
 // zoomed, double-tap to zoom in / reset, and a horizontal swipe (while un-zoomed) to
@@ -333,22 +333,22 @@ export default function SelectModelScreen({ navigation, route }) {
             className="h-10 w-10 items-center justify-center"
             hitSlop={8}
           >
-            <ArrowLeft size={22} color="#172117" />
+            <ArrowLeft size={22} color="#1E1E1E" />
           </Pressable>
           <View className="flex-1 flex-row items-center rounded-xl px-3" style={{ backgroundColor: '#F8F8F8' }}>
-            <Search size={18} color="#8FA08F" />
+            <Search size={18} color="#8E8E8E" />
             <TextInput
               autoFocus
               value={q}
               onChangeText={setQ}
               placeholder={`Search ${brandName || 'model'}`}
-              placeholderTextColor="#8FA08F"
-              className="flex-1 py-2.5 ml-2 text-text text-[14px]"
+              placeholderTextColor="#8E8E8E"
+              className="flex-1 py-2.5 ml-2 text-text text-[13px]"
               returnKeyType="search"
             />
             {q ? (
               <Pressable onPress={() => setQ('')} hitSlop={8}>
-                <X size={18} color="#667066" />
+                <X size={18} color="#6B6B6B" />
               </Pressable>
             ) : null}
           </View>
@@ -357,7 +357,7 @@ export default function SelectModelScreen({ navigation, route }) {
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
           {searchResults.length === 0 ? (
             <EmptyState
-              icon={q ? <Smartphone size={28} color="#004C40" /> : <Search size={28} color="#004C40" />}
+              icon={q ? <Smartphone size={28} color="#09AD2A" /> : <Search size={28} color="#09AD2A" />}
               title={q ? 'No products found' : 'Search products'}
               description={q ? `Nothing matches "${q.trim()}".` : `Type a model name to search ${brandName || 'products'}.`}
             />
@@ -374,10 +374,10 @@ export default function SelectModelScreen({ navigation, route }) {
                     {hasImg ? (
                       <DeviceImage url={m.imageUrl} base64={m.imageBase64} style={{ width: 48, height: 48 }} contentFit="contain" />
                     ) : (
-                      <Smartphone size={22} color="#004C40" />
+                      <Smartphone size={22} color="#09AD2A" />
                     )}
                   </View>
-                  <Text className="flex-1 text-[14px] text-text" numberOfLines={1}>{m.name}</Text>
+                  <Text className="flex-1 text-[13px] text-text" numberOfLines={1}>{m.name}</Text>
                 </Pressable>
               );
             })
@@ -396,7 +396,7 @@ export default function SelectModelScreen({ navigation, route }) {
         sticky={false}
         right={(
           <Pressable onPress={() => setSearchOpen(true)} className="h-10 w-10 items-center justify-center" hitSlop={8}>
-            <Search size={22} color="#172117" />
+            <Search size={22} color="#1E1E1E" />
           </Pressable>
         )}
       />
@@ -447,18 +447,18 @@ export default function SelectModelScreen({ navigation, route }) {
           {/* ── Series chips (compact) ────────────────────────────────── */}
           {seriesWithModels.length > 0 ? (
             <View className="mb-5">
-              <Text className="text-[15px] font-extrabold text-text mb-2.5">Select Series</Text>
+              <Text className="text-[13px] font-extrabold text-text mb-2.5">Select Series</Text>
               {selectedSeries ? (
                 <View style={{ flexDirection: 'row' }}>
                   <Pressable
                     onPress={() => setSelSeriesId(null)}
                     className="rounded-xl flex-row items-center active:opacity-80"
-                    style={{ paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#E2E8E2' }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#E6E6E6' }}
                   >
-                    <Text className="text-[12.5px] font-bold text-text mr-2" numberOfLines={1}>
+                    <Text className="text-[12px] font-bold text-text mr-2" numberOfLines={1}>
                       {selectedSeries.name}
                     </Text>
-                    <X size={15} color="#667066" />
+                    <X size={15} color="#6B6B6B" />
                   </Pressable>
                 </View>
               ) : (
@@ -468,7 +468,7 @@ export default function SelectModelScreen({ navigation, route }) {
                       key={s.id}
                       onPress={() => setSelSeriesId(s.id)}
                       className="rounded-xl items-center justify-center active:opacity-80"
-                      style={{ width: cardWidth, minHeight: 40, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#E2E8E2' }}
+                      style={{ width: cardWidth, minHeight: 40, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: '#F8F8F8', borderWidth: 1, borderColor: '#E6E6E6' }}
                     >
                       <Text className="text-[12px] font-semibold text-text text-center" numberOfLines={2}>
                         {s.name}
@@ -483,7 +483,7 @@ export default function SelectModelScreen({ navigation, route }) {
           {/* ── Models grid ───────────────────────────────────────────── */}
           {gridModels.length === 0 ? (
             <EmptyState
-              icon={<Smartphone size={28} color="#004C40" />}
+              icon={<Smartphone size={28} color="#09AD2A" />}
               title="No products found"
               description="No models published for this selection yet."
             />
@@ -508,8 +508,8 @@ export default function SelectModelScreen({ navigation, route }) {
                       padding: 8,
                       backgroundColor: isCurrent ? '#EAF7F1' : '#FFFFFF',
                       borderWidth: isCurrent ? 1.5 : 1,
-                      borderColor: isCurrent ? '#004C40' : '#E2E8E2',
-                      shadowColor: '#172117',
+                      borderColor: isCurrent ? '#09AD2A' : '#E6E6E6',
+                      shadowColor: '#1E1E1E',
                       shadowOpacity: isCurrent ? 0 : 0.04,
                       shadowRadius: 6,
                       shadowOffset: { width: 0, height: 2 },
@@ -530,12 +530,12 @@ export default function SelectModelScreen({ navigation, route }) {
                           contentFit="contain"
                         />
                       ) : (
-                        <Smartphone size={Math.round(productImageSize * 0.5)} color="#004C40" />
+                        <Smartphone size={Math.round(productImageSize * 0.5)} color="#09AD2A" />
                       )}
                     </Pressable>
 
                     <Text
-                      className="text-[11.5px] font-semibold text-text"
+                      className="text-[11px] font-semibold text-text"
                       numberOfLines={2}
                       style={{ textAlign: 'center', width: '100%' }}
                     >
@@ -551,7 +551,7 @@ export default function SelectModelScreen({ navigation, route }) {
                     {isCurrent ? (
                       <View
                         className="items-center justify-center"
-                        style={{ position: 'absolute', top: 6, right: 6, height: 18, width: 18, borderRadius: 9, backgroundColor: '#004C40' }}
+                        style={{ position: 'absolute', top: 6, right: 6, height: 18, width: 18, borderRadius: 9, backgroundColor: '#09AD2A' }}
                       >
                         <Check size={11} color="#fff" strokeWidth={3} />
                       </View>
@@ -597,18 +597,18 @@ export default function SelectModelScreen({ navigation, route }) {
 
             {/* Footer: name + select */}
             <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16 }}>
-              <Text className="text-white text-[15px] font-extrabold mb-3 text-center" numberOfLines={2}>
+              <Text className="text-white text-[13px] font-extrabold mb-3 text-center" numberOfLines={2}>
                 {preview?.name}
               </Text>
-              {/* Solid #004C40 with a white label — 9.96:1, and the filled
-                  shape carries better than an outline against the viewer's
+              {/* Solid GGFIX green with a white label — the filled shape
+                  carries better than an outline against the viewer's
                   near-black scrim. */}
               <Pressable
                 onPress={() => { const m = preview; closePreview(); if (m) handleSelect(m); }}
                 className="rounded-2xl py-4 items-center active:opacity-80"
-                style={{ backgroundColor: '#004C40' }}
+                style={{ backgroundColor: '#09AD2A' }}
               >
-                <Text className="text-[15px] font-medium" style={{ color: '#FFFFFF' }}>Select this product</Text>
+                <Text className="text-[13px] font-medium" style={{ color: '#FFFFFF' }}>Select this product</Text>
               </Pressable>
             </View>
           </View>
@@ -619,7 +619,7 @@ export default function SelectModelScreen({ navigation, route }) {
       {otherOpen ? (
         <View className="absolute inset-0 items-center justify-center px-6" style={{ backgroundColor: 'rgba(23, 33, 23, 0.55)' }}>
           <View className="w-full bg-card rounded-2xl p-5">
-            <Text className="text-[15px] font-extrabold text-text">Other model</Text>
+            <Text className="text-[13px] font-extrabold text-text">Other model</Text>
             <Text className="text-[12px] text-text-muted mt-1 leading-4">
               {brandName ? `Brand: ${brandName}. ` : ''}Type the model as printed on the device.
               It is saved on this booking only — it is not added to the catalogue.
@@ -629,8 +629,8 @@ export default function SelectModelScreen({ navigation, route }) {
               value={otherName}
               onChangeText={setOtherName}
               placeholder="e.g. Blaze 2 Pro"
-              placeholderTextColor="#8FA08F"
-              className="mt-3 rounded-xl px-3 py-2.5 text-text text-[14px]"
+              placeholderTextColor="#8E8E8E"
+              className="mt-3 rounded-xl px-3 py-2.5 text-text text-[13px]"
               style={{ backgroundColor: '#F8F8F8' }}
               returnKeyType="done"
               onSubmitEditing={onPickOther}
@@ -651,8 +651,8 @@ export default function SelectModelScreen({ navigation, route }) {
               <Pressable
                 onPress={onPickOther}
                 disabled={!otherName.trim()}
-                className="px-4 py-2 rounded-xl bg-primary active:opacity-80"
-                style={{ opacity: otherName.trim() ? 1 : 0.5 }}
+                className="px-4 py-2 rounded-xl active:opacity-80"
+                style={{ backgroundColor: ACCENT, opacity: otherName.trim() ? 1 : 0.5 }}
               >
                 <Text className="text-[13px] font-extrabold text-white">Continue</Text>
               </Pressable>

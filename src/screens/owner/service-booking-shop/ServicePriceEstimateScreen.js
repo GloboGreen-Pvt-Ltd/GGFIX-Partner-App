@@ -44,21 +44,31 @@ import { uploadMedia } from '../../../api/masterData';
  * split footer (total on the left, Continue pill on the right) rather than one
  * full-bleed bar.
  *
- * Palette is #004C40, NOT the reference's #16BB05/#087A0A. The app-wide green
- * sweep moved off those two, so matching the mockup's hue literally would have
- * re-introduced them on this one screen.
+ * GGFIX palette: #09AD2A for fills / icons / selected states, #078F23 for green
+ * TEXT on white or mint (so it stays legible), #EAF8EC tints with a #CDEFD4 edge,
+ * on a #F8F8F8 page with compact white cards.
  */
-const ACCENT = '#004C40';
-const ACCENT_08 = 'rgba(0, 76, 64, 0.08)';
-const ACCENT_12 = 'rgba(0, 76, 64, 0.12)';
-const ACCENT_30 = 'rgba(0, 76, 64, 0.30)';
+const ACCENT = '#09AD2A';       // fills, icons, selected
+const ACCENT_TEXT = '#078F23';  // green text on white / mint
+const ACCENT_08 = '#EAF8EC';    // light green tint
+const ACCENT_30 = '#CDEFD4';    // light green border
 
-const SCREEN_BG = '#FFFFFF';
-const MINT = '#E8F7F2';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const SUBTLE = '#8A8A8A';
+const RED = '#F84141';
+const RED_TINT = '#FEECEC';
+const RED_LINE = '#FBD0D0';
+const RED_TEXT = '#D63232';
+
+const PAGE_BG = '#F8F8F8';
+const SCREEN_BG = '#FFFFFF';   // card / input / sheet white
+const MINT = '#EAF8EC';
+const SOFT = '#F3F3F3';
+const LINE = '#E6E6E6';        // input + bar borders
+const HAIR = '#F3F3F3';        // card hairline on the grey page
 /** One height for every single-line field, so the rows line up across sections. */
 const FIELD_H = 42;   // pass through rs() at each use site
-const SOFT = '#F8F8F8';
-const LINE = '#DCE7E2';
 
 const DURATIONS = [1, 2, 3, 4, 5, 6, 8, 12, 24, 48].map((h) => ({ value: h, label: `${h} hr` }));
 
@@ -449,7 +459,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 
           <Text
             className="flex-1 text-text text-center"
-            style={{ fontSize: rf(17), fontWeight: '700', paddingHorizontal: rs(8) }}
+            style={{ fontSize: 17, fontWeight: '800', paddingHorizontal: rs(8) }}
             numberOfLines={1}
           >
             Service Price & Issue Estimate
@@ -472,14 +482,15 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={colStyle}>
-          {/* ── Device summary — soft mint accent behind the image well,
+          {/* ── Device summary — plain white card, image well,
               optional brand text, and a trailing chevron. ────────────────── */}
           <View style={{ paddingHorizontal: rs(14) }}>
-            <View style={[card, { padding: rs(11), backgroundColor: MINT, borderColor: 'rgba(0,76,64,0.14)' }]}>
+            <View style={[card, { padding: rs(11) }]}>
               <View className="flex-row items-center">
                 <View
                   style={{
                     height: rs(48), width: rs(48), borderRadius: rs(14), backgroundColor: '#FFFFFF',
+                    borderWidth: 1, borderColor: LINE,
                     alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: rs(10),
                   }}
                 >
@@ -491,30 +502,30 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 </View>
                 <View className="flex-1">
                   <View className="flex-row items-center">
-                    <Text className="flex-1 text-text" style={{ fontSize: rf(17), fontWeight: '700' }} numberOfLines={1}>
+                    <Text className="flex-1 text-text" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
                       {params.modelName || 'Device'}
                     </Text>
                     {params.brandName ? (
-                      <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', marginLeft: rs(6) }} numberOfLines={1}>
+                      <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', marginLeft: rs(6) }} numberOfLines={1}>
                         {params.brandName}
                       </Text>
                     ) : null}
                   </View>
-                  <Text className="text-text-muted" style={{ fontSize: rf(12.5), marginTop: rs(2) }} numberOfLines={1}>
+                  <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(2) }} numberOfLines={1}>
                     {[params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ')}
                   </Text>
                   <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(8) }}>
                     {params.modelNumber ? (
                       <View style={[chip, { marginRight: rs(8) }]}>
                         <Hash size={rf(10)} color={ACCENT} strokeWidth={2.5} />
-                        <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(3) }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(3) }}>
                           {params.modelNumber}
                         </Text>
                       </View>
                     ) : null}
                     <View style={chip}>
                       <Wrench size={rf(10)} color={ACCENT} strokeWidth={2.5} />
-                      <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>
                         {services.length} service{services.length === 1 ? '' : 's'} added
                       </Text>
                     </View>
@@ -542,7 +553,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 className="items-center"
                 style={{ borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
               >
-                <Text style={{ fontSize: rf(10.5), fontWeight: '700', color: ACCENT }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '700', color: ACCENT }}>
                   {services.length} item{services.length === 1 ? '' : 's'}
                 </Text>
               </View>
@@ -569,22 +580,22 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                     <Wrench size={rf(13)} color={ACCENT} strokeWidth={2} />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '600' }} numberOfLines={1}>{s.serviceName}</Text>
+                    <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{s.serviceName}</Text>
                     {/* Real data only — warranty, when the service carries
                         one; no fabricated issue-description subtitle (that
                         field doesn't exist on this object). */}
                     {s.warranty ? (
-                      <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(1) }} numberOfLines={1}>
+                      <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(1) }} numberOfLines={1}>
                         Warranty: {s.warranty}
                       </Text>
                     ) : null}
                   </View>
-                  <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '700' }}>₹{formatINR(s.price)}</Text>
+                  <Text className="text-text" style={{ fontSize: 13, fontWeight: '700' }}>₹{formatINR(s.price)}</Text>
                 </View>
               ))}
               {services.length === 0 ? (
                 <View className="items-center" style={{ paddingVertical: rs(14) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(12.5) }}>No services selected.</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 12 }}>No services selected.</Text>
                 </View>
               ) : null}
 
@@ -596,12 +607,12 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               >
                 <View className="flex-row items-center">
                   <Tag size={rf(14)} color={ACCENT} strokeWidth={2} />
-                  <Text className="flex-1 text-text" style={{ fontSize: rf(14.5), fontWeight: '700', marginLeft: rs(7) }}>
+                  <Text className="flex-1 text-text" style={{ fontSize: 13, fontWeight: '700', marginLeft: rs(7) }}>
                     Estimated Total
                   </Text>
-                  <Text style={{ fontSize: rf(18), fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
                 </View>
-                <Text className="text-text-muted" style={{ fontSize: rf(11.5), marginTop: rs(3) }}>
+                <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(3) }}>
                   Final amount may vary slightly based on parts availability.
                 </Text>
               </View>
@@ -615,7 +626,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             right={(
               <View className="flex-row items-center">
                 <HelpCircle size={rf(12)} color="#8FA08F" strokeWidth={2} />
-                <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', marginLeft: rs(4) }}>
+                <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', marginLeft: rs(4) }}>
                   Where to find IMEI?
                 </Text>
               </View>
@@ -641,7 +652,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   onChangeText={setImei}
                   keyboardType="number-pad"
                   maxLength={17}
-                  style={{ height: rs(FIELD_H), paddingVertical: 0, fontSize: rf(13.5) }}
+                  style={{ height: rs(FIELD_H), paddingVertical: 0, fontSize: 13 }}
                 />
               </View>
               <Pressable
@@ -655,7 +666,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 accessibilityLabel="Scan IMEI barcode"
               >
                 <ScanLine size={rf(15)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: rf(13), fontWeight: '600', color: ACCENT, marginLeft: rs(5) }}>Scan</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: ACCENT, marginLeft: rs(5) }}>Scan</Text>
               </Pressable>
             </View>
             {/* Same tip text as before, always visible — now a soft mint
@@ -665,7 +676,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               style={{ marginTop: rs(8), borderRadius: rs(10), padding: rs(9), backgroundColor: MINT }}
             >
               <HelpCircle size={rf(13)} color={ACCENT} strokeWidth={2} />
-              <Text className="text-text" style={{ fontSize: rf(11.5), marginLeft: rs(7), lineHeight: rf(16), flex: 1 }}>
+              <Text className="text-text" style={{ fontSize: 11, marginLeft: rs(7), lineHeight: rf(16), flex: 1 }}>
                 Tip: dial <Text style={{ fontWeight: '700' }}>*#06#</Text> on the device to display IMEI as a barcode.
               </Text>
             </View>
@@ -684,7 +695,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               numberOfLines={3}
               textAlignVertical="top"
               style={{
-                minHeight: rs(78), fontSize: rf(13.5), lineHeight: rf(19),
+                minHeight: rs(78), fontSize: 13, lineHeight: rf(19),
                 borderWidth: 1, borderColor: LINE, borderRadius: rs(14),
                 paddingHorizontal: rs(12), paddingTop: rs(10), paddingBottom: rs(10),
               }}
@@ -692,7 +703,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             {/* Display-only counter — no maxLength was added to the input
                 above, so this never blocks or truncates typing; it's purely
                 informational, same as the rest of this pass. */}
-            <Text className="text-text-muted" style={{ fontSize: rf(10.5), textAlign: 'right', marginTop: rs(4) }}>
+            <Text className="text-text-muted" style={{ fontSize: 10.5, textAlign: 'right', marginTop: rs(4) }}>
               {complaint.length}/500
             </Text>
           </View>
@@ -720,10 +731,10 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <Mic size={rf(18)} color={isRecording ? '#DC2626' : ACCENT} strokeWidth={2} />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '700' }}>
+                  <Text className="text-text" style={{ fontSize: 13, fontWeight: '700' }}>
                     Record Voice Note
                   </Text>
-                  <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(1) }} numberOfLines={1}>
+                  <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(1) }} numberOfLines={1}>
                     {voiceHint}
                   </Text>
                 </View>
@@ -744,8 +755,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                     >
                       <View style={{ height: rs(10), width: rs(10), borderRadius: rs(5), backgroundColor: '#DC2626', marginRight: rs(8) }} />
                       <View className="flex-1">
-                        <Text className="text-danger" style={{ fontSize: rf(12.5), fontWeight: '600' }}>Recording…</Text>
-                        <Text className="text-danger" style={{ fontSize: rf(11.5), fontWeight: '500' }}>{recLabel}</Text>
+                        <Text className="text-danger" style={{ fontSize: 12, fontWeight: '600' }}>Recording…</Text>
+                        <Text className="text-danger" style={{ fontSize: 11, fontWeight: '500' }}>{recLabel}</Text>
                       </View>
                       <Pressable
                         onPress={stopRecording}
@@ -753,7 +764,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                         style={{ backgroundColor: '#DC2626', borderRadius: rs(999), paddingHorizontal: rs(14), paddingVertical: rs(8) }}
                       >
                         <Square size={rf(12)} color="#fff" fill="#fff" />
-                        <Text className="text-white" style={{ fontSize: rf(12.5), fontWeight: '600', marginLeft: rs(6) }}>STOP</Text>
+                        <Text className="text-white" style={{ fontSize: 12, fontWeight: '600', marginLeft: rs(6) }}>STOP</Text>
                       </Pressable>
                     </View>
                   ) : hasClip ? (
@@ -775,8 +786,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                           : <Play size={rf(16)} color="#fff" fill="#fff" />}
                       </Pressable>
                       <View className="flex-1" style={{ marginLeft: rs(10) }}>
-                        <Text className="text-text" style={{ fontSize: rf(13), fontWeight: '600' }}>Voice note attached</Text>
-                        <Text className="text-text-muted" style={{ fontSize: rf(12) }}>
+                        <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }}>Voice note attached</Text>
+                        <Text className="text-text-muted" style={{ fontSize: 12 }}>
                           {uploadingAudio ? 'Uploading…' : (audioUrl ? 'Uploaded · tap play to preview' : 'Tap play to preview')}
                         </Text>
                       </View>
@@ -801,7 +812,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                       style={{ backgroundColor: ACCENT, borderRadius: rs(12), paddingVertical: rs(10) }}
                     >
                       <Mic size={rf(16)} color="#fff" strokeWidth={2} />
-                      <Text className="text-white" style={{ fontSize: rf(13.5), fontWeight: '600', marginLeft: rs(8) }}>
+                      <Text className="text-white" style={{ fontSize: 13, fontWeight: '600', marginLeft: rs(8) }}>
                         Record voice note
                       </Text>
                     </Pressable>
@@ -831,7 +842,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 accessibilityLabel="Edit ready-by time"
               >
                 <Pencil size={rf(12)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>Edit</Text>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>Edit</Text>
               </Pressable>
             )}
           />
@@ -854,9 +865,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <Calendar size={rf(15)} color={ACCENT} strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>RECEIVED</Text>
-                  <Text className="text-text" style={{ fontSize: rf(11), fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{dateLabel}</Text>
-                  <Text className="text-text-muted" style={{ fontSize: rf(10), marginTop: rs(1) }} numberOfLines={1}>{timeLabel}</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>RECEIVED</Text>
+                  <Text className="text-text" style={{ fontSize: 11, fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{dateLabel}</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 10, marginTop: rs(1) }} numberOfLines={1}>{timeLabel}</Text>
                 </View>
               </View>
 
@@ -872,7 +883,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <Timer size={rf(15)} color={ACCENT} strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text className="text-text-muted" style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>DURATION</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>DURATION</Text>
                   {/* With an override in force there is no matching option,
                       so Select falls back to `displayValue` — the derived
                       span. Choosing an hour from the list clears the
@@ -905,9 +916,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <ShieldCheck size={rf(15)} color="#fff" strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text style={{ fontSize: rf(8.5), fontWeight: '700', letterSpacing: 0.8, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>READY BY</Text>
-                  <Text className="text-white" style={{ fontSize: rf(11), fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{deliveryDateLabel}</Text>
-                  <Text style={{ fontSize: rf(10), color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>{deliveryTimeLabel}</Text>
+                  <Text style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>READY BY</Text>
+                  <Text className="text-white" style={{ fontSize: 11, fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{deliveryDateLabel}</Text>
+                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>{deliveryTimeLabel}</Text>
                 </View>
               </Pressable>
             </View>
@@ -918,12 +929,12 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 style={{ borderRadius: rs(999), paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
               >
                 <ShieldCheck size={rf(11)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: rf(10), fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>ON TIME</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>ON TIME</Text>
               </View>
             </View>
 
             {readyOverride ? (
-              <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(5) }}>
+              <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(5) }}>
                 Set manually · {spanLabel} from now
               </Text>
             ) : null}
@@ -947,8 +958,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   ? <CircleCheck size={rf(20)} color={ACCENT} strokeWidth={2} />
                   : <Circle size={rf(20)} color="#CBD5CB" strokeWidth={2} />}
                 <View className="flex-1" style={{ marginLeft: rs(10) }}>
-                  <Text className="text-text" style={{ fontSize: rf(12.5), fontWeight: '600' }}>Customer repair approval</Text>
-                  <Text className="text-text-muted" style={{ fontSize: rf(11.5), marginTop: rs(1) }}>
+                  <Text className="text-text" style={{ fontSize: 12, fontWeight: '600' }}>Customer repair approval</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(1) }}>
                     Customer agreed to the estimated price & timing.
                   </Text>
                 </View>
@@ -988,10 +999,10 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             </View>
 
             <View className="flex-1">
-              <Text className="text-text-muted" style={{ fontSize: rf(11), fontWeight: '600', letterSpacing: 1 }}>
+              <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1 }}>
                 ESTIMATED TOTAL
               </Text>
-              <Text style={{ fontSize: rf(21), fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
             </View>
 
             <Pressable
@@ -1007,13 +1018,13 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               accessibilityRole="button"
               accessibilityState={{ disabled: !isReady }}
             >
-              <Text className="text-white" style={{ fontSize: rf(14.5), fontWeight: '600' }}>Continue</Text>
+              <Text className="text-white" style={{ fontSize: 13, fontWeight: '600' }}>Continue</Text>
               <ChevronRight size={rf(18)} color="#fff" strokeWidth={2} />
             </Pressable>
           </View>
 
           {!isReady && (uploadingAudio || isRecording || hasIssue) ? (
-            <Text className="text-text-muted text-center" style={{ fontSize: rf(12), marginTop: rs(6) }}>
+            <Text className="text-text-muted text-center" style={{ fontSize: 12, marginTop: rs(6) }}>
               {uploadingAudio
                 ? 'Uploading voice note…'
                 : isRecording
@@ -1042,8 +1053,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             <Eraser size={rf(18)} color={ACCENT} strokeWidth={2} />
           </View>
           <View className="flex-1">
-            <Text className="text-text" style={{ fontSize: rf(14), fontWeight: '600' }}>Clear this estimate</Text>
-            <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(1) }}>
+            <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }}>Clear this estimate</Text>
+            <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(1) }}>
               Resets IMEI, issue, voice note, duration and approval.
             </Text>
           </View>
@@ -1053,8 +1064,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       {/* ── Ready-by editor ──────────────────────────────────────────── */}
       <ResponsiveModal visible={edOpen} onClose={() => setEdOpen(false)} maxWidth={480}>
         <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: rs(14) }} />
-        <Text className="text-text" style={{ fontSize: rf(16), fontWeight: '700' }}>Ready by</Text>
-        <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(2) }}>
+        <Text className="text-text" style={{ fontSize: 15, fontWeight: '700' }}>Ready by</Text>
+        <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(2) }}>
           Pick the date and time the device will be ready. Duration follows it.
         </Text>
 
@@ -1086,7 +1097,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             </Pressable>
             <Text
               className="flex-1 text-text text-center"
-              style={{ fontSize: rf(13.5), fontWeight: '700' }}
+              style={{ fontSize: 13, fontWeight: '700' }}
             >
               {MONTHS[calMonth.getMonth()]}, {calMonth.getFullYear()}
             </Text>
@@ -1110,7 +1121,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               <Text
                 key={w}
                 className="flex-1 text-text-muted text-center"
-                style={{ fontSize: rf(10.5), fontWeight: '600' }}
+                style={{ fontSize: 10.5, fontWeight: '600' }}
               >
                 {w}
               </Text>
@@ -1143,7 +1154,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                     >
                       <Text
                         style={{
-                          fontSize: rf(12.5),
+                          fontSize: 12,
                           fontWeight: sel ? '700' : '500',
                           color: sel ? '#FFFFFF' : past ? '#C7CFC7' : outside ? '#8FA08F' : '#172117',
                         }}
@@ -1209,12 +1220,12 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
           }}
         >
           <Text
-            style={{ fontSize: rf(13.5), fontWeight: '700', color: edValid ? ACCENT : '#DC2626' }}
+            style={{ fontSize: 13, fontWeight: '700', color: edValid ? ACCENT : '#DC2626' }}
             numberOfLines={1}
           >
             {formatDate(edDate)} – {formatTime(edDate)}
           </Text>
-          <Text className="text-text-muted" style={{ fontSize: rf(11.5), marginTop: rs(2) }}>
+          <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(2) }}>
             {edValid
               ? formatSpan(Math.round((edDate - now) / 60000)) + ' from now'
               : 'That time has already passed — pick a later one.'}
@@ -1231,7 +1242,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             }}
             accessibilityRole="button"
           >
-            <Text style={{ fontSize: rf(13.5), fontWeight: '600', color: ACCENT }}>Use duration</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: ACCENT }}>Use duration</Text>
           </Pressable>
           <Pressable
             onPress={applyReady}
@@ -1241,7 +1252,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             accessibilityRole="button"
             accessibilityState={{ disabled: !edValid }}
           >
-            <Text className="text-white" style={{ fontSize: rf(13.5), fontWeight: '600' }}>Set ready by</Text>
+            <Text className="text-white" style={{ fontSize: 13, fontWeight: '600' }}>Set ready by</Text>
           </Pressable>
         </View>
       </ResponsiveModal>
@@ -1259,14 +1270,14 @@ function SectionHeader({ icon: Icon, label, subtitle, right }) {
         <Icon size={rf(15)} color={ACCENT} strokeWidth={2} />
         <Text
           className="text-text"
-          style={{ fontSize: rf(12.5), fontWeight: '700', marginLeft: rs(7), flex: right ? 1 : undefined }}
+          style={{ fontSize: 12, fontWeight: '700', marginLeft: rs(7), flex: right ? 1 : undefined }}
         >
           {label}
         </Text>
         {right}
       </View>
       {subtitle ? (
-        <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(6), marginLeft: rs(22) }}>
+        <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(6), marginLeft: rs(22) }}>
           {subtitle}
         </Text>
       ) : null}
@@ -1279,7 +1290,7 @@ function FieldLabel({ children }) {
   return (
     <Text
       className="text-text-muted"
-      style={{ fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1.2, marginBottom: rs(6) }}
+      style={{ fontSize: 10.5, fontWeight: '600', letterSpacing: 1.2, marginBottom: rs(6) }}
     >
       {children}
     </Text>

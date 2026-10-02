@@ -125,7 +125,7 @@ export default function BootSplash() {
       <StatusBar style="light" />
       <ExpoImage
         source={BACKGROUND_URL}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         contentFit="cover"
         cachePolicy="disk"
         onLoad={() => console.log('[BOOT] Background loaded @', since())} // TEMP DEBUG

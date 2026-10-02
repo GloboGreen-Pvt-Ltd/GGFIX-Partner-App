@@ -70,8 +70,8 @@ export default function ScanImeiScreen({ navigation, route }) {
           <View className="h-16 w-16 rounded-full bg-warning/15 items-center justify-center mb-4">
             <Ionicons name="camera-outline" size={28} color="#F59E0B" />
           </View>
-          <Text className="text-text font-extrabold text-[16px] text-center">Camera access needed</Text>
-          <Text className="text-text-muted text-[12.5px] text-center mt-2 leading-5">
+          <Text className="text-text font-extrabold text-[15px] text-center">Camera access needed</Text>
+          <Text className="text-text-muted text-[12px] text-center mt-2 leading-5">
             We need access to your camera to scan the IMEI barcode on the device or its packaging.
           </Text>
           <View className="flex-row mt-6">
@@ -153,7 +153,7 @@ export default function ScanImeiScreen({ navigation, route }) {
             onPress={() => navigation.goBack()}
             className="self-center bg-white/15 border border-white/30 rounded-full px-5 py-2"
           >
-            <Text className="text-white font-bold text-[12.5px]">Enter manually instead</Text>
+            <Text className="text-white font-bold text-[12px]">Enter manually instead</Text>
           </Pressable>
         </View>
       </View>
