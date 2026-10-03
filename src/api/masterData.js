@@ -121,6 +121,8 @@ export async function identifyDevice(asset, { limit = 8 } = {}) {
     configured: res?.configured !== false,
     confidence: res?.confidence || 'low',
     labels: Array.isArray(res?.labels) ? res.labels : [],
+    // The Google label behind the top match ("Samsung Galaxy S8+ 64GB").
+    recognisedAs: res?.recognisedAs || null,
     brand: res?.brand || null,
     error: res?.error || null,
     bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,

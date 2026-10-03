@@ -256,7 +256,7 @@ export default function ScanSearchScreen({ navigation, route }) {
     setLoadingStage('Identifying device…');
     const google = await runDeviceIdentify(uri);
     console.log(`[LENS] google vision ${google.ok ? `ok, confidence=${google.confidence}, matches=${google.matches.length}, label=${google.labels?.[0] || '-'}` : `unavailable: ${google.error || (google.configured ? 'error' : 'not configured')}`}`);
-    const googleLabel = google.labels?.[0] || null;
+    const googleLabel = google.recognisedAs || google.labels?.[0] || null;
     if (google.ok && google.bestMatch && google.confidence === 'high') {
       setLoading(false);
       setResult({ kind: 'device-found', best: google.bestMatch, matches: google.matches, label: googleLabel });
