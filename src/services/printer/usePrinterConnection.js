@@ -192,7 +192,9 @@ export function usePrinterConnection() {
     setState(PRINTER_STATE.IDLE);
   }, []);
 
-  const print = useCallback(async (labelData, copies = 1) => {
+  // `preset` = the Page Setup label size (labelPresets.js); it sets the TSPL
+  // SIZE/GAP and every position on the label. Omitted -> BarCode 38 x 25 mm.
+  const print = useCallback(async (labelData, copies = 1, preset) => {
     // Guards a double tap landing before the first re-render disables the
     // button — the button's own `disabled` covers the steady state, this
     // covers the gap between tap and paint.
@@ -201,7 +203,7 @@ export function usePrinterConnection() {
     setError(null);
     try {
       setState(PRINTER_STATE.GENERATING_LABEL);
-      const command = buildLabelCommand(labelData, { copies });
+      const command = buildLabelCommand(labelData, { copies, preset });
       setState(PRINTER_STATE.PRINTING);
       await Transport.write(command);
       // Only send-confirmation is verifiable over any of these transports

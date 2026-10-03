@@ -120,10 +120,10 @@ export default function OwnerKycIntroScreen({ navigation }) {
             >
               <ShieldCheck size={21} color="#FFFFFF" strokeWidth={2.3} />
             </View>
-            <Text className="text-white text-[19px] font-extrabold" style={{ letterSpacing: -0.3 }}>
+            <Text className="text-white text-[17px] font-extrabold" style={{ letterSpacing: -0.3 }}>
               Let's verify your shop
             </Text>
-            <Text className="text-white/85 text-[12.5px] mt-1.5 leading-5">
+            <Text className="text-white/85 text-[12px] mt-1.5 leading-5">
               Have these documents handy. The whole process takes about 5 minutes.
             </Text>
           </LinearGradient>
@@ -195,7 +195,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             <Lock size={14} color="#FFFFFF" />
           </View>
           <Text
-            className="flex-1 text-[11.5px] font-semibold leading-4"
+            className="flex-1 text-[11px] font-semibold leading-4"
             style={{ color: BRAND_GREEN_DARK }}
           >
             Your documents are encrypted and used only for verification.
@@ -221,7 +221,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
               justifyContent: 'center',
             }}
           >
-            <Text className="text-white text-[15px] font-extrabold">Get Started</Text>
+            <Text className="text-white text-[13px] font-extrabold">Get Started</Text>
             <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
           </LinearGradient>
         </TouchableOpacity>

@@ -45,6 +45,8 @@ import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
 // Share Image sheet — same component the Bookings list uses, so the
 // experience (and the receipt it renders) is identical everywhere.
 import { ShareReceiptSheet } from './BookingActionSheets';
+import { stepBlockedBy } from '../../common/serviceHistoryPhases';
+import { specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
 
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
 const BRAND_GREEN = '#16BB05';
@@ -116,6 +118,18 @@ const ACTION_TILES = [
 // owner-facing flow — the owner no longer hand-picks an arbitrary status.
 // Cancelled sits outside the linear flow (reached via the Cancel action).
 const ADVANCE_FLOW = ['CREATED', 'IN_DIAGNOSIS', 'QUOTED', 'APPROVED', 'IN_REPAIR', 'READY', 'DELIVERED'];
+
+// The Service History step each advance writes, where it writes one. Advancing
+// is held to the same one-step-at-a-time rule as every other status action
+// (stepBlockedBy) — otherwise "Advance To Ready for Delivery" would tick that
+// row with Repair Completed and Quality Check still blank above it.
+const ADVANCE_STEP = {
+  QUOTED: 'RE_ESTIMATED_CONFIRMED',
+  APPROVED: 'CUSTOMER_APPROVED',
+  IN_REPAIR: 'IN_REPAIR',
+  READY: 'READY',
+  DELIVERED: 'DELIVERED',
+};
 
 // Rank every lifecycle status so we can resolve "the next stage" even for
 // statuses that sit off the linear owner flow (ASSIGNED, INVOICE_*, etc.).
@@ -226,6 +240,9 @@ export default function TicketDetailScreen({ route, navigation }) {
   const [progressStatus, setProgressStatus] = useState({});
   const [progressChecked, setProgressChecked] = useState({});
   const [progressBusy, setProgressBusy] = useState(null);
+  // Every status on the booking's timeline (any actor) — what the
+  // one-step-at-a-time gate checks before Mark or Advance can write.
+  const [recordedKeys, setRecordedKeys] = useState([]);
 
   // IMEI capture gate — a booking must carry an IMEI before it can be marked
   // "Ready for Delivery". If it's missing we pop a type-or-scan sheet, PATCH the
@@ -240,6 +257,7 @@ export default function TicketDetailScreen({ route, navigation }) {
     try {
       const rows = await ticketApi.get(`/tickets/${ticketId}/events`);
       const out = {};
+      setRecordedKeys((Array.isArray(rows) ? rows : []).map((e) => String(e.status || '').toUpperCase()));
       (Array.isArray(rows) ? rows : []).forEach((e) => {
         const k = (e.status || '').toUpperCase();
         if (!OWNER_PROGRESS_ROWS.some((r) => r.key === k)) return;
@@ -253,12 +271,14 @@ export default function TicketDetailScreen({ route, navigation }) {
     } catch { /* keep current */ }
   }, [ticketId]);
 
-  useEffect(() => { refreshProgress(); }, [refreshProgress]);
+  // On focus, not just mount: a step recorded on another screen (the status
+  // sheet, the technician app) has to unlock the next one here when you return.
+  useFocusEffect(useCallback(() => { refreshProgress(); }, [refreshProgress]));
 
   // Bottom-bar "Update Status" — same PATCH /tickets/{id}/status the technician
-  // Update Status screen uses, exposed here as a light-themed bottom sheet so the
-  // owner can jump the booking to any lifecycle state without walking the
-  // Service Progress ticks one by one.
+  // Update Status screen uses, exposed here as a light-themed bottom sheet. It
+  // advances one lifecycle stage at a time, and only once the Service History
+  // step before that stage is recorded (ADVANCE_STEP + stepBlockedBy).
   const applyStatus = useCallback(async (nextStatus) => {
     if (!ticketId) return;
     setStatusBusy(nextStatus);
@@ -313,6 +333,11 @@ export default function TicketDetailScreen({ route, navigation }) {
   // "Done" tap on a progress step. Ready for Delivery requires an IMEI — if the
   // booking has none, open the capture sheet instead of recording immediately.
   const onProgressDone = useCallback((row) => {
+    const blocker = stepBlockedBy(recordedKeys, row.key);
+    if (blocker) {
+      notify('Complete the previous step first', `Record "${blocker}" before "${row.label}".`);
+      return;
+    }
     const hasImei = !!String(ticket?.imei || '').trim();
     if (row.key === 'READY' && !hasImei) {
       pendingReadyRow.current = row;
@@ -321,7 +346,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       return;
     }
     submitProgress(row);
-  }, [ticket, submitProgress]);
+  }, [ticket, submitProgress, recordedKeys]);
 
   // Opens the same sheet from the Service Info card, just to add/fix the IMEI
   // (no progress step to continue afterwards).
@@ -602,10 +627,10 @@ export default function TicketDetailScreen({ route, navigation }) {
                 )}
               </View>
               <View className="ml-3.5 flex-1">
-                <Text className="text-[17px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
-                {(ramLabel || storageLabel || color) ? (
+                <Text className="text-[15px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
+                {specDisplayParts({ ...ticket, ramLabel, storageLabel, color }, { withColor: true }).length ? (
                   <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
-                    {[ramLabel, storageLabel, color].filter(Boolean).join(' · ')}
+                    {specDisplayParts({ ...ticket, ramLabel, storageLabel, color }, { withColor: true }).join(' · ')}
                   </Text>
                 ) : null}
                 <View
@@ -623,7 +648,7 @@ export default function TicketDetailScreen({ route, navigation }) {
             <View className="flex-row items-center justify-between">
               <View>
                 <Text className="text-[10px] text-text-muted">Tracking ID</Text>
-                <Text className="text-[14px] font-extrabold text-primary">#{trackingId}</Text>
+                <Text className="text-[13px] font-extrabold text-primary">#{trackingId}</Text>
               </View>
               {ticket.createdAt ? (
                 <View className="items-end">
@@ -657,7 +682,7 @@ export default function TicketDetailScreen({ route, navigation }) {
         <View className="px-4">
           <View className="bg-card rounded-2xl p-4" style={cardShadow}>
             {lineItems.length === 0 ? (
-              <Text className="text-[12.5px] text-text-muted">No service items recorded.</Text>
+              <Text className="text-[12px] text-text-muted">No service items recorded.</Text>
             ) : (
               lineItems.map((item, idx) => (
                 <View
@@ -674,8 +699,8 @@ export default function TicketDetailScreen({ route, navigation }) {
               ))
             )}
             <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2' }}>
-              <Text className="flex-1 font-extrabold text-text text-[13.5px]">Estimated Total</Text>
-              <Text className="font-extrabold text-[17px]" style={{ color: ACCENT_GREEN }}>
+              <Text className="flex-1 font-extrabold text-text text-[13px]">Estimated Total</Text>
+              <Text className="font-extrabold text-[15px]" style={{ color: ACCENT_GREEN }}>
                 ₹{Number(estimatedTotal || 0).toLocaleString('en-IN')}
               </Text>
             </View>
@@ -687,14 +712,14 @@ export default function TicketDetailScreen({ route, navigation }) {
               <>
                 <View className="flex-row items-center pt-2">
                   <Text className="flex-1 text-text text-[13px] font-semibold">{payment.label}</Text>
-                  <Text className="font-extrabold text-[13.5px]" style={{ color: ACCENT_GREEN }}>
+                  <Text className="font-extrabold text-[13px]" style={{ color: ACCENT_GREEN }}>
                     − ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </Text>
                 </View>
                 <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
-                  <Text className="flex-1 font-extrabold text-text text-[13.5px]">Balance Amount</Text>
+                  <Text className="flex-1 font-extrabold text-text text-[13px]">Balance Amount</Text>
                   <Text
-                    className="font-extrabold text-[15px]"
+                    className="font-extrabold text-[13px]"
                     style={{ color: payment.balance > 0 ? '#B45309' : ACCENT_GREEN }}
                   >
                     ₹{Number(payment.balance).toLocaleString('en-IN')}
@@ -711,7 +736,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           <View className="bg-card rounded-2xl p-4" style={cardShadow}>
             {ticket.issueDescription ? (
               <View className="flex-row items-start py-1.5">
-                <Text className="text-[12.5px] text-text-muted" style={{ width: 96 }}>Complaint</Text>
+                <Text className="text-[12px] text-text-muted" style={{ width: 96 }}>Complaint</Text>
                 <Text className="flex-1 text-[13px] text-text font-bold leading-5" numberOfLines={3}>
                   {ticket.issueDescription}
                 </Text>
@@ -745,7 +770,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#F0F8EF' }}>
                 <ShieldCheck size={14} color={ACCENT_GREEN} />
               </View>
-              <Text className="flex-1 text-[12.5px] text-text-muted">Repair Approval</Text>
+              <Text className="flex-1 text-[12px] text-text-muted">Repair Approval</Text>
               {ticket.customerApproval ? (
                 <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E6F7E3' }}>
                   <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
@@ -780,7 +805,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   >
                     <User size={20} color={ACCENT_GREEN} />
                   </View>
-                  <Text className="flex-1 text-[12.5px] text-text-muted">
+                  <Text className="flex-1 text-[12px] text-text-muted">
                     No technician assigned to this booking yet.
                   </Text>
                 </View>
@@ -795,7 +820,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <UserPlus size={15} color="#fff" />
-                    <Text className="text-white text-[13.5px] font-extrabold ml-1.5">Assign Technician</Text>
+                    <Text className="text-white text-[13px] font-extrabold ml-1.5">Assign Technician</Text>
                   </LinearGradient>
                 </Pressable>
               </>
@@ -805,7 +830,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   className="h-11 w-11 rounded-full items-center justify-center mr-3"
                   style={{ backgroundColor: ACCENT_GREEN }}
                 >
-                  <Text className="text-white text-[14px] font-extrabold">
+                  <Text className="text-white text-[13px] font-extrabold">
                     {(techName || '?').slice(0, 2).toUpperCase()}
                   </Text>
                 </View>
@@ -908,6 +933,8 @@ export default function TicketDetailScreen({ route, navigation }) {
                 const busy = progressBusy === row.key;
                 const stepNo = String(idx + 1).padStart(2, '0');
                 const isNext = idx === nextIdx;
+                // Locked until the Service History step before it is recorded.
+                const blocker = done ? null : stepBlockedBy(recordedKeys, row.key);
                 const toggleTick = () =>
                   setProgressChecked((prev) => ({ ...prev, [row.key]: !prev[row.key] }));
                 return (
@@ -950,9 +977,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                     </View>
 
                     <Pressable
-                      onPress={done ? null : toggleTick}
+                      onPress={done || blocker ? null : toggleTick}
                       className="flex-1 ml-3"
-                      style={({ pressed }) => ({ justifyContent: 'center', opacity: pressed && !done ? 0.7 : 1 })}
+                      style={({ pressed }) => ({ justifyContent: 'center', opacity: pressed && !done && !blocker ? 0.7 : 1 })}
                     >
                       <Text
                         className={`text-[13px] ${done ? 'font-extrabold' : 'font-bold'} text-text`}
@@ -967,6 +994,10 @@ export default function TicketDetailScreen({ route, navigation }) {
                       ) : done ? (
                         <Text className="text-[10px] mt-0.5" style={{ color: '#087A0A' }}>
                           Recorded{entry?.at ? ` · ${formatProgressTime(entry.at)}` : ''}
+                        </Text>
+                      ) : blocker ? (
+                        <Text className="text-[10px] text-text-muted mt-0.5" numberOfLines={1}>
+                          Opens after {blocker}
                         </Text>
                       ) : null}
                     </Pressable>
@@ -1015,6 +1046,10 @@ export default function TicketDetailScreen({ route, navigation }) {
                             <X size={11} color="#667066" />
                             <Text className="text-[11px] font-extrabold ml-1" style={{ color: '#667066' }}>Cancel</Text>
                           </TouchableOpacity>
+                        </View>
+                      ) : blocker ? (
+                        <View className="rounded-full" style={{ backgroundColor: '#F3F3F3', paddingHorizontal: 12, paddingVertical: 7 }}>
+                          <Text className="text-[11px] font-extrabold" style={{ color: '#9AA39A' }}>Locked</Text>
                         </View>
                       ) : (
                         // Idle: a Mark chip that ticks the row. The next actionable
@@ -1066,7 +1101,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           style={{ borderWidth: 1.5, borderColor: ACCENT_GREEN, paddingVertical: 14 }}
         >
           <Phone size={16} color={ACCENT_GREEN} />
-          <Text className="text-[14px] font-extrabold ml-2" style={{ color: ACCENT_GREEN }}>
+          <Text className="text-[13px] font-extrabold ml-2" style={{ color: ACCENT_GREEN }}>
             Contact Customer
           </Text>
         </Pressable>
@@ -1081,7 +1116,7 @@ export default function TicketDetailScreen({ route, navigation }) {
             style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
           >
             <ClipboardList size={16} color="#FFFFFF" />
-            <Text className="text-white text-[14px] font-extrabold ml-2">Update Status</Text>
+            <Text className="text-white text-[13px] font-extrabold ml-2">Update Status</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -1114,7 +1149,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           >
             <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
             <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-[15px] font-extrabold text-gray-900">Update Status</Text>
+              <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
               <Pressable
                 onPress={() => setStatusOpen(false)}
                 hitSlop={8}
@@ -1124,7 +1159,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <X size={14} color="#172117" />
               </Pressable>
             </View>
-            <Text className="text-[11.5px] text-text-muted mb-3">
+            <Text className="text-[11px] text-text-muted mb-3">
               Booking #{trackingId} moves forward one stage at a time.
             </Text>
 
@@ -1138,7 +1173,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               </Text>
               <View className="flex-row items-center">
                 <View className="w-2.5 h-2.5 rounded-full mr-2.5" style={{ backgroundColor: statusTone.fg }} />
-                <Text className="flex-1 text-[14px] font-extrabold text-text">{statusMeta.label}</Text>
+                <Text className="flex-1 text-[13px] font-extrabold text-text">{statusMeta.label}</Text>
                 <View className="flex-row items-center">
                   <CheckCircle2 size={14} color={BRAND_GREEN_DARK} />
                   <Text className="text-[10.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Current</Text>
@@ -1150,6 +1185,9 @@ export default function TicketDetailScreen({ route, navigation }) {
               const next = nextStage(statusKey);
               const nextMeta = next ? (STATUS_VARIANT[next] || { label: next, tone: 'green' }) : null;
               const advancing = statusBusy === next;
+              const advanceBlockedBy = next && ADVANCE_STEP[next]
+                ? stepBlockedBy(recordedKeys, ADVANCE_STEP[next])
+                : null;
 
               if (!next) {
                 const cancelled = statusKey === 'CANCELLED';
@@ -1180,12 +1218,17 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <View className="items-center my-1.5">
                     <ArrowDown size={16} color="#8FA08F" />
                   </View>
+                  {advanceBlockedBy ? (
+                    <Text className="text-[11px] font-bold text-center mb-2" style={{ color: '#B45309' }}>
+                      Record &quot;{advanceBlockedBy}&quot; first — Service History moves one step at a time.
+                    </Text>
+                  ) : null}
                   <TouchableOpacity
                     onPress={() => applyStatus(next)}
-                    disabled={statusBusy != null}
+                    disabled={statusBusy != null || !!advanceBlockedBy}
                     activeOpacity={0.9}
                     className="rounded-2xl overflow-hidden"
-                    style={{ opacity: statusBusy != null && !advancing ? 0.6 : 1 }}
+                    style={{ opacity: advanceBlockedBy ? 0.45 : statusBusy != null && !advancing ? 0.6 : 1 }}
                   >
                     <LinearGradient
                       colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
@@ -1197,7 +1240,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                         <Text className="text-[10px] uppercase font-extrabold" style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8 }}>
                           Advance To
                         </Text>
-                        <Text className="text-white text-[15px] font-extrabold mt-0.5">{nextMeta.label}</Text>
+                        <Text className="text-white text-[13px] font-extrabold mt-0.5">{nextMeta.label}</Text>
                       </View>
                       {advancing
                         ? <ActivityIndicator size="small" color="#FFFFFF" />
@@ -1211,7 +1254,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     className="rounded-2xl border mt-2.5 py-3 items-center"
                     style={{ borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}
                   >
-                    <Text className="text-[12.5px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
+                    <Text className="text-[12px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
                   </TouchableOpacity>
                 </>
               );
@@ -1236,7 +1279,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E6F7E3' }}>
                 <ScanLine size={20} color={BRAND_GREEN_DARK} />
               </View>
-              <Text className="text-text text-[16px] font-extrabold">Enter IMEI Number</Text>
+              <Text className="text-text text-[15px] font-extrabold">Enter IMEI Number</Text>
               <Text className="text-text-muted text-[12px] text-center mt-1">
                 Add the device IMEI number for this booking.
               </Text>
@@ -1244,7 +1287,7 @@ export default function TicketDetailScreen({ route, navigation }) {
 
             <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
               <TextInput
-                className="flex-1 py-3 text-text text-[15px] font-bold"
+                className="flex-1 py-3 text-text text-[13px] font-bold"
                 placeholder="Enter 15-digit IMEI"
                 placeholderTextColor="#8FA08F"
                 keyboardType="number-pad"
@@ -1273,7 +1316,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 disabled={imeiSaving}
                 className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
               >
-                <Text className="text-text-muted text-[14px] font-extrabold">Cancel</Text>
+                <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={saveImeiAndContinue}
@@ -1281,7 +1324,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
                 style={{ backgroundColor: BRAND_GREEN }}
               >
-                {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[14px] font-extrabold">Save</Text>}
+                {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
               </Pressable>
             </View>
           </Pressable>
@@ -1310,7 +1353,7 @@ function SectionHeader({ icon: Icon, label }) {
   return (
     <View className="px-4 pt-5 pb-2 flex-row items-center">
       <Icon size={14} color={BRAND_GREEN_DARK} />
-      <Text className="text-text font-extrabold text-[12.5px] tracking-widest ml-1.5">{label}</Text>
+      <Text className="text-text font-extrabold text-[12px] tracking-widest ml-1.5">{label}</Text>
       <View className="flex-1 h-px bg-border ml-2" />
     </View>
   );
@@ -1404,6 +1447,10 @@ function buildEditParams(ticket, { lineItems, estimatedTotal }) {
     imageUrl: ticket.deviceImageUrl,
     ramLabel: ticket.ramLabel,
     storageLabel: ticket.storageLabel,
+    // Laptop / Smartwatch / Audio Device: the saved category and attributes
+    // ({ ram: '16GB', storageType: 'NVME_SSD', … }), pre-selected on Your Device.
+    deviceCategory: ticket.deviceCategory || undefined,
+    specs: specsFromRecord(ticket),
     prefillServices: services,
     prefillImei: ticket.imei || '',
     prefillComplaint: ticket.issueDescription || '',

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import { UserPlus, User, Mail, ChevronLeft, ChevronRight as ChevronRightIcon, UploadCloud, Save, MapPin, Search, Check, X } from 'lucide-react-native';
+import { UserPlus, User, Mail, ChevronLeft, ChevronRight as ChevronRightIcon, ChevronDown, UploadCloud, Save, MapPin, Search, Check, X, IdCard } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, Label, Select } from '../../../components/rnr';
@@ -38,27 +38,56 @@ const normalizeMobile = (value) => {
 // `textAlignVertical:center` + `includeFontPadding:false` keep the text and the
 // caret sitting dead-centre in the box on Android (the default font padding is
 // what makes the cursor look too high / off inside a tall input).
-const INPUT_STYLE = { textAlignVertical: 'center', includeFontPadding: false };
+// One fixed height for every field (text inputs AND selects) so the two-column
+// Address grid lines up row by row; paddingVertical 9 sits inside it.
+const INPUT_H = 40;
+const INPUT_STYLE = { height: INPUT_H, textAlignVertical: 'center', includeFontPadding: false };
+
+// GGFIX palette. Explicit hexes rather than Tailwind's `primary` / `success`
+// tokens, because those still resolve to the old teal theme until the shared
+// config moves — a class would leave this screen half-teal.
+const ACCENT = '#09AD2A';       // fills, icons, selected states, cursor
+const ACCENT_TEXT = '#078F23';  // green TEXT on white / mint
+const MINT = '#EAF8EC';         // icon wells, tinted pills
+// Translucent washes of ACCENT (#09AD2A), still used by the panels below.
+const ACCENT_05 = 'rgba(9,173,42,0.05)';
+const ACCENT_10 = 'rgba(9,173,42,0.10)';
+const ACCENT_30 = 'rgba(9,173,42,0.30)';
+const ACCENT_40 = 'rgba(9,173,42,0.40)';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const PLACEHOLDER = '#8A8A8A';
+const BORDER = '#E6E6E6';       // input borders
+const BORDER_STRONG = '#D6D6D6';
+const HAIRLINE = '#F3F3F3';     // card borders on the grey page
+const PAGE_BG = '#F8F8F8';
+
+// The rnr <Input> paints its focus shadow in the shared (old teal) primary;
+// this only retints that shadow — it does nothing while the field is unfocused.
+const MOBILE_INPUT_STYLE = { ...INPUT_STYLE, shadowColor: ACCENT };
+
+// White section card on the grey page.
+const CARD = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: HAIRLINE,
+  padding: 12,
+  marginBottom: 10,
+  shadowColor: INK,
+  shadowOpacity: 0.05,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
+};
+
+const USER_ICON = <User size={15} color={ACCENT} />;
+const MAIL_ICON = <Mail size={15} color={ACCENT} />;
 
 // The IMEI "Identify Device" step is hidden for now — the IMEI.info account
 // isn't funded yet, so the lookup always falls back to manual selection and the
 // extra screen is just friction. Flip to true (and fund the IMEI.info token /
 // set IMEI_API_SERVICE_ID) to re-enable scan → auto-detect. All the code stays.
-// ONE accent for this screen: #004C40. Replaces the old #087A0A green AND the
-// brighter #16BB05 tick, so the screen reads as a single colour.
-//
-// The washes are explicit rgba rather than Tailwind's `bg-primary/10`, because
-// that class resolves through the shared `primary` token — still the old green
-// — and would have left tinted panels green while everything around them moved.
-const ACCENT = '#004C40';
-const ACCENT_05 = 'rgba(0,76,64,0.05)';
-const ACCENT_10 = 'rgba(0,76,64,0.10)';
-const ACCENT_30 = 'rgba(0,76,64,0.30)';
-const ACCENT_40 = 'rgba(0,76,64,0.40)';
-
-const USER_ICON = <User size={18} color={ACCENT} />;
-const MAIL_ICON = <Mail size={18} color={ACCENT} />;
-
 const IDENTIFY_DEVICE_ENABLED = false;
 
 /**
@@ -133,13 +162,31 @@ function categoryTileColor(c) {
 function Field({ label, required, children, half = false, className }) {
   return (
     <View className={`${half ? 'flex-1' : ''} mb-2 ${className || ''}`}>
-      <Label className="text-[11.5px] mb-1">
+      <Label className="text-[11px] mb-1">
         {label}{required ? <Text className="text-danger"> *</Text> : null}
       </Label>
       {children}
     </View>
   );
 }
+
+// One cell of the two-column Address grid. Plain static styles: the old
+// `half` Field put `flex-1` on a column inside an auto-height ScrollView row,
+// which collapses the row to 0 height on Android and drew every address
+// field on top of the next. `flex: 1` here sits on the ROW's child, so it
+// only splits the width and the height comes from the content.
+function GridField({ label, children }) {
+  return (
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Label className="text-[11px] mb-1">{label}</Label>
+      {children}
+    </View>
+  );
+}
+const GRID_ROW = { flexDirection: 'row', gap: 10, marginBottom: 10 };
+const GRID_ROW_LAST = { flexDirection: 'row', gap: 10 };
+// Same 40dp height as the text inputs so each grid row lines up.
+const SELECT_CLS = 'rounded-2xl h-10 py-0';
 
 // The text input fills the full card and the icon is purely decorative. This
 // prevents the icon wrapper from receiving a tap intended for the text field
@@ -177,7 +224,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   // recommended range, stays a stable string (so the memoized <Input>/
   // <FormTextInput> below still skip re-render on an unrelated keystroke)
   // as long as `compact` itself hasn't changed.
-  const inputCls = compact ? 'py-2 text-[14px]' : 'py-2.5 text-[14.5px]';
+  const inputCls = compact ? 'py-2 text-[13px]' : 'py-2.5 text-[13px]';
   const initial = route?.params?.initial || {};
   // The picker passes the resolved customer in `existing`; the ticket-service
   // CustomerResponse now carries structured address fields (state/city/
@@ -392,11 +439,11 @@ export default function CustomerDetailsScreen({ navigation, route }) {
    * Same destination and params ChooseDevice's own `onPick` produces, so the
    * rest of the booking flow cannot tell which route the category came from.
    */
-  const pickCategory = (c) => {
+  const pickCategory = (c, customer = savedCustomer) => {
     setCatOpen(false);
     navigation.navigate('SelectBrand', {
-      customerId: savedCustomer?.id,
-      customer: savedCustomer,
+      customerId: customer?.id,
+      customer,
       flow: 'BOOKING',
       categoryId: c.id,
       categoryCode: (c.code || '').toUpperCase(),
@@ -455,6 +502,14 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           body: { name: data.name.trim(), phone, idProofUrl },
         });
       }
+      // Home's Repair popup already chose the category: go straight on to
+      // SelectBrand with the same params the category sheet would send.
+      const preselected = route?.params?.preselectedCategory;
+      if (preselected?.id) {
+        setSavedCustomer(resolved);
+        pickCategory(preselected, resolved);
+        return;
+      }
       // With the IMEI step enabled the flow still goes through its own screen.
       // Otherwise the category sheet opens here instead of pushing ChooseDevice.
       if (IDENTIFY_DEVICE_ENABLED) {
@@ -490,7 +545,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <ChevronLeft size={20} color={ACCENT} />
           </Pressable>
           <View className="flex-1 items-center px-2">
-            <Text className="text-[18px] font-extrabold text-text">Customer Details</Text>
+            <Text className="text-[17px] font-extrabold text-text">Customer Details</Text>
           </View>
           <View className="h-9 w-9" />
         </View>
@@ -529,7 +584,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
               returnKeyType="search"
               autoCapitalize="words"
               className="flex-1 ml-2 text-text"
-              style={{ paddingVertical: 0, fontSize: 12.5 }}
+              style={{ paddingVertical: 0, fontSize: 12 }}
             />
             {searching ? <ActivityIndicator size="small" color={ACCENT} /> : null}
             {!searching && q ? (
@@ -581,7 +636,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-9 w-9 rounded-full bg-success/10 items-center justify-center mr-2.5">
               <UserPlus size={17} color={ACCENT} />
             </View>
-            <Text className="text-[15px] font-extrabold text-text">Personal Info</Text>
+            <Text className="text-[13px] font-extrabold text-text">Personal Info</Text>
           </View>
 
           <Field label="Customer Name" required>
@@ -608,7 +663,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
                 <View className="h-5 w-5 rounded-full bg-success items-center justify-center mr-1.5">
                   <Check size={12} color="#FFFFFF" strokeWidth={3} />
                 </View>
-                <Text className="text-[12.5px] text-success font-semibold flex-1">
+                <Text className="text-[12px] text-success font-semibold flex-1">
                   {existing.source === 'platform' ? 'App user found — will be linked to this shop' : 'Existing customer in this shop'}
                 </Text>
               </View>
@@ -628,46 +683,34 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-9 w-9 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: ACCENT_10 }}>
               <MapPin size={17} color={ACCENT} />
             </View>
-            <Text className="text-[15px] font-extrabold text-text">Address</Text>
+            <Text className="text-[13px] font-extrabold text-text">Address</Text>
           </View>
 
-          <View className="flex-row -mx-1.5">
-            <View className="px-1.5 flex-1">
-              <Field label="State" half>
-                <Select value={data.state} options={STATES} onChange={onState} className="rounded-2xl py-2.5" />
-              </Field>
-            </View>
-            <View className="px-1.5 flex-1">
-              <Field label="District" half>
-                <Select value={data.district} options={DISTRICTS_TN} placeholder="Select district" onChange={onDistrict} className="rounded-2xl py-2.5" />
-              </Field>
-            </View>
+          <View style={GRID_ROW}>
+            <GridField label="State">
+              <Select value={data.state} options={STATES} onChange={onState} className={SELECT_CLS} />
+            </GridField>
+            <GridField label="District">
+              <Select value={data.district} options={DISTRICTS_TN} placeholder="Select district" onChange={onDistrict} className={SELECT_CLS} />
+            </GridField>
           </View>
 
-          <View className="flex-row -mx-1.5">
-            <View className="px-1.5 flex-1">
-              <Field label="Taluk" half>
-                <Select value={data.taluk} options={TALUKS} placeholder="Select Taluk" onChange={onTaluk} className="rounded-2xl py-2.5" />
-              </Field>
-            </View>
-            <View className="px-1.5 flex-1">
-              <Field label="Area" half>
-                <FormTextInput placeholder="Area" value={data.area} onChangeText={onArea} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
-              </Field>
-            </View>
+          <View style={GRID_ROW}>
+            <GridField label="Taluk">
+              <Select value={data.taluk} options={TALUKS} placeholder="Select Taluk" onChange={onTaluk} className={SELECT_CLS} />
+            </GridField>
+            <GridField label="Area">
+              <FormTextInput placeholder="Area" value={data.area} onChangeText={onArea} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+            </GridField>
           </View>
 
-          <View className="flex-row -mx-1.5">
-            <View className="px-1.5 flex-1">
-              <Field label="Door no. / Street" half className="mb-0">
-                <FormTextInput placeholder="Door No. / Street" value={data.addressLine} onChangeText={onAddressLine} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
-              </Field>
-            </View>
-            <View className="px-1.5 flex-1">
-              <Field label="Pin Code" half className="mb-0">
-                <FormTextInput placeholder="Pincode" keyboardType="number-pad" maxLength={6} value={data.pincode} onChangeText={onPincode} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
-              </Field>
-            </View>
+          <View style={GRID_ROW_LAST}>
+            <GridField label="Door no. / Street">
+              <FormTextInput placeholder="Door No. / Street" value={data.addressLine} onChangeText={onAddressLine} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+            </GridField>
+            <GridField label="Pin Code">
+              <FormTextInput placeholder="Pincode" keyboardType="number-pad" maxLength={6} value={data.pincode} onChangeText={onPincode} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+            </GridField>
           </View>
         </View>
 
@@ -681,7 +724,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           <View className="border rounded-3xl p-3.5 mb-3 flex-row items-center" style={{ borderColor: ACCENT_30, backgroundColor: ACCENT_05 }}>
             <Image source={{ uri: idProofUrl }} style={{ width: 52, height: 52, borderRadius: 10 }} resizeMode="cover" />
             <View className="flex-1 ml-3">
-              <Text className="text-[14px] font-extrabold text-text">ID Proof uploaded</Text>
+              <Text className="text-[13px] font-extrabold text-text">ID Proof uploaded</Text>
               <Pressable onPress={promptPickIdProof} hitSlop={6}>
                 <Text className="text-[12px] font-semibold mt-0.5" style={{ color: ACCENT }}>Replace</Text>
               </Pressable>
@@ -702,7 +745,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
             <View className="h-10 w-10 rounded-full items-center justify-center" style={{ backgroundColor: ACCENT_10 }}>
               <UploadCloud size={18} color={ACCENT} />
             </View>
-            <Text className="font-extrabold text-[14px] mt-1.5" style={{ color: ACCENT }}>Upload ID Proof</Text>
+            <Text className="font-extrabold text-[13px] mt-1.5" style={{ color: ACCENT }}>Upload ID Proof</Text>
             <Text className="text-[11px] text-text-muted mt-0.5">Optional · Max 1MB</Text>
           </Pressable>
         )}
@@ -730,7 +773,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           ) : (
             <>
               <Save size={17} color={ACCENT} />
-              <Text style={{ color: ACCENT, fontSize: 14, fontWeight: '700', marginLeft: 7 }}>
+              <Text style={{ color: ACCENT, fontSize: 13, fontWeight: '700', marginLeft: 7 }}>
                 Save & Continue
               </Text>
             </>
@@ -747,15 +790,15 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           already saved, so Save & Continue simply reopens this. */}
       <ResponsiveModal visible={catOpen} onClose={() => setCatOpen(false)} maxWidth={480}>
         <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 10 }} />
-        <Text className="text-[15px] font-extrabold text-text">Select Category</Text>
-        <Text className="text-[11.5px] text-text-muted mb-2.5" numberOfLines={1}>
+        <Text className="text-[13px] font-extrabold text-text">Select Category</Text>
+        <Text className="text-[11px] text-text-muted mb-2.5" numberOfLines={1}>
           What is {savedCustomer?.name || 'the customer'} bringing in?
         </Text>
 
         {catsLoading ? (
           <View className="py-8 items-center"><ActivityIndicator color={ACCENT} /></View>
         ) : cats.length === 0 ? (
-          <Text className="text-[12.5px] text-text-muted py-6 text-center">
+          <Text className="text-[12px] text-text-muted py-6 text-center">
             No device categories published yet.
           </Text>
         ) : (

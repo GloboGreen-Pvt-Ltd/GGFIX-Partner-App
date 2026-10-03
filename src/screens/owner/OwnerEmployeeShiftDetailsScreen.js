@@ -124,7 +124,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
           onPress={() => setSelectedDate(todayIso)}
           activeOpacity={0.85}
         >
-          <Ionicons name="calendar-outline" size={rs(15)} color="#004C40" />
+          <Ionicons name="calendar-outline" size={rs(15)} color="#09AD2A" />
           <Text style={styles.todayBtnText}>Today</Text>
         </TouchableOpacity>
       </View>
@@ -178,27 +178,27 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
             onPress={() => setViewAsList((v) => !v)}
             activeOpacity={0.85}
           >
-            <Ionicons name="list" size={rs(16)} color="#004C40" />
+            <Ionicons name="list" size={rs(16)} color="#09AD2A" />
             <Text style={styles.viewListBtnText}>{viewAsList ? 'View as timeline' : 'View as list'}</Text>
           </TouchableOpacity>
         </View>
 
         {loading ? (
-          <ActivityIndicator size="small" color="#004C40" style={{ marginVertical: rs(24) }} />
+          <ActivityIndicator size="small" color="#09AD2A" style={{ marginVertical: rs(24) }} />
         ) : viewAsList ? (
           <View style={styles.listWrap}>
             {checkIn ? (
               <View style={styles.listRow}>
-                <View style={[styles.listDot, { backgroundColor: '#004C40' }]} />
+                <View style={[styles.listDot, { backgroundColor: '#09AD2A' }]} />
                 <Text style={styles.listRowLabel}>Check-In Time</Text>
                 <Text style={styles.listRowValue}>{checkIn.label}</Text>
               </View>
             ) : null}
             {checkOut ? (
               <View style={styles.listRow}>
-                <View style={[styles.listDot, { backgroundColor: '#DC2626' }]} />
+                <View style={[styles.listDot, { backgroundColor: '#F84141' }]} />
                 <Text style={styles.listRowLabel}>Check-Out Time</Text>
-                <Text style={[styles.listRowValue, { color: '#DC2626' }]}>{checkOut.label}</Text>
+                <Text style={[styles.listRowValue, { color: '#F84141' }]}>{checkOut.label}</Text>
               </View>
             ) : null}
             {!checkIn && !checkOut ? (
@@ -229,8 +229,8 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
                     )}
                     {isCheckOut && (
                       <View style={[styles.eventChip, styles.eventChipCheckOut]}>
-                        <Text style={styles.eventChipText}>Check-Out Time</Text>
-                        <Text style={styles.eventChipTime}>({checkOut.label})</Text>
+                        <Text style={[styles.eventChipText, styles.eventChipTextOut]}>Check-Out Time</Text>
+                        <Text style={[styles.eventChipTime, styles.eventChipTextOut]}>({checkOut.label})</Text>
                       </View>
                     )}
                   </View>
@@ -255,72 +255,72 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  safe: { flex: 1, backgroundColor: '#F8F8F8' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#F84141' },
 
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: rs(14),
-    paddingTop: rs(10),
-    paddingBottom: rs(6),
+    paddingHorizontal: rs(12),
+    paddingTop: rs(8),
+    paddingBottom: rs(4),
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10) },
-  headerDate: { fontSize: rf(26), fontWeight: '800', color: '#004C40', lineHeight: rlh(28) },
-  headerDayLong: { fontSize: rf(13.5), fontWeight: '700', color: '#172117' },
-  headerMonth: { fontSize: rf(11.5), color: '#667066', marginTop: rs(1) },
+  headerDate: { fontSize: 20, fontWeight: '800', color: '#078F23', lineHeight: rlh(26) },
+  headerDayLong: { fontSize: 13, fontWeight: '700', color: '#1E1E1E' },
+  headerMonth: { fontSize: 11, color: '#6B6B6B', marginTop: rs(1) },
   todayBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(5),
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#004C40',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(6),
-    borderRadius: rs(10),
+    borderColor: '#09AD2A',
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(5),
+    borderRadius: rs(9),
   },
-  todayBtnText: { color: '#004C40', fontSize: rf(12), fontWeight: '700' },
+  todayBtnText: { color: '#078F23', fontSize: 11, fontWeight: '700' },
 
   weekStrip: {
     flexDirection: 'row',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(6),
-    gap: rs(5),
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(4),
+    gap: rs(4),
   },
   weekDay: {
     flex: 1,
-    paddingVertical: rs(8),
+    paddingVertical: rs(6),
     alignItems: 'center',
-    borderRadius: rs(10),
+    borderRadius: rs(9),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#F3F3F3',
   },
-  weekDaySelected: { backgroundColor: '#004C40', borderColor: '#004C40' },
-  weekDaySunday: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
-  weekDayName: { fontSize: rf(10.5), color: '#667066', fontWeight: '600' },
-  weekDayNum: { fontSize: rf(15), fontWeight: '800', color: '#172117', marginTop: rs(3) },
+  weekDaySelected: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
+  weekDaySunday: { backgroundColor: '#FEECEC', borderColor: '#FBD0D0' },
+  weekDayName: { fontSize: 10, color: '#6B6B6B', fontWeight: '600' },
+  weekDayNum: { fontSize: 12.5, fontWeight: '800', color: '#1E1E1E', marginTop: rs(2) },
   weekDayTextSelected: { color: '#FFFFFF' },
-  weekDayTextSunday: { color: '#FFFFFF' },
+  weekDayTextSunday: { color: '#F84141' },
 
-  scheduleContent: { paddingHorizontal: rs(14), paddingTop: rs(6), paddingBottom: rs(24) },
-  scheduleHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: rs(10) },
-  scheduleTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  scheduleContent: { paddingHorizontal: rs(12), paddingTop: rs(6), paddingBottom: rs(20) },
+  scheduleHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: rs(6) },
+  scheduleTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
   viewListBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(5),
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#004C40',
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(6),
-    borderRadius: rs(10),
+    borderColor: '#09AD2A',
+    paddingHorizontal: rs(9),
+    paddingVertical: rs(5),
+    borderRadius: rs(9),
   },
-  viewListBtnText: { color: '#004C40', fontSize: rf(12), fontWeight: '700' },
+  viewListBtnText: { color: '#078F23', fontSize: 11, fontWeight: '700' },
 
   timeline: {
     backgroundColor: 'transparent',
@@ -328,22 +328,22 @@ const styles = StyleSheet.create({
   hourRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: rs(42),
+    minHeight: rs(36),
   },
   hourPill: {
-    width: rs(58),
-    paddingVertical: rs(5),
+    width: rs(54),
+    paddingVertical: rs(4),
     borderRadius: 999,
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#EAF8EC',
     borderWidth: 1,
-    borderColor: '#C8EEBF',
+    borderColor: '#CDEFD4',
     alignItems: 'center',
     marginRight: rs(4),
   },
-  hourPillText: { fontSize: rf(11), fontWeight: '700', color: '#004C40' },
+  hourPillText: { fontSize: 10.5, fontWeight: '700', color: '#078F23' },
   connectorCol: { width: rs(22), alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  connectorLine: { position: 'absolute', top: 0, bottom: 0, left: rs(10), borderLeftWidth: 1.5, borderStyle: 'dashed', borderColor: '#B7D5CF' },
-  connectorDot: { width: rs(9), height: rs(9), borderRadius: rs(5), backgroundColor: '#004C40', zIndex: 1 },
+  connectorLine: { position: 'absolute', top: 0, bottom: 0, left: rs(10), borderLeftWidth: 1.5, borderStyle: 'dashed', borderColor: '#CDEFD4' },
+  connectorDot: { width: rs(9), height: rs(9), borderRadius: rs(5), backgroundColor: '#09AD2A', zIndex: 1 },
   hourLineWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     height: rs(1),
     borderStyle: 'dashed',
     borderWidth: 0.5,
-    borderColor: '#C8EEBF',
+    borderColor: '#CDEFD4',
   },
 
   eventChip: {
@@ -364,18 +364,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(6),
+    paddingHorizontal: rs(9),
+    paddingVertical: rs(5),
     borderRadius: rs(6),
   },
-  eventChipCheckIn: { backgroundColor: '#E6F7E3' },
-  eventChipCheckOut: { backgroundColor: '#E6F7E3' },
-  eventChipText: { fontSize: rf(11.5), fontWeight: '700', color: '#004C40' },
-  eventChipTime: { fontSize: rf(10.5), fontWeight: '600', color: '#004C40' },
+  eventChipCheckIn: { backgroundColor: '#EAF8EC' },
+  eventChipCheckOut: { backgroundColor: '#FEECEC' },
+  eventChipTextOut: { color: '#F84141' },
+  eventChipText: { fontSize: 11, fontWeight: '700', color: '#078F23' },
+  eventChipTime: { fontSize: 10.5, fontWeight: '600', color: '#078F23' },
 
   empty: {
-    fontSize: rf(12),
-    color: '#667066',
+    fontSize: 12,
+    color: '#6B6B6B',
     textAlign: 'center',
     marginTop: rs(16),
   },
@@ -386,20 +387,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: rs(10),
-    padding: rs(11),
-    marginBottom: rs(8),
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(9),
+    marginBottom: rs(6),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#F3F3F3',
   },
   listDot: { width: rs(10), height: rs(10), borderRadius: rs(5), marginRight: rs(12) },
-  listRowLabel: { flex: 1, fontSize: rf(13), fontWeight: '700', color: '#172117' },
-  listRowValue: { fontSize: rf(13), fontWeight: '800', color: '#004C40' },
+  listRowLabel: { flex: 1, fontSize: 12, fontWeight: '700', color: '#1E1E1E' },
+  listRowValue: { fontSize: 12, fontWeight: '800', color: '#078F23' },
 
   statusNote: {
-    marginTop: rs(14),
-    backgroundColor: '#FEF3C7',
+    marginTop: rs(10),
+    backgroundColor: '#FFF8E1',
     borderRadius: rs(8),
-    padding: rs(10),
+    padding: rs(8),
   },
-  statusNoteText: { fontSize: rf(12), fontWeight: '600', color: '#92400E' },
+  statusNoteText: { fontSize: 12, fontWeight: '600', color: '#8A6A00' },
 });

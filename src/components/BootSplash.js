@@ -3,6 +3,9 @@ import { Animated, Easing, Image, StyleSheet, Text, View, useWindowDimensions } 
 import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import Svg, {
+  Circle, Defs, G, LinearGradient, Mask, Path, Pattern, RadialGradient, Rect, Stop,
+} from 'react-native-svg';
 import { MapPin, ShieldCheck, Users } from 'lucide-react-native';
 import { rf, rs } from '../utils/responsive';
 import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
@@ -13,30 +16,128 @@ import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the ot
  * timer, or navigation logic of its own; it just renders until that flips
  * false, plus a little past that — see RootNavigator's boot-overlay fade).
  *
- * Visuals only: full-bleed brand background + device hero art pulled from
- * the CDN (not bundled — swap the two URLs below to update the art without
- * a JS change). Uses expo-image (already a project dependency) rather than
- * RN's Image for both remote assets, for its disk cache — a cold app launch
- * is the one moment these can't already be warm in memory.
+ * Visuals only: a light brand page (GGFIX brand sheet — see theme/colors.js)
+ * with device hero art pulled from the CDN (not bundled — swap the URL below
+ * to update the art without a JS change). Uses expo-image (already a project
+ * dependency) rather than RN's Image for the remote asset, for its disk cache —
+ * a cold app launch is the one moment it can't already be warm in memory.
+ *
+ * The page BASE is still a flat colour, not an image: the old dark-teal
+ * Background.png doesn't belong to the brand sheet, and a flat #F8F8F8 also
+ * matches the native launch splash (app.config.js) and App.js's root view, so
+ * the handoff from the OS splash to this one is a single cut with no colour
+ * jump. The brand backdrop (SplashBackdrop below) is vector art drawn on top of
+ * that base and faded in after mount, so the cut stays seamless and the page
+ * still doesn't read as a plain sheet once it settles.
  */
-const BACKGROUND_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Background.png';
 const DEVICE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Device.png';
 
 // Fires the moment this module is first imported (RootNavigator imports it at
 // the top of the file, so this runs at app startup, before BootSplash ever
-// mounts) — warms expo-image's disk cache for both URLs. Best-effort only:
+// mounts) — warms expo-image's disk cache for the hero art. Best-effort only:
 // never gates rendering or the native-splash handoff on this resolving, so a
-// slow network never adds startup delay — the fallback color below covers it.
-ExpoImage.prefetch([BACKGROUND_URL, DEVICE_URL], 'disk').catch(() => {});
+// slow network never adds startup delay.
+ExpoImage.prefetch([DEVICE_URL], 'disk').catch(() => {});
 
-const BG_FALLBACK = '#004C40';
-const BRIGHT_GREEN = '#00E68A';
-const HIGHLIGHT_GREEN = '#22F5A2';
-const MINT = '#8AF5C5';
-const TEXT_PRIMARY = '#FFFFFF';
-const TEXT_SECONDARY = 'rgba(255,255,255,0.80)';
+const PAGE_BG = '#F8F8F8';      // brand page background
+const GREEN = '#09AD2A';        // brand green — "FIX", progress, icons
+const GREEN_TEXT = '#078F23';   // deeper green for green copy on the light page
+const YELLOW = '#F3BF23';       // brand yellow — accent underlines
+const TEXT_PRIMARY = '#1E1E1E'; // ink
+const TEXT_SECONDARY = '#6B6B6B';
+const TRACK = '#E6E6E6';        // progress track + trust-row dividers
+
+const MINT = '#EAF8EC';         // brand mint — top wash, front wave
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+// A "+" mark centred on (x, y) — the small tech accents scattered on the page.
+const plusPath = (x, y, s) => `M${x - s} ${y}H${x + s}M${x} ${y - s}V${y + s}`;
+
+/**
+ * The brand backdrop behind the splash content: a mint wash from the top, a
+ * dot grid that fades out down the page, signal rings in two corners, a soft
+ * green glow behind the device art (its own layer, so it can breathe), a few
+ * green / yellow accents and two soft waves grounding the footer. Everything is
+ * low-contrast tint on the #F8F8F8 base so the copy on top keeps its contrast.
+ *
+ * Drawn in window coordinates. The content column is vertically centred, so the
+ * hero art sits close to the same fraction of the height on every phone — the
+ * glow is anchored there rather than measured, which would cost a layout pass.
+ */
+function SplashBackdrop({ width: W, height: H, opacity, glow }) {
+  const glowY = H * 0.46;
+  const glowR = Math.max(W, 360) * 0.62;
+  const ring = (cx, cy, radii) => radii.map((r, i) => (
+    <Circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke={GREEN} strokeWidth={1.5} strokeOpacity={0.16 - i * 0.03} />
+  ));
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
+      <Svg width={W} height={H}>
+        <Defs>
+          <LinearGradient id="splashWash" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={MINT} stopOpacity="1" />
+            <Stop offset="0.38" stopColor={MINT} stopOpacity="0" />
+          </LinearGradient>
+          <Pattern id="splashDots" width="18" height="18" patternUnits="userSpaceOnUse">
+            <Circle cx="2" cy="2" r="1.4" fill={GREEN} fillOpacity="0.28" />
+          </Pattern>
+          <LinearGradient id="splashDotFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
+            <Stop offset="0.42" stopColor="#FFFFFF" stopOpacity="0" />
+          </LinearGradient>
+          <Mask id="splashDotMask" x="0" y="0" width={W} height={H} maskUnits="userSpaceOnUse">
+            <Rect x="0" y="0" width={W} height={H} fill="url(#splashDotFade)" />
+          </Mask>
+          <LinearGradient id="splashWave" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={GREEN} stopOpacity="0.13" />
+            <Stop offset="1" stopColor={GREEN} stopOpacity="0.04" />
+          </LinearGradient>
+        </Defs>
+
+        <Rect x="0" y="0" width={W} height={H} fill="url(#splashWash)" />
+        <Rect x="0" y="0" width={W} height={H} fill="url(#splashDots)" mask="url(#splashDotMask)" />
+
+        {ring(W + W * 0.02, H * 0.05, [W * 0.18, W * 0.3, W * 0.42, W * 0.54])}
+        {ring(-W * 0.06, H * 0.74, [W * 0.14, W * 0.24, W * 0.34])}
+
+        <G>
+          <Path d={plusPath(W * 0.13, H * 0.2, 6)} stroke={GREEN} strokeOpacity={0.35} strokeWidth={2} strokeLinecap="round" />
+          <Path d={plusPath(W * 0.9, H * 0.4, 5)} stroke={GREEN} strokeOpacity={0.28} strokeWidth={2} strokeLinecap="round" />
+          <Path d={plusPath(W * 0.94, H * 0.76, 4)} stroke={YELLOW} strokeOpacity={0.7} strokeWidth={2} strokeLinecap="round" />
+          <Circle cx={W * 0.82} cy={H * 0.19} r={4} fill={YELLOW} fillOpacity={0.75} />
+          <Circle cx={W * 0.07} cy={H * 0.43} r={3} fill={YELLOW} fillOpacity={0.6} />
+          <Circle cx={W * 0.17} cy={H * 0.6} r={5} fill={GREEN} fillOpacity={0.14} />
+          <Circle cx={W * 0.93} cy={H * 0.56} r={3} fill={GREEN} fillOpacity={0.3} />
+        </G>
+
+        <Path
+          d={`M0 ${H * 0.86} C${W * 0.3} ${H * 0.81} ${W * 0.58} ${H * 0.91} ${W} ${H * 0.85} L${W} ${H} L0 ${H} Z`}
+          fill="url(#splashWave)"
+        />
+        <Path
+          d={`M0 ${H * 0.92} C${W * 0.36} ${H * 0.97} ${W * 0.64} ${H * 0.88} ${W} ${H * 0.93} L${W} ${H} L0 ${H} Z`}
+          fill={MINT}
+          fillOpacity={0.9}
+        />
+      </Svg>
+
+      {/* Glow behind the device art — separate layer so it can breathe. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: glow }]}>
+        <Svg width={W} height={H}>
+          <Defs>
+            <RadialGradient id="splashGlow" cx={W / 2} cy={glowY} r={glowR} gradientUnits="userSpaceOnUse">
+              <Stop offset="0" stopColor={GREEN} stopOpacity="0.26" />
+              <Stop offset="0.5" stopColor={GREEN} stopOpacity="0.09" />
+              <Stop offset="1" stopColor={GREEN} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={W / 2} cy={glowY} r={glowR} fill="url(#splashGlow)" />
+        </Svg>
+      </Animated.View>
+    </Animated.View>
+  );
+}
 
 function TrustItem({ icon, label, labelFont }) {
   return (
@@ -103,9 +204,23 @@ export default function BootSplash() {
   const textAnim = useRef(new Animated.Value(0)).current;
   const deviceAnim = useRef(new Animated.Value(0)).current;
   const barAnim = useRef(new Animated.Value(0)).current;
+  // Backdrop fades in over the flat base (keeps the native-splash cut seamless);
+  // the hero glow then breathes slowly for as long as the splash is up.
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
     console.log('[BOOT] BootSplash mounted @', since()); // TEMP DEBUG — remove once verified on a real device/dev-client build
+    Animated.timing(backdropAnim, {
+      toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true,
+    }).start();
+    const breathe = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.6, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    breathe.start();
     Animated.stagger(140, [
       Animated.timing(logoAnim, { toValue: 1, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(textAnim, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -118,18 +233,13 @@ export default function BootSplash() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false, // animates `width`, which the native driver can't touch
     }).start();
-  }, [logoAnim, textAnim, deviceAnim, barAnim]);
+    return () => breathe.stop();
+  }, [logoAnim, textAnim, deviceAnim, barAnim, backdropAnim, glowAnim]);
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
-      <ExpoImage
-        source={BACKGROUND_URL}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        cachePolicy="disk"
-        onLoad={() => console.log('[BOOT] Background loaded @', since())} // TEMP DEBUG
-      />
+      <StatusBar style="dark" />
+      <SplashBackdrop width={width} height={height} opacity={backdropAnim} glow={glowAnim} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={[styles.content, { maxWidth: contentWidth, paddingHorizontal: rs(24) }]}>
           <Animated.View
@@ -148,7 +258,7 @@ export default function BootSplash() {
 
           <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(8) }}>
             <Text style={[styles.wordmark, { fontSize: rf(titleFont) }]}>
-              GG<Text style={{ color: BRIGHT_GREEN }}>FIX</Text>
+              GG<Text style={{ color: GREEN }}>FIX</Text>
             </Text>
             <Text style={[styles.byline, { fontSize: rf(bylineFont), marginTop: gap(6) }]}>BY GLOBO GREEN</Text>
             <Text style={[styles.services, { fontSize: rf(servicesFont), marginTop: gap(10) }]}>
@@ -200,15 +310,15 @@ export default function BootSplash() {
           </View>
 
           <View style={[styles.trustRow, { marginTop: gap(24) }]}>
-            <TrustItem icon={<ShieldCheck size={rs(trustIconSize)} color={MINT} strokeWidth={2} />} label={'TRUSTED\nSERVICE'} labelFont={rf(trustLabelFont)} />
+            <TrustItem icon={<ShieldCheck size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />} label={'TRUSTED\nSERVICE'} labelFont={rf(trustLabelFont)} />
             <View style={styles.divider} />
             <TrustItem
-              icon={<Users size={rs(trustIconSize)} color={MINT} strokeWidth={2} />}
+              icon={<Users size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />}
               label={'THOUSANDS\nOF HAPPY CUSTOMERS'}
               labelFont={rf(trustLabelFont)}
             />
             <View style={styles.divider} />
-            <TrustItem icon={<MapPin size={rs(trustIconSize)} color={MINT} strokeWidth={2} />} label={'ACROSS\nINDIA'} labelFont={rf(trustLabelFont)} />
+            <TrustItem icon={<MapPin size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />} label={'ACROSS\nINDIA'} labelFont={rf(trustLabelFont)} />
           </View>
 
           <View style={{ alignItems: 'center', marginTop: gap(16) }}>
@@ -222,7 +332,7 @@ export default function BootSplash() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG_FALLBACK },
+  root: { flex: 1, backgroundColor: PAGE_BG },
   // justifyContent: 'center' treats the whole splash as one block and centers
   // it — extra space on a tall screen is split evenly above and below instead
   // of being dumped into one gap partway down. Kept deliberately over
@@ -260,19 +370,19 @@ const styles = StyleSheet.create({
     width: rs(40),
     height: rs(3),
     borderRadius: rs(2),
-    backgroundColor: HIGHLIGHT_GREEN,
+    backgroundColor: YELLOW,
   },
   progressTrack: {
     width: '100%',
     height: rs(5),
     borderRadius: rs(3),
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: TRACK,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     borderRadius: rs(3),
-    backgroundColor: BRIGHT_GREEN,
+    backgroundColor: GREEN,
   },
   loadingLabel: {
     fontWeight: '600',
@@ -300,17 +410,17 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: rs(30),
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: TRACK,
   },
   script: {
     fontStyle: 'italic',
     fontWeight: '600',
-    color: MINT,
+    color: GREEN_TEXT,
   },
   scriptUnderline: {
     width: rs(90),
     height: rs(2),
     borderRadius: rs(1),
-    backgroundColor: HIGHLIGHT_GREEN,
+    backgroundColor: YELLOW,
   },
 });

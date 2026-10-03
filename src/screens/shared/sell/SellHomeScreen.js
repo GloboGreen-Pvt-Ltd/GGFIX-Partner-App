@@ -66,7 +66,7 @@ export default function SellHomeScreen({ navigation }) {
         >
           <View className="px-4">
             <Text className="text-text-muted text-[12px] font-bold tracking-widest">SELL & EARN</Text>
-            <Text className="text-text text-[24px] font-extrabold mt-1">Turn your old tech into cash</Text>
+            <Text className="text-text text-[22px] font-extrabold mt-1">Turn your old tech into cash</Text>
             <Text className="text-text-muted text-[13px] mt-1">Best price from verified shops nearby.</Text>
           </View>
         </View>
@@ -121,10 +121,10 @@ export default function SellHomeScreen({ navigation }) {
                     {uri ? (
                       <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
                     ) : (
-                      <Text style={{ fontSize: 34 }}>{meta.emoji}</Text>
+                      <Text style={{ fontSize: 28 }}>{meta.emoji}</Text>
                     )}
                   </View>
-                  <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>{c.name}</Text>
+                  <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{c.name}</Text>
                   <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={2}>{meta.sub}</Text>
                 </Pressable>
               );

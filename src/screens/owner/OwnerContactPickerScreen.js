@@ -338,7 +338,9 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
             }
             // Android will not show the dialog a second time, so the only real
             // way back from here is the OS settings page.
-            Linking.openSettings().catch(() => {});
+            // Optional call: react-native-web's Linking has no openSettings,
+            // and calling it there threw before .catch could run.
+            Linking.openSettings?.().catch(() => {});
           }}
         />
       ) : (

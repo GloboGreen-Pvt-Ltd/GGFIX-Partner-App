@@ -222,12 +222,13 @@ export const SCOPES = {
 // own surface now (PICKUP_SCOPE_ORDER below, reached from Home → Pickup and from
 // the Home pickup cards), so showing them here as well put the same queue in two
 // places and mixed order-service rows into a list whose other tiles are tickets.
+// Invoice is out for the same reason — it is the Home → Invoice list now
+// (INVOICE_SCOPE_LIST below), not a tile on this one.
 export const SCOPE_ORDER = [
   'ALL',
   'ACTIVE',
   'READY_FOR_DELIVERY',
   'DELIVERED',
-  'INVOICE',
 ];
 
 export const SCOPE_LIST = SCOPE_ORDER.map((k) => SCOPES[k]);
@@ -248,17 +249,29 @@ export const PICKUP_SCOPE_ORDER = [
 
 export const PICKUP_SCOPE_LIST = PICKUP_SCOPE_ORDER.map((k) => SCOPES[k]);
 
-/** The Re-Estimated menu shows only these two tiles. */
-export const RE_ESTIMATED_SCOPE_LIST = [SCOPES.ALL, SCOPES.RE_ESTIMATED];
+/**
+ * The Re-Estimated (Requote) menu shows only these two tiles. It opens on
+ * Active, not the whole book: a delivered or cancelled job has nothing left to
+ * re-quote or reschedule, and listing them buried the live ones.
+ */
+export const RE_ESTIMATED_SCOPE_LIST = [SCOPES.ACTIVE, SCOPES.RE_ESTIMATED];
+
+/**
+ * The Invoice menu (Home → Invoice): the bookings list, same cards and all, but
+ * only the bookings whose invoice has been generated — one tile, and its count
+ * is the number of real bills (see SCOPES.INVOICE / hasInvoice).
+ */
+export const INVOICE_SCOPE_LIST = [SCOPES.INVOICE];
 
 // Which tile set a mounted list shows. `menu` arrives as a route param; the
 // preset is the fallback signal.
 export function scopeListFor(menu, presetKey) {
   if (String(menu || '').toUpperCase() === 'PICKUP') return PICKUP_SCOPE_LIST;
-  // Re-Estimated is a two-tile surface: the whole book, and the re-estimated
-  // slice of it. Active / Ready for Delivery / Delivered belong to the working
-  // list, not to this one.
+  // Re-Estimated is a two-tile surface: the active bookings, and the
+  // re-estimated slice of them. Ready for Delivery / Delivered / Invoice belong
+  // to the working list, not to this one.
   if (String(menu || '').toUpperCase() === 'RE_ESTIMATED') return RE_ESTIMATED_SCOPE_LIST;
+  if (String(menu || '').toUpperCase() === 'INVOICE') return INVOICE_SCOPE_LIST;
   // No explicit menu, but a pickup-only preset: still show the pickup set, or
   // the selected scope would have no tile on screen — nothing highlighted, and
   // no way to widen back out. READY_FOR_DELIVERY is in both sets, so it is

@@ -49,10 +49,10 @@ function getRoleFromSession(session) {
 function UnsupportedRoleScreen({ onLogout }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-      <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center' }}>
+      <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text, textAlign: 'center' }}>
         Account not supported here
       </Text>
-      <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
+      <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
         This account can&apos;t be used in the GGFIX Partner app. Staff and pickup
         accounts should sign in from the GGFix Employee app, and admin accounts
         from the admin web dashboard.
@@ -61,7 +61,7 @@ function UnsupportedRoleScreen({ onLogout }) {
         onPress={onLogout}
         style={{ marginTop: 26, backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14 }}
       >
-        <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>Log out</Text>
+        <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Log out</Text>
       </Pressable>
     </View>
   );
@@ -170,13 +170,13 @@ export default function RootNavigator() {
             first when the device hasn't seen it — initialRouteName is read
             once at mount, which is safe here since this Navigator only ever
             mounts after introSeen has already resolved (see above). */}
-        <Stack.Screen name="Intro" options={{ contentStyle: { backgroundColor: '#FFFFFF' } }}>
+        <Stack.Screen name="Intro" options={{ contentStyle: { backgroundColor: '#F8F8F8' } }}>
           {(props) => <IntroScreen {...props} onDone={markIntroSeen} />}
         </Stack.Screen>
-        {/* Login sits on pure white, not the app's #F7FAF7 wash — override the
-            navigator card too so the wash can't flash behind it mid-transition
-            or on an overscroll bounce. */}
-        <Stack.Screen name="Login" options={{ contentStyle: { backgroundColor: '#FFFFFF' } }}>
+        {/* Intro and Login paint the brand page colour (#F8F8F8) themselves —
+            the navigator card matches it so nothing else can flash behind them
+            mid-transition or on an overscroll bounce. */}
+        <Stack.Screen name="Login" options={{ contentStyle: { backgroundColor: '#F8F8F8' } }}>
           {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
         </Stack.Screen>
         <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />

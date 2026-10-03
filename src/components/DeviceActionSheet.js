@@ -53,7 +53,7 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
             : <Smartphone size={24} color="#8FA08F" strokeWidth={2} />}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', color: '#172117' }} numberOfLines={2}>{title}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: '#172117' }} numberOfLines={2}>{title}</Text>
           {subtitle ? (
             <Text style={{ fontSize: 12, color: '#667066', marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
           ) : null}
@@ -107,8 +107,8 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
               <Icon size={19} color={a.accent} strokeWidth={2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#172117' }}>{a.label}</Text>
-              <Text style={{ fontSize: 11.5, color: '#667066', marginTop: 1 }}>{a.hint}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}>{a.label}</Text>
+              <Text style={{ fontSize: 11, color: '#667066', marginTop: 1 }}>{a.hint}</Text>
             </View>
             <ChevronRight size={16} color="#CBD5CB" strokeWidth={2} />
           </Touchable>

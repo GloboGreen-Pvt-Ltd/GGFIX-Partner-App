@@ -17,12 +17,12 @@ import { useBottomBarInset } from '../components/rnr';
 const INTRO_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Intro-image.png';
 ExpoImage.prefetch(INTRO_IMAGE_URL, 'disk').catch(() => {});
 
-const WHITE = '#FFFFFF';
-const MINT = '#E8FFF6';
-const LIGHT_GREEN = '#CFFFF0';
-const PRIMARY_GREEN = '#00796B';
-const DARK_GREEN = '#005C4B';
-const BRIGHT_GREEN = '#00C781';
+// GGFIX brand sheet (see theme/colors.js).
+const PAGE_BG = '#F8F8F8';
+const MINT = '#EAF8EC';       // soft green fills — blobs, icon circles
+const MINT_LINE = '#CDEFD4';  // slightly stronger mint for the middle blob
+const GREEN = '#09AD2A';      // brand green — headline accent, icons, CTA
+const DOT = '#D6D6D6';        // inactive pagination dot
 const DARK_TEXT = tokens.text;
 const MUTED_TEXT = tokens.textMuted;
 
@@ -30,7 +30,7 @@ function BenefitItem({ icon, label, tablet }) {
   return (
     <View style={styles.benefitItem}>
       <View style={[styles.benefitIconWrap, tablet && { width: rs(58), height: rs(58), borderRadius: rs(29) }]}>{icon}</View>
-      <Text style={[styles.benefitLabel, tablet && { fontSize: rf(12), lineHeight: rf(15) }]}>{label}</Text>
+      <Text style={[styles.benefitLabel, tablet && { fontSize: 12, lineHeight: rf(15) }]}>{label}</Text>
     </View>
   );
 }
@@ -97,15 +97,15 @@ export default function IntroScreen({ navigation, onDone }) {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
+      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
 
       {/* Decorative only — soft mint shapes, never intercept touches. */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <View style={[styles.blob, { width: rs(220), height: rs(220), top: -rs(70), left: -rs(80), backgroundColor: MINT }]} />
         <View
           style={[
             styles.blob,
-            { width: rs(170), height: rs(170), top: height * 0.34, left: -rs(90), backgroundColor: LIGHT_GREEN, opacity: 0.7 },
+            { width: rs(170), height: rs(170), top: height * 0.34, left: -rs(90), backgroundColor: MINT_LINE, opacity: 0.7 },
           ]}
         />
         <View style={[styles.blob, { width: rs(240), height: rs(240), bottom: -rs(90), right: -rs(100), backgroundColor: MINT }]} />
@@ -132,18 +132,18 @@ export default function IntroScreen({ navigation, onDone }) {
           <View style={styles.headerRow}>
             <Pressable onLongPress={handleDevResetLongPress} disabled={!__DEV__}>
               <Text style={styles.wordmark}>
-                GG<Text style={{ color: BRIGHT_GREEN }}>FIX</Text>
+                GG<Text style={{ color: GREEN }}>FIX</Text>
               </Text>
               <Text style={styles.wordmarkSub}>PARTNER APP</Text>
             </Pressable>
           </View>
 
-          <Text style={[styles.heading, { fontSize: rf(isTablet ? 32 : shortDevice ? 21 : 25), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
-            <Text style={{ color: PRIMARY_GREEN }}>Manage Repairs, Pickups, Buy &amp; Sell </Text>
+          <Text style={[styles.heading, { fontSize: (isTablet ? 28 : shortDevice ? 20 : 22), lineHeight: rf(isTablet ? 40 : shortDevice ? 27 : 32) }]}>
+            <Text style={{ color: GREEN }}>Manage Repairs, Pickups, Buy &amp; Sell </Text>
             <Text style={{ color: DARK_TEXT }}>Devices — All in One Place</Text>
           </Text>
 
-          <Text style={[styles.description, isTablet && { fontSize: rf(16), lineHeight: rf(24), marginTop: rs(18) }]}>
+          <Text style={[styles.description, isTablet && { fontSize: 15, lineHeight: rf(24), marginTop: rs(18) }]}>
             Grow your business with GGFIX. Handle service orders, manage pickups, buy and sell devices, and serve more
             customers — faster and easier.
           </Text>
@@ -162,10 +162,10 @@ export default function IntroScreen({ navigation, onDone }) {
           </View>
 
           <View style={[styles.benefitsRow, { marginTop: rs(isTablet ? 34 : shortDevice ? 20 : 28) }]}>
-            <BenefitItem icon={<ShieldCheck size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'Trusted\nPlatform'} tablet={isTablet} />
-            <BenefitItem icon={<Users size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'More\nCustomers'} tablet={isTablet} />
-            <BenefitItem icon={<TrendingUp size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'Grow\nYour Business'} tablet={isTablet} />
-            <BenefitItem icon={<Star size={rs(isTablet ? 26 : 20)} color={DARK_GREEN} strokeWidth={2} />} label={'All Your Tech\nNeeds, Covered'} tablet={isTablet} />
+            <BenefitItem icon={<ShieldCheck size={rs(isTablet ? 26 : 20)} color={GREEN} strokeWidth={2} />} label={'Trusted\nPlatform'} tablet={isTablet} />
+            <BenefitItem icon={<Users size={rs(isTablet ? 26 : 20)} color={GREEN} strokeWidth={2} />} label={'More\nCustomers'} tablet={isTablet} />
+            <BenefitItem icon={<TrendingUp size={rs(isTablet ? 26 : 20)} color={GREEN} strokeWidth={2} />} label={'Grow\nYour Business'} tablet={isTablet} />
+            <BenefitItem icon={<Star size={rs(isTablet ? 26 : 20)} color={GREEN} strokeWidth={2} />} label={'All Your Tech\nNeeds, Covered'} tablet={isTablet} />
           </View>
 
           <PaginationDots count={4} activeIndex={0} />
@@ -185,7 +185,7 @@ export default function IntroScreen({ navigation, onDone }) {
             accessibilityRole="button"
             style={[styles.cta, isTablet && { minHeight: rs(62) }]}
           >
-            <Text style={[styles.ctaText, isTablet && { fontSize: rf(18) }]}>Get Started</Text>
+            <Text style={[styles.ctaText, isTablet && { fontSize: 17 }]}>Get Started</Text>
             <ArrowRight size={rs(isTablet ? 20 : 18)} color="#FFFFFF" style={{ marginLeft: rs(8) }} />
           </Pressable>
         </View>
@@ -195,12 +195,12 @@ export default function IntroScreen({ navigation, onDone }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAFFFD' },
+  root: { flex: 1, backgroundColor: PAGE_BG },
   blob: { position: 'absolute', borderRadius: 999 },
   footer: {
     paddingHorizontal: rs(24),
     paddingTop: rs(10),
-    backgroundColor: '#FAFFFD',
+    backgroundColor: PAGE_BG,
   },
   headerRow: {
     flexDirection: 'row',
@@ -208,14 +208,14 @@ const styles = StyleSheet.create({
     marginBottom: rs(20),
   },
   wordmark: {
-    fontSize: rf(20),
+    fontSize: 17,
     fontWeight: '800',
-    color: DARK_GREEN,
+    color: DARK_TEXT,
     letterSpacing: -0.3,
   },
   wordmarkSub: {
     marginTop: rs(2),
-    fontSize: rf(9),
+    fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1.4,
     color: MUTED_TEXT,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   description: {
     marginTop: rs(12),
     textAlign: 'center',
-    fontSize: rf(13),
+    fontSize: 13,
     lineHeight: rf(19),
     color: MUTED_TEXT,
   },
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   benefitLabel: {
-    fontSize: rf(9.5),
+    fontSize: 9.5,
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: rf(12),
@@ -268,17 +268,17 @@ const styles = StyleSheet.create({
     width: rs(7),
     height: rs(7),
     borderRadius: rs(4),
-    backgroundColor: '#D9E5E1',
+    backgroundColor: DOT,
   },
   dotActive: {
     width: rs(20),
-    backgroundColor: DARK_GREEN,
+    backgroundColor: GREEN,
   },
   cta: {
     width: '100%',
     minHeight: rs(56),
     borderRadius: rs(30),
-    backgroundColor: DARK_GREEN,
+    backgroundColor: GREEN,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     color: '#FFFFFF',
-    fontSize: rf(16),
+    fontSize: 15,
     fontWeight: '800',
   },
 });

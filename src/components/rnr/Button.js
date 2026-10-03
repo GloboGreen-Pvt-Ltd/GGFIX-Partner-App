@@ -28,8 +28,9 @@ const variantClasses = {
   softAccent: 'bg-attention-soft',
 };
 
-// `secondary` / `accent` fill with attention amber, which is a LIGHT fill —
-// white on it is 2.1:1, so those two labels take the dark text colour (7.8:1).
+// `secondary` / `accent` fill with the attention yellow (#F3BF23), a LIGHT
+// fill — white on it is under 2:1, so those two labels take the dark text
+// colour (about 10:1).
 // The green, danger and success fills are dark enough to keep white.
 const textVariantClasses = {
   default: 'text-white',

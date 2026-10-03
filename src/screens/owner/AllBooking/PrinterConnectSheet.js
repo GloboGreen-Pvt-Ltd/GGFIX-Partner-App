@@ -5,16 +5,22 @@ import { ResponsiveModal, SPACING } from '../../../components/responsive';
 import { Touchable } from '../../../components/ios';
 import { usePrinterConnection } from '../../../services/printer/usePrinterConnection';
 import { PRINTER_STATE, PRINTER_TRANSPORT } from '../../../services/printer/types';
+import { LABEL_PRESETS, presetLabel, presetSizeText } from '../../../services/printer/labelPresets';
+import { useLabelPreset } from '../../../services/printer/useLabelPreset';
 import LabelPreview from './LabelPreview';
 
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const MINT = '#DFF7EF';
-const SOFT_MINT = '#F1FBF7';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#10201B';
-const TEXT_SECONDARY = '#77817F';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
+const ACCENT = '#09AD2A';
+const PRIMARY = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F8F8F8';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
 const DANGER = '#B3261E';
+// Both cards draw their label at one shared scale: the widest preset fills
+// the card, a narrower one gets its width share (38mm -> 76%).
+const WIDEST_LABEL_MM = Math.max(...LABEL_PRESETS.map((p) => p.widthMm));
 
 const STATUS_TEXT = {
   [PRINTER_STATE.IDLE]: 'Not connected',
@@ -66,6 +72,9 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
     isConnected, listDevices, selectDevice, connect, disconnect, print,
   } = usePrinterConnection();
   const [copies, setCopies] = useState(() => Math.min(10, Math.max(1, Math.round(initialCopies || 1))));
+  // Page Setup: label stock size. Drives the preview, the TSPL SIZE and every
+  // position on the printed label; remembered for the session (and saved).
+  const [preset, setPresetId] = useLabelPreset();
 
   useEffect(() => {
     if (visible) {
@@ -95,7 +104,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
       customerName: label.customerName,
       deviceSecurity: label.deviceSecurity,
       createdOn: label.createdOn,
-    }, copies);
+    }, copies, preset);
   };
 
   const handleClose = () => {
@@ -136,8 +145,10 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 17, fontWeight: '800', color: TEXT_PRIMARY }}>Print QR Label</Text>
-          <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>TVS LP-46 Dlite · 38 × 25 mm</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY }}>Print QR Label</Text>
+          <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>
+            {`TVS LP-46 Dlite · ${preset.widthMm} × ${preset.heightMm} mm`}
+          </Text>
         </View>
         <Touchable
           onPress={handleClose}
@@ -151,13 +162,57 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
         </Touchable>
       </View>
 
-      <LabelPreview
-        trackingId={label.trackingId}
-        brandModel={label.brandModel}
-        customerName={label.customerName}
-        deviceSecurity={label.deviceSecurity}
-        createdOn={label.createdOn}
-      />
+      {/* Page Setup — the two label stocks as two compact cards side by side,
+          each with a small live preview drawn at one shared scale (so the
+          50mm one reads wider); tap a card to select it. A flex row, so it
+          fits any sheet width. Locked only while a connect/print is in flight. */}
+      <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 6 }}>Page Setup</Text>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
+        {LABEL_PRESETS.map((p) => {
+          const active = p.id === preset.id;
+          return (
+            <Touchable
+              key={p.id}
+              onPress={() => setPresetId(p.id)}
+              disabled={busy}
+              accessibilityRole="radio"
+              accessibilityLabel={presetLabel(p)}
+              accessibilityState={{ checked: active, disabled: busy }}
+              style={{
+                flex: 1, minWidth: 0, borderRadius: 12, padding: 8, borderWidth: 1.5,
+                borderColor: active ? ACCENT : BORDER, backgroundColor: active ? MINT : SOFT_MINT,
+                opacity: busy && !active ? 0.6 : 1,
+              }}
+              pressedStyle={{ opacity: 0.85 }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY }} numberOfLines={1}>{p.name}</Text>
+                <View
+                  style={{
+                    height: 18, width: 18, borderRadius: 9, marginLeft: 4, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: active ? ACCENT : '#FFFFFF', borderWidth: active ? 0 : 1.5, borderColor: '#CFCFCF',
+                  }}
+                >
+                  {active ? <Check size={12} color="#FFFFFF" strokeWidth={3} /> : null}
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1, marginBottom: 6 }} numberOfLines={1}>
+                {presetSizeText(p)}
+              </Text>
+              <View pointerEvents="none" style={{ width: `${(p.widthMm / WIDEST_LABEL_MM) * 100}%`, alignSelf: 'center' }}>
+                <LabelPreview
+                  preset={p}
+                  trackingId={label.trackingId}
+                  brandModel={label.brandModel}
+                  customerName={label.customerName}
+                  deviceSecurity={label.deviceSecurity}
+                  createdOn={label.createdOn}
+                />
+              </View>
+            </Touchable>
+          );
+        })}
+      </View>
 
       {/* Transport tabs — locked once connected/mid-action, same as every
           other control here; disconnect first to switch. */}
@@ -251,7 +306,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
               keyboardType="decimal-pad"
               style={{
                 flex: 1, marginRight: 8, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER,
-                paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '700', color: TEXT_PRIMARY,
+                paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY,
                 backgroundColor: isConnected || busy ? SOFT_MINT : '#FFFFFF',
               }}
             />
@@ -265,7 +320,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
               maxLength={5}
               style={{
                 width: 84, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER,
-                paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '700', color: TEXT_PRIMARY,
+                paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY,
                 backgroundColor: isConnected || busy ? SOFT_MINT : '#FFFFFF',
               }}
             />
@@ -358,7 +413,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
           style={{
             marginTop: SPACING.lg, borderRadius: 16, paddingVertical: 15,
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: primaryDisabled ? BORDER : PRIMARY,
+            backgroundColor: PRIMARY, opacity: primaryDisabled ? 0.45 : 1,
           }}
           pressedStyle={{ opacity: 0.85 }}
         >

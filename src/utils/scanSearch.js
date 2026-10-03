@@ -20,8 +20,8 @@
 import { ticketApi } from '../api/client';
 import { listShopRepairBookings } from '../api/orders';
 import { pickupsOnly } from '../screens/owner/AllBooking/bookingScopes';
-import { loadSearchableModels, searchModels } from './deviceSearch';
-import { visualSearch as visualSearchRequest } from '../api/masterData';
+import { loadSearchableModels, searchModels, normalize as normalizeModelText, tokenize } from './deviceSearch';
+import { visualSearch as visualSearchRequest, identifyDevice as identifyDeviceRequest } from '../api/masterData';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -173,6 +173,132 @@ const MODEL_CODE_RE = /\b([A-Z]{1,4}-?\d[A-Z0-9-]{2,10})\b/g;
 
 function dedupe(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 
+// OCR reads the Samsung wordmark's crossbar-less "A" as Λ / ∧ / Δ, and the
+// odd pipe for an I — fold those back before matching anything.
+const OCR_FOLDS = [[/[ΛΔ∧]/g, 'A'], [/[|]/g, 'I']];
+export function foldOcrText(text) {
+  return OCR_FOLDS.reduce((s, [re, to]) => s.replace(re, to), String(text || ''));
+}
+
+// Words printed on device backs and boxes that say nothing about the model.
+const OCR_NOISE = new Set([
+  'duos', 'designed', 'engineered', 'by', 'made', 'in', 'china', 'india', 'vietnam', 'korea',
+  'assembled', 'ce', 'fcc', 'id', 'model', 'imei', 'the', 'and', 'of',
+]);
+
+/** Levenshtein distance ≤ 1 (one substitution, insertion or deletion). */
+function withinOneEdit(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i += 1; j += 1; continue; }
+    edits += 1;
+    if (edits > 1) return false;
+    if (a.length > b.length) i += 1;
+    else if (b.length > a.length) j += 1;
+    else { i += 1; j += 1; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+/**
+ * Photo text → catalogue models, for when image matching can't answer (the
+ * visual-search service isn't configured for this build, is unreachable, or
+ * isn't confident). Uses only what OCR literally read, against the same
+ * cached catalogue the text search uses — never an invented device:
+ *
+ *   1. A model number printed on the device or box ("SM-G950FD" on a Galaxy
+ *      S8's back label) → that exact catalogue model. A trailing regional /
+ *      carrier letter the catalogue doesn't list is tolerated.
+ *   2. Otherwise the brand name (tolerant of the stylised Samsung "Λ" and a
+ *      one-letter OCR slip) → that brand's models, ranked by any model words
+ *      read with it ("Galaxy", "S8"), so the shop picks from a short list.
+ *
+ * @returns {{ exact, best, rows, brandName, total, matchedOn }}
+ *   exact — the single model a printed model number identified, else null
+ *   best  — the top brand model when model words matched it, else null
+ *   rows  — loadSearchableModels() rows, strongest first (≤ limit)
+ *   total — how many catalogue models the brand / number covers
+ */
+export async function catalogueMatchesFromText(text, { limit = 30 } = {}) {
+  const none = { exact: null, best: null, rows: [], brandName: null, total: 0, matchedOn: null };
+  const folded = foldOcrText(text);
+  if (!folded.trim()) return none;
+  const rows = await loadSearchableModels().catch(() => []);
+  if (!rows.length) return none;
+  const upper = folded.toUpperCase();
+
+  // 1. Model numbers.
+  const codes = dedupe((upper.match(/[A-Z0-9][A-Z0-9-]{3,15}/g) || [])
+    .map((c) => normalizeModelText(c))
+    .filter((c) => c.length >= 5 && /\d/.test(c) && /[a-z]/.test(c)));
+  if (codes.length) {
+    const byNumber = new Map();
+    rows.forEach((r) => (r.modelNumbers || []).forEach((n) => {
+      const key = normalizeModelText(n);
+      if (key.length < 4) return;
+      if (!byNumber.has(key)) byNumber.set(key, []);
+      byNumber.get(key).push(r);
+    }));
+    const hits = [];
+    codes.forEach((code) => {
+      let found = byNumber.get(code);
+      for (let len = code.length - 1; !found && len >= 6; len -= 1) found = byNumber.get(code.slice(0, len));
+      if (found) hits.push(...found);
+    });
+    const unique = [...new Map(hits.map((r) => [r.modelId, r])).values()];
+    if (unique.length) {
+      return {
+        exact: unique.length === 1 ? unique[0] : null,
+        best: unique[0],
+        rows: unique.slice(0, limit),
+        brandName: unique[0].brandName || null,
+        total: unique.length,
+        matchedOn: 'modelNumber',
+      };
+    }
+  }
+
+  // 2. Brand, then model words within it.
+  const words = (upper.match(/[A-Z0-9+]+/g) || []).map((w) => w.toLowerCase());
+  const joined = normalizeModelText(folded);
+  const brands = dedupe(rows.map((r) => r.brandName)).sort((a, b) => b.length - a.length);
+  let brand = brands.find((b) => {
+    const nb = normalizeModelText(b);
+    return nb.length >= 2 && (words.includes(nb) || (nb.length >= 5 && joined.includes(nb)));
+  });
+  if (!brand) {
+    brand = brands.find((b) => {
+      const nb = normalizeModelText(b);
+      return nb.length >= 5 && words.some((w) => w.length >= 4 && withinOneEdit(w, nb));
+    });
+  }
+  if (!brand) return none;
+
+  const nbrand = normalizeModelText(brand);
+  const modelWords = dedupe(words.filter((w) => w !== nbrand && !OCR_NOISE.has(w)
+    && !withinOneEdit(w, nbrand) && (/\d/.test(w) || w.length >= 3)));
+  const scored = rows
+    .filter((r) => r.brandName === brand)
+    .map((r) => {
+      const modelTokens = tokenize(r.modelName);
+      const s = modelWords.reduce((sum, w) => sum + (modelTokens.includes(w) ? (/\d/.test(w) ? 3 : 1) : 0), 0);
+      return { r, s };
+    })
+    .sort((a, b) => (b.s - a.s) || a.r.modelName.localeCompare(b.r.modelName));
+  return {
+    exact: null,
+    best: scored[0]?.s > 0 ? scored[0].r : null,
+    rows: scored.slice(0, limit).map((x) => x.r),
+    brandName: brand,
+    total: scored.length,
+    matchedOn: 'brand',
+  };
+}
+
 /**
  * OCR text → structured candidates. Never throws, never invents a value —
  * every candidate returned is a literal substring (or dash-trimmed slice) of
@@ -186,7 +312,7 @@ function dedupe(arr) { return Array.from(new Set(arr.filter(Boolean))); }
  */
 export function extractIdentifiersFromOCR(text) {
   const out = { trackingIds: [], imeis: [], modelCodes: [], modelNames: [], brands: [], serials: [] };
-  const raw = String(text || '');
+  const raw = foldOcrText(text);
   if (!raw.trim()) return out;
 
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -286,6 +412,23 @@ export async function searchByIdentifiers(candidates) {
 }
 
 /**
+ * Google Cloud Vision device identification (master-data
+ * /master/device-identify). Never throws: a server without a Google key, an
+ * unreachable server or a provider error comes back as ok=false so the
+ * scanner moves on to its other methods.
+ */
+export async function runDeviceIdentify(uri, { limit = 8 } = {}) {
+  if (!uri) return { ok: false, configured: false, matches: [] };
+  try {
+    const r = await identifyDeviceRequest({ uri, name: 'scan.jpg', type: 'image/jpeg' }, { limit });
+    if (!r.configured || r.error) return { ok: false, configured: r.configured, error: r.error, matches: [] };
+    return { ok: true, configured: true, ...r };
+  } catch (e) {
+    return { ok: false, configured: true, error: e?.message || 'Device identification failed', matches: [] };
+  }
+}
+
+/**
  * Real image-to-image device lookup for the Lens scanner — calls the
  * standalone ggfix-visual-search-service (CLIP embeddings over the actual
  * GGFIX catalogue's own product photos; see that service's README.md and
@@ -317,6 +460,6 @@ export async function runVisualSearch(uri, { limit = 5, ocrText, barcode } = {})
         : e?.status === 0
           ? 'Unable to connect. Check your internet connection.'
           : (e?.message || 'Device search failed. Please try again.');
-    return { ok: false, unavailable: true, message };
+    return { ok: false, unavailable: true, notConfigured: !!e?.notConfigured, message };
   }
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react-native';
 import { rs } from '../../theme/metrics';
 import { C, S, SIZE, T } from './ledgerUi';
 
@@ -34,9 +34,12 @@ const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); retur
  * @param {number[]} [quickDays]  "5 days / 10 days" chips, each picking today+N.
  *                   A promise is almost always made in round numbers of days
  *                   from now, and counting them out on a grid is the slow way.
+ * @param {boolean}  [yearStep]  adds « » buttons that jump a whole year. A date of
+ *                   birth sits decades back; stepping there a month at a time is
+ *                   hundreds of taps.
  */
 export default function LedgerDateSheet({
-  visible, value, tint, onClose, onPick, minDate, title, allowFuture, quickDays,
+  visible, value, tint, onClose, onPick, minDate, title, allowFuture, quickDays, yearStep,
 }) {
   const [cursor, setCursor] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
 
@@ -58,6 +61,13 @@ export default function LedgerDateSheet({
   );
 
   const step = (delta) => setCursor(new Date(year, month + delta, 1));
+  // Never lands past the current month when the future is off.
+  const stepYear = (delta) => {
+    const next = new Date(year + delta, month, 1);
+    const cap = new Date(today.getFullYear(), today.getMonth(), 1);
+    setCursor(!allowFuture && next > cap ? cap : next);
+  };
+  const navBtn = { height: SIZE.tile, width: SIZE.tile, backgroundColor: C.field };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -81,7 +91,17 @@ export default function LedgerDateSheet({
             </Text>
           ) : null}
 
-          <View className="flex-row items-center" style={{ marginBottom: S.sm }}>
+          <View className="flex-row items-center" style={{ marginBottom: S.sm, gap: S.xs }}>
+            {yearStep ? (
+              <Pressable
+                onPress={() => stepYear(-1)}
+                hitSlop={rs(6)}
+                className="rounded-full items-center justify-center active:opacity-70"
+                style={navBtn}
+              >
+                <ChevronsLeft size={rs(16)} color={C.ink} />
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => step(-1)}
               hitSlop={rs(10)}
@@ -107,6 +127,17 @@ export default function LedgerDateSheet({
             >
               <ChevronRight size={rs(16)} color={C.ink} />
             </Pressable>
+            {yearStep ? (
+              <Pressable
+                onPress={() => stepYear(1)}
+                hitSlop={rs(6)}
+                disabled={!allowFuture && atCurrentMonth}
+                className="rounded-full items-center justify-center active:opacity-70"
+                style={[navBtn, { opacity: !allowFuture && atCurrentMonth ? 0.35 : 1 }]}
+              >
+                <ChevronsRight size={rs(16)} color={C.ink} />
+              </Pressable>
+            ) : null}
           </View>
 
           <View className="flex-row">

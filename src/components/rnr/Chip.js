@@ -5,7 +5,7 @@ import { cn } from './cn';
 export function Chip({ label, active = false, onPress, leftIcon, rightIcon, variant = 'default', size = 'md', className, textClassName }) {
   const Wrapper = onPress ? Pressable : View;
   const sizing = size === 'sm' ? 'px-3 py-1.5' : 'px-4 py-2';
-  const textSize = size === 'sm' ? 'text-[11px]' : 'text-[12.5px]';
+  const textSize = size === 'sm' ? 'text-[11px]' : 'text-[12px]';
 
   const palettes = {
     default: {

@@ -1,74 +1,82 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { DEFAULT_LABEL_PRESET } from '../../../services/printer/labelPresets';
+import { computeLabelLayout, labelTexts } from '../../../services/printer/tspl';
 
-const INK = '#10201B';
+const INK = '#1E1E1E';
 
 /**
- * Presentational mock of the physical 38x25mm sticker: service number
- * centered on top, QR left + brand/customer/security on the right (no
- * headings), created-on centered on the bottom. Matches
- * src/services/printer/tspl.js's content/order exactly — this is a preview
- * only, the printer generates its own QR from the TSPL `QRCODE` command, not
- * from this component.
+ * Presentational mock of the physical sticker for the selected Page Setup
+ * preset (38x25 or 50x25mm): service number centered on top, QR left +
+ * brand/customer/security on the right (no headings), created-on centered
+ * on the bottom. Drawn from the SAME dot layout and truncated strings
+ * src/services/printer/tspl.js prints (computeLabelLayout / labelTexts),
+ * scaled to the measured preview width — so the aspect ratio, QR position
+ * and text positions follow the preset exactly. Preview only: the printer
+ * generates its own QR from the TSPL `QRCODE` command, not from this.
  *
- * `scale` lets the same component read right both tiny (inside
- * PrinterConnectSheet, scale=1) and large (BarcodePrintScreen's main
- * preview, scale>1) without duplicating the layout.
+ * `scale` only softens the frame's corner radius on the large main preview.
  */
-export default function LabelPreview({ trackingId, brandModel, customerName, deviceSecurity, createdOn, scale = 1 }) {
-  const s = (n) => Math.round(n * scale);
-  const createdLine = createdOn ? `${createdOn.date}  ${createdOn.time}` : null;
+export default function LabelPreview({
+  trackingId, brandModel, customerName, deviceSecurity, createdOn,
+  preset = DEFAULT_LABEL_PRESET, scale = 1,
+}) {
+  const [innerWidth, setInnerWidth] = useState(0);
+  const layout = useMemo(() => computeLabelLayout(preset, trackingId), [preset, trackingId]);
+  const t = useMemo(
+    () => labelTexts({ trackingId, brandModel, customerName, deviceSecurity, createdOn }, layout),
+    [trackingId, brandModel, customerName, deviceSecurity, createdOn, layout],
+  );
+  // Preview pixels per printer dot.
+  const k = innerWidth / layout.widthDots;
+  const { top, qr, text, bottom } = layout;
+
+  const line = (band, y, value, { align = 'left', weight = '700', x = band.x, width = band.width } = {}) => (
+    <View style={{ position: 'absolute', left: x * k, top: y * k, width: width * k, height: band.height * k, justifyContent: 'center' }}>
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        style={{
+          fontSize: band.height * k * 0.82,
+          lineHeight: band.height * k,
+          fontWeight: weight,
+          color: INK,
+          textAlign: align,
+          includeFontPadding: false,
+        }}
+      >
+        {value}
+      </Text>
+    </View>
+  );
 
   return (
     <View
       style={{
-        aspectRatio: 38 / 25,
+        aspectRatio: layout.preset.widthMm / layout.preset.heightMm,
         width: '100%',
         borderWidth: 1.5,
         borderColor: INK,
-        borderRadius: s(6),
+        borderRadius: Math.round(6 * scale),
         backgroundColor: '#FFFFFF',
-        padding: s(8),
+        overflow: 'hidden',
       }}
     >
-      <Text
-        style={{ fontSize: s(12), fontWeight: '800', color: INK, textAlign: 'center' }}
-        numberOfLines={1}
-      >
-        {trackingId || '—'}
-      </Text>
-
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginTop: s(4) }}>
-        <View
-          style={{
-            aspectRatio: 1,
-            height: '92%',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: s(8),
-          }}
-        >
-          <QRCode value={String(trackingId || 'NO-ID')} size={s(54)} color="#000000" backgroundColor="#FFFFFF" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: s(10), fontWeight: '700', color: INK }} numberOfLines={1}>
-            {brandModel || '—'}
-          </Text>
-          <Text style={{ fontSize: s(10), fontWeight: '700', color: INK, marginTop: s(3) }} numberOfLines={1}>
-            {customerName || '—'}
-          </Text>
-          <Text style={{ fontSize: s(10), fontWeight: '700', color: INK, marginTop: s(3) }} numberOfLines={1}>
-            {deviceSecurity || '—'}
-          </Text>
-        </View>
+      <View style={{ flex: 1 }} onLayout={(e) => setInnerWidth(e.nativeEvent.layout.width)}>
+        {k > 0 ? (
+          <>
+            {line(top, top.y, t.serviceNumber || '—', { align: 'center', weight: '800' })}
+            <View style={{ position: 'absolute', left: qr.x * k, top: qr.y * k, width: qr.size * k, height: qr.size * k }}>
+              <QRCode value={String(trackingId || 'NO-ID')} size={Math.max(1, Math.floor(qr.size * k))} color="#000000" backgroundColor="#FFFFFF" />
+            </View>
+            {line(text, text.ys[0], t.brandModel || '—')}
+            {line(text, text.ys[1], t.customerName || '—')}
+            {line(text, text.ys[2], t.deviceSecurity || '—')}
+            {t.createdLine ? line(bottom, bottom.y, t.createdLine, { align: 'center', weight: '600' }) : null}
+          </>
+        ) : null}
       </View>
-
-      {createdLine ? (
-        <Text style={{ fontSize: s(8.5), fontWeight: '600', color: INK, textAlign: 'center' }} numberOfLines={1}>
-          {createdLine}
-        </Text>
-      ) : null}
     </View>
   );
 }

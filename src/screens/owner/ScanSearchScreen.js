@@ -27,6 +27,8 @@ import {
   extractIdentifiersFromOCR,
   searchByIdentifiers,
   runVisualSearch,
+  runDeviceIdentify,
+  catalogueMatchesFromText,
 } from '../../utils/scanSearch';
 import { rf, rs } from '../../utils/responsive';
 
@@ -205,6 +207,9 @@ export default function ScanSearchScreen({ navigation, route }) {
   // both draw from the one `matches` array the visual-search service
   // returned alongside its `bestMatch`, nothing re-fetched or invented.
   const viewSimilarMatches = (matches) => setResult({ kind: 'visual-matches', matches });
+  // A model picked from the photo-text list opens the same device card a
+  // text/QR device match shows (Book, sell or buy this device).
+  const pickCatalogueDevice = (row) => setResult({ kind: 'device', device: row });
 
   // ── Lens: capture/gallery → OCR → real visual search → result ────────────
   // PHOTO → on-device OCR (local) → ggfix-visual-search-service (real CLIP
@@ -244,13 +249,48 @@ export default function ScanSearchScreen({ navigation, route }) {
       }
     }
 
+    // 2. Google Cloud Vision (server-side, like Google Lens): what the web
+    //    says this photo shows — "samsung galaxy s8+" — ranked against the
+    //    GGFIX catalogue. Close siblings (S8 ↔ S8+) are always in the list,
+    //    because one photo of a phone's back often can't tell them apart.
+    setLoadingStage('Identifying device…');
+    const google = await runDeviceIdentify(uri);
+    console.log(`[LENS] google vision ${google.ok ? `ok, confidence=${google.confidence}, matches=${google.matches.length}, label=${google.labels?.[0] || '-'}` : `unavailable: ${google.error || (google.configured ? 'error' : 'not configured')}`}`);
+    const googleLabel = google.labels?.[0] || null;
+    if (google.ok && google.bestMatch && google.confidence === 'high') {
+      setLoading(false);
+      setResult({ kind: 'device-found', best: google.bestMatch, matches: google.matches, label: googleLabel });
+      return;
+    }
+    if (google.ok && google.bestMatch && google.matches.length) {
+      setLoading(false);
+      setResult({ kind: 'visual-matches', matches: google.matches, label: googleLabel });
+      return;
+    }
+    if (google.ok && google.brand) {
+      // Google saw only the brand: that brand's models, ranked by any model
+      // words the on-device text reader picked up.
+      const fromBrand = await catalogueMatchesFromText([google.brand, ocr.ok ? ocr.text : ''].join('\n')).catch(() => null);
+      if (fromBrand?.exact) {
+        setLoading(false);
+        setResult({ kind: 'device', device: fromBrand.exact });
+        return;
+      }
+      if (fromBrand?.rows?.length) {
+        setLoading(false);
+        setResult({ kind: 'text-matches', ...fromBrand, source: 'google', readText: googleLabel || google.brand });
+        return;
+      }
+    }
+
     setLoadingStage('Searching GGFIX image library…');
     console.log('[LENS] visual search started');
     const visual = await runVisualSearch(uri, { ocrText: ocr.ok ? ocr.text : null });
     console.log(`[LENS] visual search ${visual.ok ? `ok, confidence=${visual.confidence}, candidates=${visual.matches.length}` : `unavailable: ${visual.message}`}`);
 
-    // 2. High confidence — one specific catalogue device, shown as "Device
-    //    Found". Medium — a ranked "Possible matches" list. Both come
+    // 2b. Self-hosted image library (ggfix-visual-search-service), when this
+    //    build points at one. High confidence — one specific catalogue
+    //    device, shown as "Device Found". Medium — a ranked "Possible matches" list. Both come
     //    straight from the service's own embedding search; nothing here
     //    reorders or invents a candidate.
     if (visual.ok && visual.confidence === 'high' && visual.bestMatch) {
@@ -266,9 +306,30 @@ export default function ScanSearchScreen({ navigation, route }) {
       return;
     }
 
-    // 3. No confident visual match (or the service is unreachable) — fall
-    //    back to searching whatever OCR actually read, same as before
-    //    visual search existed.
+    // 3. Image matching couldn't answer (not configured for this build,
+    //    unreachable, or not confident) — match what the photo SAYS against
+    //    the catalogue: a printed model number (e.g. SM-G950FD on a Galaxy
+    //    S8's back) names the exact model; a brand name ("SAMSUNG") lists
+    //    that brand's models to pick from.
+    const readText = ocr.ok ? String(ocr.text || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+    if (readText) {
+      setLoadingStage('Matching the GGFIX catalogue…');
+      const fromText = await catalogueMatchesFromText(ocr.text).catch(() => null);
+      console.log(`[LENS] catalogue text match: ${fromText?.matchedOn || 'none'}, rows=${fromText?.rows?.length || 0}`);
+      if (fromText?.exact) {
+        setLoading(false);
+        setResult({ kind: 'device', device: fromText.exact });
+        return;
+      }
+      if (fromText?.rows?.length) {
+        setLoading(false);
+        setResult({ kind: 'text-matches', ...fromText, readText });
+        return;
+      }
+    }
+
+    // 4. Nothing in the catalogue — search whatever OCR read across bookings
+    //    and pickups, same as before visual search existed.
     if (candidateCount) {
       console.log('[LENS] lookup started (OCR free-text fallback)');
       try {
@@ -279,7 +340,7 @@ export default function ScanSearchScreen({ navigation, route }) {
         else if (outcome.kind === 'pickup') setResult({ kind: 'pickup', pickup: outcome.pickup });
         else if (outcome.kind === 'device') setResult({ kind: 'device', device: outcome.device });
         else if (outcome.kind === 'multi') setResult({ kind: 'multi', query: outcome.query, count: outcome.count });
-        else if (!visual.ok) setResult({ kind: 'visual-unavailable', message: visual.message, detected: candidates });
+        else if (!visual.ok) setResult({ kind: 'visual-unavailable', message: visual.message, notConfigured: visual.notConfigured, readText, detected: candidates });
         else setResult({ kind: 'none', raw: outcome.tried[0] || '', detected: candidates });
       } catch (e) {
         console.log('[LENS] lookup failure:', e?.message || String(e));
@@ -289,10 +350,12 @@ export default function ScanSearchScreen({ navigation, route }) {
       return;
     }
 
-    // 4. Neither OCR nor visual search produced anything usable at all.
+    // 5. Neither OCR nor visual search produced anything usable at all. An
+    //    OCR failure is the actionable one (move closer / dev build), so it
+    //    is reported ahead of the visual service being unavailable.
     setLoading(false);
-    if (!visual.ok) setResult({ kind: 'visual-unavailable', message: visual.message });
-    else if (!ocr.ok) setResult({ kind: 'ocr-failed', message: ocr.message, devBuildRequired: ocr.devBuildRequired });
+    if (!ocr.ok) setResult({ kind: 'ocr-failed', message: ocr.message, devBuildRequired: ocr.devBuildRequired });
+    else if (!visual.ok) setResult({ kind: 'visual-unavailable', message: visual.message, notConfigured: visual.notConfigured, readText });
     else setResult({ kind: 'none', raw: '' });
   };
 
@@ -353,8 +416,8 @@ export default function ScanSearchScreen({ navigation, route }) {
           <View className="items-center justify-center" style={{ height: rs(64), width: rs(64), borderRadius: rs(32), backgroundColor: '#FEF3C7', marginBottom: rs(16) }}>
             <CameraIcon size={rf(28)} color="#B45309" />
           </View>
-          <Text className="font-extrabold text-center" style={{ fontSize: rf(16) }}>Camera access is required to scan.</Text>
-          <Text className="text-center" style={{ fontSize: rf(12.5), color: '#667085', marginTop: rs(8), lineHeight: rf(18) }}>
+          <Text className="font-extrabold text-center" style={{ fontSize: 15 }}>Camera access is required to scan.</Text>
+          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(8), lineHeight: rf(18) }}>
             GGFIX needs your camera to scan QR codes, barcodes and devices.
           </Text>
           <View className="flex-row" style={{ marginTop: rs(22) }}>
@@ -393,7 +456,7 @@ export default function ScanSearchScreen({ navigation, route }) {
         <Pressable onPress={() => navigation.goBack()} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: 'rgba(255,255,255,0.15)', marginRight: rs(12) }}>
           <ChevronLeft size={rf(22)} color="#FFFFFF" />
         </Pressable>
-        <Text className="flex-1 text-white font-extrabold" style={{ fontSize: rf(16) }} numberOfLines={1}>
+        <Text className="flex-1 text-white font-extrabold" style={{ fontSize: 17 }} numberOfLines={1}>
           {isLens ? 'Visual Device Scanner' : 'Scan QR or Barcode'}
         </Text>
         <Pressable onPress={() => setTorchOn((v) => !v)} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: 'rgba(255,255,255,0.15)' }}>
@@ -429,7 +492,7 @@ export default function ScanSearchScreen({ navigation, route }) {
           </View>
           <View className="flex-row items-center" style={{ marginTop: rs(20), paddingHorizontal: rs(30) }}>
             {isLens ? <ScanSearch size={rf(15)} color="#FFFFFF" /> : <ScanLine size={rf(15)} color="#FFFFFF" />}
-            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: rf(12.5) }}>
+            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: 12 }}>
               {isLens
                 ? 'Point the camera at the device, label, model number or barcode.'
                 : 'Align the QR code or barcode inside the frame'}
@@ -460,7 +523,7 @@ export default function ScanSearchScreen({ navigation, route }) {
               style={{ paddingHorizontal: rs(18), paddingVertical: rs(11), backgroundColor: 'rgba(255,255,255,0.18)' }}
             >
               <SearchIcon size={rf(15)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(13) }}>Search manually</Text>
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 13 }}>Search manually</Text>
             </Pressable>
           )}
         </View>
@@ -475,8 +538,8 @@ export default function ScanSearchScreen({ navigation, route }) {
               <Image source={{ uri: ocrPhotoUri }} style={{ width: rs(56), height: rs(56), borderRadius: rs(14), marginRight: rs(12) }} />
             ) : null}
             <View className="flex-1">
-              <Text className="font-extrabold" style={{ fontSize: rf(14) }}>Search manually</Text>
-              <Text style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(2) }}>
+              <Text className="font-extrabold" style={{ fontSize: 13 }}>Search manually</Text>
+              <Text style={{ fontSize: 11, color: '#667085', marginTop: rs(2) }}>
                 Type the model, brand, IMEI or tracking ID and it'll search GGFIX for you.
               </Text>
             </View>
@@ -489,7 +552,7 @@ export default function ScanSearchScreen({ navigation, route }) {
             placeholderTextColor="#8FA08F"
             returnKeyType="search"
             onSubmitEditing={confirmManualShot}
-            style={{ borderWidth: 1, borderColor: '#DCE7E2', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: rf(13.5) }}
+            style={{ borderWidth: 1, borderColor: '#DCE7E2', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: 13 }}
           />
           <View className="flex-row" style={{ marginTop: rs(14) }}>
             <Pressable onPress={reset} style={{ paddingHorizontal: rs(18), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
@@ -512,7 +575,7 @@ export default function ScanSearchScreen({ navigation, route }) {
           {loading ? (
             <View className="items-center justify-center" style={{ paddingVertical: rs(40) }}>
               <ActivityIndicator size="large" color={ACCENT} />
-              <Text className="font-semibold" style={{ color: '#667085', fontSize: rf(12.5), marginTop: rs(12) }}>{loadingStage}</Text>
+              <Text className="font-semibold" style={{ color: '#667085', fontSize: 12, marginTop: rs(12) }}>{loadingStage}</Text>
             </View>
           ) : (
             <ResultBody
@@ -521,6 +584,7 @@ export default function ScanSearchScreen({ navigation, route }) {
               onOpenPickup={openPickup}
               onOpenVisualMatch={openVisualMatch}
               onViewSimilar={viewSimilarMatches}
+              onPickDevice={pickCatalogueDevice}
               onSearchManually={searchManually}
               onEnterManually={openManualEntry}
               onScanAgain={reset}
@@ -532,8 +596,80 @@ export default function ScanSearchScreen({ navigation, route }) {
   );
 }
 
-function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onViewSimilar, onSearchManually, onEnterManually, onScanAgain }) {
+function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onViewSimilar, onPickDevice, onSearchManually, onEnterManually, onScanAgain }) {
   if (!result) return null;
+
+  // Catalogue models matched from the text on the device (brand / model
+  // number) — shown when image matching can't answer.
+  if (result.kind === 'text-matches') {
+    const top = result.best;
+    const others = (result.rows || []).filter((r) => !top || r.modelId !== top.modelId);
+    const byNumber = result.matchedOn === 'modelNumber';
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
+        <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Possible models</Text>
+        <Text style={{ fontSize: 11, color: '#667085', marginBottom: rs(12) }}>
+          {byNumber
+            ? 'Models carrying the model number read from the photo — pick yours.'
+            : result.source === 'google'
+              ? `Looks like a ${result.brandName} device — pick the model.`
+              : `Read "${result.brandName}" on the device — pick the model.`}
+        </Text>
+
+        {top ? (
+          <Pressable
+            onPress={() => onPickDevice(top)}
+            className="flex-row items-center"
+            style={{ borderWidth: 1.5, borderColor: BRIGHT, borderRadius: rs(18), padding: rs(13), backgroundColor: MINT, marginBottom: rs(8) }}
+          >
+            <View className="items-center justify-center overflow-hidden" style={{ height: rs(56), width: rs(56), borderRadius: rs(14), backgroundColor: '#FFFFFF', marginRight: rs(12) }}>
+              {top.modelImageUrl ? <Image source={{ uri: top.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(22)} color={ACCENT} />}
+            </View>
+            <View className="flex-1">
+              <View style={{ alignSelf: 'flex-start', backgroundColor: BRIGHT, borderRadius: rs(8), paddingHorizontal: rs(8), paddingVertical: rs(2) }}>
+                <Text className="text-white font-extrabold" style={{ fontSize: 9 }}>BEST MATCH</Text>
+              </View>
+              <Text className="font-extrabold" style={{ fontSize: 13, marginTop: rs(4) }} numberOfLines={1}>{top.displayName}</Text>
+              <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[top.categoryName, top.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+            </View>
+            <ChevronRight size={rf(18)} color={ACCENT} />
+          </Pressable>
+        ) : null}
+
+        {others.slice(0, 8).map((m) => (
+          <Pressable key={m.modelId} onPress={() => onPickDevice(m)} className="flex-row items-center" style={{ paddingVertical: rs(9), borderTopWidth: 1, borderTopColor: '#F0F4F2' }}>
+            <View className="items-center justify-center overflow-hidden" style={{ height: rs(40), width: rs(40), borderRadius: rs(11), backgroundColor: MINT, marginRight: rs(10) }}>
+              {m.modelImageUrl ? <Image source={{ uri: m.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(17)} color={ACCENT} />}
+            </View>
+            <View className="flex-1">
+              <Text className="font-bold" style={{ fontSize: 12 }} numberOfLines={1}>{m.displayName}</Text>
+              <Text style={{ fontSize: 10.5, color: '#667085' }} numberOfLines={1}>{[m.categoryName, m.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+            </View>
+            <ChevronRight size={rf(15)} color="#98A9A2" />
+          </Pressable>
+        ))}
+
+        {!byNumber && result.brandName ? (
+          <Pressable onPress={() => onSearchManually(result.brandName)} className="flex-row items-center justify-center" style={{ marginTop: rs(12), backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(13) }}>
+            <Text className="text-white font-extrabold">Show all {result.total} {result.brandName} models</Text>
+            <ChevronRight size={rf(16)} color="#FFFFFF" style={{ marginLeft: rs(6) }} />
+          </Pressable>
+        ) : null}
+        {!byNumber ? (
+          <Text className="text-center" style={{ fontSize: 10.5, color: '#667085', marginTop: rs(10), lineHeight: rf(15) }}>
+            Tip: photograph the model number label (e.g. SM-G950F) for an exact match.
+          </Text>
+        ) : null}
+
+        <Pressable onPress={onEnterManually} style={{ marginTop: rs(12), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2' }}>
+          <Text className="font-bold" style={{ color: ACCENT }}>None of these — search manually</Text>
+        </Pressable>
+        <Pressable onPress={onScanAgain} style={{ marginTop: rs(6), paddingVertical: rs(10), alignItems: 'center' }}>
+          <Text className="font-bold" style={{ color: '#667085' }}>Scan again</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   if (result.kind === 'device-found') {
     const d = result.best;
@@ -544,24 +680,27 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <View className="items-center justify-center" style={{ height: rs(28), width: rs(28), borderRadius: rs(14), backgroundColor: MINT, marginBottom: rs(8) }}>
             <BadgeCheck size={rf(15)} color={BRIGHT} />
           </View>
-          <Text className="font-extrabold" style={{ fontSize: rf(15) }}>Device Found</Text>
+          <Text className="font-extrabold" style={{ fontSize: 13 }}>Device Found</Text>
+          {result.label ? (
+            <Text style={{ fontSize: 10.5, color: '#667085', marginTop: rs(2) }} numberOfLines={1}>Recognised as “{result.label}”</Text>
+          ) : null}
         </View>
 
         <View className="items-center justify-center overflow-hidden self-center" style={{ height: rs(120), width: rs(120), borderRadius: rs(18), backgroundColor: MINT, marginTop: rs(10), marginBottom: rs(12) }}>
           {d.imageUrl ? <Image source={{ uri: d.imageUrl }} style={{ width: '82%', height: '82%' }} resizeMode="contain" /> : <Smartphone size={rf(34)} color={ACCENT} />}
         </View>
 
-        <Text className="font-bold text-center" style={{ fontSize: rf(12.5), color: '#667085' }}>{d.brand}</Text>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(17), marginTop: rs(2) }}>{d.modelName}</Text>
+        <Text className="font-bold text-center" style={{ fontSize: 12, color: '#667085' }}>{d.brand}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 15, marginTop: rs(2) }}>{d.modelName}</Text>
         {(d.colors && d.colors.length) || d.modelCode ? (
-          <Text className="text-center" style={{ fontSize: rf(12), color: '#667085', marginTop: rs(6) }}>
+          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6) }}>
             {[d.colors && d.colors.length ? `Color: ${d.colors.join(', ')}` : null, d.modelCode ? `SKU: ${d.modelCode}` : null].filter(Boolean).join('   ·   ')}
           </Text>
         ) : null}
 
         {typeof d.similarity === 'number' ? (
           <View className="self-center flex-row items-center" style={{ marginTop: rs(10), backgroundColor: MINT, borderRadius: rs(10), paddingHorizontal: rs(12), paddingVertical: rs(5) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(11.5), color: ACCENT }}>Match confidence: {Math.round(d.similarity * 100)}%</Text>
+            <Text className="font-extrabold" style={{ fontSize: 11, color: ACCENT }}>Match confidence: {Math.round(d.similarity * 100)}%</Text>
           </View>
         ) : null}
 
@@ -584,9 +723,9 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
     const [best, ...rest] = result.matches;
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(15), marginBottom: rs(2) }}>Visual matches</Text>
-        <Text style={{ fontSize: rf(11.5), color: '#667085', marginBottom: rs(14) }}>
-          Closest matches from the GGFIX device catalogue — confirm before opening.
+        <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Visual matches</Text>
+        <Text style={{ fontSize: 11, color: '#667085', marginBottom: rs(14) }}>
+          {result.label ? `Recognised as “${result.label}”. ` : ''}Closest matches from the GGFIX device catalogue — confirm before opening.
         </Text>
 
         <Pressable
@@ -600,29 +739,29 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <View className="flex-1">
             <View className="flex-row items-center">
               <View style={{ backgroundColor: BRIGHT, borderRadius: rs(8), paddingHorizontal: rs(8), paddingVertical: rs(2), marginRight: rs(8) }}>
-                <Text className="text-white font-extrabold" style={{ fontSize: rf(9) }}>BEST MATCH</Text>
+                <Text className="text-white font-extrabold" style={{ fontSize: 9 }}>BEST MATCH</Text>
               </View>
               {typeof best.similarity === 'number' ? (
-                <Text className="font-bold" style={{ fontSize: rf(10.5), color: ACCENT }}>{Math.round(best.similarity * 100)}% match</Text>
+                <Text className="font-bold" style={{ fontSize: 10.5, color: ACCENT }}>{Math.round(best.similarity * 100)}% match</Text>
               ) : null}
             </View>
-            <Text className="font-extrabold" style={{ fontSize: rf(14), marginTop: rs(4) }} numberOfLines={1}>{best.displayName}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13, marginTop: rs(4) }} numberOfLines={1}>{best.displayName}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
           <ChevronRight size={rf(18)} color={ACCENT} />
         </Pressable>
 
         {rest.length ? (
           <View style={{ marginTop: rs(14) }}>
-            <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), color: '#667085', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
+            <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
             {rest.slice(0, 4).map((m) => (
               <Pressable key={m.id} onPress={() => onOpenVisualMatch(m)} className="flex-row items-center" style={{ paddingVertical: rs(9), borderTopWidth: 1, borderTopColor: '#F0F4F2' }}>
                 <View className="items-center justify-center overflow-hidden" style={{ height: rs(40), width: rs(40), borderRadius: rs(11), backgroundColor: MINT, marginRight: rs(10) }}>
                   {m.imageUrl ? <Image source={{ uri: m.imageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(17)} color={ACCENT} />}
                 </View>
                 <View className="flex-1">
-                  <Text className="font-bold" style={{ fontSize: rf(12.5) }} numberOfLines={1}>{m.displayName}</Text>
-                  <Text style={{ fontSize: rf(10.5), color: '#667085' }} numberOfLines={1}>
+                  <Text className="font-bold" style={{ fontSize: 12 }} numberOfLines={1}>{m.displayName}</Text>
+                  <Text style={{ fontSize: 10.5, color: '#667085' }} numberOfLines={1}>
                     {typeof m.similarity === 'number' ? `${Math.round(m.similarity * 100)}% match` : 'Possible match'}
                   </Text>
                 </View>
@@ -648,8 +787,19 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEF3C7', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B45309" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>Device search failed</Text>
-        <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>{result.message || 'Please try again.'}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>
+          {result.notConfigured ? "Couldn't identify this device" : 'Device search failed'}
+        </Text>
+        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          {result.notConfigured
+            ? 'No brand or model number could be read from this photo. Point the camera at the brand name or the model number label (e.g. SM-G950F), or enter it manually.'
+            : (result.message || 'Please try again.')}
+        </Text>
+        {result.readText ? (
+          <Text className="text-center" style={{ fontSize: 10.5, color: '#98A2B3', marginTop: rs(6) }} numberOfLines={2}>
+            Read from photo: {result.readText}
+          </Text>
+        ) : null}
         <View className="flex-row" style={{ marginTop: rs(18) }}>
           <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
@@ -673,10 +823,10 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             <BadgeCheck size={rf(19)} color={ACCENT} />
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>
               {t.deviceDisplayName || t.deviceModelName || 'Booking found'}
             </Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }}>#{t.trackingId || t.id}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }}>#{t.trackingId || t.id}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenTicket(t)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -698,8 +848,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             <Truck size={rf(19)} color={ACCENT} />
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>{p.issueSummary || 'Pickup request'}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{p.issueSummary || 'Pickup request'}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenPickup(p)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -721,8 +871,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             {d.modelImageUrl ? <Image source={{ uri: d.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" /> : <Smartphone size={rf(20)} color={ACCENT} />}
           </View>
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: rf(15) }} numberOfLines={1}>{d.displayName}</Text>
-            <Text style={{ fontSize: rf(11), color: '#667085' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{d.displayName}</Text>
+            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
         </View>
         <Pressable onPress={() => onSearchManually(d.displayName)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -738,8 +888,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
   if (result.kind === 'multi') {
     return (
       <View style={{ padding: rs(18) }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(15), marginBottom: rs(4) }}>Matches found</Text>
-        <Text style={{ fontSize: rf(12), color: '#667085', marginBottom: rs(16) }}>
+        <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(4) }}>Matches found</Text>
+        <Text style={{ fontSize: 12, color: '#667085', marginBottom: rs(16) }}>
           {result.count} records matched — pick the right one.
         </Text>
         <Pressable onPress={() => onSearchManually(result.query)} className="flex-row items-center" style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), paddingHorizontal: rs(16), justifyContent: 'center' }}>
@@ -759,8 +909,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B91C1C" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(14.5) }}>Search failed</Text>
-        <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6) }}>{result.message}</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Search failed</Text>
+        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6) }}>{result.message}</Text>
         <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ marginTop: rs(18), backgroundColor: ACCENT, borderRadius: rs(16), paddingHorizontal: rs(24), paddingVertical: rs(13) }}>
           <RotateCcw size={rf(15)} color="#FFFFFF" />
           <Text className="text-white font-extrabold" style={{ marginLeft: rs(8) }}>Try again</Text>
@@ -775,13 +925,13 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEF3C7', marginBottom: rs(12) }}>
           <AlertTriangle size={rf(24)} color="#B45309" />
         </View>
-        <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>Couldn't read device details</Text>
+        <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Couldn't read device details</Text>
         {result.devBuildRequired ? (
-          <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
             {result.message}
           </Text>
         ) : (
-          <Text className="text-center" style={{ fontSize: rf(11.5), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
             Try:{'\n'}• move closer{'\n'}• improve lighting{'\n'}• keep the model label visible
           </Text>
         )}
@@ -808,15 +958,15 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
       <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
         <AlertTriangle size={rf(24)} color="#B91C1C" />
       </View>
-      <Text className="font-extrabold text-center" style={{ fontSize: rf(15) }}>No matching GGFIX record found</Text>
-      <Text className="text-center" style={{ fontSize: rf(12), color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching GGFIX record found</Text>
+      <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
         {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in GGFIX.` : "Couldn't match that to anything in GGFIX."}
       </Text>
       {detectedLines.length ? (
         <View style={{ marginTop: rs(12), alignSelf: 'stretch', backgroundColor: '#F7FAF7', borderRadius: rs(14), padding: rs(12) }}>
-          <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), color: '#667085', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
+          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
           {detectedLines.slice(0, 4).map((line, i) => (
-            <Text key={i} className="font-extrabold" style={{ fontSize: rf(13), color: '#111827' }} numberOfLines={1}>{line}</Text>
+            <Text key={i} className="font-extrabold" style={{ fontSize: 13, color: '#111827' }} numberOfLines={1}>{line}</Text>
           ))}
         </View>
       ) : null}
@@ -840,7 +990,7 @@ function ScanHeader({ title, onBack, light }) {
       <Pressable onPress={onBack} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: MINT, marginRight: rs(12) }}>
         <ChevronLeft size={rf(20)} color={ACCENT} />
       </Pressable>
-      <Text className="font-extrabold" style={{ fontSize: rf(16) }}>{title}</Text>
+      <Text className="font-extrabold" style={{ fontSize: 17 }}>{title}</Text>
     </View>
   );
 }

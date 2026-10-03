@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   Text,
   View,
   useWindowDimensions,
@@ -27,11 +28,15 @@ import {
   Pencil,
   Puzzle,
   ShieldCheck,
+  ShoppingCart,
+  Smartphone,
+  Tag,
   Truck,
   UserCheck,
   Users,
   UsersRound,
   Wallet,
+  Wrench,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { getBanners, getDeviceCategories, getModelsByBrand } from '../../api/masterData';
@@ -64,12 +69,25 @@ import { ACCENT_TONES, C, getSizeClass, HAIRLINE, OV_TONE, T, Touchable, statusL
 import { DashboardHeader } from '../../components/dashboard/DashboardHeader';
 import { DashboardSection } from '../../components/dashboard/DashboardSection';
 import { DashboardOverviewGrid } from '../../components/dashboard/DashboardOverviewGrid';
+import { DashboardShortcutCards, type DashboardShortcut } from '../../components/dashboard/DashboardShortcutCards';
+import { ion, mci } from '../../components/dashboard/solidIcons';
+import { RepairCategoryModal, type PickedRepairCategory } from '../../components/dashboard/RepairCategoryModal';
 import { getDashboardToolColumns } from '../../components/dashboard/DashboardToolsGrid';
 import { DashboardMenuTabs } from '../../components/dashboard/DashboardMenuTabs';
 import { DashboardBookingCard } from '../../components/dashboard/DashboardBookingCard';
+import { DashboardNearbyDeals, type NearbyDeal } from '../../components/dashboard/DashboardNearbyDeals';
+import { fetchNearbyListings, getListingOrigin, sortNearestFirst, toListingCard } from '../../api/nearbyListings';
 import { DashboardCategoryRail } from '../../components/dashboard/DashboardCategoryRail';
 import { DashboardAccountSheet } from '../../components/dashboard/DashboardAccountSheet';
 const HOME_REFRESH_STALE_MS = 15000;
+// Repair / Buy / Sell card art, bundled so it shows instantly offline too.
+// Buy/Sell are placed as in the design reference (fanned phones on Buy, a
+// hand holding a phone on Sell) — the file names are the other way round.
+const SHORTCUT_IMAGES = {
+  repair: require('../../../assets/repair.png.png'),
+  buy: require('../../../assets/sell.png.png'),
+  sell: require('../../../assets/buy.png.png'),
+};
 const SELL_IMAGES: Record<string, string> = {
   MOBILE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
   SMARTPHONE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
@@ -167,31 +185,40 @@ function useBookingCounts() {
 const TOOL_TONES = ACCENT_TONES;
 
 // Our Services grid — the iOS-Shortcuts-style entry points into a booking.
+// No "Book Service" tile: a new booking starts from the Repair shortcut card
+// above (category picker → Customer Details), the home banner, or Search.
 export const QUICK_ACTIONS: DashboardTool[] = [
-  { key: 'RepairServiceBookingShop', label: 'Book Service', icon: ClipboardPlus, color: TOOL_TONES[0], via: 'parent' },
-  { key: 'BookingList', label: 'Requote', icon: Pencil, color: TOOL_TONES[1], via: 'parent', params: { menu: 'RE_ESTIMATED', rowTarget: 'EDIT' } },
-  { key: 'BookingList', label: 'Pickups', icon: Truck, color: TOOL_TONES[2], via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
-  { key: 'Bookings', label: 'Bookings', icon: ClipboardList, color: TOOL_TONES[3] },
-  { key: 'OwnerSearch', label: 'Customers', icon: Users, color: TOOL_TONES[4], via: 'parent' },
-  { key: 'ShopChatInbox', label: 'Enquiry', icon: MessageCircle, color: TOOL_TONES[5], via: 'parent' },
-  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: Puzzle, color: TOOL_TONES[6], via: 'parent' },
+  // Solid glyphs on pastel circles, per the Home design reference.
+  { key: 'BookingList', label: 'Requote', icon: ion('create-outline'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { menu: 'RE_ESTIMATED', rowTarget: 'EDIT' } },
+  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#111827', iconBg: '#FFF0D2', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
+  { key: 'Bookings', label: 'Bookings', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#DC2626', iconBg: '#FDE3E3' },
+  // The bookings list again, narrowed to the bookings whose invoice is generated
+  // (scopeListFor 'INVOICE') — same cards and layout as Bookings / Requote.
+  { key: 'BookingList', label: 'Invoice', icon: mci('receipt-text'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { menu: 'INVOICE' } },
+  { key: 'OwnerSearch', label: 'Customers', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#EFE2FF', via: 'parent' },
+  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#111827', iconBg: '#FFE8D6', via: 'parent' },
+  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#111827', iconBg: '#F2E1FA', via: 'parent' },
+  // Customer sell listings near the shop (marketplace /buy/nearby, sellerType CUSTOMER).
+  { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
 ];
 
 // Five tiles — one full row at the 5-column breakpoint. All are siblings of
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
-  { key: 'OwnerEmployeeList', label: 'Team', icon: UsersRound, color: TOOL_TONES[0], via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Attendance', icon: UserCheck, color: TOOL_TONES[1], via: 'parent', params: { mode: 'attendance' } },
-  { key: 'OwnerEmployeeWorkingRecord', label: 'Service Report', icon: ClipboardList, color: TOOL_TONES[2], via: 'parent' },
-  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: Truck, color: TOOL_TONES[4], via: 'parent' },
-  { key: 'OwnerLeaveRequests', label: 'Leave', icon: CalendarOff, color: TOOL_TONES[5], via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Permissions', icon: ShieldCheck, color: TOOL_TONES[6], via: 'parent', params: { mode: 'permission' } },
+  // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
+  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
+  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { mode: 'attendance' } },
+  { key: 'OwnerEmployeeWorkingRecord', label: 'Service Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#111827', iconBg: '#FFF0D2', via: 'parent' },
+  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#EFE2FF', via: 'parent' },
+  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#111827', iconBg: '#FDE3E3', via: 'parent' },
+  { key: 'OwnerStaffReport', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#111827', iconBg: '#F2E1FA', via: 'parent', params: { mode: 'permission' } },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
-  { key: 'OwnerRevenue', label: 'Revenue', icon: IndianRupee, color: TOOL_TONES[0], via: 'parent' },
-  { key: 'BookingStatus', label: 'Service Status', icon: BarChart3, color: TOOL_TONES[1], via: 'parent' },
-  { key: 'OwnerCashBook', label: 'Cash Book', icon: Wallet, color: TOOL_TONES[4], via: 'parent' },
+  // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
+  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
+  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent' },
+  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#FFE8D6', via: 'parent' },
 ];
 
 function greetingFor(date: Date = new Date()): string {
@@ -242,10 +269,11 @@ function isBannerActive(banner: DashboardBanner): boolean {
 // stray snake_case response.
 function bannerImageUri(banner: DashboardBanner | null | undefined): string | null {
   if (!banner) return null;
-  const b64 = ((banner as Record<string, unknown>).imageBase64 || (banner as Record<string, unknown>).image_base64) as string | undefined;
+  const raw = banner as unknown as Record<string, unknown>;
+  const b64 = (raw.imageBase64 || raw.image_base64) as string | undefined;
   const trimmedB64 = b64 && String(b64).trim();
   if (trimmedB64) return trimmedB64.startsWith('data:') ? trimmedB64 : `data:image/png;base64,${trimmedB64}`;
-  const url = (banner.imageUrl || (banner as Record<string, unknown>).image_url) as string | undefined;
+  const url = (banner.imageUrl || raw.image_url) as string | undefined;
   const trimmedUrl = url && String(url).trim();
   return trimmedUrl || null;
 }
@@ -264,8 +292,13 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   const [notifUnread, setNotifUnread] = useState(0);
   const [buyCats, setBuyCats] = useState<DeviceCategory[]>([]);
   const [banners, setBanners] = useState<DashboardBanner[]>([]);
+  // Home Repair card → device-category popup (then Book Service with that category).
+  const [repairPickerOpen, setRepairPickerOpen] = useState(false);
   const [bannersLoading, setBannersLoading] = useState(true);
   const [latest, setLatest] = useState<RecentTicket[]>([]);
+  // Home "Nearby Deals": customer listings near the shop, same source/order as Buy's Trending Near You.
+  const [nearbyDeals, setNearbyDeals] = useState<NearbyDeal[]>([]);
+  const nearbyLoadedAtRef = useRef(0);
   const [pickupCounts, setPickupCounts] = useState<PickupCounts>({ all: 0, request: 0, accepted: 0 });
   const [showSheet, setShowSheet] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>('account');
@@ -391,6 +424,26 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     loadPickups();
   }, [loadPickups]);
 
+  // GET /marketplace/buy/nearby via the shared helper (Buy's origin/radius/
+  // exclude-own-shop rules), customer listings only, nearest first, 4 shown.
+  // Never rejects; on failure the last loaded deals are kept.
+  const loadNearbyDeals = useCallback(async () => {
+    try {
+      const origin = await getListingOrigin();
+      const rows = await fetchNearbyListings(origin);
+      const customers = (rows as NearbyDeal[]).filter((l) => l?.sellerType === 'CUSTOMER').map(toListingCard);
+      setNearbyDeals(sortNearestFirst(customers).slice(0, 4));
+      nearbyLoadedAtRef.current = Date.now();
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      console.log('[Dashboard nearby deals] fetch failed — status:', status, 'message:', e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNearbyDeals();
+  }, [loadNearbyDeals]);
+
   // Refresh the bell badge whenever Home regains focus. The heavier bookings
   // refetch is throttled + silent so returning to Home doesn't visibly reload.
   useEffect(() => {
@@ -398,9 +451,10 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
       refreshNotifs();
       loadPickups();
       if (Date.now() - latestLoadedAtRef.current > HOME_REFRESH_STALE_MS) loadLatest();
+      if (Date.now() - nearbyLoadedAtRef.current > HOME_REFRESH_STALE_MS) loadNearbyDeals();
     });
     return unsub;
-  }, [navigation, refreshNotifs, loadLatest, loadPickups]);
+  }, [navigation, refreshNotifs, loadLatest, loadPickups, loadNearbyDeals]);
   const reloadSession = useCallback(async () => {
     try {
       setSession(await fetchMe());
@@ -504,7 +558,17 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     () => banners.filter(isBannerActive).find((b) => normalizeBannerTitle(b.title) === 'slider-1') ?? null,
     [banners],
   );
-  const sliderBannerImage = bannerImageUri(sliderBanner);
+  // The hero is a carousel: Slider-1 (the dashboard's own artwork) first, then
+  // every other active admin banner (Repair / Buy / Sell…) in sort order, so
+  // it has something to scroll through. Each slide opens its own feature.
+  const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
+  const heroBanners = useMemo(() => {
+    const active = banners.filter(isBannerActive).filter((b) => !!bannerImageUri(b) && !failedBannerIds.includes(b.id));
+    const bySort = (a: DashboardBanner, b: DashboardBanner) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    const isSlider = (b: DashboardBanner) => normalizeBannerTitle(b.title).startsWith('slider');
+    return [...active.filter(isSlider).sort(bySort), ...active.filter((b) => !isSlider(b)).sort(bySort)];
+  }, [banners, failedBannerIds]);
+  const sliderBannerImage = bannerImageUri(heroBanners[0] ?? sliderBanner);
 
   // The banner's real aspect ratio, read from the actual image bytes —
   // fixing this at a guessed 16:5 was exactly why the artwork looked
@@ -515,14 +579,21 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   const [bannerImageFailed, setBannerImageFailed] = useState(false);
   useEffect(() => {
     setBannerImageFailed(false);
+    const first = heroBanners[0];
     if (!sliderBannerImage) return;
     Image.getSize(
       sliderBannerImage,
       (w, h) => {
         if (w > 0 && h > 0) setBannerRatio(w / h);
       },
-      () => setBannerImageFailed(true),
+      // A broken slide is dropped from the carousel (the next one then sizes
+      // it); only a single, failing banner hides the hero block.
+      () => {
+        if (first && heroBanners.length > 1) setFailedBannerIds((ids) => (ids.includes(first.id) ? ids : [...ids, first.id]));
+        else setBannerImageFailed(true);
+      },
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sliderBannerImage]);
 
   // On a wide tablet the banner must NOT stretch edge-to-edge — same
@@ -542,12 +613,33 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // while still bounding a pathological near-square upload.
   const bannerHeight = Math.min(Math.max(Math.round(bannerContentWidth / bannerRatio), 110), isTablet ? 380 : 170);
 
-  const onSliderBannerPress = () => {
-    const target = normalizeBannerTitle(sliderBanner?.linkTarget || sliderBanner?.title);
+  const onBannerPress = (banner: DashboardBanner | null | undefined) => {
+    const target = normalizeBannerTitle(banner?.linkTarget || banner?.title);
     if (target.includes('buy')) navigation.navigate('Buy', { categoryId: null });
     else if (target.includes('sell')) navigation.navigate('Sell');
     else gotoParent('RepairServiceBookingShop');
   };
+
+  // Carousel paging: page width = the carousel's measured width; auto-advance
+  // every 3.5 s while there is more than one slide.
+  const heroRef = useRef<ScrollView>(null);
+  const [heroPageW, setHeroPageW] = useState(0);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const heroPage = heroPageW || bannerEffectiveWidth;
+  useEffect(() => {
+    if (heroIndex >= heroBanners.length) setHeroIndex(0);
+  }, [heroBanners.length, heroIndex]);
+  useEffect(() => {
+    if (heroBanners.length <= 1) return undefined;
+    const id = setInterval(() => {
+      setHeroIndex((prev) => {
+        const next = (prev + 1) % heroBanners.length;
+        heroRef.current?.scrollTo({ x: next * heroPage, animated: true });
+        return next;
+      });
+    }, 3500);
+    return () => clearInterval(id);
+  }, [heroBanners.length, heroPage]);
 
   /** Same rule as Add Employee: at the plan's shop ceiling, tapping Add Shop must not open the form. */
   const handleAddShop = async () => {
@@ -573,7 +665,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
       await switchShop(shopId);
       await reloadSession();
       await refresh();
-      await Promise.all([loadLatest(), loadPickups()]);
+      await Promise.all([loadLatest(), loadPickups(), loadNearbyDeals()]);
     } catch {
       // keep the sheet open on failure so the user can retry
     } finally {
@@ -619,7 +711,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
       // Promise.all here is not the same footgun it would be if any of them
       // threw. The try/finally is a safety net regardless: refreshing must
       // always end even if that invariant is ever broken by a future edit.
-      await Promise.all([refresh(), loadLatest(), loadPickups(), loadBanners()]);
+      await Promise.all([refresh(), loadLatest(), loadPickups(), loadBanners(), loadNearbyDeals()]);
     } finally {
       setRefreshing(false);
     }
@@ -655,6 +747,26 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   const deliveredCount = summary?.delivered || 0;
   const readyForDelivery = summary?.readyForDelivery || 0;
 
+  // Repair / Buy / Sell shortcut cards above Overview. Repair is the booking
+  // entry point; Buy / Sell match Marketplace "See All" and Sell a Device "Sell" below.
+  const shortcuts: DashboardShortcut[] = [
+    {
+      key: 'repair', label: 'Repair', sub: 'Fix Your Device', icon: ion('build'), iconColor: '#111827', iconBg: '#D6F2E2',
+      tone: '#16A34A', bg: '#EAF8EE', accent: '#16A34A', image: SHORTCUT_IMAGES.repair, decoration: Smartphone,
+      onPress: () => setRepairPickerOpen(true),
+    },
+    {
+      key: 'buy', label: 'Buy', sub: 'New & Used', icon: ion('cart'), iconColor: '#1D4ED8', iconBg: '#DCE7FF',
+      tone: '#2563EB', bg: '#EAF2FF', accent: '#2563EB', image: SHORTCUT_IMAGES.buy, decoration: Smartphone,
+      onPress: () => navigation.navigate('Buy', { categoryId: null }),
+    },
+    {
+      key: 'sell', label: 'Sell', sub: 'Get Best Price', icon: ion('pricetag'), iconColor: '#F59E0B', iconBg: '#FFE7BD',
+      tone: '#F59E0B', bg: '#FFF4E5', accent: '#D97706', image: SHORTCUT_IMAGES.sell, decoration: Smartphone,
+      onPress: () => navigation.navigate('Sell'),
+    },
+  ];
+
   // Overview cards. Every card opens the bookings list scoped to the matching
   // preset, and its count comes from the same scope predicate the list
   // filters by, so the figure always matches the length of the list it opens.
@@ -679,23 +791,29 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // A horizontal scroll rail (not a 2-up grid), sized compact so the phone
   // width shows one full card plus a healthy peek of the next, hinting the
   // rail scrolls, rather than one oversized card filling the row.
-  const bookingCardW = winW >= 900 ? 310 : winW >= 600 ? 295 : Math.round(Math.min(Math.max(winW * 0.64, 250), 290));
+  // Two cards per row on a phone (as in the Home reference), never narrower than 176.
+  const bookingCardW = winW >= 900 ? 310 : winW >= 600 ? 295 : Math.max(176, Math.floor((Math.min(winW, 600) - PAD * 2 - STAT_GAP) / 2));
+  // Nearby Deals: small cards — ~2.6 visible on a phone, so the rail reads as scrollable.
+  const dealCardW = winW >= 900 ? 170 : winW >= 600 ? 156 : Math.max(118, Math.floor((winW - PAD * 2 - STAT_GAP * 2) / 2.6));
   const toolPanelRadius = 16;
   const toolGridPad = isTablet ? 12 : 8;
   const toolGap = isTablet ? 12 : 8;
    const toolColumns = getDashboardToolColumns(winW);
   // Prefer the panel's real measured width; fall back to the analytical
   // estimate only for the first frame, before `onToolPanelLayout` has fired.
-  const toolGridContentWidth = toolPanelWidth > 0 ? toolPanelWidth - toolGridPad * 2 : Math.max(0, winW - PAD * 2 - toolGridPad * 2);
+  // - 2: the panel's 1px border on each side sits inside its measured width.
+  const toolGridContentWidth = toolPanelWidth > 0 ? toolPanelWidth - toolGridPad * 2 - 2 : Math.max(0, winW - PAD * 2 - toolGridPad * 2 - 2);
   const toolCardWidth = Math.floor(Math.max(0, (toolGridContentWidth - toolGap * (toolColumns - 1)) / toolColumns));
 
   const toolCardStyle = {
     marginHorizontal: PAD,
+    // Breathing room between the Services / Employee / Reports switcher and the panel.
+    marginTop: 12,
     backgroundColor: C.card,
     borderRadius: toolPanelRadius,
-    borderWidth: HAIRLINE,
-    borderColor: C.separator,
-    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E8ECEF',
+    paddingVertical: 12,
     shadowColor: '#0B1F14',
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -759,24 +877,51 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           <View style={{ marginTop: 16, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center', paddingHorizontal: PAD }}>
             <View style={{ height: bannerHeight, borderRadius: 20, backgroundColor: C.fill }} />
           </View>
-        ) : sliderBannerImage && !bannerImageFailed ? (
-          <View style={{ marginTop: 16, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center', paddingHorizontal: PAD }}>
-            <Touchable
-              onPress={onSliderBannerPress}
-              accessibilityRole="button"
-              accessibilityLabel={sliderBanner?.title || 'Promotional banner'}
-              style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF' }}
-              pressedStyle={{ opacity: 0.9 }}
+        ) : heroBanners.length > 0 && !bannerImageFailed ? (
+          <View style={{ marginTop: 16, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center' }}>
+            <ScrollView
+              ref={heroRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onLayout={(e) => setHeroPageW(Math.round(e.nativeEvent.layout.width))}
+              onMomentumScrollEnd={(e) => setHeroIndex(Math.round(e.nativeEvent.contentOffset.x / heroPage))}
             >
-              <Image
-                source={{ uri: sliderBannerImage }}
-                style={{ width: '100%', height: bannerHeight }}
-                resizeMode="contain"
-                onError={() => setBannerImageFailed(true)}
-              />
-            </Touchable>
+              {heroBanners.map((b) => (
+                <View key={b.id} style={{ width: heroPage, paddingHorizontal: PAD }}>
+                  <Touchable
+                    onPress={() => onBannerPress(b)}
+                    accessibilityRole="button"
+                    accessibilityLabel={b.title || 'Promotional banner'}
+                    style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF' }}
+                    pressedStyle={{ opacity: 0.9 }}
+                  >
+                    <Image
+                      source={{ uri: bannerImageUri(b) as string }}
+                      style={{ width: '100%', height: bannerHeight }}
+                      resizeMode="contain"
+                      onError={() => setFailedBannerIds((ids) => (ids.includes(b.id) ? ids : [...ids, b.id]))}
+                    />
+                  </Touchable>
+                </View>
+              ))}
+            </ScrollView>
+            {heroBanners.length > 1 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 9 }}>
+                {heroBanners.map((b, i) => (
+                  <View
+                    key={b.id}
+                    style={{ height: 6, width: i === heroIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === heroIndex ? '#09AD2A' : '#D6D6D6' }}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
         ) : null}
+
+        <View style={{ marginTop: bannersLoading || (heroBanners.length > 0 && !bannerImageFailed) ? 0 : 16 }}>
+          <DashboardShortcutCards items={shortcuts} pad={PAD} />
+        </View>
 
         <View style={{ marginTop: SECTION_GAP }}>
           <DashboardSection title="Overview" action="Today's Summary" onAction={() => gotoParent('BookingStatus')} pad={PAD} />
@@ -834,39 +979,41 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           </View>
         ) : null}
 
-        {buyCats.length > 0 ? (
-          <View style={{ marginTop: SECTION_GAP + 6 }}>
-            <DashboardSection title="Marketplace" action="See All" onAction={() => navigation.navigate('Buy', { categoryId: null })} pad={PAD} />
-            <DashboardCategoryRail
+        {/* Nearby Deals — directly below Recent Bookings; hidden when there are none. */}
+        {nearbyDeals.length > 0 ? (
+          <View style={{ marginTop: SECTION_GAP }}>
+            <DashboardNearbyDeals
+              deals={nearbyDeals}
               pad={PAD}
-              tile={catTile}
-              categories={buyCats}
-              keyPrefix="buy"
-              tileColors={MARKETPLACE_TILE_COLORS}
-              onPick={(c, code) => navigation.navigate('Buy', { categoryId: c.id, categoryCode: code, categoryName: c.name })}
+              cardWidth={dealCardW}
+              gap={STAT_GAP}
+              onOpen={(d) => gotoParent('OwnerBuyListingDetails', { listing: d })}
+              onViewAll={() => navigation.navigate('Buy', { categoryId: null })}
             />
           </View>
         ) : null}
 
-        {buyCats.length > 0 ? (
-          <View style={{ marginTop: SECTION_GAP + 6 }}>
-            <DashboardSection title="Sell a Device" action="Sell" onAction={() => navigation.navigate('Sell')} pad={PAD} />
-            <DashboardCategoryRail
-              pad={PAD}
-              tile={catTile}
-              categories={buyCats}
-              keyPrefix="sell"
-              imageOverrides={SELL_IMAGES}
-              tileColors={MARKETPLACE_TILE_COLORS}
-              onPick={(c, code) => gotoParent('SelectBrand', { flow: 'OWNER_LIST', categoryId: c.id, categoryCode: code, categoryName: c.name })}
-            />
-          </View>
-        ) : null}
+        {/* Marketplace and Sell a Device rails are no longer shown on Home — the
+            Repair / Buy / Sell cards above Overview and the Buy / Sell tabs
+            are the entry points. The category data is still loaded as before. */}
 
-        <Text style={{ fontSize: T.footnote, color: C.label2, textAlign: 'center', marginTop: 28, marginHorizontal: PAD + 12, lineHeight: T.footnote + 5 }}>
-          {error ? 'Some figures could not be refreshed. Pull down to try again.' : 'Pull down to refresh · GGFix for Shops'}
-        </Text>
+        {error ? (
+          <Text style={{ fontSize: T.footnote, color: C.label2, textAlign: 'center', marginTop: 28, marginHorizontal: PAD + 12, lineHeight: T.footnote + 5 }}>
+            Some figures could not be refreshed. Pull down to try again.
+          </Text>
+        ) : null}
       </Animated.ScrollView>
+
+      <RepairCategoryModal
+        visible={repairPickerOpen}
+        onClose={() => setRepairPickerOpen(false)}
+        onPick={(c: PickedRepairCategory) => {
+          setRepairPickerOpen(false);
+          // Same Book Service flow as the Services tile, entered with the category
+          // already chosen: Customer Details skips its own category sheet.
+          gotoParent('RepairServiceBookingShop', { screen: 'CustomerDetails', params: { preselectedCategory: c } });
+        }}
+      />
 
       <DashboardAccountSheet
         rendered={sheetRendered}

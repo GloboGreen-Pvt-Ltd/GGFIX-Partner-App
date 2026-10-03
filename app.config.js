@@ -72,7 +72,10 @@ export default {
         {
           image: './assets/logo.png',
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          // Brand page colour — same as BootSplash and App.js's root view, so
+          // the hand-off between them is seamless. Native config: takes effect
+          // on the next native/EAS build, not a Metro reload.
+          backgroundColor: '#F8F8F8',
         },
       ],
       // Peer deps of @expo/vector-icons (used app-wide) and expo-audio

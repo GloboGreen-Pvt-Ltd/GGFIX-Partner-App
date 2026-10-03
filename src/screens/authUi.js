@@ -12,13 +12,23 @@ import {
 import { ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Shared design tokens for the auth screens (Login / CreateAccount / forgot-password).
-export const GREEN = '#087A0A';
-export const MUTED = '#667066';
-export const INK = '#172117';
-export const SCREEN_BG = '#F7FAF7';
+// Shared design tokens for the auth screens (Login / CreateAccount / forgot-password),
+// on the GGFIX brand sheet (see theme/colors.js). GREEN is for icons and fills;
+// green TEXT uses GREEN_TEXT, the deeper shade that stays readable at small sizes.
+export const GREEN = '#09AD2A';
+export const GREEN_TEXT = '#078F23';
+export const MUTED = '#6B6B6B';
+export const INK = '#1E1E1E';
+export const SCREEN_BG = '#F8F8F8';
 export const FIELD_BG = '#FFFFFF';
-export const FIELD_BORDER = '#E2E8E2';
+export const FIELD_BORDER = '#E6E6E6';
+// Soft brand-green wash at the top of every auth screen, fading into the page.
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+// Error box: brand red on its soft tint.
+const DANGER = '#F84141';
+const DANGER_TINT = '#FEECEC';
+const DANGER_LINE = '#FBB9B9';
 
 /** Standard auth layout shell: gradient header, optional back arrow, centered scroll content. */
 export function AuthShell({ onBack, children }) {
@@ -34,9 +44,9 @@ export function AuthShell({ onBack, children }) {
   const gradientHeight = isWide ? Math.min(height * 0.55, 460) : 320;
   return (
     <View style={{ flex: 1, backgroundColor: SCREEN_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#E6F7E3" />
+      <StatusBar barStyle="dark-content" backgroundColor={MINT} />
       <LinearGradient
-        colors={['#E6F7E3', '#F0F8EF', SCREEN_BG]}
+        colors={[MINT, '#F3FAF4', SCREEN_BG]}
         locations={[0, 0.45, 1]}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: gradientHeight }}
       />
@@ -56,7 +66,7 @@ export function AuthShell({ onBack, children }) {
             alignItems: 'center',
             justifyContent: 'center',
             borderWidth: 1,
-            borderColor: '#E6F7E3',
+            borderColor: MINT_LINE,
           }}
         >
           <ArrowLeft size={20} color={GREEN} />
@@ -95,8 +105,8 @@ export function ErrorBox({ msg }) {
   return (
     <View
       style={{
-        backgroundColor: '#FEF2F2',
-        borderColor: '#FECACA',
+        backgroundColor: DANGER_TINT,
+        borderColor: DANGER_LINE,
         borderWidth: 1,
         borderRadius: 12,
         paddingHorizontal: 12,
@@ -104,14 +114,14 @@ export function ErrorBox({ msg }) {
         marginTop: 8,
       }}
     >
-      <Text style={{ fontSize: 12.5, color: '#B91C1C', lineHeight: 18 }}>{msg}</Text>
+      <Text style={{ fontSize: 12, color: DANGER, lineHeight: 18 }}>{msg}</Text>
     </View>
   );
 }
 
 export const authStyles = {
-  h1: { fontSize: 22, fontWeight: '800', color: INK, letterSpacing: -0.4 },
-  sub: { fontSize: 13.5, color: MUTED, marginTop: 5, lineHeight: 19 },
+  h1: { fontSize: 20, fontWeight: '800', color: INK, letterSpacing: -0.4 },
+  sub: { fontSize: 13, color: MUTED, marginTop: 5, lineHeight: 19 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: INK, marginBottom: 5, marginTop: 14, marginLeft: 2 },
   fieldRow: {
     flexDirection: 'row',
@@ -123,7 +133,7 @@ export const authStyles = {
     paddingHorizontal: 14,
     height: 46,
   },
-  fieldInput: { fontSize: 15, color: INK, height: '100%', paddingVertical: 0 },
+  fieldInput: { fontSize: 13, color: INK, height: '100%', paddingVertical: 0 },
   ccChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,6 +143,6 @@ export const authStyles = {
     borderRightColor: FIELD_BORDER,
     height: '60%',
   },
-  ccText: { fontSize: 14, fontWeight: '700', color: INK },
-  link: { fontSize: 13, fontWeight: '700', color: GREEN },
+  ccText: { fontSize: 13, fontWeight: '700', color: INK },
+  link: { fontSize: 13, fontWeight: '700', color: GREEN_TEXT },
 };

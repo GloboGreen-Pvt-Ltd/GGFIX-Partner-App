@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     borderColor: '#172117',
   },
   rowContent: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '600', color: '#F7FAF7' },
-  role: { fontSize: 14, color: '#8FA08F', marginTop: 4 },
-  assignLabel: { fontSize: 14, fontWeight: '600', color: '#16BB05' },
-  empty: { fontSize: 14, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
+  name: { fontSize: 15, fontWeight: '600', color: '#F7FAF7' },
+  role: { fontSize: 13, color: '#8FA08F', marginTop: 4 },
+  assignLabel: { fontSize: 13, fontWeight: '600', color: '#16BB05' },
+  empty: { fontSize: 13, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
 });

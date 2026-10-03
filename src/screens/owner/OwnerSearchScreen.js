@@ -277,10 +277,10 @@ export default function OwnerSearchScreen({ navigation, route }) {
             : <Smartphone size={20} color="#8FA08F" strokeWidth={2} />}
         </View>
         <View className="flex-1">
-          <Text className="text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
             {d.displayName}
           </Text>
-          <Text className="text-[11.5px] text-gray-500 mt-0.5" numberOfLines={1}>
+          <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
             {[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}
           </Text>
         </View>
@@ -315,14 +315,14 @@ export default function OwnerSearchScreen({ navigation, route }) {
               <Text className="text-[10px] font-extrabold" style={{ color: GREEN }}>#{ref}</Text>
               <Text className="text-[9.5px] font-bold text-gray-400 ml-2">{isPickup ? 'PICKUP' : 'BOOKING'}</Text>
             </View>
-            <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>{title}</Text>
+            <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>{title}</Text>
             <View className="flex-row items-center mt-1">
               <User size={11} color="#667066" strokeWidth={2} />
-              <Text className="text-[11.5px] text-gray-600 ml-1" numberOfLines={1}>{name}</Text>
+              <Text className="text-[11px] text-gray-600 ml-1" numberOfLines={1}>{name}</Text>
               {phone ? (
                 <>
                   <Phone size={11} color="#667066" strokeWidth={2} style={{ marginLeft: 10 }} />
-                  <Text className="text-[11.5px] text-gray-600 ml-1">{phone}</Text>
+                  <Text className="text-[11px] text-gray-600 ml-1">{phone}</Text>
                 </>
               ) : null}
             </View>
@@ -380,7 +380,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
                 autoCorrect={false}
                 placeholder="Device, ticket or customer"
                 placeholderTextColor="#8FA08F"
-                style={{ flex: 1, marginLeft: 8, color: '#172117', fontSize: 14, padding: 0 }}
+                style={{ flex: 1, marginLeft: 8, color: '#172117', fontSize: 13, padding: 0 }}
               />
               {query ? (
                 <Pressable onPress={() => setQuery('')} hitSlop={6} className="w-6 h-6 rounded-full items-center justify-center mr-1" style={{ backgroundColor: '#EFF5EE' }}>
@@ -431,14 +431,14 @@ export default function OwnerSearchScreen({ navigation, route }) {
           loading ? (
             <View className="items-center pt-10"><ActivityIndicator color={GREEN} /></View>
           ) : error ? (
-            <Text className="text-[12.5px] text-danger text-center pt-10">{error}</Text>
+            <Text className="text-[12px] text-danger text-center pt-10">{error}</Text>
           ) : tooShort ? (
-            <Text className="text-[12.5px] text-gray-500 text-center pt-10">
+            <Text className="text-[12px] text-gray-500 text-center pt-10">
               Keep typing — at least {MIN_QUERY} characters.
             </Text>
           ) : searched ? (
             <View className="items-center pt-10 px-6">
-              <Text className="text-[14px] font-extrabold text-gray-700">No matches</Text>
+              <Text className="text-[13px] font-extrabold text-gray-700">No matches</Text>
               <Text className="text-[12px] text-gray-500 text-center mt-1 leading-5">
                 Nothing found for “{query.trim()}”. Try a device like “OPPO A5”, a tracking ID, or a customer name.
               </Text>
@@ -464,7 +464,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
               ))}
             </View>
           ) : (
-            <Text className="text-[12.5px] text-gray-500 text-center pt-10 leading-5">
+            <Text className="text-[12px] text-gray-500 text-center pt-10 leading-5">
               Search a device to book, sell or buy —{'\n'}or a ticket ID, customer name or pickup ID.
             </Text>
           )

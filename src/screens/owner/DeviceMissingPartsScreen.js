@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12,
   },
-  title: { fontSize: 14, fontWeight: '700', color: '#172117', marginBottom: 6 },
+  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 6 },
   row: {
     borderWidth: 1,
     borderColor: '#E2E8E2',
@@ -121,6 +121,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
   },
-  buttonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  buttonText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 });
 

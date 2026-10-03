@@ -186,18 +186,18 @@ export default function BillingScreen({ navigation }) {
             )}
           </View>
           <View className="flex-1 pr-2">
-            <Text className="text-[14.5px] font-extrabold text-gray-900" numberOfLines={1}>
+            <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
               {deviceName}
             </Text>
             <View className="flex-row items-center mt-0.5">
               <Text className="text-[10.5px] font-bold text-gray-400" style={{ letterSpacing: 0.5 }}>
                 ID
               </Text>
-              <Text className="text-[11.5px] text-gray-600 ml-1" numberOfLines={1}>
+              <Text className="text-[11px] text-gray-600 ml-1" numberOfLines={1}>
                 #{trackingId}
               </Text>
               {color ? (
-                <Text className="text-[11.5px] text-gray-400 ml-1.5" numberOfLines={1}>
+                <Text className="text-[11px] text-gray-400 ml-1.5" numberOfLines={1}>
                   • {color}
                 </Text>
               ) : null}
@@ -225,7 +225,7 @@ export default function BillingScreen({ navigation }) {
                 Bill
               </Text>
               <Text
-                className="text-[16px] font-extrabold mt-0.5"
+                className="text-[15px] font-extrabold mt-0.5"
                 style={{ color: BRAND_GREEN_DARK }}
               >
                 {amount}
@@ -248,7 +248,7 @@ export default function BillingScreen({ navigation }) {
           >
             <User size={12} color={ACCENT_GREEN} />
           </View>
-          <Text className="text-[12.5px] font-semibold text-gray-800 flex-1" numberOfLines={1}>
+          <Text className="text-[12px] font-semibold text-gray-800 flex-1" numberOfLines={1}>
             {customer}
           </Text>
           <View
@@ -257,7 +257,7 @@ export default function BillingScreen({ navigation }) {
           >
             <Phone size={12} color={ACCENT_GREEN} />
           </View>
-          <Text className="text-[12.5px] font-semibold text-gray-800" numberOfLines={1}>
+          <Text className="text-[12px] font-semibold text-gray-800" numberOfLines={1}>
             {phone}
           </Text>
         </View>
@@ -324,7 +324,7 @@ export default function BillingScreen({ navigation }) {
             borderBottomColor: '#E2E8E2',
           }}
         >
-          <Text className="text-text text-[22px] font-extrabold">Invoices</Text>
+          <Text className="text-text text-[20px] font-extrabold">Invoices</Text>
         </View>
         <ActivityIndicator style={{ flex: 1 }} size="large" color={BRAND_GREEN} />
       </View>
@@ -348,7 +348,7 @@ export default function BillingScreen({ navigation }) {
       >
         <View className="flex-row items-center">
           <View className="flex-1">
-            <Text className="text-text text-[22px] font-extrabold" style={{ letterSpacing: 0.2 }}>
+            <Text className="text-text text-[20px] font-extrabold" style={{ letterSpacing: 0.2 }}>
               Invoices
             </Text>
             <Text className="text-text-muted text-[12px] mt-1">
@@ -378,7 +378,7 @@ export default function BillingScreen({ navigation }) {
             <Search size={14} color={BRAND_GREEN_DARK} />
           </View>
           <TextInput
-            className="flex-1 text-[13.5px] text-gray-900"
+            className="flex-1 text-[13px] text-gray-900"
             placeholder="Search Tracking ID, name, or mobile"
             placeholderTextColor="#8FA08F"
             value={query}
@@ -406,7 +406,7 @@ export default function BillingScreen({ navigation }) {
             className="rounded-2xl px-4 py-3"
             style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
           >
-            <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>
+            <Text className="text-[12px] font-semibold" style={{ color: '#B91C1C' }}>
               {error}
             </Text>
           </View>
@@ -434,7 +434,7 @@ export default function BillingScreen({ navigation }) {
             >
               <Receipt size={32} color={BRAND_GREEN_DARK} />
             </View>
-            <Text className="text-[15px] font-extrabold text-gray-700">
+            <Text className="text-[13px] font-extrabold text-gray-700">
               No billing records yet
             </Text>
             <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">
@@ -469,7 +469,7 @@ function Action({ icon: Icon, label, onPress, primary }) {
           }}
         >
           <Icon size={14} color="#FFFFFF" />
-          <Text className="ml-1.5 text-white text-[12.5px] font-extrabold">{label}</Text>
+          <Text className="ml-1.5 text-white text-[12px] font-extrabold">{label}</Text>
         </LinearGradient>
       </TouchableOpacity>
     );

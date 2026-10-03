@@ -22,6 +22,7 @@ import {
   ReceiptIndianRupee,
   Pencil,
   History,
+  CalendarClock,
   ListChecks,
   UserCheck,
 } from 'lucide-react-native';
@@ -42,10 +43,12 @@ import {
   ImeiGateSheet,
   PickupPersonPickerSheet,
   PickupStatusSheet,
+  RescheduleSheet,
   ServiceStatusSheet,
   ShareReceiptSheet,
   TechnicianPickerSheet,
 } from './BookingActionSheets';
+import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#16BB05';
@@ -202,11 +205,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   // Scope tiles per row. A phone keeps the 2-up grid — at 3-up the label had
   // barely 50px and wrapped mid-word. A TABLET puts the whole set on ONE line:
-  // every menu is 5 tiles or fewer (5 default / 4 pickup / 2 re-estimated), and
-  // at 5-up a 768pt tablet still leaves ~78pt of label room, which the existing
-  // adjustsFontSizeToFit covers for the longest one ("Ready for Delivery").
+  // every menu is 4 tiles or fewer (4 default / 4 pickup / 2 re-estimated /
+  // 1 invoice), and at that width a 768pt tablet leaves plenty of label room
+  // for the longest one ("Ready for Delivery").
   // That is two rows of vertical space handed back above the first booking.
-  const chipCols = numCols > 1 ? Math.max(1, menuList.length) : 2;
+  // A one-tile menu (Invoice) spans the row instead of sitting at half width.
+  const chipCols = numCols > 1 || menuList.length === 1 ? Math.max(1, menuList.length) : 2;
 
   // Where a tapped ticket row goes. Default is nowhere — the card's own button
   // row names every destination, so a bare tap has nothing unambiguous to mean.
@@ -221,6 +225,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // already live there — duplicating that here would mean two copies of
   // buildEditParams drifting apart.
   const opensEdit = rowTarget === 'EDIT';
+  // Home → Invoice: every booking here is already billed, so assigning a
+  // technician has no place on its cards.
+  const isInvoiceMenu = String(route?.params?.menu || '').toUpperCase() === 'INVOICE';
 
   // Optional header overrides, so a mount can name itself something other than
   // its scope ("SERVICE HISTORY" rather than "ALL BOOKINGS") without inventing a
@@ -300,6 +307,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // navigation actions; the tap itself is now the status change, which is the
   // thing the owner does to a booking from this list most often.
   const [statusOpen, setStatusOpen] = useState(false);
+  // Requote list only: the card's Reschedule button (new delivery date & time).
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   // IMEI gate in front of the invoice generator, plus the value handed back by
   // the scanner route (null on a manual open).
   const [imeiGateOpen, setImeiGateOpen] = useState(false);
@@ -315,6 +324,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
     setTechPickerOpen(false);
     setShareOpen(false);
     setStatusOpen(false);
+    setRescheduleOpen(false);
     setImeiGateOpen(false);
   }, []);
 
@@ -462,6 +472,13 @@ export default function BookingHistoryScreen({ navigation, route }) {
     navigation.navigate('BookingTimeline', { ticketId: b.id });
   }, [closeSheets, navigation]);
 
+  // Requote list: the slot History takes elsewhere opens the Reschedule sheet.
+  const openRescheduleFor = useCallback((b) => {
+    if (!b?.id) return;
+    setActionBooking(b);
+    setRescheduleOpen(true);
+  }, []);
+
   // Into the edit wizard. Same destination as goDetailsFor plus autoEdit, and
   // shared by the two ways in on the Re-Estimated list — the card tap and the
   // Re-Estimate button — so they can't drift to different params.
@@ -550,7 +567,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
             ...t,
             _modelName: m?.name || t.deviceDisplayName || t.modelName || null,
             _modelNumber: parseModelNumbers(m?.modelNumber).join(' · ') || null,
-            _ramStorage: [ramLabel, storageLabel].filter(Boolean).join(' + ') || null,
+            _ramStorage: hasCategorySpecs(t)
+              ? specDisplayParts(t).join(' · ')
+              : ([ramLabel, storageLabel].filter(Boolean).join(' + ') || null),
             _modelImage: t.deviceImageUrl || modelUrl || null,
           };
         });
@@ -680,7 +699,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(22, 187, 5, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: '#16BB05' }}>#{ref}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
+              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
               {item.pickupAddressText ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={2}>{item.pickupAddressText}</Text>
               ) : null}
@@ -711,7 +730,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="flex-1 flex-row items-center pr-2">
             <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
             <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
+            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
           </View>
         </View>
 
@@ -724,7 +743,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="w-4 items-center mr-1.5"><UserCheck size={11} color="#667066" /></View>
           <Text className="text-[10px] text-text-muted w-16">Pickup By</Text>
           <Text
-            className="text-[11.5px] flex-1 font-semibold"
+            className="text-[11px] flex-1 font-semibold"
             style={{ color: item.pickupPersonName ? '#172117' : '#8FA08F' }}
             numberOfLines={1}
           >
@@ -806,12 +825,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
     const showReceipt = !(delivered && invoiced);
     const showBarcode = !(delivered && invoiced);
 
-    // Base row is Assign · History · Details, plus whichever of Receipt,
-    // Barcode, Invoice and Re-Estimate apply. At six or more an equal split
-    // leaves each slot too narrow for a 10px label beside a 13px glyph, so the
-    // whole row steps down a size rather than letting "Barcode" and "Details"
-    // ellipsise. Under 360dp five is already crowded.
-    const actionCount = 3
+    // Base row is Assign · History · Details (no Assign on the Invoice list),
+    // plus whichever of Receipt, Barcode, Invoice and Re-Estimate apply. At six
+    // or more an equal split leaves each slot too narrow for a 10px label beside
+    // a 13px glyph, so the whole row steps down a size rather than letting
+    // "Barcode" and "Details" ellipsise. Under 360dp five is already crowded.
+    const actionCount = (isInvoiceMenu ? 2 : 3)
       + (showReceipt ? 1 : 0)
       + (showBarcode ? 1 : 0)
       + (invoiced ? 1 : 0)
@@ -854,7 +873,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(8, 122, 10, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
+              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
               {specs ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{specs}</Text>
               ) : null}
@@ -896,7 +915,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="flex-1 flex-row items-center pr-2">
             <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
             <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
+            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
           </View>
         </View>
 
@@ -928,23 +947,40 @@ export default function BookingHistoryScreen({ navigation, route }) {
               onPress={() => goEditFor(item)}
             />
           ) : null}
-          <CardAction
-            icon={<UserCog size={actionGlyph} color={BRAND_GREEN_DARK} />}
-            label="Assign"
-            compact={crowded}
-            onPress={() => openTechPickerFor(item)}
-          />
-          {/* Straight after Assign, on every list. It used to appear only on the
-              Service History mount that the Home shortcut opened; that shortcut
-              is gone, because a booking's history belongs to the booking, not to
-              a whole separate copy of this list you had to find the row in
-              again. Keeps the History glyph and colour that tile used. */}
-          <CardAction
-            icon={<History size={actionGlyph} color={HISTORY_CYAN} />}
-            label="History"
-            compact={crowded}
-            onPress={() => goTimelineFor(item)}
-          />
+          {isInvoiceMenu ? null : (
+            <CardAction
+              icon={<UserCog size={actionGlyph} color={BRAND_GREEN_DARK} />}
+              label="Assign"
+              compact={crowded}
+              onPress={() => openTechPickerFor(item)}
+            />
+          )}
+          {/* Straight after Assign. On the Requote list the slot is Reschedule
+              instead — moving the delivery date & time is part of re-quoting a
+              job; a booking's History stays on the main Bookings list's cards.
+              Everywhere else it is History: it used to appear only on the Service History mount
+              the Home shortcut opened; that shortcut is gone, because a
+              booking's history belongs to the booking, not to a whole separate
+              copy of this list you had to find the row in again. */}
+          {opensEdit ? (
+            <CardAction
+              icon={<CalendarClock size={actionGlyph} color={BRAND_GREEN_DARK} />}
+              label="Reschedule"
+              compact={crowded}
+              // The one long label in a six-button row: a little extra width so
+              // it reads whole instead of "Resched…". The short labels beside it
+              // ("Assign", "Barcode") still fit the even share that's left.
+              flex={1.4}
+              onPress={() => openRescheduleFor(item)}
+            />
+          ) : (
+            <CardAction
+              icon={<History size={actionGlyph} color={HISTORY_CYAN} />}
+              label="History"
+              compact={crowded}
+              onPress={() => goTimelineFor(item)}
+            />
+          )}
           {showReceipt ? (
             <CardAction
               icon={<Share2 size={actionGlyph} color="#16BB05" />}
@@ -993,7 +1029,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
       >
         <View className="flex-row items-center">
           <Pressable
-            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
             hitSlop={6}
             className="h-9 w-9 rounded-full bg-surface-muted items-center justify-center mr-2.5 active:opacity-70"
           >
@@ -1001,7 +1037,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           </Pressable>
           <View className="flex-1">
             <Text className="text-text-muted text-[11px] font-bold tracking-widest">{eyebrowText}</Text>
-            <Text className="text-text text-[20px] font-extrabold mt-0.5" numberOfLines={1}>
+            <Text className="text-text text-[17px] font-extrabold mt-0.5" numberOfLines={1}>
               {counts[scope.key] ?? 0}{' '}
               {(counts[scope.key] ?? 0) === 1 ? nounText : `${nounText}s`}
             </Text>
@@ -1083,7 +1119,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </View>
                 <Text
                   className="font-extrabold text-text mr-1"
-                  style={{ fontSize: isSmall ? 12.5 : 13.5 }}
+                  style={{ fontSize: isSmall ? 12 : 13 }}
                   numberOfLines={1}
                 >
                   {counts[s.key] ?? 0}
@@ -1162,7 +1198,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           >
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[16px] font-extrabold text-text">Filters</Text>
+              <Text className="text-[15px] font-extrabold text-text">Filters</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}
@@ -1284,6 +1320,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onGenerateInvoice={startInvoiceFor}
       />
 
+      {/* ── Reschedule (Requote list) — refetches so the card shows the new time. */}
+      <RescheduleSheet
+        visible={rescheduleOpen}
+        booking={actionBooking}
+        onClose={closeSheets}
+        onUpdated={load}
+      />
+
       {/* ── IMEI gate: only for a booking with no IMEI on file ─────────── */}
       <ImeiGateSheet
         visible={imeiGateOpen}
@@ -1333,7 +1377,7 @@ function Row({ icon, label, value, numberOfLines }) {
     <View className="flex-row items-center py-0.5">
       <View className="w-4 items-center mr-1.5">{icon}</View>
       <Text className="text-[10px] text-text-muted w-16">{label}</Text>
-      <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={numberOfLines || 1}>{value}</Text>
+      <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={numberOfLines || 1}>{value}</Text>
     </View>
   );
 }

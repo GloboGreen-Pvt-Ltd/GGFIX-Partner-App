@@ -57,8 +57,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   content: { flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center' },
   iconWrap: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: '#172117', marginBottom: 6 },
-  subtitle: { fontSize: 14, color: '#667066', textAlign: 'center', marginBottom: 18, paddingHorizontal: 16 },
+  title: { fontSize: 20, fontWeight: '700', color: '#172117', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#667066', textAlign: 'center', marginBottom: 18, paddingHorizontal: 16 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     marginBottom: 22,
   },
-  name: { fontSize: 16, fontWeight: '700', color: '#172117' },
+  name: { fontSize: 15, fontWeight: '700', color: '#172117' },
   meta: { fontSize: 13, color: '#667066', marginTop: 4 },
   buttons: { width: '100%', maxWidth: 320, gap: 10 },
   primaryBtn: {
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   secondaryBtn: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -85,5 +85,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5CB',
   },
-  secondaryBtnText: { color: '#172117', fontSize: 16, fontWeight: '600' },
+  secondaryBtnText: { color: '#172117', fontSize: 15, fontWeight: '600' },
 });

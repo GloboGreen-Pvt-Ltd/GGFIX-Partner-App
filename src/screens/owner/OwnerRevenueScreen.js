@@ -8,26 +8,36 @@ import {
   CalendarDays,
   ChevronRight,
   IndianRupee,
-  PackageCheck,
+  ReceiptIndianRupee,
   Receipt,
-  Smartphone,
   TrendingUp,
   User,
   Wallet,
 } from 'lucide-react-native';
 import { EmptyState, Loader } from '../../components/rnr';
-import { getLedgerPeriod, toApiDate, RECEIVED } from '../../api/ledgerParties';
+import { ticketApi } from '../../api/client';
+import { hasInvoice } from './AllBooking/bookingScopes';
 import { dayLabel, formatMoney } from './revenueMath';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+// GGFIX brand sheet (theme/colors.js).
+const GREEN = '#09AD2A';
+const GREEN_TEXT = '#078F23';
+const MINT = '#EAF8EC';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const HAIR = '#F3F3F3';
+const LINE = '#E6E6E6';
+const RED = '#F84141';
 
-// The server refuses a wider window; keep the request inside it.
+// "12 Months" really is the last twelve months, so the widest chip is labelled
+// honestly rather than as all time.
 const WINDOW_DAYS = 366;
+// Invoices are fetched one per ticket; a few at a time keeps a large book from
+// firing hundreds of requests at once.
+const FETCH_CONCURRENCY = 6;
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: INK,
   shadowOpacity: 0.05,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -47,50 +57,59 @@ const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); retur
 const startOfWeek = (now) => { const s = startOfDay(now); s.setDate(s.getDate() - s.getDay()); return s; };
 
 /* ══════════════════════════════════════════════════════════════════════════
-   Revenue is money RECEIVED, on the day it was received.
+   Revenue is the total of GENERATED INVOICES, on the day each was generated.
 
-   It used to be the invoice total of every delivered booking, booked on the
-   delivery date. That answers "what did we bill?", not "what came in?", and the
-   two are the same figure only when nothing is ever sold on credit. A ₹10,000
-   invoice delivered on Tuesday with ₹5,000 advance and ₹5,000 still owed
-   counted ₹10,000 of Tuesday revenue — and when the customer cleared the
-   balance on Thursday, Thursday showed ₹0.
-
-   The Cash Book already records each movement with its own date, so this reads
-   the RECEIVED side of the ledger instead. The invoice total now lives where it
-   belongs — on the invoice — and this screen shows takings.
+   This screen used to read the RECEIVED side of the Cash Book — money in, on
+   the day it came in. The shop asked for Revenue to be the invoices instead
+   (Oct 2026): every completed bill, with its details, counted at its full
+   total. The difference matters on credit: a ₹10,000 bill with ₹5,000 still
+   owed counts ₹10,000 here on the day it was raised. The Paid / Due line under
+   each row keeps that visible, and the Cash Book still records what actually
+   came in, day by day.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/** Entry timestamp: entryDate is the day the money is booked against; createdAt
- *  carries the clock time the row shows. Prefer the booked day. */
-function receiptDate(e) {
-  const raw = e?.entryDate || e?.createdAt;
+/** The invoice's own total — the figure printed on the bill. Falls back to the
+ *  ticket's final price for an invoice row that somehow lacks one. */
+function billAmount(row) {
+  const v = Number(row.invoice?.finalPayableAmount);
+  if (Number.isFinite(v) && v > 0) return v;
+  const f = Number(row.ticket?.finalPrice);
+  return Number.isFinite(f) ? f : 0;
+}
+
+/** When the invoice was raised — the day it is booked against. */
+function billDate(row) {
+  const raw = row.invoice?.generatedAt || row.invoice?.createdAt || row.ticket?.updatedAt;
   if (!raw) return null;
   const d = new Date(raw);
   return isNaN(d.getTime()) ? null : d;
 }
 
-function receiptTime(e) {
-  const raw = e?.createdAt || e?.entryDate;
-  if (!raw) return '';
-  const d = new Date(raw);
-  if (isNaN(d.getTime())) return '';
+function billTime(row) {
+  const d = billDate(row);
+  if (!d) return '';
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
 }
 
-const receiptAmount = (e) => {
-  const v = Number(e?.amount);
-  return Number.isFinite(v) ? v : 0;
-};
+/** Paid / due, read off the invoice exactly as DeliveryInvoiceReport prints it:
+ *  the advance on the booking plus what was paid at the counter, and the credit
+ *  left on the customer's account. */
+function billSettlement(row) {
+  const inv = row.invoice || {};
+  const advance = Number(inv.advancePaid) || 0;
+  const paidNow = Number(inv.amountPaid) || 0;
+  const due = Number(inv.creditAmount) || 0;
+  return { paid: advance + paidNow, due, shown: advance > 0 || paidNow > 0 || due > 0 };
+}
 
-function receiptBuckets(entries, now = new Date()) {
+function invoiceBuckets(rows, now = new Date()) {
   const today = startOfDay(now);
   const week = startOfWeek(now);
   const out = { today: 0, week: 0, month: 0, all: 0 };
-  for (const e of entries || []) {
-    const amount = receiptAmount(e);
+  for (const r of rows || []) {
+    const amount = billAmount(r);
     out.all += amount;
-    const d = receiptDate(e);
+    const d = billDate(r);
     if (!d) continue;
     if (d >= today) out.today += amount;
     if (d >= week) out.week += amount;
@@ -99,53 +118,75 @@ function receiptBuckets(entries, now = new Date()) {
   return out;
 }
 
-function inPeriod(e, period, now) {
+function inPeriod(r, period, now) {
   if (period === 'all') return true;
-  const d = receiptDate(e);
+  const d = billDate(r);
   if (!d) return false;
   if (period === 'today') return d >= startOfDay(now);
   if (period === 'week') return d >= startOfWeek(now);
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-function groupReceiptsByDay(entries) {
+function groupByDay(rows) {
   const groups = new Map();
-  for (const e of entries || []) {
-    const d = receiptDate(e);
+  for (const r of rows || []) {
+    const d = billDate(r);
     const key = d ? startOfDay(d).toISOString() : 'unknown';
     if (!groups.has(key)) groups.set(key, { key, date: d ? startOfDay(d) : null, items: [], total: 0 });
     const g = groups.get(key);
-    g.items.push(e);
-    g.total += receiptAmount(e);
+    g.items.push(r);
+    g.total += billAmount(r);
   }
   const arr = Array.from(groups.values());
   arr.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
-  arr.forEach((g) => g.items.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+  arr.forEach((g) => g.items.sort((a, b) => (billDate(b)?.getTime() || 0) - (billDate(a)?.getTime() || 0)));
   return arr;
+}
+
+/** Promise.all with at most `limit` calls in flight. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 export default function OwnerRevenueScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState([]); // { ticket, invoice }
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  // Opens on the widest window so the day-by-day list shows the whole run of
-  // takings at once. Today is one tap away and its figure is on screen anyway.
-  const [period, setPeriod] = useState('all');
+  // Opens on Today — the figure the shop checks first. The wider windows are
+  // one tap away and their totals are on screen in the strip anyway.
+  const [period, setPeriod] = useState('today');
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      // /ledger-entries caps a request at 366 days on purpose — a window is one
-      // screen of a ledger, not an export — so the widest chip is twelve months
-      // rather than literally all time, and is labelled that way.
-      const to = new Date();
-      const from = new Date(to);
-      from.setDate(from.getDate() - (WINDOW_DAYS - 1));
-      const res = await getLedgerPeriod({ from: toApiDate(from), to: toApiDate(to) });
-      setRows((res.entries || []).filter((e) => e.direction === RECEIVED));
+      // The same page of the ticket book the Bookings / Invoice lists read; the
+      // tickets that carry an invoice (hasInvoice — a real invoices row, not a
+      // status) are the ones to total. Each invoice's figures come from its own
+      // record, the document the customer was given.
+      const data = await ticketApi.get('/tickets', { query: { page: 0, size: 500 } });
+      const tickets = (Array.isArray(data) ? data : data?.content ?? data?.data ?? []).filter(hasInvoice);
+      const fetched = await mapLimit(tickets, FETCH_CONCURRENCY, async (ticket) => {
+        const invoice = await ticketApi.get(`/tickets/${ticket.id}/invoice`).catch(() => null);
+        return invoice ? { ticket, invoice } : null;
+      });
+      const cutoff = startOfDay(new Date());
+      cutoff.setDate(cutoff.getDate() - (WINDOW_DAYS - 1));
+      setRows(fetched.filter(Boolean).filter((r) => {
+        const d = billDate(r);
+        return !d || d >= cutoff;
+      }));
     } catch (e) {
       setError(e?.message || 'Failed to load revenue');
     } finally {
@@ -156,160 +197,172 @@ export default function OwnerRevenueScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const buckets = useMemo(() => receiptBuckets(rows), [rows]);
+  const buckets = useMemo(() => invoiceBuckets(rows), [rows]);
 
-  const feed = useMemo(() => {
+  const scoped = useMemo(() => {
     const now = new Date();
-    const scoped = rows.filter((e) => inPeriod(e, period, now));
-    const out = [];
-    for (const g of groupReceiptsByDay(scoped)) {
-      out.push({ _type: 'day', key: `day:${g.key}`, label: dayLabel(g.date), total: g.total, count: g.items.length });
-      for (const e of g.items) out.push({ _type: 'receipt', key: `e:${e.id}`, entry: e });
-    }
-    return out;
+    return rows.filter((r) => inPeriod(r, period, now));
   }, [rows, period]);
 
-  const periodTotal = useMemo(() => buckets[period] ?? 0, [buckets, period]);
+  const feed = useMemo(() => {
+    const out = [];
+    for (const g of groupByDay(scoped)) {
+      out.push({ _type: 'day', key: `day:${g.key}`, label: dayLabel(g.date), total: g.total, count: g.items.length });
+      for (const r of g.items) out.push({ _type: 'invoice', key: `inv:${r.ticket.id}`, row: r });
+    }
+    return out;
+  }, [scoped]);
+
+  const periodTotal = buckets[period] ?? 0;
   const periodLabel = PERIODS.find((p) => p.key === period)?.label || '';
 
   const renderRow = ({ item }) => {
     if (item._type === 'day') {
       return (
-        <View className="flex-row items-center justify-between mt-3 mb-1.5 px-1">
+        <View className="flex-row items-center justify-between mt-2.5 mb-1.5 px-1">
           <View className="flex-row items-center">
-            <CalendarDays size={13} color="#667066" />
-            <Text className="text-[12px] font-extrabold text-text ml-1.5">{item.label}</Text>
-            <Text className="text-[11px] text-text-muted ml-1.5">
-              · {item.count} {item.count === 1 ? 'booking' : 'bookings'}
+            <CalendarDays size={13} color={MUTED} />
+            <Text className="text-[12px] font-extrabold ml-1.5" style={{ color: INK }}>{item.label}</Text>
+            <Text className="text-[11px] ml-1.5" style={{ color: MUTED }}>
+              · {item.count} {item.count === 1 ? 'invoice' : 'invoices'}
             </Text>
           </View>
-          <Text className="text-[12.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>
+          <Text className="text-[12px] font-extrabold" style={{ color: GREEN_TEXT }}>
             {formatMoney(item.total)}
           </Text>
         </View>
       );
     }
 
-    const e = item.entry;
-    const device = e.ticketLabel || e.ticketDeviceName || e.note || 'Payment received';
-    const trackingId = e.ticketTrackingId || '';
-    const amount = receiptAmount(e);
-    const time = receiptTime(e);
-    // Only a receipt booked against a ticket can open one. A rent or salary
-    // receipt has no device behind it, so it stays a flat row rather than a
-    // button that navigates nowhere.
-    const ticketId = e.ticketId || null;
+    const { ticket, invoice } = item.row;
+    const device = ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || 'Device';
+    const invoiceNo = String(invoice.invoiceNo || ticket.invoiceNo || '').replace(/^#+/, '');
+    const trackingId = ticket.trackingId || '';
+    const customer = ticket.customerName || '';
+    const amount = billAmount(item.row);
+    const time = billTime(item.row);
+    const settle = billSettlement(item.row);
 
     return (
       <Pressable
-        onPress={ticketId ? () => navigation.navigate('DeviceDetail', { ticketId }) : undefined}
-        disabled={!ticketId}
-        className="bg-card rounded-2xl mb-2 active:opacity-90"
-        style={{ padding: 12, borderWidth: 1, borderColor: '#E2E8E2', ...cardShadow }}
+        onPress={() => navigation.navigate('DeliveryInvoiceReport', { ticketId: ticket.id })}
+        className="rounded-xl mb-1.5 active:opacity-90"
+        style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: HAIR, ...cardShadow }}
       >
         <View className="flex-row items-center">
-          <View className="h-11 w-11 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
-            <Smartphone size={20} color={ACCENT_GREEN} />
+          <View className="h-9 w-9 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: MINT }}>
+            <ReceiptIndianRupee size={17} color={GREEN} />
           </View>
           <View className="flex-1 pr-2">
-            <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{device}</Text>
+            <Text className="text-[12.5px] font-extrabold" style={{ color: INK }} numberOfLines={1}>{device}</Text>
             <View className="flex-row items-center mt-0.5">
-              {trackingId ? (
-                <Text className="text-[10px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
+              {invoiceNo ? (
+                <Text className="text-[10px] font-extrabold" style={{ color: GREEN_TEXT }}>{invoiceNo}</Text>
               ) : null}
-              {e.partyName ? (
-                <>
-                  {trackingId ? <Text className="text-[10px] text-text-muted mx-1">·</Text> : null}
-                  <User size={10} color="#667066" />
-                  <Text className="text-[10px] text-text-muted ml-1" numberOfLines={1}>{e.partyName}</Text>
-                </>
+              {trackingId ? (
+                <Text className="text-[10px]" style={{ color: MUTED }}>{invoiceNo ? '  ·  ' : ''}#{trackingId}</Text>
+              ) : null}
+              {customer ? (
+                <View className="flex-row items-center flex-shrink">
+                  <Text className="text-[10px]" style={{ color: MUTED }}>  ·  </Text>
+                  <User size={10} color={MUTED} />
+                  <Text className="text-[10px] ml-0.5 flex-shrink" style={{ color: MUTED }} numberOfLines={1}>{customer}</Text>
+                </View>
               ) : null}
             </View>
           </View>
-          {/* Money in, so the figure is green — it reads the same way the Cash
-              Book's received side does. The clock time sits under it because on
-              a day with several part-payments the amount alone doesn't say
-              which one this is. */}
           <View className="items-end">
-            <Text className="text-[14px] font-extrabold" style={{ color: ACCENT_GREEN }}>
+            <Text className="text-[13px] font-extrabold" style={{ color: GREEN_TEXT }}>
               {formatMoney(amount)}
             </Text>
             <View className="flex-row items-center mt-0.5">
-              {time ? (
-                <Text className="text-[10px] text-text-muted mr-1">{time}</Text>
-              ) : null}
-              {ticketId ? <ChevronRight size={12} color={ACCENT_GREEN} /> : null}
+              {time ? <Text className="text-[10px] mr-0.5" style={{ color: MUTED }}>{time}</Text> : null}
+              <ChevronRight size={12} color={GREEN_TEXT} />
             </View>
           </View>
         </View>
+        {/* The bill counts in full above; this line says how much of it has
+            actually been paid, so a credit sale doesn't read as cash in hand. */}
+        {settle.shown ? (
+          <View className="flex-row items-center mt-1.5 pt-1.5" style={{ borderTopWidth: 1, borderTopColor: HAIR, marginLeft: 46 }}>
+            <Text className="text-[10.5px] font-bold" style={{ color: GREEN_TEXT }}>Paid {formatMoney(settle.paid)}</Text>
+            {settle.due > 0 ? (
+              <Text className="text-[10.5px] font-bold ml-3" style={{ color: RED }}>Due {formatMoney(settle.due)}</Text>
+            ) : (
+              <Text className="text-[10.5px] font-bold ml-3" style={{ color: MUTED }}>Fully paid</Text>
+            )}
+          </View>
+        ) : null}
       </Pressable>
     );
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1" style={{ backgroundColor: '#F8F8F8' }}>
       {/* ── Green revenue hero ─────────────────────────────────── */}
       <LinearGradient
-        colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
+        colors={[GREEN, GREEN_TEXT]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 10, paddingBottom: 18, paddingHorizontal: 16 }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 14 }}
       >
         <View className="flex-row items-center">
           <Pressable
-            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-            className="h-10 w-10 rounded-full items-center justify-center mr-3 active:opacity-70"
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
+            className="h-9 w-9 rounded-full items-center justify-center mr-3 active:opacity-70"
             style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}
           >
-            <ArrowLeft size={20} color="#FFFFFF" />
+            <ArrowLeft size={19} color="#FFFFFF" />
           </Pressable>
           <View className="flex-1">
             <Text className="text-white/80 text-[11px] font-bold tracking-widest">REVENUE</Text>
-            <Text className="text-white text-[20px] font-extrabold mt-0.5">Payments Received</Text>
+            <Text className="text-white text-[16px] font-extrabold mt-0.5">Invoice Totals</Text>
           </View>
-          <View className="h-11 w-11 rounded-2xl items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}>
-            <IndianRupee size={22} color="#FFFFFF" />
+          <View className="h-10 w-10 rounded-2xl items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}>
+            <IndianRupee size={20} color="#FFFFFF" />
           </View>
         </View>
 
-        <View className="mt-4">
-          <Text className="text-white/80 text-[11px] font-semibold">{periodLabel}</Text>
-          <Text className="text-white font-extrabold mt-0.5" style={{ fontSize: 30 }} numberOfLines={1} adjustsFontSizeToFit>
+        <View className="mt-3">
+          <Text className="text-white/80 text-[11px] font-semibold">
+            {periodLabel} · {scoped.length} {scoped.length === 1 ? 'invoice' : 'invoices'}
+          </Text>
+          <Text className="text-white font-extrabold mt-0.5" style={{ fontSize: 26 }} numberOfLines={1} adjustsFontSizeToFit>
             {formatMoney(periodTotal)}
           </Text>
         </View>
       </LinearGradient>
 
       {/* ── Period totals (all four always visible) ─────────────── */}
-      <View className="flex-row" style={{ paddingHorizontal: 12, paddingTop: 12 }}>
+      <View className="flex-row" style={{ paddingHorizontal: 10, paddingTop: 10 }}>
         {PERIODS.map((p) => {
           const active = period === p.key;
           return (
             <Pressable
               key={p.key}
               onPress={() => setPeriod(p.key)}
-              className="flex-1 items-center rounded-2xl mx-1 active:opacity-80"
+              className="flex-1 items-center rounded-xl mx-1 active:opacity-80"
               style={{
-                paddingVertical: 9,
+                paddingVertical: 7,
                 paddingHorizontal: 4,
-                backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
+                backgroundColor: active ? MINT : '#FFFFFF',
                 borderWidth: 1.5,
-                borderColor: active ? ACCENT_GREEN : '#E2E8E2',
+                borderColor: active ? GREEN : LINE,
               }}
             >
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.6}
-                className="font-extrabold text-text"
-                style={{ fontSize: 12, width: '100%', textAlign: 'center' }}
+                className="font-extrabold"
+                style={{ fontSize: 12, width: '100%', textAlign: 'center', color: INK }}
               >
                 {formatMoney(buckets[p.key] ?? 0)}
               </Text>
               <Text
                 numberOfLines={1}
                 className="font-semibold mt-0.5"
-                style={{ fontSize: 9, color: active ? ACCENT_GREEN : '#667066' }}
+                style={{ fontSize: 9, color: active ? GREEN_TEXT : MUTED }}
               >
                 {p.label}
               </Text>
@@ -320,10 +373,10 @@ export default function OwnerRevenueScreen({ navigation }) {
 
       {error ? (
         <View
-          className="mx-4 mt-2 rounded-xl px-3 py-2"
-          style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
+          className="mx-3 mt-2 rounded-xl px-3 py-2"
+          style={{ backgroundColor: '#FEECEC', borderWidth: 1, borderColor: '#FBD0D0' }}
         >
-          <Text className="text-[12px] text-danger font-bold">{error}</Text>
+          <Text className="text-[12px] font-bold" style={{ color: RED }}>{error}</Text>
         </View>
       ) : null}
 
@@ -335,14 +388,14 @@ export default function OwnerRevenueScreen({ navigation }) {
           keyExtractor={(item) => item.key}
           renderItem={renderRow}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={ACCENT_GREEN} colors={[ACCENT_GREEN]} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />
           }
-          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 28 }}
+          contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 2, paddingBottom: 24 }}
           ListEmptyComponent={
             <EmptyState
-              icon={<PackageCheck size={26} color={ACCENT_GREEN} />}
-              title="No revenue yet"
-              description={`No payments were received ${period === 'today' ? 'today' : `in ${periodLabel.toLowerCase()}`}.`}
+              icon={<ReceiptIndianRupee size={26} color={GREEN} />}
+              title="No invoices yet"
+              description={`No invoices were generated ${period === 'today' ? 'today' : `in ${periodLabel.toLowerCase()}`}.`}
             />
           }
         />

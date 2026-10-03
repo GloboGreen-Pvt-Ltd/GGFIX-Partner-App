@@ -6,6 +6,8 @@ import './global.css';
 // Global responsive font scaling — must load before any screen renders so the
 // Text/TextInput patch is in place. See src/theme/fontScaling.js.
 import './src/theme/fontScaling';
+// App-wide Inter (see the file header for why it hooks the JSX runtime).
+import { enableInterFont } from './src/theme/appFont';
 // …and the spacing half of the same idea: sets NativeWind's runtime `rem` to
 // the device curve, so every rem-based className (p-4, mt-6, h-11, gap-3 …)
 // scales the way `rs()` does. Must also run before the first render.
@@ -15,6 +17,19 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { LogBox, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import {
+  useFonts,
+  Inter_300Light,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+  Inter_900Black,
+  Inter_400Regular_Italic,
+  Inter_600SemiBold_Italic,
+  Inter_700Bold_Italic,
+} from '@expo-google-fonts/inter';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -82,12 +97,29 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // App-wide Inter (see theme/fontScaling). The native splash stays up until
+  // the bundled font files are registered, so no text ever paints in the
+  // system font first; a load error just continues with the system font.
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_300Light,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
+    Inter_400Regular_Italic,
+    Inter_600SemiBold_Italic,
+    Inter_700Bold_Italic,
+  });
+  if (fontsLoaded) enableInterFont();
+  if (!fontsLoaded && !fontError) return null;
+
   return (
-    // backgroundColor matches BootSplash's own dark wash — a safety base so
-    // there is no white frame from the platform's default root background in
-    // the instant between the native splash hiding and BootSplash's own
-    // (network-loaded) background image painting on top of it.
-    <View style={{ flex: 1, backgroundColor: '#004C40' }} onLayout={handleRootLayout}>
+    // backgroundColor matches BootSplash's page and the native launch splash
+    // (both the brand #F8F8F8) — a safety base so no other colour can flash
+    // in the instant between the native splash hiding and BootSplash painting.
+    <View style={{ flex: 1, backgroundColor: '#F8F8F8' }} onLayout={handleRootLayout}>
       <Provider store={store}>
         <GluestackUIProvider config={config}>
           {/* KeyboardProvider must sit above the navigation tree so every screen's

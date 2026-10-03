@@ -4,8 +4,7 @@
 // Four bottom sheets — the first two for tickets, the last two for pickup
 // rows, which are repair-bookings and have their own verbs:
 //   TechnicianPickerSheet — the technician list on its own
-//   ShareReceiptSheet     — image-to-WhatsApp vs details-by-SMS, the same two
-//                           options TicketDetailScreen offers.
+//   ShareReceiptSheet     — the booking receipt, shared to WhatsApp only.
 //   PickupStatusSheet     — where the pickup is, and the one stage move the
 //                           shop can make from here
 //   PickupPersonPickerSheet — the pickup-eligible staff list
@@ -19,14 +18,14 @@
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, Share, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View,
   useWindowDimensions,
   // Aliased: `Keyboard` below is the lucide GLYPH used on the "Enter IMEI" row.
   Keyboard as RNKeyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Sharing from 'expo-sharing';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import { Ionicons } from '@expo/vector-icons';
+import ViewShot from 'react-native-view-shot';
 import {
   Share2,
   ChevronRight,
@@ -35,28 +34,25 @@ import {
   Check,
   UserRound,
   UserCog,
-  Phone,
-  MessageSquare,
   CheckCircle2,
   PackageCheck,
   Truck,
   Keyboard,
   ScanLine,
   X,
-  Pencil,
-  Send,
-  MoreHorizontal,
-  Mail,
-  FolderOpen,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
+import { Select } from '../../../components/rnr';
+import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 import {
   assignPickupPerson,
   confirmShopRepairBooking,
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
-import { ReceiptCard, buildReceiptMessage } from './ReceiptCard';
+import { ReceiptCard, buildReceiptMessage, receiptShopFromSession } from './ReceiptCard';
+import { getSession } from '../../../auth/session';
+import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 
 const BRAND_GREEN_DARK = '#087A0A';
 // The currently-assigned pickup person is marked in red so the owner can see
@@ -149,9 +145,9 @@ function SheetShell({ visible, onClose, title, subtitle, children, maxHeightRati
               backgroundColor: '#E2E8E2', marginBottom: 14,
             }}
           />
-          <Text className="text-[15px] font-extrabold text-gray-900">{title}</Text>
+          <Text className="text-[13px] font-extrabold text-gray-900">{title}</Text>
           {subtitle ? (
-            <Text className="text-[11.5px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
+            <Text className="text-[11px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
           ) : (
             <View style={{ height: 12 }} />
           )}
@@ -176,7 +172,7 @@ function ActionRow({ icon, tint, title, onPress, disabled }) {
       <View className="w-9 h-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: tint.bg }}>
         {icon}
       </View>
-      <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
+      <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
       <ChevronRight size={16} color="#CBD5CB" />
     </Pressable>
   );
@@ -198,9 +194,9 @@ const TINT = {
 // first and then offers only that flow's statuses — the two lists are never
 // on screen together.
 //
-// The three shared endings (Invoice Generated, Delivered to Customer, Repair
-// Cancelled) appear under BOTH types on purpose: both paths raise an invoice,
-// hand the device over, and can be cancelled.
+// The shared endings (Invoice Generated, Out for Delivery, Delivered to
+// Customer, Repair Cancelled) appear under BOTH types on purpose: both paths
+// raise an invoice, hand the device over, and can be cancelled.
 //
 // Each option is a repair_booking_events row written through the same
 // POST /tickets/{id}/progress-events the technician's checklist uses, so the
@@ -221,15 +217,22 @@ const TINT = {
 // Invoice Generated is earned by actually producing the invoice, so choosing it
 // hands off to the Invoice Generator screen; that screen emits the status when
 // the invoice saves. See ServiceStatusSheet#submit.
+//
+// The stages are the Service History rows in the same order, Out for Delivery
+// included — skipping it here left a gap on the timeline between Invoice
+// Generated and Delivered. A stage whose step before it isn't on the timeline
+// yet (Ready for Delivery before Quality Check, say) is shown but can't be
+// saved: see stepBlockedBy.
 const SERVICE_STATUS_TYPES = [
   {
     key: 'REGULAR',
     label: 'Regular Service',
     hint: 'Repaired — going out to the customer',
     stages: [
-      [{ key: 'READY',             label: 'Ready for Delivery' }],
-      [{ key: 'INVOICE_GENERATED', label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED',         label: 'Delivered to Customer' }],
+      [{ key: 'READY',                label: 'Ready for Delivery' }],
+      [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
   {
@@ -241,9 +244,10 @@ const SERVICE_STATUS_TYPES = [
         { key: 'CUSTOMER_REJECTED',    label: 'Customer Rejected' },
         { key: 'REPAIR_NOT_COMPLETED', label: 'Repair Not Completed' },
       ],
-      [{ key: 'RETURN_DELIVERY',   label: 'Return Delivery' }],
-      [{ key: 'INVOICE_GENERATED', label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED',         label: 'Delivered to Customer' }],
+      [{ key: 'RETURN_DELIVERY',      label: 'Return Delivery' }],
+      [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
 ];
@@ -315,7 +319,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
           opacity: disabled ? 0.5 : 1,
         }}
       >
-        <Text className="flex-1 text-[14px] font-extrabold text-gray-900" numberOfLines={1}>
+        <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
           {value?.label || 'Select'}
         </Text>
         <ChevronDown
@@ -345,7 +349,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
               >
                 <View className="flex-1">
                   <Text
-                    className="text-[13.5px] text-gray-900"
+                    className="text-[13px] text-gray-900"
                     style={{ fontWeight: selected ? '800' : '600' }}
                     numberOfLines={1}
                   >
@@ -381,6 +385,9 @@ export function ServiceStatusSheet({
   const ref = String(booking?.trackingId || booking?.bookingNumber || '').replace(/^#+/, '');
   const doneLabel = completedLabelFor(type, completed) || statusLabel;
   const finished = options.length === 0;
+  // One step at a time: the next stage is offered, but it can't be saved until
+  // the Service History step before it is recorded.
+  const blockedBy = status ? stepBlockedBy(completed, status.key) : null;
 
   // What the booking has already been through decides what it can do next, so
   // the sheet reads the timeline on every open. Re-reading each time is what
@@ -432,7 +439,7 @@ export function ServiceStatusSheet({
   };
 
   const submit = async () => {
-    if (!booking?.id || saving || !status) return;
+    if (!booking?.id || saving || !status || blockedBy) return;
     // Invoice Generated is produced, not declared: hand off to the generator
     // and let it emit the status when the invoice actually saves. Writing the
     // event here would mark the booking invoiced with no invoice behind it.
@@ -479,7 +486,7 @@ export function ServiceStatusSheet({
             style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
           >
             <Text className="text-[10px] text-gray-500">Current status</Text>
-            <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+            <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
               {doneLabel}
             </Text>
           </View>
@@ -488,14 +495,14 @@ export function ServiceStatusSheet({
         {loadingSteps ? (
           <View className="items-center py-8">
             <ActivityIndicator color={BRAND_GREEN_DARK} />
-            <Text className="text-[11.5px] text-gray-500 mt-2">Checking what&apos;s next…</Text>
+            <Text className="text-[11px] text-gray-500 mt-2">Checking what&apos;s next…</Text>
           </View>
         ) : finished ? (
           <View className="items-center py-6 px-2">
-            <Text className="text-[13.5px] font-extrabold text-gray-900 text-center">
+            <Text className="text-[13px] font-extrabold text-gray-900 text-center">
               This booking is closed
             </Text>
-            <Text className="text-[11.5px] text-gray-500 text-center mt-1">
+            <Text className="text-[11px] text-gray-500 text-center mt-1">
               {completed.has('CANCELLED')
                 ? 'The repair was cancelled — there is no further status to record.'
                 : 'The device is with the customer — there is no further status to record.'}
@@ -524,16 +531,30 @@ export function ServiceStatusSheet({
               disabled={saving}
             />
 
+            {blockedBy ? (
+              <View
+                className="rounded-2xl px-3 py-2.5 mb-3"
+                style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' }}
+              >
+                <Text className="text-[11.5px] font-extrabold" style={{ color: '#B45309' }}>
+                  Record &quot;{blockedBy}&quot; first
+                </Text>
+                <Text className="text-[10.5px] mt-0.5" style={{ color: '#92400E' }}>
+                  Service History moves one step at a time — {status.label} opens once the step before it is done.
+                </Text>
+              </View>
+            ) : null}
+
             <Pressable
               onPress={submit}
-              disabled={saving || !status}
+              disabled={saving || !status || !!blockedBy}
               className="rounded-2xl items-center justify-center py-3.5 mt-1 active:opacity-90"
-              style={{ backgroundColor: BRAND_GREEN_DARK, opacity: saving || !status ? 0.6 : 1 }}
+              style={{ backgroundColor: BRAND_GREEN_DARK, opacity: saving || !status || blockedBy ? 0.45 : 1 }}
             >
               {saving
                 ? <ActivityIndicator color="#FFFFFF" />
                 : (
-                  <Text className="text-white text-[14px] font-extrabold">
+                  <Text className="text-white text-[13px] font-extrabold">
                     {status?.action === 'INVOICE' ? 'Generate Invoice' : 'Update Status'}
                   </Text>
                 )}
@@ -548,6 +569,237 @@ export function ServiceStatusSheet({
           </>
         )}
       </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ── Reschedule: move the booking's delivery date & time ──────────────
+//
+// Writes ticket.estimatedDeliveryAt — the "Ready by" the booking flow sets
+// (ServicePriceEstimateScreen) and the "Delivery" Ticket Detail shows — through
+// the same partial PATCH /tickets/{id} the IMEI and Assign sheets use. The
+// picker mirrors that screen's Ready-by editor (month grid + hour / minute /
+// AM-PM), pure JS for the same reason: a native date picker would be a new
+// native module and a full rebuild.
+const RS_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+const RS_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const RS_HOURS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1).padStart(2, '0') }));
+const RS_MINUTES = Array.from({ length: 60 }, (_, m) => ({ value: m, label: String(m).padStart(2, '0') }));
+const RS_MERIDIEM = [{ value: 'AM', label: 'AM' }, { value: 'PM', label: 'PM' }];
+const RS_GREEN = '#09AD2A';
+
+const rsStartOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const rsStartOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+const rsSameDay = (a, b) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+// Weeks of `month` as rows of 7 Dates, spilling into the neighbouring months.
+const rsMonthWeeks = (month) => {
+  const y = month.getFullYear();
+  const m = month.getMonth();
+  const lead = new Date(y, m, 1).getDay();
+  const rows = Math.ceil((lead + new Date(y, m + 1, 0).getDate()) / 7);
+  return Array.from({ length: rows }, (_, w) =>
+    Array.from({ length: 7 }, (_, i) => new Date(y, m, 1 - lead + w * 7 + i)));
+};
+const rsFormat = (d) => {
+  const date = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  const h = d.getHours();
+  return `${date} · ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
+export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
+  const [day, setDay] = useState(() => rsStartOfDay(new Date()));
+  const [calMonth, setCalMonth] = useState(() => rsStartOfMonth(new Date()));
+  const [hour12, setHour12] = useState(10);
+  const [minute, setMinute] = useState(0);
+  const [meridiem, setMeridiem] = useState('AM');
+  const [saving, setSaving] = useState(false);
+
+  const current = booking?.estimatedDeliveryAt ? new Date(booking.estimatedDeliveryAt) : null;
+  const hasCurrent = !!current && !Number.isNaN(current.getTime());
+  const ref = String(booking?.trackingId || booking?.bookingNumber || '').replace(/^#+/, '');
+
+  // Open on the booking's current delivery time when it is still ahead, else on
+  // the next whole hour — never on a moment that has already passed.
+  useEffect(() => {
+    if (!visible) return;
+    const now = new Date();
+    let start = hasCurrent && current > now ? current : null;
+    if (!start) {
+      start = new Date(now);
+      start.setHours(now.getHours() + 1, 0, 0, 0);
+    }
+    setDay(rsStartOfDay(start));
+    setCalMonth(rsStartOfMonth(start));
+    setHour12(start.getHours() % 12 || 12);
+    setMinute(start.getMinutes());
+    setMeridiem(start.getHours() >= 12 ? 'PM' : 'AM');
+    setSaving(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, booking?.id]);
+
+  const picked = (() => {
+    const x = new Date(day);
+    x.setHours((hour12 % 12) + (meridiem === 'PM' ? 12 : 0), minute, 0, 0);
+    return x;
+  })();
+  const now = new Date();
+  const valid = picked.getTime() > now.getTime();
+  const today0 = rsStartOfDay(now);
+  const canPrev = rsStartOfMonth(calMonth) > rsStartOfMonth(now);
+
+  const save = async () => {
+    if (!booking?.id || saving || !valid) return;
+    setSaving(true);
+    try {
+      await ticketApi.patch(`/tickets/${booking.id}`, { body: { estimatedDeliveryAt: picked.toISOString() } });
+      notify('Rescheduled', `Booking${ref ? ` #${ref}` : ''} moved to ${rsFormat(picked)}.`, { preset: 'done' });
+      onUpdated?.();
+      onClose?.();
+    } catch (e) {
+      notify('Could not reschedule', e?.body?.error || e?.body?.message || e?.message || 'Please try again.', { preset: 'error', haptic: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const timeWell = { height: 42, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F3F3F3', justifyContent: 'center' };
+  const fieldLabel = (text) => (
+    <Text className="text-[10px] font-extrabold uppercase text-gray-400 mb-1.5" style={{ letterSpacing: 0.7 }}>{text}</Text>
+  );
+
+  return (
+    <SheetShell
+      visible={visible}
+      onClose={onClose}
+      title="Reschedule Booking"
+      subtitle={ref ? `Booking #${ref}` : null}
+      maxHeightRatio={0.92}
+    >
+      <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View
+          className="rounded-2xl px-3 py-2.5 mb-3"
+          style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
+        >
+          <Text className="text-[10px] text-gray-500">Current delivery</Text>
+          <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+            {hasCurrent ? rsFormat(current) : 'Not set'}
+          </Text>
+        </View>
+
+        {fieldLabel('New date')}
+        <View className="flex-row items-center">
+          <Pressable
+            onPress={() => setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+            disabled={!canPrev}
+            className="w-8 h-8 rounded-xl items-center justify-center active:opacity-70"
+            style={{ backgroundColor: '#F3F3F3', opacity: canPrev ? 1 : 0.35 }}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
+            <ChevronLeft size={16} color={TEXT_DARK} />
+          </Pressable>
+          <Text className="flex-1 text-center text-[13px] font-extrabold text-gray-900">
+            {RS_MONTHS[calMonth.getMonth()]}, {calMonth.getFullYear()}
+          </Text>
+          <Pressable
+            onPress={() => setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+            className="w-8 h-8 rounded-xl items-center justify-center active:opacity-70"
+            style={{ backgroundColor: '#F3F3F3' }}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
+            <ChevronRight size={16} color={TEXT_DARK} />
+          </Pressable>
+        </View>
+        <View className="flex-row mt-2.5">
+          {RS_WEEKDAYS.map((w) => (
+            <Text key={w} className="flex-1 text-center text-[10.5px] font-semibold text-gray-500">{w}</Text>
+          ))}
+        </View>
+        {rsMonthWeeks(calMonth).map((week, wi) => (
+          <View key={wi} className="flex-row mt-1">
+            {week.map((d) => {
+              const outside = d.getMonth() !== calMonth.getMonth();
+              const past = d < today0;
+              const sel = rsSameDay(d, day);
+              return (
+                <Pressable
+                  key={d.toISOString()}
+                  onPress={() => setDay(rsStartOfDay(d))}
+                  disabled={past}
+                  className="flex-1 items-center active:opacity-70"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sel, disabled: past }}
+                >
+                  <View
+                    style={{
+                      height: 32, width: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: sel ? RS_GREEN : 'transparent',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: sel ? '700' : '500',
+                        color: sel ? '#FFFFFF' : past ? '#C7CFC7' : outside ? '#8FA08F' : TEXT_DARK,
+                      }}
+                    >
+                      {String(d.getDate()).padStart(2, '0')}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+
+        <View className="flex-row items-end mt-4">
+          <View style={{ width: 78 }}>
+            {fieldLabel('Hour')}
+            <View style={timeWell}>
+              <Select value={hour12} options={RS_HOURS} menuWidth={130} menuTitle="HOUR" onChange={setHour12} className="h-full py-0 px-3 bg-transparent border-0" />
+            </View>
+          </View>
+          <View style={{ width: 78, marginLeft: 8 }}>
+            {fieldLabel('Minute')}
+            <View style={timeWell}>
+              <Select value={minute} options={RS_MINUTES} menuWidth={130} menuTitle="MINUTE" onChange={setMinute} className="h-full py-0 px-3 bg-transparent border-0" />
+            </View>
+          </View>
+          <View className="flex-1" />
+          <View style={{ width: 86 }}>
+            {fieldLabel('AM / PM')}
+            <View style={timeWell}>
+              <Select value={meridiem} options={RS_MERIDIEM} menuWidth={130} menuTitle="AM / PM" onChange={setMeridiem} className="h-full py-0 px-3 bg-transparent border-0" />
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      <View
+        className="rounded-2xl px-3 py-2.5 mt-3"
+        style={{ backgroundColor: valid ? '#EAF8EC' : 'rgba(220, 38, 38, 0.08)' }}
+      >
+        <Text className="text-[13px] font-extrabold" style={{ color: valid ? BRAND_GREEN_DARK : '#DC2626' }} numberOfLines={1}>
+          {rsFormat(picked)}
+        </Text>
+        <Text className="text-[10.5px] text-gray-500 mt-0.5">
+          {valid ? 'New delivery date & time for this booking.' : 'That time has already passed — pick a later one.'}
+        </Text>
+      </View>
+
+      <Pressable
+        onPress={save}
+        disabled={saving || !valid}
+        className="rounded-2xl items-center justify-center py-3.5 mt-3 active:opacity-90"
+        style={{ backgroundColor: BRAND_GREEN_DARK, opacity: saving || !valid ? 0.45 : 1 }}
+      >
+        {saving
+          ? <ActivityIndicator color="#FFFFFF" />
+          : <Text className="text-white text-[13px] font-extrabold">Reschedule</Text>}
+      </Pressable>
     </SheetShell>
   );
 }
@@ -652,7 +904,7 @@ export function ImeiGateSheet({
     >
       {mode === 'choose' ? (
         <>
-          <Text className="text-[12.5px] text-gray-500 mb-4">
+          <Text className="text-[12px] text-gray-500 mb-4">
             IMEI number is not available for this device. Please enter or scan the IMEI number.
           </Text>
           <ActionRow
@@ -684,7 +936,7 @@ export function ImeiGateSheet({
             editable={!busy}
             className="text-gray-900"
             style={{
-              fontSize: 17, fontWeight: '800', letterSpacing: 1.5,
+              fontSize: 15, fontWeight: '800', letterSpacing: 1.5,
               borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF',
               borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
             }}
@@ -694,7 +946,7 @@ export function ImeiGateSheet({
               {IMEI_MIN}–{IMEI_MAX} digits. Dial *#06# on the device to display it.
             </Text>
             <Pressable onPress={() => { onClose?.(); onScanRequest?.(booking); }} disabled={busy} hitSlop={8}>
-              <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+              <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                 Scan instead
               </Text>
             </Pressable>
@@ -716,7 +968,7 @@ export function ImeiGateSheet({
             >
               {busy
                 ? <ActivityIndicator color="#FFFFFF" />
-                : <Text className="text-white text-[13.5px] font-extrabold">Verify &amp; Continue</Text>}
+                : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
             </Pressable>
           </View>
         </>
@@ -887,7 +1139,7 @@ export function TechnicianPickerSheet({
           />
         ) : techs.length === 0 ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               No technicians yet. Add one from Employee Management.
             </Text>
           </View>
@@ -904,7 +1156,7 @@ export function TechnicianPickerSheet({
                 className="flex-row items-center mb-2.5 active:opacity-70"
               >
                 <ChevronLeft size={15} color={BRAND_GREEN_DARK} />
-                <Text className="text-[11.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>
+                <Text className="text-[11px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>
                   Back to assigned technician
                 </Text>
               </Pressable>
@@ -943,7 +1195,7 @@ export function TechnicianPickerSheet({
                     <UserRound size={18} color="#667066" />
                   </View>
                   <View className="flex-1 pr-2">
-                    <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
                       {t.name || 'Technician'}
                     </Text>
                     <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -964,7 +1216,7 @@ export function TechnicianPickerSheet({
                   ) : (
                     // "Re-Assign" once somebody holds the booking — tapping
                     // this row takes it off them, which "Assign" hid.
-                    <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                    <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                       {hasAssignee ? 'Re-Assign' : 'Assign'}
                     </Text>
                   )}
@@ -1003,7 +1255,7 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
           <UserRound size={18} color={BRAND_GREEN_DARK} />
         </View>
         <View className="flex-1 pr-2">
-          <Text className="text-[13.5px] font-extrabold text-gray-900" numberOfLines={1}>
+          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
             {tech?.name || 'Technician'}
           </Text>
           <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
@@ -1025,15 +1277,6 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
           ? 'This technician has accepted the service.'
           : 'Awaiting this technician’s acceptance.'}
       </Text>
-
-      {phone ? (
-        <ActionRow
-          icon={<Phone size={18} color={TINT.green.fg} />}
-          tint={TINT.green}
-          title={`Call ${phone}`}
-          onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
-        />
-      ) : null}
 
       <ActionRow
         icon={<UserCog size={18} color={TINT.amber.fg} />}
@@ -1058,70 +1301,54 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
 //
 // GGFIX palette — same values used across the rest of the app's redesigned
 // screens this pass.
-const SHARE_ACCENT = '#004C40';
-const SHARE_PRIMARY = '#006B57';
-const SHARE_BRIGHT = '#00A86B';
-const SHARE_MINT = '#E8F7F2';
-const SHARE_SOFT_MINT = '#F4FBF8';
-const SHARE_BORDER = '#DCE7E2';
-const SHARE_TEXT_SECONDARY = '#667085';
+const SHARE_ACCENT = '#09AD2A';
+const SHARE_SOFT_MINT = '#F8F8F8';
+const SHARE_BORDER = '#E6E6E6';
+const SHARE_TEXT_SECONDARY = '#6B6B6B';
 
-// All five "Share to" shortcuts open the SAME real native share sheet with
-// the SAME captured receipt image. Expo/RN has no reliable, cross-platform
-// way to hand an image directly to one specific installed app (WhatsApp's
-// own URL scheme only accepts text, not an attachment) without a native
-// module this project doesn't have — rather than fake a direct launch that
-// silently drops the image, every shortcut is honest about triggering the
-// real OS share sheet, where the labelled app is picked from if installed.
-const SHARE_TARGETS = [
-  { key: 'whatsapp', label: 'WhatsApp Business', icon: MessageSquare },
-  { key: 'gmail', label: 'Gmail', icon: Mail },
-  { key: 'quickshare', label: 'Quick Share', icon: Send },
-  { key: 'files', label: 'File Manager', icon: FolderOpen },
-  { key: 'more', label: 'More', icon: MoreHorizontal },
-];
-
-export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, preparing }) {
+// One action: Share to WhatsApp (lib/whatsappShare) — the receipt image goes
+// straight into WhatsApp / WhatsApp Business, never the system share sheet or
+// any other app.
+export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
-  const previewWidth = Math.round(Math.min(winW * 0.76, 340));
+  // Receipt preview: most of a phone's width, capped so it stays a receipt
+  // (not a poster) on tablets. The sheet's content column is capped too.
+  const previewWidth = Math.round(Math.min(winW - 56, 360));
+  const columnStyle = { width: '100%', maxWidth: 560, alignSelf: 'center' };
   const receiptRef = useRef(null);
   const [sharing, setSharing] = useState(false);
+  // Shop name + picture for the receipt header, off the logged-in session.
+  const [shop, setShop] = useState(null);
+  useEffect(() => {
+    if (!visible) return undefined;
+    let cancelled = false;
+    getSession()
+      .then((sess) => { if (!cancelled) setShop(receiptShopFromSession(sess)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [visible]);
 
-  const doShareImage = useCallback(async () => {
+  const doShareWhatsApp = useCallback(async () => {
     if (!ticket || sharing) return;
     setSharing(true);
     try {
-      // The receipt can still be laying out on the very first open — retry
-      // briefly rather than dropping straight to a text-only share, which
-      // would look like the image share is broken.
-      let uri = null;
-      for (const wait of [0, 150, 400]) {
-        if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-        try {
-          uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
-          break;
-        } catch (_) { /* not laid out yet — retry, then fall back */ }
-      }
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-      await Share.share({ message: buildReceiptMessage(ticket), title: `Booking ${ticket.trackingId || ticket.id}` });
+      await shareReceiptToWhatsApp({
+        viewRef: receiptRef,
+        message: buildReceiptMessage(ticket, shop),
+        phone: ticket.customerPhone,
+        filename: `ggfix-receipt-${String(ticket.trackingId || ticket.id || '').replace(/^#+/, '')}`,
+      });
     } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
+      notify('Share failed', e?.message || 'Could not open WhatsApp.', { preset: 'error' });
     } finally {
       setSharing(false);
     }
-  }, [ticket, sharing]);
+  }, [ticket, sharing, shop]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(11, 31, 20, 0.55)', justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.55)', justifyContent: 'flex-end' }}>
         <View
           style={{
             backgroundColor: '#FFFFFF',
@@ -1133,12 +1360,13 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
         >
           <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: SHARE_BORDER, marginTop: 10, marginBottom: 4 }} />
 
+          <View style={[columnStyle, { flexShrink: 1 }]}>
           {/* Header */}
           <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
             <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: 20, color: '#111827' }}>Share image</Text>
-              <Text style={{ fontSize: 12.5, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
-                Share this booking receipt via your favourite apps
+              <Text className="font-extrabold" style={{ fontSize: 17, color: '#1E1E1E' }}>Share image</Text>
+              <Text style={{ fontSize: 11, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
+                Share this booking receipt on WhatsApp
               </Text>
             </View>
             <Pressable
@@ -1147,13 +1375,12 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
               className="items-center justify-center"
               style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
             >
-              <X size={18} color="#111827" />
+              <X size={18} color="#1E1E1E" />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
-            {/* Receipt preview — ONLY this View is captured for the shared
-                image; the floating edit button below sits outside it. */}
+            {/* Receipt preview — ONLY the ViewShot is captured for the shared image. */}
             <View className="items-center" style={{ marginTop: 14 }}>
               <View style={{ width: previewWidth }}>
                 {!ticket ? (
@@ -1166,79 +1393,49 @@ export function ShareReceiptSheet({ visible, onClose, ticket, technicianName, pr
                 ) : (
                   <View
                     style={{
-                      borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER,
-                      shadowColor: '#0B1F14', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
+                      borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: '#FFFFFF',
+                      shadowColor: '#1E1E1E', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
                     }}
                   >
                     <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-                      <ReceiptCard ticket={ticket} technicianName={technicianName} />
+                      <ReceiptCard ticket={ticket} shop={shop} />
                     </ViewShot>
                   </View>
                 )}
-                {/* Floating edit/customize button — no receipt-customization
-                    feature exists yet in this app, so this says so rather
-                    than pretending to open one. */}
-                <Pressable
-                  onPress={() => notify('Coming soon', "Customizing the receipt before sharing isn't available yet.")}
-                  className="items-center justify-center"
-                  style={{
-                    position: 'absolute', right: -8, bottom: -8,
-                    height: 44, width: 44, borderRadius: 22,
-                    backgroundColor: SHARE_MINT, borderWidth: 3, borderColor: '#FFFFFF',
-                    alignItems: 'center', justifyContent: 'center',
-                    shadowColor: '#0B1F14', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
-                  }}
-                >
-                  <View className="items-center justify-center" style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: SHARE_ACCENT }}>
-                    <Pencil size={14} color="#FFFFFF" />
-                  </View>
-                </Pressable>
               </View>
             </View>
 
-            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 22, marginHorizontal: 18 }} />
+            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 18, marginHorizontal: 18 }} />
 
-            {/* Share to */}
-            <View className="flex-row items-center justify-between" style={{ marginTop: 16, marginHorizontal: 18 }}>
-              <Text className="font-extrabold" style={{ fontSize: 14, color: '#111827' }}>Share to</Text>
-            </View>
-            <View className="flex-row" style={{ marginTop: 12, paddingHorizontal: 18 }}>
-              {SHARE_TARGETS.map((t, i) => (
-                <ShareTargetButton
-                  key={t.key}
-                  icon={t.icon}
-                  label={t.label}
-                  selected={i === 0}
-                  disabled={!ticket || sharing}
-                  busy={sharing}
-                  onPress={doShareImage}
-                />
-              ))}
+            {/* Share to WhatsApp — the only share action. */}
+            <View style={{ marginTop: 16, marginHorizontal: 18 }}>
+              <Pressable
+                onPress={doShareWhatsApp}
+                disabled={!ticket || sharing}
+                accessibilityRole="button"
+                accessibilityLabel="Share to WhatsApp"
+                style={{
+                  height: 48, borderRadius: 14, backgroundColor: SHARE_ACCENT,
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  opacity: !ticket ? 0.5 : sharing ? 0.8 : 1,
+                  shadowColor: SHARE_ACCENT, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+                }}
+              >
+                {sharing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                    <Text style={{ marginLeft: 8, fontSize: 15, fontWeight: '800', color: '#FFFFFF' }}>Share to WhatsApp</Text>
+                  </>
+                )}
+              </Pressable>
             </View>
           </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
-  );
-}
-
-function ShareTargetButton({ icon: Icon, label, selected, disabled, busy, onPress }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} className="items-center" style={{ flex: 1, opacity: disabled && !busy ? 0.5 : 1 }}>
-      <View
-        className="items-center justify-center"
-        style={{
-          height: 52, width: 52, borderRadius: 16,
-          backgroundColor: selected ? SHARE_MINT : SHARE_SOFT_MINT,
-          borderWidth: 1, borderColor: selected ? SHARE_BRIGHT : SHARE_BORDER,
-        }}
-      >
-        {busy ? <ActivityIndicator size="small" color={SHARE_ACCENT} /> : <Icon size={22} color={SHARE_ACCENT} />}
-      </View>
-      <Text className="text-center font-semibold" style={{ fontSize: 10, color: '#111827', marginTop: 6 }} numberOfLines={2}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -1296,7 +1493,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
         style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
       >
         <Text className="text-[10px] text-gray-500">Current status</Text>
-        <Text className="text-[14px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+        <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
           {statusLabel || booking?.status || 'Pending'}
         </Text>
       </View>
@@ -1331,7 +1528,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
 
       {!isUnconfirmed && !atShop ? (
         <View style={{ paddingVertical: 4, paddingHorizontal: 2 }}>
-          <Text className="text-[12.5px] text-gray-500">
+          <Text className="text-[12px] text-gray-500">
             Nothing for the shop to do at this stage — the pickup person moves it
             from here in the employee app. Open Details for the full timeline.
           </Text>
@@ -1452,7 +1649,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
       <View>
         {isUnconfirmed ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               Confirm the pickup request first — Service Status → Confirm pickup
               request — then come back to assign someone.
             </Text>
@@ -1463,7 +1660,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
           </View>
         ) : people.length === 0 ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
-            <Text className="text-[12.5px] text-gray-500">
+            <Text className="text-[12px] text-gray-500">
               No pickup persons yet. Add staff with the "Pickup Person" role from
               Employee Management.
             </Text>
@@ -1504,7 +1701,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                         assigned/unassigned swap can't be lost to className
                         merging. */}
                     <Text
-                      className="text-[13.5px] font-extrabold"
+                      className="text-[13px] font-extrabold"
                       style={{ color: isAssigned ? ASSIGNED_RED : TEXT_DARK }}
                       numberOfLines={1}
                     >
@@ -1526,7 +1723,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                   ) : (
                     // "Reassign" once somebody holds the pickup — tapping this
                     // row takes it off them, which "Assign" hid.
-                    <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                    <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                       {hasAssignee ? 'Reassign' : 'Assign'}
                     </Text>
                   )}

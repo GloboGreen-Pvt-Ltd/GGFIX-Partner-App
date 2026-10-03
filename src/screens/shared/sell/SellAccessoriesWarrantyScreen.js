@@ -1,24 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import colors from '../../../theme/colors';
-import { Card, PrimaryButton } from '../../../components/ui';
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 10 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
-  accTile: { width: '31.33%', marginHorizontal: '1%', marginBottom: 6, paddingVertical: 10, paddingHorizontal: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', minHeight: 88 },
-  accTileActive: { borderColor: '#004C40', borderWidth: 2, backgroundColor: '#F0F8EF' },
-  accLabel: { fontSize: 10, lineHeight: 13, color: colors.text, marginTop: 6, textAlign: 'center', fontWeight: '600' },
-  warrantyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginTop: 8 },
-  warrantyRowActive: { borderColor: '#004C40', backgroundColor: '#F0F8EF' },
-  warrantyLabel: { marginLeft: 10, fontSize: 14, color: colors.text, fontWeight: '600' },
-  editBanner: { backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center' },
-  editBannerTitle: { fontSize: 10, fontWeight: '800', color: '#92400E', letterSpacing: 0.5 },
-  editBannerText: { fontSize: 12, color: colors.text, fontWeight: '600', marginTop: 2 },
-  bottom: { padding: 12, backgroundColor: '#fff', borderTopColor: colors.border, borderTopWidth: 1 },
-});
+import { SELL, SellButton, SellCard, SellFooter, SellIntro, EditingBanner, CheckDot, RadioRing } from './sellTheme';
 
 const MOBILE_ACCESSORIES = [
   { id: 'original_charger', label: 'Original Charger', icon: 'flash-outline' },
@@ -29,11 +12,13 @@ const LAPTOP_ACCESSORIES = [
   { id: 'original_charger', label: 'Original Charger', icon: 'flash-outline' },
 ];
 
+// `label` is what the listing stores (warrantyLabel) and stays as-is;
+// `title` is the on-screen wording with the spelling fixed.
 const WARRANTY = [
-  { id: 'lt_3', label: 'Less then 3 months' },
-  { id: '3_6', label: '3 - 6 months' },
-  { id: '6_11', label: '6 - 11 months' },
-  { id: 'gt_11', label: 'More then 11 months' },
+  { id: 'lt_3', label: 'Less then 3 months', title: 'Less than 3 months' },
+  { id: '3_6', label: '3 - 6 months', title: '3 - 6 months' },
+  { id: '6_11', label: '6 - 11 months', title: '6 - 11 months' },
+  { id: 'gt_11', label: 'More then 11 months', title: 'More than 11 months' },
 ];
 
 // Laptop/audio/watch sell flows don't carry a warranty option.
@@ -70,7 +55,7 @@ export default function SellAccessoriesWarrantyScreen({ navigation, route }) {
 
   useEffect(() => {
     if (isLaptopLike) {
-      navigation.setOptions?.({ title: 'Accessoires' });
+      navigation.setOptions?.({ title: 'Accessories' });
     }
   }, [isLaptopLike, navigation]);
 
@@ -78,50 +63,75 @@ export default function SellAccessoriesWarrantyScreen({ navigation, route }) {
     setAccessories((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 12 }}>
-        {isEditing ? (
-          <View style={styles.editBanner}>
-            <Ionicons name="create-outline" size={16} color="#92400E" />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.editBannerTitle}>EDITING ORDER</Text>
-              <Text style={styles.editBannerText}>Your previous accessories and warranty are pre-selected.</Text>
-            </View>
-          </View>
-        ) : null}
-        <Card style={{ padding: 10, marginVertical: 4 }}>
-          <Text style={styles.sectionTitle}>Accessories</Text>
-          <View style={styles.row}>
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+        {isEditing ? <EditingBanner text="Your previous accessories and warranty are pre-selected." /> : null}
+        <SellIntro
+          title={isLaptopLike ? 'Accessories' : 'Accessories & warranty'}
+          caption={isLaptopLike ? 'Tap everything that applies to the device.' : 'Tap everything that applies, then pick the remaining warranty.'}
+        />
+        <SellCard>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink, marginBottom: 10 }}>Accessories</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
             {ACCESSORIES.map((a) => {
               const active = accessories.includes(a.id);
               return (
-                <TouchableOpacity key={a.id} style={[styles.accTile, active && styles.accTileActive]} onPress={() => toggleAcc(a.id)}>
-                  <Ionicons name={a.icon} size={22} color={active ? '#004C40' : colors.textSecondary} />
-                  <Text style={styles.accLabel}>{a.label}</Text>
-                </TouchableOpacity>
+                <View key={a.id} style={{ width: '33.333%', padding: 4 }}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => toggleAcc(a.id)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: active }}
+                    style={{
+                      minHeight: 92, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5,
+                      alignItems: 'center', justifyContent: 'center',
+                      borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.greenLight : SELL.card,
+                    }}
+                  >
+                    <View style={{ height: 34, width: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? SELL.card : SELL.soft }}>
+                      <Ionicons name={a.icon} size={18} color={active ? SELL.green : SELL.muted} />
+                    </View>
+                    <Text style={{ fontSize: 11, lineHeight: 15, marginTop: 6, textAlign: 'center', fontWeight: active ? '700' : '600', color: active ? SELL.greenDark : SELL.ink }} numberOfLines={3}>
+                      {a.label}
+                    </Text>
+                    {active ? <View style={{ position: 'absolute', top: 6, right: 6 }}><CheckDot size={16} /></View> : null}
+                  </TouchableOpacity>
+                </View>
               );
             })}
           </View>
-        </Card>
+        </SellCard>
 
         {!isLaptopLike ? (
-          <Card style={{ padding: 10, marginVertical: 4 }}>
-            <Text style={styles.sectionTitle}>Warranty</Text>
+          <SellCard>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink, marginBottom: 4 }}>Warranty left</Text>
             {WARRANTY.map((w) => {
               const active = warranty === w.id;
               return (
-                <TouchableOpacity key={w.id} style={[styles.warrantyRow, active && styles.warrantyRowActive]} onPress={() => setWarranty(w.id)}>
-                  <Ionicons name={active ? 'checkmark-circle' : 'radio-button-off'} size={22} color={active ? '#004C40' : colors.textSecondary} />
-                  <Text style={styles.warrantyLabel}>{w.label}</Text>
+                <TouchableOpacity
+                  key={w.id}
+                  activeOpacity={0.85}
+                  onPress={() => setWarranty(w.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: 12, marginTop: 8,
+                    borderRadius: 12, borderWidth: 1.5,
+                    borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.greenLight : SELL.card,
+                  }}
+                >
+                  {active ? <CheckDot size={20} /> : <RadioRing size={20} />}
+                  <Text style={{ marginLeft: 10, fontSize: 13, fontWeight: active ? '700' : '600', color: active ? SELL.greenDark : SELL.ink }}>{w.title}</Text>
                 </TouchableOpacity>
               );
             })}
-          </Card>
+          </SellCard>
         ) : null}
       </ScrollView>
-      <View style={styles.bottom}>
-        <PrimaryButton
-          title="Continue →"
+      <SellFooter caption={!isLaptopLike && !warranty ? 'Pick the warranty to continue' : null}>
+        <SellButton
+          title="Continue"
+          arrow
           disabled={!isLaptopLike && !warranty}
           onPress={() =>
             navigation.navigate('SellImages', {
@@ -132,7 +142,7 @@ export default function SellAccessoriesWarrantyScreen({ navigation, route }) {
             })
           }
         />
-      </View>
+      </SellFooter>
     </View>
   );
 }

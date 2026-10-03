@@ -84,7 +84,7 @@ export async function uploadMedia(asset, folder = 'sell', { slot } = {}) {
 function normalizeMatch(m) {
   return {
     id: m.id,
-    displayName: [m.brand, m.model].filter(Boolean).join(' ') || m.model || 'Unknown device',
+    displayName: m.displayName || [m.brand, m.model].filter(Boolean).join(' ') || m.model || 'Unknown device',
     brand: m.brand ?? null,
     modelName: m.model ?? null,
     modelCode: m.modelCode ?? (m.modelNumbers || [])[0] ?? null,
@@ -95,6 +95,36 @@ function normalizeMatch(m) {
     confidence: m.confidence ?? null,
     matchedBy: m.matchedBy ?? 'visual',
     categoryName: m.categoryName ?? null,
+  };
+}
+
+/**
+ * Google-Lens-style "what device is this?" — master-data's
+ * POST /master/device-identify sends the photo to Google Cloud Vision
+ * server-side (the key never ships in the app) and ranks GGFIX catalogue
+ * models against what Google recognised, e.g. "samsung galaxy s8+" →
+ * Galaxy S8 Plus, then Galaxy S8.
+ *
+ * Resolves to { configured, confidence, labels, brand, bestMatch, matches, error }.
+ * configured=false means the server has no Google key yet — callers fall back.
+ */
+export async function identifyDevice(asset, { limit = 8 } = {}) {
+  if (!asset?.uri) return { configured: false, confidence: 'low', labels: [], brand: null, bestMatch: null, matches: [] };
+  const name = asset.fileName || asset.name || asset.uri.split('/').pop() || 'scan.jpg';
+  const res = await masterApi.upload('/master/device-identify', {
+    uri: asset.uri,
+    name,
+    type: asset.mimeType || asset.type || mimeFromName(name),
+    fields: { limit },
+  });
+  return {
+    configured: res?.configured !== false,
+    confidence: res?.confidence || 'low',
+    labels: Array.isArray(res?.labels) ? res.labels : [],
+    brand: res?.brand || null,
+    error: res?.error || null,
+    bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
+    matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
   };
 }
 
@@ -231,6 +261,42 @@ export async function getDeviceCategories() {
   return unwrap(await masterApi.get('/master/device-categories'));
 }
 
+// Admin-managed Category Menu (Management Portal → Category Menu) — the menu
+// rows shown on the Repair / Sell / Buy entry screens: menuName, imageUrl,
+// description, isActive, sortOrder. Read-only here.
+export async function getCategoryMenu(categoryType) {
+  return unwrap(await masterApi.get(`/master/category-menu?categoryType=${encodeURIComponent(categoryType)}`));
+}
+
+/**
+ * Key that lines a Category Menu row up with a device category by name:
+ * drops the "Buy / Sell / Repair" prefix, punctuation and a plural ending, so
+ * "Buy Smartwatch" meets "Smartwatches" and "Sell Audio Device" meets "Audio Device".
+ */
+export function categoryMenuKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^\s*(buy|sell|repair)\s+/, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(es|s)$/, '');
+}
+
+/**
+ * { categoryMenuKey: imageUrl } for one menu type. Never rejects.
+ * Active rows only, unless `includeInactive` — for screens that use the menu
+ * purely as tile art for categories they list anyway (an active row's image
+ * still wins over an inactive one with the same key).
+ */
+export async function getCategoryMenuImages(categoryType, { includeInactive = false } = {}) {
+  const rows = await getCategoryMenu(categoryType).catch(() => []);
+  const out = {};
+  const usable = (Array.isArray(rows) ? rows : [])
+    .filter((m) => m && (includeInactive || m.isActive === true) && m.imageUrl && String(m.imageUrl).trim())
+    .sort((a, b) => Number(a.isActive === true) - Number(b.isActive === true));
+  usable.forEach((m) => { out[categoryMenuKey(m.menuName)] = String(m.imageUrl).trim(); });
+  return out;
+}
+
 export async function getSeriesByBrand(brandId) {
   if (!brandId) return [];
   return unwrap(await masterApi.get(`/master/brands/${brandId}/series`));
@@ -320,7 +386,14 @@ export async function getModelOptions(modelId) {
     }
   }
 
-  return { colors, specs, modelNumbers, otherNumbers, allColors, allRams, allStorages };
+  return {
+    colors, specs, modelNumbers, otherNumbers, allColors, allRams, allStorages,
+    // For the category-specific forms (utils/deviceSpecs.js): the model's own
+    // category, and its raw RAM/storage strings — a watch or earbuds model whose
+    // ramStorage lists real sizes is what unlocks an optional storage field.
+    categoryId: model?.categoryId || null,
+    ramStorage: rawSpecs,
+  };
 }
 
 // Repair categories

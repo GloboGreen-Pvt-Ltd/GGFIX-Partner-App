@@ -14,9 +14,11 @@ import {
   ArrowLeft,
   ArrowUp,
   BookText,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   ListFilter,
+  ShieldCheck,
   UserPlus,
   UserRound,
 } from 'lucide-react-native';
@@ -45,6 +47,7 @@ import {
   balanceTone,
   deleteParty,
   getLedgerPeriod,
+  getStatement,
   listParties,
   partyCopy,
   toApiDate,
@@ -57,7 +60,7 @@ import {
    balance it stands at. The TODAY / THIS WEEK / MONTH chips are the same ledger
    read the other way round: every movement in a window, whoever it was with.
 
-   The five chips are one exclusive selector rather than two rows because they
+   The six chips are one exclusive selector rather than two rows because they
    answer one question — "what am I looking at" — and a second row of tabs on a
    screen with no summary above it reads as chrome.
 
@@ -69,6 +72,7 @@ import {
 const MENU = [
   { key: PARTY_CUSTOMER, label: 'Customer', kind: 'party' },
   { key: PARTY_SUPPLIER, label: 'Supplier', kind: 'party' },
+  { key: 'default', label: 'Default', kind: 'default' },
   { key: 'today', label: 'Today', kind: 'period' },
   { key: 'week', label: 'This Week', kind: 'period' },
   { key: 'month', label: 'Month', kind: 'period' },
@@ -192,6 +196,60 @@ function summarise(parties) {
   };
 }
 
+/* ── defaulters ─────────────────────────────────────────────────────────
+   The DEFAULT chip: every customer or supplier who promised to pay by a date
+   (the Due Date set on their account) and still owes the shop once that date
+   has passed. Nothing is flagged by hand — an account lands here on its own the
+   day after its due date, and leaves the moment it is settled or given a new
+   date. Accounts with no due date are never listed: without a promise there is
+   nothing to have broken. Only money owed TO the shop counts (balance > 0),
+   the same side the due date itself can only be set on. */
+
+/** Promise.all with at most `limit` calls in flight. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** Both books, narrowed to the accounts in default, longest-overdue first. */
+async function loadDefaulters(now = new Date()) {
+  const [customers, suppliers] = await Promise.all([
+    listParties(PARTY_CUSTOMER),
+    listParties(PARTY_SUPPLIER),
+  ]);
+  const owing = [
+    ...customers.map((p) => ({ ...p, partyType: PARTY_CUSTOMER })),
+    ...suppliers.map((p) => ({ ...p, partyType: PARTY_SUPPLIER })),
+  ].filter((p) => (Number(p.balance) || 0) > 0);
+
+  // The due date is a column on the account; a list row that doesn't carry the
+  // key at all (an older server) gets it from the account's own statement —
+  // only for accounts that owe money, so the extra reads stay few.
+  const withDue = await mapLimit(owing, 6, async (p) => {
+    if ('dueDate' in p) return p;
+    const st = await getStatement(p.id).catch(() => null);
+    return { ...p, dueDate: st?.party?.dueDate ?? null };
+  });
+
+  const today = startOfDay(now);
+  return withDue
+    .map((p) => {
+      const due = parseApiDate(p.dueDate);
+      if (!due || due >= today) return null;
+      return { ...p, daysLate: Math.round((today - due) / 86400000) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.daysLate - a.daysLate || (Number(b.balance) || 0) - (Number(a.balance) || 0));
+}
+
 // avatarFor now lives in ./ledgerUi, shared by all four screens that draw an
 // account monogram — four private copies of the same hash would drift, and the
 // colour is only a recognition cue if it is the same one everywhere.
@@ -204,6 +262,7 @@ export default function OwnerCashBookScreen({ navigation }) {
 
   const [parties, setParties] = useState([]);
   const [period, setPeriod] = useState(EMPTY_PERIOD);
+  const [defaulters, setDefaulters] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -213,7 +272,12 @@ export default function OwnerCashBookScreen({ navigation }) {
   const [filterOpen, setFilterOpen] = useState(false);
 
   const showingParties = isPartyView(view);
+  const showingDefault = view === 'default';
   const copy = partyCopy(view);
+  const defaultTotal = useMemo(
+    () => defaulters.reduce((sum, p) => sum + (Number(p.balance) || 0), 0),
+    [defaulters],
+  );
 
   const visibleParties = useMemo(() => applyLedgerFilter(parties, filter), [parties, filter]);
 
@@ -225,28 +289,30 @@ export default function OwnerCashBookScreen({ navigation }) {
   const filtered = !isDefaultFilter(filter);
 
   const range = useMemo(
-    () => periodRange(showingParties ? 'today' : view, monthAnchor),
-    [showingParties, view, monthAnchor],
+    () => periodRange(showingParties || showingDefault ? 'today' : view, monthAnchor),
+    [showingParties, showingDefault, view, monthAnchor],
   );
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      if (showingParties) setParties(await listParties(view));
+      if (showingDefault) setDefaulters(await loadDefaulters());
+      else if (showingParties) setParties(await listParties(view));
       else setPeriod(await getLedgerPeriod({ from: toApiDate(range.from), to: toApiDate(range.to) }));
     } catch (e) {
       // Both books are owner-only on the server; a technician token gets 403.
       setError(e?.status === 403
         ? 'The cash book is available to the shop owner only.'
         : (e?.message || 'Failed to load the cash book'));
-      if (showingParties) setParties([]);
+      if (showingDefault) setDefaulters([]);
+      else if (showingParties) setParties([]);
       else setPeriod(EMPTY_PERIOD);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showingParties, view, range.from, range.to]);
+  }, [showingParties, showingDefault, view, range.from, range.to]);
 
   // Refetches on focus, which is also how an account added on the Add screen —
   // or an entry recorded on the statement — shows up here without threading a
@@ -370,6 +436,63 @@ export default function OwnerCashBookScreen({ navigation }) {
     );
   };
 
+  // A defaulter: who, which book, the date they promised and how late they are,
+  // and the amount still owed — the "default amount". Tap opens the account,
+  // where Call / WhatsApp reminder are one tap away.
+  const renderDefaulterRow = ({ item }) => {
+    const { color, ink, initial } = avatarFor(item.name);
+    const typeLabel = partyCopy(item.partyType).one;
+    return (
+      <Pressable
+        onPress={() => openParty(item)}
+        className="flex-row items-center active:opacity-70"
+        style={{ paddingVertical: S.sm, paddingHorizontal: S.tight }}
+      >
+        <View
+          className="items-center justify-center"
+          style={{
+            height: SIZE.avatarLg,
+            width: SIZE.avatarLg,
+            borderRadius: SIZE.avatarLg / 2,
+            marginRight: S.md,
+            backgroundColor: color,
+          }}
+        >
+          <Text className="font-extrabold" style={{ fontSize: avatarInitialSize(SIZE.avatarLg), color: ink }}>
+            {initial}
+          </Text>
+        </View>
+
+        <View className="flex-1" style={{ paddingRight: S.sm }}>
+          <View className="flex-row items-center">
+            <Text className="font-extrabold flex-shrink" style={{ fontSize: T.rowTitle, color: C.ink }} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <View
+              className="rounded-full"
+              style={{ marginLeft: S.tight, paddingHorizontal: rs(6), paddingVertical: rs(1), backgroundColor: C.greenSoft }}
+            >
+              <Text className="font-bold" style={{ fontSize: rs(9), color: C.green }}>{typeLabel}</Text>
+            </View>
+          </View>
+          <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+            <CalendarClock size={rs(11)} color={C.red} />
+            <Text style={{ fontSize: T.rowSub, color: C.red, marginLeft: S.tight, flex: 1 }} numberOfLines={1}>
+              Due {niceDate(item.dueDate)} · {item.daysLate} {item.daysLate === 1 ? 'day' : 'days'} late
+            </Text>
+          </View>
+        </View>
+
+        <View className="items-end">
+          <Text className="font-extrabold" style={{ fontSize: T.rowAmount, color: C.red }}>
+            {money(item.balance)}
+          </Text>
+          <Text style={{ fontSize: T.caption, color: C.muted }}>Default</Text>
+        </View>
+      </Pressable>
+    );
+  };
+
   const renderEntryRow = ({ item }) => {
     if (item._type === 'day') {
       return (
@@ -424,7 +547,9 @@ export default function OwnerCashBookScreen({ navigation }) {
 
   /* ── render ───────────────────────────────────────────────────────── */
 
-  const listIsEmpty = showingParties ? parties.length === 0 : period.entries.length === 0;
+  const listIsEmpty = showingDefault ? defaulters.length === 0
+    : showingParties ? parties.length === 0
+    : period.entries.length === 0;
 
   return (
     <View className="flex-1 bg-background">
@@ -459,7 +584,7 @@ export default function OwnerCashBookScreen({ navigation }) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        // The five chips overflow a phone's width; without this the last one is
+        // The six chips overflow a phone's width; without this the last one is
         // unreachable rather than merely off-screen.
         //
         // flexGrow: 0 is load-bearing: ScrollView's base style grows, so in this
@@ -625,9 +750,46 @@ export default function OwnerCashBookScreen({ navigation }) {
         </View>
       ) : null}
 
+      {/* ── Default total ── how many accounts are past their promised date and
+          what they owe between them. Safe to sum across both books: every row
+          here is money owed TO the shop (balance > 0). */}
+      {showingDefault && defaulters.length ? (
+        <View
+          className="flex-row items-center"
+          style={{
+            marginHorizontal: S.gutter,
+            marginTop: S.xs,
+            paddingVertical: S.sm,
+            paddingHorizontal: S.md,
+            borderRadius: SIZE.radius,
+            backgroundColor: '#FEECEC',
+            borderWidth: 1,
+            borderColor: '#FBD0D0',
+          }}
+        >
+          <View className="flex-1" style={{ paddingRight: S.sm }}>
+            <Text className="font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }}>
+              Payment Delayed
+            </Text>
+            <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+              <UserRound size={rs(11)} color={C.muted} />
+              <Text style={{ fontSize: T.rowSub, color: C.muted, marginLeft: S.tight }}>
+                {defaulters.length} {defaulters.length === 1 ? 'Account' : 'Accounts'} past due date
+              </Text>
+            </View>
+          </View>
+          <View className="items-end">
+            <Text className="font-extrabold" style={{ fontSize: T.rowAmount, color: C.red }}>
+              {money(defaultTotal)}
+            </Text>
+            <Text style={{ fontSize: T.caption, color: C.muted }}>Default Amount</Text>
+          </View>
+        </View>
+      ) : null}
+
       {/* Period totals. Only on the period views — the account list has the Net
           Balance card above instead. */}
-      {!showingParties && period.entries.length ? (
+      {!showingParties && !showingDefault && period.entries.length ? (
         <View
           className="flex-row"
           style={{
@@ -674,6 +836,30 @@ export default function OwnerCashBookScreen({ navigation }) {
 
       {loading && listIsEmpty ? (
         <Loader label="Loading cash book..." />
+      ) : showingDefault ? (
+        <FlatList
+          data={defaulters}
+          keyExtractor={(p) => `${p.partyType}:${p.id}`}
+          renderItem={renderDefaulterRow}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: 1, backgroundColor: C.hairline, marginLeft: S.tight + SIZE.avatarLg + S.md }} />
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.green} colors={[C.green]} />
+          }
+          contentContainerStyle={{
+            paddingHorizontal: S.gutter,
+            paddingTop: S.tight,
+            paddingBottom: S.xl + bottomInset(insets.bottom, S.sm),
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              icon={<ShieldCheck size={rs(22)} color={C.green} />}
+              title="No defaulters"
+              description="No customer or supplier has missed a promised date. Set a Due Date on an account that owes you, and it shows here automatically once that date passes."
+            />
+          }
+        />
       ) : showingParties ? (
         <FlatList
           data={visibleParties}

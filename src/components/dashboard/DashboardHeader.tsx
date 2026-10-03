@@ -11,6 +11,7 @@ import {
   HEADER_ACTION_STROKE,
   MIN_TOUCH,
   PINE,
+  SERIF,
   SHOP_NAME_COLOR,
   T,
   Touchable,
@@ -80,11 +81,11 @@ export function DashboardHeader({
   const maxContentWidth = isTablet ? 1000 : undefined;
 
   const avatarSize = isTablet ? 56 : 52;
-  const shopNameSize = isTablet ? 22 : cls === 'large' ? 19 : T.headline;
+  const shopNameSize = isTablet ? 24 : cls === 'large' ? 21 : 19;
   const greetingSize = isTablet ? 14 : 13;
   const actionIconSize = isTablet ? 24 : 22;
-  const actionButtonSize = isTablet ? 46 : 42;
-  const actionGap = isTablet ? 14 : 10;
+  const actionButtonSize = isTablet ? 46 : 40;
+  const actionGap = isTablet ? 14 : 8;
 
   const avatarHitSlop = hitSlopFor(avatarSize);
   // Circular white button behind each header action icon — matches the
@@ -105,7 +106,7 @@ export function DashboardHeader({
   };
 
   return (
-    <View style={{ backgroundColor: '#FFFFFF', paddingTop: insetsTop, borderBottomWidth: HAIRLINE, borderBottomColor: C.separator }}>
+    <View style={{ backgroundColor: '#FFFFFF', paddingTop: insetsTop }}>
       <View style={{ width: '100%', maxWidth: maxContentWidth, alignSelf: 'center', paddingHorizontal: pad }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, paddingBottom: 10 }}>
           {/* Left: avatar + greeting/shop name. flexShrink so a long shop
@@ -177,6 +178,7 @@ export function DashboardHeader({
                   fontSize: shopNameSize,
                   lineHeight: shopNameSize + 4,
                   fontWeight: '700',
+                  fontFamily: SERIF,
                   color: SHOP_NAME_COLOR,
                   marginTop: 1,
                 }}
@@ -185,8 +187,8 @@ export function DashboardHeader({
               >
                 {shopName}
               </Text>
-              <Text style={{ fontSize: 12, color: C.label2, marginTop: 1 }} numberOfLines={1} ellipsizeMode="tail">
-                Let's keep your business moving!
+              <Text style={{ fontSize: 12, color: C.label2, marginTop: 1 }} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.8}>
+                Let’s keep your business smart.
               </Text>
             </Touchable>
           </View>

@@ -26,7 +26,7 @@ export function ListRow({
         </View>
       ) : null}
       <View className="flex-1 pr-2">
-        <Text className={cn('text-[14px] font-bold', destructive ? 'text-danger' : 'text-text')} numberOfLines={1}>
+        <Text className={cn('text-[13px] font-bold', destructive ? 'text-danger' : 'text-text')} numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (

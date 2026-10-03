@@ -130,7 +130,7 @@ export default function OwnerEmployeeLeaveScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, capStyle]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#09AD2A']} tintColor="#09AD2A" />}
       >
         {/* This Month — stats card */}
         <View style={styles.statsCard}>
@@ -139,20 +139,20 @@ export default function OwnerEmployeeLeaveScreen({ route, navigation }) {
             <View style={styles.monthPill}>
               <Text style={styles.monthPillText}>{MONTHS[month - 1]} {year}</Text>
               <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-back" size={rs(14)} color="#FFFFFF" />
+                <Ionicons name="chevron-back" size={rs(14)} color="#078F23" />
               </TouchableOpacity>
               <View style={styles.monthPillSep} />
               <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-forward" size={rs(14)} color="#FFFFFF" />
+                <Ionicons name="chevron-forward" size={rs(14)} color="#078F23" />
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.statTilesRow}>
-            <StatTile value={pad2(counts.Leave)}      label="Leave"      icon="calendar-outline"        tint="#F0F8EF" accent="#004C40" />
-            <StatTile value={pad2(counts.Processing)} label="Processing" icon="hourglass-outline"       tint="#FFFBEB" accent="#D97706" />
-            <StatTile value={pad2(counts.Rejected)}   label="Rejected"   icon="close-circle-outline"    tint="#FEF2F2" accent="#DC2626" />
-            <StatTile value={pad2(counts.Approved)}   label="Approved"   icon="checkmark-circle-outline" tint="#F0F8EF" accent="#004C40" />
+            <StatTile value={pad2(counts.Leave)}      label="Leave"      icon="calendar-outline"        tint="#EAF8EC" accent="#078F23" />
+            <StatTile value={pad2(counts.Processing)} label="Processing" icon="hourglass-outline"       tint="#FFF8E1" accent="#8A6A00" />
+            <StatTile value={pad2(counts.Rejected)}   label="Rejected"   icon="close-circle-outline"    tint="#FEECEC" accent="#F84141" />
+            <StatTile value={pad2(counts.Approved)}   label="Approved"   icon="checkmark-circle-outline" tint="#EAF8EC" accent="#078F23" />
           </View>
         </View>
 
@@ -174,7 +174,7 @@ export default function OwnerEmployeeLeaveScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
         {loading && list.length === 0 ? (
-          <ActivityIndicator size="small" color="#004C40" style={{ marginVertical: rs(16) }} />
+          <ActivityIndicator size="small" color="#09AD2A" style={{ marginVertical: rs(16) }} />
         ) : recent ? (
           <LeaveCard
             item={recent}
@@ -184,7 +184,7 @@ export default function OwnerEmployeeLeaveScreen({ route, navigation }) {
           />
         ) : (
           <View style={styles.emptyCard}>
-            <Ionicons name="file-tray-outline" size={rs(26)} color="#004C40" />
+            <Ionicons name="file-tray-outline" size={rs(26)} color="#09AD2A" />
             <Text style={styles.emptyTitle}>No recent leave.</Text>
             <Text style={styles.emptySub}>You&apos;re all caught up!</Text>
           </View>
@@ -211,7 +211,7 @@ export default function OwnerEmployeeLeaveScreen({ route, navigation }) {
 
         {filteredPrevious.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="calendar-outline" size={rs(26)} color="#004C40" />
+            <Ionicons name="calendar-outline" size={rs(26)} color="#09AD2A" />
             <Text style={styles.emptyTitle}>No previous leave requests.</Text>
             <Text style={styles.emptySub}>Looks like you haven&apos;t made any requests yet.</Text>
           </View>
@@ -308,129 +308,129 @@ function LeaveCard({ item, ownerCanApprove, onApprove, onReject }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: rs(12), paddingBottom: rs(24) },
+  safe: { flex: 1, backgroundColor: '#F8F8F8' },
+  content: { padding: rs(10), paddingBottom: rs(20) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#F84141' },
 
   statsCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(14),
-    padding: rs(13),
+    borderRadius: rs(12),
+    padding: rs(10),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderColor: '#F3F3F3',
+    shadowColor: '#1E1E1E', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   statsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: rs(11),
+    marginBottom: rs(8),
   },
-  statsHeaderTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
 
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#004C40',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(6),
+    backgroundColor: '#EAF8EC',
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(5),
     borderRadius: 999,
     gap: rs(7),
   },
-  monthPillText: { color: '#FFFFFF', fontSize: rf(11.5), fontWeight: '700' },
-  monthPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
+  monthPillText: { color: '#078F23', fontSize: 11, fontWeight: '800' },
+  monthPillSep: { width: rs(1), height: rs(12), backgroundColor: '#CDEFD4' },
 
-  statTilesRow: { flexDirection: 'row', gap: rs(8) },
+  statTilesRow: { flexDirection: 'row', gap: rs(6) },
   statTileWrap: {
     flex: 1,
-    borderRadius: rs(12),
-    padding: rs(10),
+    borderRadius: rs(10),
+    padding: rs(8),
     alignItems: 'flex-start',
   },
   statTileTop: { flexDirection: 'row', alignItems: 'center', gap: rs(5) },
-  statTileTopText: { fontSize: rf(10.5), fontWeight: '800' },
-  statTileValue: { fontSize: rf(20), fontWeight: '800', color: '#172117', marginTop: rs(6) },
-  statTileHint: { fontSize: rf(10), color: '#667066', marginTop: rs(2), fontWeight: '600' },
+  statTileTopText: { fontSize: 10, fontWeight: '800' },
+  statTileValue: { fontSize: 15, fontWeight: '800', color: '#1E1E1E', marginTop: rs(4) },
+  statTileHint: { fontSize: 9.5, color: '#6B6B6B', marginTop: rs(1), fontWeight: '600' },
 
   applyBtn: {
-    marginTop: rs(12),
-    backgroundColor: '#004C40',
-    paddingVertical: rs(11),
-    borderRadius: rs(12),
+    marginTop: rs(10),
+    backgroundColor: '#09AD2A',
+    paddingVertical: rs(9),
+    borderRadius: rs(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: rs(8),
-    shadowColor: '#172117', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    shadowColor: '#1E1E1E', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  applyBtnText: { color: '#FFFFFF', fontSize: rf(13.5), fontWeight: '800' },
+  applyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 
-  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: rs(14), marginBottom: rs(8) },
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
-  viewAll: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: rs(12), marginBottom: rs(6) },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  viewAll: { fontSize: 12, fontWeight: '800', color: '#078F23' },
 
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(8), marginBottom: rs(12) },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(6), marginBottom: rs(8) },
   filterChip: {
-    paddingHorizontal: rs(13),
-    paddingVertical: rs(6),
+    paddingHorizontal: rs(11),
+    paddingVertical: rs(5),
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#E2E8E2',
+    borderColor: '#E6E6E6',
   },
-  filterChipActive: { backgroundColor: '#004C40', borderColor: '#004C40' },
-  filterChipText: { fontSize: rf(12), color: '#667066', fontWeight: '700' },
+  filterChipActive: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
+  filterChipText: { fontSize: 11, color: '#6B6B6B', fontWeight: '700' },
   filterChipTextActive: { color: '#FFFFFF' },
 
   leaveCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(12),
-    marginBottom: rs(8),
+    borderRadius: rs(10),
+    marginBottom: rs(6),
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    borderColor: '#F3F3F3',
+    shadowColor: '#1E1E1E', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  leaveAccent: { width: rs(4), backgroundColor: '#004C40' },
-  leaveInner: { flex: 1, padding: rs(11) },
+  leaveAccent: { width: rs(3), backgroundColor: '#09AD2A' },
+  leaveInner: { flex: 1, paddingHorizontal: rs(10), paddingVertical: rs(8) },
   leaveTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  leaveDate: { fontSize: rf(11.5), fontWeight: '700', color: '#172117' },
+  leaveDate: { fontSize: 11, fontWeight: '700', color: '#1E1E1E' },
 
   statusPill: {
     paddingHorizontal: rs(10),
     paddingVertical: rs(3),
     borderRadius: 999,
   },
-  pillProcessing: { backgroundColor: '#F59E0B' },
-  pillApproved: { backgroundColor: '#004C40' },
-  pillRejected: { backgroundColor: '#DC2626' },
-  statusPillText: { color: '#FFFFFF', fontSize: rf(10), fontWeight: '700' },
+  pillProcessing: { backgroundColor: '#F3BF23' },
+  pillApproved: { backgroundColor: '#09AD2A' },
+  pillRejected: { backgroundColor: '#F84141' },
+  statusPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   // Amber is the one light fill of the three: white on it is 2.1:1, so the
   // Processing pill takes dark ink (7.8:1) while green and red keep white.
-  statusPillTextOnLight: { color: '#172117' },
+  statusPillTextOnLight: { color: '#1E1E1E' },
 
-  leaveCols: { flexDirection: 'row', marginTop: rs(7), gap: rs(8) },
+  leaveCols: { flexDirection: 'row', marginTop: rs(6), gap: rs(8) },
   leaveCol: { flex: 1 },
-  leaveColValue: { fontSize: rf(11), fontWeight: '700', color: '#172117' },
-  leaveColLabel: { fontSize: rf(9), color: '#8FA08F', marginTop: rs(2) },
+  leaveColValue: { fontSize: 11, fontWeight: '700', color: '#1E1E1E' },
+  leaveColLabel: { fontSize: 9, color: '#8A8A8A', marginTop: rs(2) },
 
   actionRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(8) },
-  approveBtn: { flex: 1, backgroundColor: '#004C40', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
-  approveBtnText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
-  rejectBtn: { flex: 1, backgroundColor: '#DC2626', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
-  rejectBtnText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
+  approveBtn: { flex: 1, backgroundColor: '#09AD2A', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
+  approveBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  rejectBtn: { flex: 1, backgroundColor: '#F84141', paddingVertical: rs(7), borderRadius: rs(8), alignItems: 'center' },
+  rejectBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
 
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', paddingVertical: rs(14) },
+  empty: { fontSize: 12, color: '#6B6B6B', textAlign: 'center', paddingVertical: rs(14) },
   emptyCard: {
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#EAF8EC',
     borderWidth: 1,
-    borderColor: '#E6F7E3',
-    borderRadius: rs(12),
-    paddingVertical: rs(20),
+    borderColor: '#EAF8EC',
+    borderRadius: rs(10),
+    paddingVertical: rs(14),
     alignItems: 'center',
   },
-  emptyTitle: { fontSize: rf(13), fontWeight: '800', color: '#172117', marginTop: rs(8) },
-  emptySub: { fontSize: rf(11.5), color: '#667066', marginTop: rs(3) },
+  emptyTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E', marginTop: rs(8) },
+  emptySub: { fontSize: 11, color: '#6B6B6B', marginTop: rs(3) },
 });

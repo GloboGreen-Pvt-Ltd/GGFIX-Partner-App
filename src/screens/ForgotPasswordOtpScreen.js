@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { KeyRound } from 'lucide-react-native';
 import { requestOtp } from '../api/auth';
 import { Button, Input } from '../components/rnr';
-import { AuthShell, ErrorBox, authStyles as s, MUTED, GREEN } from './authUi';
+import { AuthShell, ErrorBox, authStyles as s, MUTED, GREEN_TEXT } from './authUi';
 
 const RESEND_SECONDS = 30;
 
@@ -74,14 +74,14 @@ export default function ForgotPasswordOtpScreen({ navigation, route }) {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
         <Pressable onPress={resend} disabled={seconds > 0} hitSlop={8}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: seconds > 0 ? MUTED : GREEN }}>Resend code</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: seconds > 0 ? MUTED : GREEN_TEXT }}>Resend code</Text>
         </Pressable>
         {seconds > 0 ? (
-          <Text style={{ fontSize: 12.5, color: MUTED, marginLeft: 8 }}>· wait {seconds}s</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginLeft: 8 }}>· wait {seconds}s</Text>
         ) : null}
       </View>
 
-      {note ? <Text style={{ fontSize: 12.5, color: GREEN, marginTop: 8 }}>{note}</Text> : null}
+      {note ? <Text style={{ fontSize: 12, color: GREEN_TEXT, marginTop: 8 }}>{note}</Text> : null}
       <ErrorBox msg={error} />
 
       <Button
@@ -90,7 +90,7 @@ export default function ForgotPasswordOtpScreen({ navigation, route }) {
         fullWidth
         size="lg"
         style={{ marginTop: 13, height: 46, borderRadius: 16 }}
-        textClassName="text-[15px] font-extrabold tracking-wide"
+        textClassName="text-[13px] font-extrabold tracking-wide"
       >
         Submit code
       </Button>

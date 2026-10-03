@@ -14,7 +14,9 @@ function isPdfUrl(url) {
  * upload screen's uploaded-state preview and the approved documents view, so
  * both ever show ONE broken-image treatment instead of a silent grey box.
  */
-export function DocumentPreview({ url, label, height = 150, rounded = 14 }) {
+// `fit`: 'cover' fills the box (upload screen thumbnails); 'contain' shows the
+// whole document (the documents view, where cropping hid most of the card).
+export function DocumentPreview({ url, label, height = 150, rounded = 14, fit = 'cover' }) {
   const [failed, setFailed] = useState(false);
 
   if (!url) return null;
@@ -51,7 +53,7 @@ export function DocumentPreview({ url, label, height = 150, rounded = 14 }) {
     <ExpoImage
       source={{ uri: url }}
       style={{ width: '100%', height, borderRadius: rounded, backgroundColor: tokens.surfaceMuted }}
-      contentFit="cover"
+      contentFit={fit}
       transition={150}
       onError={() => setFailed(true)}
     />

@@ -251,7 +251,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
                 <Truck size={18} color="#087A0A" />
               </View>
               <View className="flex-1">
-                <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>
+                <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>
                   {data.bookingNumber || '—'}
                 </Text>
                 <Text className="text-[11px] text-text-muted">Repair Pickup</Text>

@@ -26,23 +26,26 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { EmptyState, Loader } from '../../components/rnr';
-import { getDeviceCategories, getBanners } from '../../api/masterData';
+import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
+import DeviceImage from '../../components/DeviceImage';
 import { tintFor } from '../shared/categoryTints';
 import { selectShopId, selectUserId } from '../../store/authSlice';
+import { hasCategorySpecs, specDisplayParts } from '../../utils/deviceSpecs';
 
-// GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FAF9';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3
+// (same as the rest of the Sell flow: screens/shared/sell/sellTheme.js).
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
 const ACTIVE_FG = '#B45309';
 const ACTIVE_BG = '#FFF3CD';
 // Kept for the parts of this file untouched by the redesign (device-category
@@ -101,7 +104,7 @@ function bannerImage(b) {
 }
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -136,11 +139,18 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const maxContentWidth = isTablet ? 1000 : undefined;
 
   const [cats, setCats] = useState([]);
+  // categoryMenuKey -> imageUrl from the active SELL Category Menu rows.
+  const [menuImages, setMenuImages] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [banners, setBanners] = useState([]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerRef = useRef(null);
+  // Carousel page width = the carousel's own measured width (the content is
+  // capped at 1000 on tablets, so the window width over-scrolled there), and
+  // the artwork's real width/height ratio (current banners are 1944x809).
+  const [bannerPageW, setBannerPageW] = useState(0);
+  const [heroRatio, setHeroRatio] = useState(2.4);
 
   // Devices this shop has already listed, shown under the category grid so the
   // Sell screen answers "what am I selling?" as well as "what do I want to sell?".
@@ -180,7 +190,9 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   useEffect(() => {
     (async () => {
       try {
-        const list = await getDeviceCategories();
+        // Tile images come from the admin's Category Menu (type SELL).
+        const [list, imgs] = await Promise.all([getDeviceCategories(), getCategoryMenuImages('SELL')]);
+        setMenuImages(imgs);
         const ORDER = ['mobile', 'laptop', 'tablet', 'smartwatches', 'audio device'];
         const rank = (c) => {
           const i = ORDER.indexOf((c.name || '').trim().toLowerCase());
@@ -192,32 +204,49 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
     })();
   }, []);
 
-  // Hero banners — get + display only the "Sell" banner(s), active, in sort order.
+  // Hero banners — the active "Sell" banner(s) first, then the app's general
+  // "Slider" banners, each group in sort order. Only one Sell banner is
+  // published today, so the generic sliders are what give the carousel
+  // something to scroll to; more Sell banners from admin slot in first.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const rows = await getBanners();
-        const sell = (Array.isArray(rows) ? rows : [])
-          .filter((b) => String(b.title || '').trim().toLowerCase() === 'sell' && (b.isActive ?? b.is_active) !== false)
-          .sort((a, b) => (a.sortOrder ?? a.sort_order ?? 0) - (b.sortOrder ?? b.sort_order ?? 0));
-        if (!cancelled) setBanners(sell);
+        const active = (Array.isArray(rows) ? rows : []).filter((b) => (b.isActive ?? b.is_active) !== false);
+        const bySort = (a, b) => (a.sortOrder ?? a.sort_order ?? 0) - (b.sortOrder ?? b.sort_order ?? 0);
+        const title = (b) => String(b.title || '').trim().toLowerCase();
+        const sell = active.filter((b) => title(b) === 'sell').sort(bySort);
+        const sliders = active.filter((b) => title(b).startsWith('slider')).sort(bySort);
+        if (!cancelled) setBanners([...sell, ...sliders].filter((b) => bannerImage(b)));
       } catch {}
     })();
     return () => { cancelled = true; };
   }, []);
 
+  // Size the carousel from the first banner's real artwork ratio.
+  useEffect(() => {
+    let cancelled = false;
+    const uri = banners.map(bannerImage).find(Boolean);
+    if (!uri) return undefined;
+    Image.getSize(uri, (w, h) => {
+      if (!cancelled && w && h) setHeroRatio(Math.min(3.2, Math.max(1.5, w / h)));
+    }, () => {});
+    return () => { cancelled = true; };
+  }, [banners]);
+
+  const pageW = bannerPageW || winW;
   useEffect(() => {
     if (banners.length <= 1) return;
     const id = setInterval(() => {
       setBannerIndex((prev) => {
         const next = (prev + 1) % banners.length;
-        bannerRef.current?.scrollTo({ x: next * winW, animated: true });
+        bannerRef.current?.scrollTo({ x: next * pageW, animated: true });
         return next;
       });
     }, 3500);
     return () => clearInterval(id);
-  }, [banners.length, winW]);
+  }, [banners.length, pageW]);
 
   // Was a search filter over `cats`. The search box is gone, so this is the
   // full list — kept as `filtered` because the grid, the banner tap and the
@@ -237,10 +266,11 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   // opens with — "Sell Now" just gives that same action a dedicated button.
   const startSelling = () => { if (filtered.length) goPickCategory(filtered[0]); };
 
-  const CHIP_SIZE = isSmall ? 78 : isTablet ? 118 : 92;
-  const CHIP_IMG_SIZE = isSmall ? 52 : isTablet ? 80 : 62;
-  const CHIP_ICON_SIZE = isSmall ? 26 : isTablet ? 40 : 32;
-  const CHIP_LABEL_F = isSmall ? 10.5 : isTablet ? 13.5 : 11.5;
+  // Compact tiles, same sizes as the Buy screen's category row.
+  const CHIP_SIZE = isSmall ? 50 : isTablet ? 80 : 56;
+  const CHIP_IMG_SIZE = isSmall ? 30 : isTablet ? 52 : 34;
+  const CHIP_ICON_SIZE = isSmall ? 18 : isTablet ? 28 : 20;
+  const CHIP_LABEL_F = isSmall ? 9.5 : isTablet ? 12 : 10;
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
@@ -267,7 +297,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 </Pressable>
                 <View className="flex-1 items-center">
                   <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on GGFIX</Text>
-                  <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
                 <Pressable
                   onPress={() => navigation.navigate('MarketplaceOrders')}
@@ -307,7 +337,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 data={[{ all: true }, ...filtered]}
                 keyExtractor={(c, i) => (c.all ? 'all' : c.id || String(i))}
                 showsHorizontalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+                ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
                 contentContainerStyle={{ paddingHorizontal: padH }}
                 renderItem={({ item: c }) => {
                   if (c.all) {
@@ -319,23 +349,31 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                             rather than fabricating selectable-filter state. */}
                         <View
                           className="items-center justify-center"
-                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: MINT, borderWidth: 1.5, borderColor: BRIGHT, ...cardShadow }}
+                          style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 14, backgroundColor: MINT, borderWidth: 1.5, borderColor: BRIGHT, ...cardShadow }}
                         >
                           <LayoutGrid size={CHIP_ICON_SIZE} color={ACCENT} />
                         </View>
-                        <Text className="text-center mt-1.5 font-bold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: ACCENT }}>All</Text>
+                        <Text className="text-center mt-1.5 font-bold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: PRIMARY }}>All</Text>
                       </Pressable>
                     );
                   }
                   const meta = metaFor(c.code);
-                  const uri = imgUri(c);
+                  const menuUri = menuImages[categoryMenuKey(c.name)] || menuImages[categoryMenuKey(c.code)] || null;
+                  const uri = menuUri || imgUri(c);
                   return (
                     <Pressable onPress={() => goPickCategory(c)} className="items-center active:opacity-80" style={{ width: CHIP_SIZE }}>
                       <View
                         className="items-center justify-center overflow-hidden"
-                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 20, backgroundColor: tintFor(c.code), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
+                        style={{ width: CHIP_SIZE, height: CHIP_SIZE, borderRadius: 14, backgroundColor: tintFor(c.code), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
                       >
-                        {uri ? <Image source={{ uri }} style={{ width: CHIP_IMG_SIZE, height: CHIP_IMG_SIZE }} resizeMode="contain" /> : <Text style={{ fontSize: CHIP_ICON_SIZE }}>{meta.emoji}</Text>}
+                        {menuUri ? (
+                          // Category Menu image: a large transparent cut-out, fitted near tile size.
+                          <Image source={{ uri: menuUri }} style={{ width: '86%', height: '86%' }} resizeMode="contain" resizeMethod="resize" />
+                        ) : uri ? (
+                          <Image source={{ uri }} style={{ width: CHIP_IMG_SIZE, height: CHIP_IMG_SIZE }} resizeMode="contain" />
+                        ) : (
+                          <Text style={{ fontSize: CHIP_ICON_SIZE }}>{meta.emoji}</Text>
+                        )}
                       </View>
                       <Text className="text-center mt-1.5 font-semibold" numberOfLines={1} style={{ fontSize: CHIP_LABEL_F, color: TEXT_PRIMARY }}>{c.name}</Text>
                     </Pressable>
@@ -356,17 +394,20 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / winW))}
+                onLayout={(e) => setBannerPageW(Math.round(e.nativeEvent.layout.width))}
+                onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / pageW))}
               >
                 {banners.map((b) => {
                   const uri = bannerImage(b);
                   return (
-                    <View key={b.id} style={{ width: winW, paddingHorizontal: padH }}>
-                      <Pressable onPress={startSelling} className="rounded-3xl overflow-hidden active:opacity-95" style={{ borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
+                    <View key={b.id} style={{ width: pageW, paddingHorizontal: padH }}>
+                      {/* The artwork's own ratio + `contain`, so no side of the
+                          banner (its headline sits at the left edge) is cut. */}
+                      <Pressable onPress={startSelling} className="rounded-3xl overflow-hidden active:opacity-95" style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: CARD_BG, ...cardShadow }}>
                         {uri ? (
-                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: MINT }} resizeMode="cover" />
+                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: heroRatio }} resizeMode="contain" />
                         ) : (
-                          <View style={{ width: '100%', aspectRatio: 40 / 21, backgroundColor: MINT }} />
+                          <View style={{ width: '100%', aspectRatio: heroRatio, backgroundColor: MINT }} />
                         )}
                       </Pressable>
                     </View>
@@ -388,18 +429,18 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 <View style={{ flex: isSmall ? 1.3 : 1, padding: isSmall ? 14 : 18 }}>
                   <View className="flex-row items-center">
                     <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: ACCENT, marginRight: 9 }}>
-                      <Text className="text-white font-extrabold" style={{ fontSize: 15 }}>G</Text>
+                      <Text className="text-white font-extrabold" style={{ fontSize: 13 }}>G</Text>
                     </View>
                     <View>
-                      <Text className="font-extrabold" style={{ fontSize: 14, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
+                      <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
                       <Text style={{ fontSize: 7, color: TEXT_SECONDARY, letterSpacing: 0.5 }}>SMART DEVICES. SMARTER CHOICE.</Text>
                     </View>
                   </View>
 
-                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: TEXT_PRIMARY, marginTop: 12 }}>
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 17 : 20, color: TEXT_PRIMARY, marginTop: 12 }}>
                     Sell Your Devices
                   </Text>
-                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 18 : 21, color: ACCENT }}>
+                  <Text className="font-extrabold" style={{ fontSize: isSmall ? 17 : 20, color: ACCENT }}>
                     Get the Best Value
                   </Text>
                   <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 3 }} numberOfLines={1}>
@@ -426,7 +467,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     className="flex-row items-center active:opacity-90"
                     style={{ marginTop: 6, borderRadius: 999, backgroundColor: ACCENT, paddingVertical: 6, paddingLeft: 18, paddingRight: 6, alignSelf: 'flex-start', ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.3 }}
                   >
-                    <Text className="text-white font-extrabold" style={{ fontSize: 13.5 }}>Sell Now</Text>
+                    <Text className="text-white font-extrabold" style={{ fontSize: 13 }}>Sell Now</Text>
                     <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: '#FFFFFF', marginLeft: 10 }}>
                       <ChevronRight size={15} color={ACCENT} />
                     </View>
@@ -438,7 +479,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     instant-payment badge, and the decorative handwritten
                     closing line. */}
                 <LinearGradient
-                  colors={[BRIGHT, ACCENT]}
+                  colors={[ACCENT, PRIMARY]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={{ width: isSmall ? 96 : 118, padding: 10, justifyContent: 'space-between' }}
@@ -484,7 +525,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
           {listings.length > 0 ? (
             <View style={{ paddingHorizontal: padH, marginTop: 16 }}>
               <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
-                <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY }}>
+                <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }}>
                   Your listed products
                 </Text>
                 <Pressable
@@ -492,16 +533,16 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   className="flex-row items-center active:opacity-70"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text className="font-extrabold" style={{ fontSize: 12.5, color: ACCENT }}>View all</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 12, color: PRIMARY }}>View all</Text>
                   <ChevronRight size={15} color={ACCENT} />
                 </Pressable>
               </View>
 
-              {/* 2-column grid, wrapping flex rather than FlatList's
-                  numColumns — this list is capped at 4 items and already
-                  lives inside the page's own ScrollView, so a second
-                  scrollable list isn't needed here. */}
-              <View className="flex-row flex-wrap" style={{ marginHorizontal: -5 }}>
+              {/* Compact grid — 3 across on phones, 4 on tablets — wrapping
+                  flex rather than FlatList's numColumns: this list is capped
+                  at 4 items and already lives inside the page's own
+                  ScrollView, so a second scrollable list isn't needed here. */}
+              <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
                 {listings.map((p) => {
                   const img = resolveDeviceImageSource({ url: p.imageUrl });
                   const price = p.price != null ? `₹${Number(p.price).toLocaleString('en-IN')}` : '—';
@@ -509,33 +550,35 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   const sold = status === 'SOLD' || status === 'COMPLETED';
                   const cancelled = status === 'CANCELLED' || status === 'CANCELED';
                   const pill = sold
-                    ? { label: 'Sold', ink: ACCENT, bg: MINT }
+                    ? { label: 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
                     : cancelled
                       ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
-                      : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: ACTIVE_FG, bg: ACTIVE_BG };
+                      : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: PRIMARY, bg: MINT };
                   // Real fields (same ones the My Listings screen already
                   // reads) — not the fabricated view/like counts the
                   // reference showed, which nothing in this app tracks.
-                  const spec = [p.storageLabel, p.ramLabel].filter(Boolean).join(' / ');
+                  const spec = hasCategorySpecs(p)
+                    ? specDisplayParts(p).join(' / ')
+                    : [p.storageLabel, p.ramLabel].filter(Boolean).join(' / ');
                   return (
-                    <View key={p.id} style={{ width: '50%', paddingHorizontal: 5, marginBottom: 10 }}>
+                    <View key={p.id} style={{ width: isTablet ? '25%' : '33.333%', paddingHorizontal: 4, marginBottom: 8 }}>
                       <Pressable
                         onPress={() => navigation.navigate('MarketplaceOrders')}
                         className="active:opacity-90"
                         style={{
-                          backgroundColor: CARD_BG, borderRadius: 18, padding: 10,
+                          backgroundColor: CARD_BG, borderRadius: 14, padding: 7,
                           borderWidth: 1, borderColor: BORDER, ...cardShadow,
                         }}
                       >
                         <View style={{ position: 'relative' }}>
                           <View
                             className="items-center justify-center"
-                            style={{ width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: MINT, overflow: 'hidden' }}
+                            style={{ width: '100%', aspectRatio: 1.15, borderRadius: 10, backgroundColor: CARD_BG, overflow: 'hidden' }}
                           >
                             {img ? (
-                              <Image source={img} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                              <DeviceImage url={p.imageUrl} style={{ width: '86%', height: '86%' }} contentFit="contain" />
                             ) : (
-                              <Package size={28} color={ACCENT} />
+                              <Package size={22} color={ACCENT} />
                             )}
                           </View>
                           {/* Same real destination as the whole card — a
@@ -545,23 +588,23 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                             onPress={() => navigation.navigate('MarketplaceOrders')}
                             hitSlop={8}
                             className="items-center justify-center"
-                            style={{ position: 'absolute', top: 4, right: 4, height: 24, width: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            style={{ position: 'absolute', top: 0, right: 0, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.9)' }}
                           >
-                            <EllipsisVertical size={14} color={TEXT_SECONDARY} />
+                            <EllipsisVertical size={12} color={TEXT_SECONDARY} />
                           </Pressable>
                         </View>
-                        <View style={{ backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 8 }}>
+                        <View style={{ backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 5 }}>
                           <Text className="font-extrabold" style={{ fontSize: 9, color: pill.ink }}>{pill.label}</Text>
                         </View>
-                        <Text className="font-bold" style={{ fontSize: 12.5, color: TEXT_PRIMARY, marginTop: 5 }} numberOfLines={2}>
+                        <Text className="font-bold" style={{ fontSize: 11, lineHeight: 14, color: TEXT_PRIMARY, marginTop: 4 }} numberOfLines={2}>
                           {p.title || 'Listing'}
                         </Text>
                         {spec ? (
-                          <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>
+                          <Text style={{ fontSize: 10, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>
                             ({spec})
                           </Text>
                         ) : null}
-                        <Text className="font-extrabold" style={{ fontSize: 15, color: ACCENT, marginTop: 5 }}>
+                        <Text className="font-extrabold" style={{ fontSize: 12, color: PRIMARY, marginTop: 3 }}>
                           {price}
                         </Text>
                       </Pressable>

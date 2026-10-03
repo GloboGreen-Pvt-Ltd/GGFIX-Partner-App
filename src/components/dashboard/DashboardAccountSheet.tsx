@@ -137,7 +137,7 @@ export function DashboardAccountSheet({
   return (
     <Modal visible={rendered} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: anim }}>
+        <Animated.View style={{ ...StyleSheet.absoluteFill, opacity: anim }}>
           <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={onClose} />
         </Animated.View>
 

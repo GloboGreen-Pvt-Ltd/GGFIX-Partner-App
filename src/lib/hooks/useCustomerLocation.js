@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { listAddresses } from '../api/customer';
+import { listAddresses } from '../../api/customer';
 
 /**
  * Resolve the customer's current lat/lng — Swiggy/Zomato style.

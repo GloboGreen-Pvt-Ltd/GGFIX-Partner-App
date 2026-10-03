@@ -101,7 +101,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
       <View className="flex-1">
         <View className="flex-row items-center">
           <Text
-            className={`flex-1 text-[13.5px] ${isNew ? 'font-extrabold text-gray-900' : 'font-bold text-gray-500'}`}
+            className={`flex-1 text-[13px] ${isNew ? 'font-extrabold text-gray-900' : 'font-bold text-gray-500'}`}
             numberOfLines={1}
           >
             {n.title}
@@ -109,7 +109,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
           {isNew ? <View className="h-2 w-2 rounded-full ml-1" style={{ backgroundColor: '#F59E0B' }} /> : null}
         </View>
         {n.body ? (
-          <Text className="text-[11.5px] text-gray-500 mt-0.5" numberOfLines={2}>{n.body}</Text>
+          <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={2}>{n.body}</Text>
         ) : null}
         <Text className="text-[10px] text-gray-400 mt-1">
           {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
@@ -138,17 +138,17 @@ export default function OwnerNotificationsScreen({ navigation }) {
         >
           <View className="flex-row items-center" style={{ paddingHorizontal: 16 }}>
             <Pressable
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
+              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
               hitSlop={10}
               className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
             >
               <ChevronLeft size={20} color="#172117" />
             </Pressable>
             <View className="flex-1 flex-row items-center justify-center">
-              <Text className="text-center text-text text-[18px] font-extrabold">Notifications</Text>
+              <Text className="text-center text-text text-[17px] font-extrabold">Notifications</Text>
               {unread > 0 ? (
                 <View className="ml-2 rounded-full px-2 py-0.5 bg-surface-muted">
-                  <Text className="text-text text-[10px] font-extrabold">{unread} new</Text>
+                  <Text className="text-text text-[11px] font-extrabold">{unread} new</Text>
                 </View>
               ) : null}
             </View>
@@ -184,7 +184,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
                 <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#FEE2E2' }}>
                   <Bell size={28} color="#DC2626" />
                 </View>
-                <Text className="text-[15px] font-extrabold text-gray-700">Couldn't load notifications</Text>
+                <Text className="text-[13px] font-extrabold text-gray-700">Couldn't load notifications</Text>
                 <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">{error}</Text>
                 <Pressable onPress={() => load()} className="mt-4 rounded-full px-6 py-2.5 active:opacity-80" style={{ backgroundColor: GREEN }}>
                   <Text className="text-white font-extrabold text-[13px]">Retry</Text>
@@ -195,7 +195,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
                 <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
                   <Bell size={28} color={GREEN_DARK} />
                 </View>
-                <Text className="text-[15px] font-extrabold text-gray-700">You're all caught up</Text>
+                <Text className="text-[13px] font-extrabold text-gray-700">You're all caught up</Text>
                 <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">
                   Booking updates, payouts and team alerts will appear here.
                 </Text>

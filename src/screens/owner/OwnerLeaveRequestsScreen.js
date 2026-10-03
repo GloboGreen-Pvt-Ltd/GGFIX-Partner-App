@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -10,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   CheckCircle2,
   XCircle,
@@ -19,41 +17,49 @@ import {
   ChevronLeft,
   Clock,
   ClipboardList,
-  Check,
-  Sparkles,
-  Search,
   UserPlus,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// Teal rebrand: one deep brand teal, plus a lighter stop so the Approve
-// gradient keeps its depth (two identical stops would render flat) and a
-// light teal for the empty-state illustration.
-const BRAND_GREEN      = '#00695C';
-const BRAND_GREEN_DARK = '#004C40';
-const BRAND_TEAL_LIGHT = '#7FB8AE';
+// GGFIX palette.
+const GREEN = '#09AD2A';
+const GREEN_DEEP = '#078F23';
+const MINT = '#EAF8EC';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const PAGE_BG = '#F8F8F8';
+const NEUTRAL = '#F3F3F3';
+const BORDER = '#E6E6E6';
+const RED = '#F84141';
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.06,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 3,
+  shadowColor: INK,
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2,
 };
 
+// accent = icon / dot, text = readable label colour, tint = pill background.
 const STATUS_OPTIONS = [
-  { value: 'PENDING',  label: 'Pending',  accent: '#D97706',        tint: '#FEF3C7', Icon: Clock },
-  { value: 'APPROVED', label: 'Approved', accent: BRAND_GREEN_DARK, tint: '#E6F7E3', Icon: CheckCircle2 },
-  { value: 'REJECTED', label: 'Rejected', accent: '#B91C1C',        tint: '#FEE2E2', Icon: XCircle },
+  { value: 'PENDING',  label: 'Pending',  accent: '#F3BF23', text: '#8A6A00', tint: '#FFF8E1', Icon: Clock },
+  { value: 'APPROVED', label: 'Approved', accent: GREEN,     text: GREEN_DEEP, tint: MINT,     Icon: CheckCircle2 },
+  { value: 'REJECTED', label: 'Rejected', accent: RED,       text: '#D63232', tint: '#FEECEC', Icon: XCircle },
 ];
 
 function formatDate(d) {
   if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
 export default function OwnerLeaveRequestsScreen({ navigation }) {
@@ -99,45 +105,44 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
   };
 
   const activeMeta = STATUS_OPTIONS.find((o) => o.value === status);
+  const ActiveIcon = activeMeta?.Icon || Clock;
 
   // Tablet: cap the column and centre it, matching the employee report
-  // screens. Request cards stretched to 1024pt put the employee name and
-  // its status pill at opposite edges. Phones keep contentW undefined.
+  // screens. Phones keep contentW undefined.
   const r = useResponsive();
   const contentW = r.isTablet ? Math.min(r.width - rs(32), 700) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={[{
-            backgroundColor: '#FFFFFF',
-            paddingTop: rs(6),
-            paddingBottom: rs(12),
-            paddingHorizontal: rs(16),
-          }, capStyle]}
-        >
+      {/* Header + status filter — one white band */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View style={[{ paddingTop: 6, paddingBottom: 12, paddingHorizontal: 14 }, capStyle]}>
           <View className="flex-row items-center">
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
               hitSlop={6}
-              className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
+              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: PAGE_BG, borderWidth: 1, borderColor: BORDER }}
             >
-              <ChevronLeft size={rs(20)} color="#172117" />
+              <ChevronLeft size={19} color={INK} />
             </TouchableOpacity>
-            <Text className="flex-1 text-text font-extrabold" style={{ fontSize: rf(19) }} numberOfLines={1}>
-              Leave Requests
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
+                Leave Requests
+              </Text>
+              <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }} numberOfLines={1}>
+                Review and manage your team's leave
+              </Text>
+            </View>
             <View
-              className="flex-row items-center px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: '#F0F8EF' }}
+              className="flex-row items-center"
+              style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: activeMeta?.tint || MINT }}
             >
-              <Clock size={rs(13)} color="#172117" />
-              <Text className="ml-1.5 text-text font-extrabold" style={{ fontSize: rf(11.5) }}>
+              <ActiveIcon size={12} color={activeMeta?.text || GREEN_DEEP} />
+              <Text className="font-extrabold" style={{ marginLeft: 5, fontSize: 11, color: activeMeta?.text || GREEN_DEEP }}>
                 {list.length} {activeMeta?.label || 'Total'}
               </Text>
             </View>
@@ -145,98 +150,83 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      {/* Filter chip row — sits in the white header band */}
-      <View
-        style={{
-          backgroundColor: '#FFFFFF',
-          paddingHorizontal: rs(16),
-          paddingTop: rs(4),
-          paddingBottom: rs(14),
-          borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
-        }}
-      >
-      <View className="flex-row" style={capStyle}>
-        {STATUS_OPTIONS.map((opt) => {
-          const active = opt.value === status;
-          const ChipIcon = opt.Icon;
-          return (
-            <Pressable
-              key={opt.value}
-              onPress={() => setStatus(opt.value)}
-              className="flex-row items-center px-3.5 py-2 rounded-full mr-2.5"
-              style={{
-                backgroundColor: active ? opt.accent : '#FFFFFF',
-                borderWidth: 1.5,
-                borderColor: opt.accent,
-              }}
-            >
-              <ChipIcon size={rs(15)} color={active ? '#FFFFFF' : opt.accent} />
-              <Text
-                className="ml-1.5 font-extrabold"
-                style={{ fontSize: rf(12.5), color: active ? '#FFFFFF' : opt.accent }}
+      {/* Status filter — on the page, below the header */}
+      <View style={[{ paddingHorizontal: 14, paddingTop: 12 }, capStyle]}>
+        <View className="flex-row" style={{ padding: 3, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER }}>
+          {STATUS_OPTIONS.map((opt) => {
+            const active = opt.value === status;
+            const ChipIcon = opt.Icon;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setStatus(opt.value)}
+                activeOpacity={0.8}
+                className="flex-row items-center justify-center"
+                style={{ flex: 1, paddingVertical: 7, borderRadius: 10, backgroundColor: active ? opt.tint : 'transparent' }}
               >
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                <ChipIcon size={13} color={active ? opt.accent : MUTED} />
+                <Text
+                  style={{ marginLeft: 5, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? opt.text : MUTED }}
+                  numberOfLines={1}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {loading && list.length === 0 ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
+          <ActivityIndicator size="large" color={GREEN} />
         </View>
       ) : error ? (
-        <View className="px-4 mt-4">
-          <View
-            className="rounded-2xl px-4 py-3"
-            style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
-          >
-            <Text className="font-semibold" style={{ fontSize: rf(12), color: '#B91C1C' }}>
+        <ScrollView
+          contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 12, flexGrow: 1 }, capStyle]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />}
+        >
+          <View style={{ borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FEECEC', borderWidth: 1, borderColor: '#FBD0D0' }}>
+            <Text className="font-semibold" style={{ fontSize: 12, color: '#D63232' }}>
               {error}
             </Text>
-            <Pressable
+            <TouchableOpacity
               onPress={() => load()}
-              className="mt-2 self-start px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: '#B91C1C' }}
+              activeOpacity={0.85}
+              style={{ marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: RED }}
             >
-              <Text className="text-white font-extrabold" style={{ fontSize: rf(10.5) }}>Retry</Text>
-            </Pressable>
+              <Text className="font-extrabold" style={{ fontSize: 11, color: '#FFFFFF' }}>Retry</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       ) : list.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-5">
-          <View className="bg-white rounded-3xl px-6 py-8 items-center w-full" style={[cardShadow, contentW ? { maxWidth: rs(420) } : null]}>
-            {/* Illustration — faint clipboard with a checkmark badge */}
-            <View style={{ width: rs(170), height: rs(130), alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              <View style={{ position: 'absolute', top: rs(4), left: rs(26) }}><Sparkles size={rs(16)} color={BRAND_TEAL_LIGHT} /></View>
-              <View style={{ position: 'absolute', top: rs(28), right: rs(28) }}><Sparkles size={rs(13)} color="#C8EEBF" /></View>
-              <View style={{ position: 'absolute', bottom: rs(20), right: rs(22) }}><Search size={rs(24)} color="#E6F7E3" /></View>
-              <View
-                className="rounded-3xl items-center justify-center"
-                style={{ width: rs(104), height: rs(104), backgroundColor: '#F0F8EF' }}
-              >
-                <ClipboardList size={rs(54)} color={BRAND_TEAL_LIGHT} strokeWidth={1.8} />
+        // A ScrollView (not a plain View) so pull-to-refresh works on the
+        // empty state too — that is exactly when a new request is awaited.
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 60 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />}
+        >
+          <View
+            className="items-center w-full"
+            style={[{ maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 22, borderWidth: 1, borderColor: NEUTRAL }, cardShadow]}
+          >
+            {/* Clipboard in a mint well with the active filter's status badge */}
+            <View style={{ width: 76, height: 76 }}>
+              <View className="items-center justify-center" style={{ width: 68, height: 68, borderRadius: 22, backgroundColor: MINT }}>
+                <ClipboardList size={32} color={GREEN} strokeWidth={1.9} />
               </View>
-              {/* Amber checkmark badge overlapping the clipboard */}
-              <View style={{ position: 'absolute', bottom: rs(8), alignSelf: 'center' }}>
-                <View className="rounded-full items-center justify-center" style={{ width: rs(58), height: rs(58), backgroundColor: '#FEF3C7' }}>
-                  <View
-                    className="rounded-full items-center justify-center"
-                    style={{ width: rs(40), height: rs(40), borderWidth: 2.5, borderColor: '#B45309' }}
-                  >
-                    <Check size={rs(20)} color="#B45309" strokeWidth={3} />
-                  </View>
-                </View>
+              <View
+                className="items-center justify-center"
+                style={{ position: 'absolute', right: 0, bottom: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: activeMeta?.tint || MINT }}
+              >
+                <ActiveIcon size={15} color={activeMeta?.accent || GREEN} />
               </View>
             </View>
 
-            <Text className="font-extrabold text-gray-900 mt-3" style={{ fontSize: rf(16) }}>
+            <Text className="font-extrabold" style={{ marginTop: 12, fontSize: 15, color: INK }}>
               No {activeMeta?.label.toLowerCase() || 'matching'} leaves
             </Text>
-            <Text className="text-gray-500 mt-2 text-center leading-5" style={{ fontSize: rf(12.5) }}>
+            <Text style={{ marginTop: 4, fontSize: 12, lineHeight: 17, color: MUTED, textAlign: 'center' }}>
               {status === 'PENDING'
                 ? 'New leave requests from your team will appear here.'
                 : `No ${activeMeta?.label.toLowerCase()} leaves to show.`}
@@ -245,145 +235,123 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => navigation.navigate('OwnerEmployeeAdd')}
-              className="flex-row items-center justify-center rounded-2xl mt-5 px-6 py-3"
-              style={{ borderWidth: 1.5, borderColor: BRAND_GREEN_DARK }}
+              className="flex-row items-center justify-center"
+              style={{ marginTop: 16, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12, backgroundColor: GREEN }}
             >
-              <UserPlus size={rs(16)} color={BRAND_GREEN_DARK} />
-              <Text className="ml-2 font-extrabold" style={{ fontSize: rf(13), color: BRAND_GREEN_DARK }}>
+              <UserPlus size={15} color="#FFFFFF" />
+              <Text className="font-extrabold" style={{ marginLeft: 7, fontSize: 13, color: '#FFFFFF' }}>
                 Add Employee
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       ) : (
         <ScrollView
-          contentContainerStyle={[{ paddingHorizontal: rs(14), paddingTop: rs(12), paddingBottom: rs(24) }, capStyle]}
+          contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }, capStyle]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => load(true)}
-              tintColor={BRAND_GREEN_DARK}
-              colors={[BRAND_GREEN_DARK]}
+              tintColor={GREEN}
+              colors={[GREEN]}
             />
           }
         >
           {list.map((item) => {
-            const meta = STATUS_OPTIONS.find((o) => o.value === (item.status || 'PENDING'));
+            const meta = STATUS_OPTIONS.find((o) => o.value === (item.status || 'PENDING')) || STATUS_OPTIONS[0];
             const acting = actionId === item.id;
+            const ini = initials(item.technicianName);
             return (
               <View
                 key={item.id}
-                className="bg-white rounded-2xl p-3 mb-2.5"
-                style={cardShadow}
+                style={[{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: NEUTRAL }, cardShadow]}
               >
-                <View className="flex-row items-start">
-                  <View
-                    style={{
-                      width: rs(40), height: rs(40), borderRadius: rs(13),
-                      backgroundColor: '#E6F7E3',
-                      alignItems: 'center', justifyContent: 'center',
-                      marginRight: rs(10),
-                    }}
-                  >
-                    <User size={rs(18)} color={BRAND_GREEN_DARK} strokeWidth={2.2} />
+                <View className="flex-row items-center">
+                  <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: MINT, marginRight: 10 }}>
+                    {ini ? (
+                      <Text className="font-extrabold" style={{ fontSize: 13, color: GREEN_DEEP }}>{ini}</Text>
+                    ) : (
+                      <User size={17} color={GREEN_DEEP} strokeWidth={2.2} />
+                    )}
                   </View>
-                  <View className="flex-1 pr-2">
-                    <Text className="font-extrabold text-gray-900" style={{ fontSize: rf(13) }} numberOfLines={1}>
+                  <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+                    <Text className="font-extrabold" style={{ fontSize: 13, color: INK }} numberOfLines={1}>
                       {item.technicianName ?? 'Employee'}
                     </Text>
-                    <View className="flex-row items-center mt-1">
-                      <CalendarDays size={rs(12)} color="#8FA08F" />
-                      <Text className="ml-1.5 text-gray-500" style={{ fontSize: rf(11) }}>
+                    <View className="flex-row items-center" style={{ marginTop: 3 }}>
+                      <CalendarDays size={12} color={MUTED} />
+                      <Text style={{ marginLeft: 5, fontSize: 11, color: MUTED }} numberOfLines={1}>
                         {formatDate(item.startDate)} – {formatDate(item.endDate)}
                       </Text>
                     </View>
-                    {item.appliedDaysLabel ? (
-                      <View className="flex-row items-center mt-1">
-                        <Clock size={rs(11)} color="#8FA08F" />
-                        <Text className="ml-1.5 text-gray-500" style={{ fontSize: rf(10.5) }}>
-                          {item.appliedDaysLabel}
-                        </Text>
-                      </View>
-                    ) : null}
                   </View>
-                  <View
-                    className="px-2 py-1 rounded-full"
-                    style={{ backgroundColor: meta?.tint || '#FEF3C7' }}
-                  >
-                    <Text
-                      className="font-extrabold"
-                      style={{ fontSize: rf(10), color: meta?.accent || '#B45309', letterSpacing: 0.3 }}
-                    >
-                      {(item.status || 'PENDING').toUpperCase()}
+                  <View className="flex-row items-center" style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: meta.tint }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: meta.accent, marginRight: 5 }} />
+                    <Text className="font-extrabold" style={{ fontSize: 10, color: meta.text }}>
+                      {meta.label}
                     </Text>
                   </View>
                 </View>
 
-                {item.reason ? (
-                  <View
-                    className="mt-2 p-2.5 rounded-xl"
-                    style={{ backgroundColor: '#F7FAF7' }}
-                  >
-                    <Text
-                      className="uppercase font-extrabold text-gray-500"
-                      style={{ fontSize: rf(9.5), letterSpacing: 0.8 }}
-                    >
-                      Reason
-                    </Text>
-                    <Text className="text-gray-700 mt-1 leading-5" style={{ fontSize: rf(12) }}>
-                      {item.reason}
-                    </Text>
+                {item.appliedDaysLabel || item.reason ? (
+                  <View style={{ marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: NEUTRAL }}>
+                    {item.appliedDaysLabel ? (
+                      <View className="flex-row items-center" style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: PAGE_BG }}>
+                        <Clock size={11} color={MUTED} />
+                        <Text className="font-bold" style={{ marginLeft: 5, fontSize: 11, color: INK }}>
+                          {item.appliedDaysLabel}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {item.reason ? (
+                      <View style={{ marginTop: item.appliedDaysLabel ? 8 : 0 }}>
+                        <Text className="uppercase font-extrabold" style={{ fontSize: 10, letterSpacing: 0.6, color: MUTED }}>
+                          Reason
+                        </Text>
+                        <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 17, color: INK }}>
+                          {item.reason}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 ) : null}
 
                 {status === 'PENDING' ? (
-                  <View className="flex-row mt-2">
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      onPress={() => respond(item, 'APPROVED')}
-                      disabled={actionId != null}
-                      className="flex-1 mr-2"
-                      style={cardShadow}
-                    >
-                      <LinearGradient
-                        colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{
-                          borderRadius: rs(14),
-                          paddingVertical: rs(9),
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: actionId != null && !acting ? 0.6 : 1,
-                        }}
-                      >
-                        {acting ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <CheckCircle2 size={rs(14)} color="#FFFFFF" />
-                        )}
-                        <Text className="ml-2 text-white font-extrabold" style={{ fontSize: rf(12.5) }}>
-                          Approve
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                  <View className="flex-row" style={{ marginTop: 10 }}>
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'REJECTED')}
                       disabled={actionId != null}
-                      className="flex-1 ml-2 rounded-2xl py-2.5 flex-row items-center justify-center"
+                      className="flex-row items-center justify-center"
                       style={{
-                        backgroundColor: '#FFFFFF',
-                        borderWidth: 1.5,
-                        borderColor: '#FCA5A5',
+                        flex: 1, marginRight: 8, paddingVertical: 8, borderRadius: 10,
+                        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#FBD0D0',
                         opacity: actionId != null && !acting ? 0.6 : 1,
                       }}
                     >
-                      <XCircle size={rs(14)} color="#B91C1C" />
-                      <Text className="ml-2 font-extrabold" style={{ fontSize: rf(12.5), color: '#B91C1C' }}>
+                      <XCircle size={14} color={RED} />
+                      <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 12, color: '#D63232' }}>
                         Deny
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => respond(item, 'APPROVED')}
+                      disabled={actionId != null}
+                      className="flex-row items-center justify-center"
+                      style={{
+                        flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: GREEN,
+                        opacity: actionId != null && !acting ? 0.6 : 1,
+                      }}
+                    >
+                      {acting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <CheckCircle2 size={14} color="#FFFFFF" />
+                      )}
+                      <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 12, color: '#FFFFFF' }}>
+                        Approve
                       </Text>
                     </TouchableOpacity>
                   </View>

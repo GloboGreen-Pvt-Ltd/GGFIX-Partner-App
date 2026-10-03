@@ -31,32 +31,33 @@ import {
   IndianRupee,
   ChartColumnIncreasing,
 } from 'lucide-react-native';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
+import { T } from '../../components/dashboard/theme';
 import { subscriptionApi } from '../../api/client';
 import { FEATURE, coverageLabel, fetchEntitlements, usageLabel } from '../../subscription/entitlements';
 import { getSession } from '../../auth/session';
 import { fetchMe } from '../../api/auth';
 
-// GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FAF9';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
-const SUCCESS = '#16A34A';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const SUCCESS = '#09AD2A';
 const TRIAL_ACCENT = '#F59E0B';
 const TRIAL_TINT = '#FEF3C7';
 const PRO_ACCENT = '#8B5CF6';
 const PRO_TINT = '#F3EEFF';
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.07,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 8 },
@@ -64,7 +65,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },
@@ -120,6 +121,8 @@ const DEFAULT_TONE = { accent: PRO_ACCENT, tint: PRO_TINT };
 export default function SubscriptionScreen({ navigation, gated = false, onUnlock, onLogout }) {
   const r = useResponsive();
   const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 960), alignSelf: 'center' } : null;
+  // Plan Details grid: 3 across on phones, 2 on very narrow ones, 5 on tablets.
+  const detailCols = r.isTablet ? 5 : (r.width < 350 ? 2 : 3);
 
   const [ownerUserId, setOwnerUserId] = useState(null);
   const [isShopLogin, setIsShopLogin] = useState(false);
@@ -247,63 +250,47 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: PAGE_BG }}>
-        {/* Header — decorative mint leaf shapes, same low-risk plain-View
-            approximation used elsewhere in this app (no new SVG dependency). */}
-        <View style={{ paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12), overflow: 'hidden' }}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
-          <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(30), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
-
+      {/* Header — same pattern as the Buy / Sell / Booking / Personal Info
+          screens: white bar with a bottom border, round back button, centred
+          title + subtitle, right slot (Logout while the plan gate is up). */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        <View
+          style={{
+            backgroundColor: '#FFFFFF', paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12),
+            borderBottomWidth: 1, borderBottomColor: BORDER,
+          }}
+        >
           <View style={capStyle}>
-            <View className="flex-row items-start justify-between">
-              <View className="flex-row items-center flex-1">
-                {!gated ? (
-                  <Pressable
-                    onPress={() => navigation?.goBack?.()}
-                    hitSlop={10}
-                    style={{
-                      height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
-                      alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
-                      borderWidth: 1, borderColor: BORDER,
-                    }}
-                  >
-                    <ChevronLeft size={rf(19)} color={TEXT_PRIMARY} />
-                  </Pressable>
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  <Text className="font-extrabold" style={{ fontSize: rf(24), color: TEXT_PRIMARY }} numberOfLines={1}>
-                    Subscription
-                  </Text>
-                  <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
-                    Manage your plan and features
-                  </Text>
-                </View>
+            <View className="flex-row items-center">
+              {!gated ? (
+                <Pressable
+                  onPress={() => navigation?.goBack?.()}
+                  hitSlop={8}
+                  className="items-center justify-center"
+                  style={{ height: rs(36), width: rs(36), borderRadius: rs(18), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
+                >
+                  <ChevronLeft size={19} color={TEXT_PRIMARY} />
+                </Pressable>
+              ) : (
+                <View style={{ width: rs(56) }} />
+              )}
+              <View className="flex-1 items-center" style={{ marginHorizontal: rs(8) }}>
+                <Text className="font-extrabold" style={{ fontSize: T.headline, color: TEXT_PRIMARY }} numberOfLines={1}>
+                  Subscription
+                </Text>
+                <Text style={{ fontSize: T.caption2, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+                  Manage your plan and features
+                </Text>
               </View>
-
-              <View style={{ alignItems: 'flex-end' }}>
-                {gated ? (
-                  <Pressable onPress={onLogout} hitSlop={8} style={{ paddingHorizontal: rs(4), paddingVertical: rs(4) }}>
-                    <Text className="font-extrabold" style={{ fontSize: rf(12), color: '#B91C1C' }}>Logout</Text>
-                  </Pressable>
-                ) : (
-                  <View
-                    className="flex-row items-center rounded-full"
-                    style={{ paddingHorizontal: rs(12), paddingVertical: rs(7), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, ...softShadow }}
-                  >
-                    <Crown size={rf(12)} color={ACCENT} />
-                    <Text className="font-extrabold" style={{ fontSize: rf(10.5), color: ACCENT, marginLeft: rs(5) }}>
-                      {isShopLogin ? 'SHOP' : 'OWNER'}
-                    </Text>
-                  </View>
-                )}
-                <View style={{ marginTop: rs(8), alignItems: 'flex-end' }}>
-                  <Text style={styles_heroBrand}>GROW</Text>
-                  <Text style={styles_heroBrand}>YOUR SHOP</Text>
-                  <Text style={styles_heroBrand}>WITH US</Text>
-                </View>
-              </View>
+              {gated ? (
+                <Pressable onPress={onLogout} hitSlop={8} style={{ width: rs(56), alignItems: 'flex-end', paddingVertical: rs(4) }}>
+                  <Text className="font-extrabold" style={{ fontSize: T.caption1, color: '#B91C1C' }}>Logout</Text>
+                </Pressable>
+              ) : (
+                <View style={{ width: rs(36) }} />
+              )}
             </View>
           </View>
         </View>
@@ -312,111 +299,82 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={ACCENT} />
-          <Text style={{ marginTop: rs(12), fontSize: rf(12.5), color: TEXT_SECONDARY }}>Loading your plan…</Text>
+          <Text style={{ marginTop: rs(12), fontSize: 12.5, color: TEXT_SECONDARY }}>Loading your plan…</Text>
         </View>
       ) : (
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: 32 }}
+          contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(10), paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         >
           <View style={capStyle}>
           {gated && !activated ? (
-            <View className="rounded-2xl" style={{ paddingHorizontal: rs(14), paddingVertical: rs(12), marginBottom: rs(12), backgroundColor: TRIAL_TINT, borderWidth: 1, borderColor: '#FDE68A' }}>
-              <View className="flex-row items-center">
-                <AlertCircle size={rf(16)} color="#B45309" />
-                <Text className="font-extrabold" style={{ marginLeft: rs(8), flex: 1, fontSize: rf(13), color: '#B45309' }}>
-                  Your free trial has ended
-                </Text>
-              </View>
-              <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(4) }}>
-                Choose a plan below to continue using GGFIX. You can log out anytime from the top-right.
-              </Text>
-            </View>
+            <Notice tone="warn" icon={AlertCircle} title="Your free trial has ended">
+              Choose a plan below to continue using GGFIX. You can log out anytime from the top-right.
+            </Notice>
           ) : null}
 
-          {error ? (
-            <View
-              className="flex-row items-center rounded-2xl"
-              style={{ paddingHorizontal: rs(14), paddingVertical: rs(12), marginBottom: rs(12), backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
-            >
-              <AlertCircle size={rf(16)} color="#B91C1C" />
-              <Text className="font-semibold" style={{ marginLeft: rs(8), flex: 1, fontSize: rf(12.5), color: '#B91C1C' }}>
-                {error}
-              </Text>
-            </View>
-          ) : null}
+          {error ? <Notice tone="error" icon={AlertCircle} title={error} /> : null}
 
-          {activated ? (
-            <View
-              className="flex-row items-center rounded-2xl"
-              style={{ paddingHorizontal: rs(14), paddingVertical: rs(12), marginBottom: rs(12), backgroundColor: MINT, borderWidth: 1, borderColor: BRIGHT }}
-            >
-              <CheckCircle2 size={rf(18)} color={ACCENT} />
-              <Text className="font-extrabold" style={{ marginLeft: rs(8), flex: 1, fontSize: rf(12.5), color: ACCENT }}>
-                Basic plan activated. You&apos;re all set!
-              </Text>
-            </View>
-          ) : null}
+          {activated ? <Notice tone="ok" icon={CheckCircle2} title="Basic plan activated. You're all set!" /> : null}
 
           {gated && activated ? (
             <Pressable
               onPress={onUnlock}
-              className="flex-row items-center justify-center rounded-2xl"
-              style={{ paddingVertical: rs(13), marginBottom: rs(10), backgroundColor: ACCENT, ...cardShadow }}
+              className="flex-row items-center justify-center"
+              style={{ borderRadius: 14, paddingVertical: 12, marginBottom: rs(10), backgroundColor: ACCENT, ...cardShadow }}
             >
-              <CheckCircle2 size={rf(18)} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(15) }}>Continue to App</Text>
+              <CheckCircle2 size={17} color="#FFFFFF" />
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 14 }}>Continue to App</Text>
             </Pressable>
           ) : null}
 
-          {/* ---------- CURRENT PLAN HERO ---------- */}
+          {/* ---------- CURRENT PLAN ---------- */}
           <CurrentPlanHero current={current} />
 
-          {/* ---------- PLAN DETAILS ---------- */}
-          {current ? <PlanDetailsCard current={current} entitlements={entitlements} /> : null}
+          {/* ---------- PLAN DETAILS (every line, as a compact grid) ---------- */}
+          {current ? <PlanDetailsCard current={current} entitlements={entitlements} cols={detailCols} /> : null}
 
-          {/* Shop-scoped logins see only the current plan — plan management,
-              multi-shop pricing, and upgrades stay in the owner's account. */}
-          {isShopLogin ? (
-            <View
-              className="flex-row items-start"
-              style={{ backgroundColor: CARD_BG, borderRadius: rs(18), padding: rs(12), marginTop: rs(11), borderWidth: 1, borderColor: BORDER, ...softShadow }}
-            >
-              <AlertCircle size={rf(16)} color={TEXT_SECONDARY} />
-              <Text style={{ marginLeft: rs(8), flex: 1, fontSize: rf(12.5), color: TEXT_SECONDARY, lineHeight: rf(18) }}>
-                Your plan is managed by the shop owner. Upgrades and payments are available from the owner&apos;s account.
-              </Text>
-            </View>
-          ) : (
-            <>
-              {/* ---------- AVAILABLE PLANS ---------- */}
-              <View
-                style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(13), marginTop: rs(12), borderWidth: 1, borderColor: BORDER, ...cardShadow }}
-              >
-                <SectionHeader
-                  icon={ChartColumnIncreasing}
-                  title="Available Plans"
-                  subtitle="Choose the best plan for your business"
-                />
-                {plans.length === 0 ? (
-                  <Text style={{ fontSize: rf(12.5), color: TEXT_SECONDARY }}>No plans available right now.</Text>
-                ) : (
-                  plans.map((plan, i) => (
+          {/* ---------- AVAILABLE PLANS ----------
+              Shown on every login so no plan detail is hidden. Shop-scoped
+              logins get them read-only: no upgrade CTA, because plan
+              management, multi-shop pricing and payments stay in the owner's
+              account. */}
+          <View
+            style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: rs(10), borderWidth: 1, borderColor: BORDER, ...softShadow }}
+          >
+            <SectionHeader icon={ChartColumnIncreasing} title="Available Plans" />
+            {plans.length === 0 ? (
+              <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>No plans available right now.</Text>
+            ) : (
+              // Side by side, two to a row (one plan spans the full width).
+              <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
+                {plans.map((plan) => (
+                  <View key={plan.code} style={{ width: plans.length === 1 ? '100%' : '50%', padding: 4 }}>
                     <PlanCard
-                      key={plan.code}
                       plan={plan}
                       isCurrent={currentType === plan.code || currentType === plan.name}
-                      onUpgrade={canUpgrade ? openUpgrade : null}
-                      last={i === plans.length - 1}
+                      onUpgrade={canUpgrade && !isShopLogin ? openUpgrade : null}
                     />
-                  ))
-                )}
+                  </View>
+                ))}
               </View>
+            )}
+            {isShopLogin ? (
+              <View className="flex-row items-start" style={{ marginTop: 8 }}>
+                <AlertCircle size={13} color={TEXT_SECONDARY} style={{ marginTop: 1 }} />
+                <Text style={{ marginLeft: 6, flex: 1, fontSize: 11, color: TEXT_SECONDARY, lineHeight: 15 }}>
+                  Your plan is managed by the shop owner. Upgrades and payments are available from the owner&apos;s account.
+                </Text>
+              </View>
+            ) : null}
+          </View>
 
+          {!isShopLogin ? (
+            <>
               {/* ---------- UPGRADE PANEL (opened from any non-current plan's CTA) ---------- */}
               {upgrading ? (
-                <View style={{ marginTop: rs(16) }}>
+                <View style={{ marginTop: rs(10) }}>
                   <UpgradePanel
                     shopCount={shopCount}
                     onDec={() => setShopCount((n) => Math.max(1, n - 1))}
@@ -432,7 +390,7 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
                 </View>
               ) : null}
             </>
-          )}
+          ) : null}
           </View>
         </ScrollView>
       )}
@@ -440,22 +398,39 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
   );
 }
 
-const styles_heroBrand = { fontSize: rf(8), fontWeight: '800', letterSpacing: 1.2, color: TEXT_SECONDARY };
 
 /* ------------------------------------------------------------------ */
 
+const NOTICE_TONE = {
+  warn: { bg: TRIAL_TINT, border: '#FDE68A', ink: '#B45309' },
+  error: { bg: '#FEE2E2', border: '#FCA5A5', ink: '#B91C1C' },
+  ok: { bg: MINT, border: '#CDEFD5', ink: PRIMARY },
+};
+
+/** One-line status banner (trial ended / error / activated). */
+function Notice({ tone, icon: Icon, title, children }) {
+  const t = NOTICE_TONE[tone];
+  return (
+    <View style={{ borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: rs(10), backgroundColor: t.bg, borderWidth: 1, borderColor: t.border }}>
+      <View className="flex-row items-center">
+        <Icon size={15} color={t.ink} />
+        <Text className="font-extrabold" style={{ marginLeft: rs(8), flex: 1, fontSize: 12.5, color: t.ink }}>{title}</Text>
+      </View>
+      {children ? <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 3, lineHeight: 16 }}>{children}</Text> : null}
+    </View>
+  );
+}
+
+/** Compact card heading: small icon + title, optional one-line caption. */
 function SectionHeader({ icon: Icon, title, subtitle, right }) {
   return (
-    <View className="flex-row items-center" style={{ marginBottom: rs(13) }}>
-      <View
-        className="items-center justify-center"
-        style={{ height: rs(36), width: rs(36), borderRadius: rs(13), backgroundColor: MINT, marginRight: rs(11) }}
-      >
-        <Icon size={rf(16)} color={ACCENT} />
+    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+      <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT, marginRight: 9 }}>
+        <Icon size={14} color={ACCENT} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text className="font-extrabold" style={{ fontSize: rf(16), color: TEXT_PRIMARY }}>{title}</Text>
-        {subtitle ? <Text style={{ fontSize: rf(11), color: TEXT_SECONDARY, marginTop: rs(1) }}>{subtitle}</Text> : null}
+        <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right}
     </View>
@@ -465,17 +440,15 @@ function SectionHeader({ icon: Icon, title, subtitle, right }) {
 function CurrentPlanHero({ current }) {
   if (!current) {
     return (
-      <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(12), marginTop: rs(11), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
+      <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
         <View className="flex-row items-center">
-          <View className="items-center justify-center" style={{ width: rs(44), height: rs(44), borderRadius: rs(15), marginRight: rs(11), backgroundColor: SOFT_MINT }}>
-            <CreditCard size={rf(19)} color={TEXT_SECONDARY} />
+          <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 12, marginRight: 10, backgroundColor: SOFT_MINT }}>
+            <CreditCard size={18} color={TEXT_SECONDARY} />
           </View>
           <View className="flex-1">
-            <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), letterSpacing: 1, color: TEXT_SECONDARY }}>
-              Current Plan
-            </Text>
-            <Text className="font-extrabold" style={{ fontSize: rf(16), color: TEXT_PRIMARY, marginTop: rs(2) }}>No active plan</Text>
-            <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(2) }}>Choose a plan below to get started.</Text>
+            <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.8, color: TEXT_SECONDARY }}>Current Plan</Text>
+            <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY, marginTop: 1 }}>No active plan</Text>
+            <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 1 }}>Choose a plan below to get started.</Text>
           </View>
         </View>
       </View>
@@ -493,93 +466,73 @@ function CurrentPlanHero({ current }) {
   const description = STATUS_DESCRIPTION[status] || 'Manage your plan and features below.';
 
   return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(12), marginTop: rs(11), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
-      <View className="flex-row items-start">
+    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
+      <View className="flex-row items-center">
         <View
           className="items-center justify-center"
-          style={{ width: rs(48), height: rs(48), borderRadius: rs(16), marginRight: rs(11), backgroundColor: isTrial ? TRIAL_TINT : MINT }}
+          style={{ width: 40, height: 40, borderRadius: 13, marginRight: 10, backgroundColor: isTrial ? TRIAL_TINT : MINT }}
         >
-          {isTrial ? <Gift size={rf(24)} color={TRIAL_ACCENT} /> : <Crown size={rf(24)} color={ACCENT} />}
+          {isTrial ? <Gift size={20} color={TRIAL_ACCENT} /> : <Crown size={20} color={ACCENT} />}
         </View>
         <View className="flex-1">
-          <Text className="uppercase font-bold" style={{ fontSize: rf(9.5), letterSpacing: 1, color: TEXT_SECONDARY }}>
-            Current Plan
-          </Text>
-          <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(2) }}>
-            <Text className="font-extrabold" style={{ fontSize: rf(24), color: TEXT_PRIMARY, marginRight: rs(8) }}>{planName}</Text>
-            <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: meta.tint }}>
-              <Text className="font-extrabold" style={{ fontSize: rf(9.5), color: meta.color, letterSpacing: 0.4 }}>
-                {meta.label.toUpperCase()}
-              </Text>
+          <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.8, color: TEXT_SECONDARY }}>Current Plan</Text>
+          <View className="flex-row items-center flex-wrap" style={{ marginTop: 1 }}>
+            <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY, marginRight: 7 }}>{planName}</Text>
+            <View className="rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: meta.tint }}>
+              <Text className="font-extrabold" style={{ fontSize: 9.5, color: meta.color, letterSpacing: 0.4 }}>{meta.label.toUpperCase()}</Text>
             </View>
           </View>
-          <Text style={{ fontSize: rf(11.5), color: TEXT_SECONDARY, marginTop: rs(4), lineHeight: rf(16) }}>
-            {description}
-          </Text>
         </View>
-        {/* Small calendar+check mark — an icon-based stand-in for a full
-            illustration graphic (no image asset was supplied). */}
-        <View
-          className="items-center justify-center"
-          style={{ width: rs(44), height: rs(44), borderRadius: rs(14), marginLeft: rs(6), backgroundColor: isTrial ? TRIAL_TINT : MINT }}
-        >
-          <Calendar size={rf(20)} color={isTrial ? TRIAL_ACCENT : ACCENT} />
-        </View>
+        {/* Time left / end date (trial) or validity + amount (active) */}
+        {isTrial ? (
+          <View className="items-end" style={{ marginLeft: 8, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: TRIAL_TINT }}>
+            <View className="flex-row items-center">
+              <Clock size={12} color={TRIAL_ACCENT} />
+              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 12.5, color: '#B45309' }}>
+                {Number.isFinite(days) ? `${days} day${days === 1 ? '' : 's'} left` : 'Trial active'}
+              </Text>
+            </View>
+            {formatDate(current.inactiveDate) ? (
+              <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 1 }}>Ends {formatDate(current.inactiveDate)}</Text>
+            ) : null}
+          </View>
+        ) : isActive ? (
+          <View className="items-end" style={{ marginLeft: 8, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: MINT }}>
+            <View className="flex-row items-center">
+              <Check size={12} color={PRIMARY} strokeWidth={3} />
+              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 12, color: PRIMARY }}>
+                {formatDate(current.inactiveDate) ? `Until ${formatDate(current.inactiveDate)}` : 'Active'}
+              </Text>
+            </View>
+            {money(current.priceAmount) ? (
+              <Text className="font-extrabold" style={{ fontSize: 12, color: PRIMARY, marginTop: 1 }}>{money(current.priceAmount)}</Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
-
-      {isTrial ? (
-        <View
-          className="flex-row items-center rounded-2xl"
-          style={{ paddingHorizontal: rs(13), paddingVertical: rs(12), marginTop: rs(14), backgroundColor: TRIAL_TINT, borderWidth: 1, borderColor: '#FDE68A' }}
-        >
-          <View className="items-center justify-center" style={{ width: rs(28), height: rs(28), borderRadius: rs(14), backgroundColor: '#FFFFFF' }}>
-            <Clock size={rf(14)} color={TRIAL_ACCENT} />
-          </View>
-          <Text className="font-extrabold" style={{ marginLeft: rs(9), fontSize: rf(13), color: '#B45309' }}>
-            {Number.isFinite(days) ? `${days} day${days === 1 ? '' : 's'} left` : 'Trial active'}
-          </Text>
-          {formatDate(current.inactiveDate) ? (
-            <Text className="font-semibold" style={{ marginLeft: 'auto', fontSize: rf(11.5), color: TEXT_SECONDARY }}>
-              Ends {formatDate(current.inactiveDate)}
-            </Text>
-          ) : null}
-        </View>
-      ) : isActive ? (
-        <View
-          className="flex-row items-center rounded-2xl"
-          style={{ paddingHorizontal: rs(13), paddingVertical: rs(12), marginTop: rs(14), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}
-        >
-          <View className="items-center justify-center" style={{ width: rs(28), height: rs(28), borderRadius: rs(14), backgroundColor: ACCENT }}>
-            <Check size={rf(15)} color="#FFFFFF" strokeWidth={2.6} />
-          </View>
-          <Text className="font-extrabold" style={{ marginLeft: rs(9), fontSize: rf(13.5), color: ACCENT }}>
-            {formatDate(current.inactiveDate) ? `Active until ${formatDate(current.inactiveDate)}` : 'Active'}
-          </Text>
-          {money(current.priceAmount) ? (
-            <Text className="font-extrabold" style={{ marginLeft: 'auto', fontSize: rf(15), color: ACCENT }}>
-              {money(current.priceAmount)}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
+      <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 7, lineHeight: 16 }}>{description}</Text>
     </View>
   );
 }
 
-function PlanDetailsCard({ current, entitlements }) {
+function PlanDetailsCard({ current, entitlements, cols = 3 }) {
   const status = current.status || '';
-  const meta = STATUS_META[status] || { label: status, color: TEXT_SECONDARY, tint: SOFT_MINT };
   const isTrial = status === 'FREE_TRIAL';
-  const planName = current.subscriptionType === 'BASIC' || current.subscriptionType === 'Basic'
-    ? 'Basic'
-    : (current.subscriptionType === 'FREE_TRIAL' || isTrial ? 'Free Trial' : (current.subscriptionType || meta.label));
   const days = Number(current.daysRemaining);
   const startedText = formatDate(current.activeDate || current.subscriptionStartDate || current.trialStartDate);
   const endsText = formatDate(current.inactiveDate || current.subscriptionEndDate || current.trialEndDate);
 
-  // Live entitlement readings. Each falls back to null (line hidden) when the
-  // payload is unavailable — better a missing row than a stale number presented
+  // Live entitlement readings. Each falls back to null (tile hidden) when the
+  // payload is unavailable — better a missing tile than a stale number presented
   // as the plan's actual allowance.
+  //
+  // Usage tiles come from the entitlements payload, NOT from the subscription
+  // row's own limit columns. Those columns are a snapshot written when the row
+  // was created, so a backfilled or pre-plan-change row can carry a number the
+  // API no longer honours — and a plan screen that advertises an allowance the
+  // create API refuses is the exact bug this system exists to prevent.
+  // "Shops covered 1 of 2" is USED of ALLOWED — one shop currently open out of
+  // two the plan permits — not "one shop has been paid for".
   const shopsCovered = coverageLabel(entitlements, FEATURE.SHOPS);
   const employeeUsage = usageLabel(entitlements, FEATURE.EMPLOYEES);
   const sellOrderUsage = usageLabel(entitlements, FEATURE.SELL_ORDERS);
@@ -587,58 +540,69 @@ function PlanDetailsCard({ current, entitlements }) {
     ? null
     : (entitlements.features.pickupService ? 'Enabled' : 'Disabled');
 
-  return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(13), marginTop: rs(12), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
-      <SectionHeader icon={FileText} title="Plan Details" subtitle="Complete information about your current plan" />
-      <DetailLine icon={Crown} label="Plan" value={planName} />
-      <DetailLine icon={ShieldCheck} label="Status" value={meta.label} pillColor={meta.color} pillTint={meta.tint} />
-      {startedText ? <DetailLine icon={Calendar} label="Started on" value={startedText} /> : null}
-      {endsText ? <DetailLine icon={CalendarCheck} label={isTrial ? 'Trial ends' : 'Valid till'} value={endsText} /> : null}
-      {Number.isFinite(days) ? (
-        <DetailLine icon={Timer} label="Days remaining" value={`${days} day${days === 1 ? '' : 's'}`} bold />
-      ) : null}
-      {/*
-        Usage lines come from the entitlements payload, NOT from the
-        subscription row's own limit columns. Those columns are a snapshot
-        written when the row was created, so a backfilled or pre-plan-change
-        row can carry a number the API no longer honours — and a plan screen
-        that advertises an allowance the create API refuses is the exact bug
-        this system exists to prevent.
+  // What the Current Plan card above already shows (see CurrentPlanHero).
+  const isActive = status === 'ACTIVE';
+  const heroShowsEnd = (isTrial || isActive) && !!formatDate(current.inactiveDate);
+  const heroShowsDays = isTrial && Number.isFinite(days);
+  const heroShowsAmount = isActive && !!money(current.priceAmount);
 
-        "Shops Covered 1 of 2" is USED of ALLOWED — one shop currently open
-        out of two the plan permits — not "one shop has been paid for".
-      */}
-      {shopsCovered ? <DetailLine icon={Store} label="Shops covered" value={shopsCovered} /> : null}
-      {employeeUsage ? <DetailLine icon={Users} label="Employees" value={employeeUsage} /> : null}
-      {sellOrderUsage ? <DetailLine icon={Package} label="Sell orders" value={sellOrderUsage} /> : null}
-      {pickupText ? <DetailLine icon={Truck} label="Pickup service" value={pickupText} pillColor={pickupText === 'Enabled' ? SUCCESS : TEXT_SECONDARY} pillTint={pickupText === 'Enabled' ? MINT : SOFT_MINT} /> : null}
-      {money(current.priceAmount) ? (
-        <DetailLine icon={IndianRupee} label="Amount" value={money(current.priceAmount)} bold last />
-      ) : null}
+  const items = [
+    startedText ? { icon: Calendar, label: 'Started on', value: startedText } : null,
+    endsText && !heroShowsEnd ? { icon: CalendarCheck, label: isTrial ? 'Trial ends' : 'Valid till', value: endsText } : null,
+    Number.isFinite(days) && !heroShowsDays ? { icon: Timer, label: 'Days left', value: `${days} day${days === 1 ? '' : 's'}`, strong: true } : null,
+    shopsCovered ? { icon: Store, label: 'Shops covered', value: shopsCovered } : null,
+    employeeUsage ? { icon: Users, label: 'Employees', value: employeeUsage } : null,
+    sellOrderUsage ? { icon: Package, label: 'Sell orders', value: sellOrderUsage } : null,
+    pickupText ? {
+      icon: Truck, label: 'Pickup service', value: pickupText,
+      pillColor: pickupText === 'Enabled' ? PRIMARY : TEXT_SECONDARY, pillTint: pickupText === 'Enabled' ? MINT : SOFT_MINT,
+    } : null,
+    money(current.priceAmount) && !heroShowsAmount ? { icon: IndianRupee, label: 'Amount', value: money(current.priceAmount), strong: true } : null,
+  ].filter(Boolean);
+  if (items.length === 0) return null;
+
+  // A plain list, like the plan cards' feature lists: one fact per row, the
+  // full label on the left and its value on the right — nothing truncated
+  // ("Shops covered", "Pickup service"). Tablets split it into two columns.
+  const twoCols = cols >= 5;
+  const half = Math.ceil(items.length / 2);
+  const columns = twoCols ? [items.slice(0, half), items.slice(half)] : [items];
+
+  return (
+    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: rs(10), borderWidth: 1, borderColor: BORDER, ...softShadow }}>
+      <SectionHeader icon={FileText} title="Plan Details" />
+      <View className="flex-row" style={{ gap: 16 }}>
+        {columns.map((colItems, ci) => (
+          <View key={ci} style={{ flex: 1, minWidth: 0 }}>
+            {colItems.map((it, i) => (
+              <DetailRow key={it.label} {...it} isLast={i === colItems.length - 1} />
+            ))}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
-function DetailLine({ icon: Icon, label, value, valueColor, pillColor, pillTint, bold, last }) {
+/** One Plan Details fact as a list row: mint icon + label left, value right. */
+function DetailRow({ icon: Icon, label, value, pillColor, pillTint, strong, isLast }) {
   return (
     <View
-      className="flex-row items-center justify-between"
-      style={{ paddingVertical: rs(11), borderTopWidth: 1, borderTopColor: BORDER, ...(last ? { } : {}) }}
+      className="flex-row items-center"
+      style={{ paddingVertical: 8, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: SOFT_MINT }}
     >
-      <View className="flex-row items-center flex-1" style={{ marginRight: rs(8) }}>
-        <View className="items-center justify-center" style={{ width: rs(28), height: rs(28), borderRadius: rs(14), backgroundColor: MINT, marginRight: rs(10) }}>
-          <Icon size={rf(13)} color={ACCENT} />
-        </View>
-        <Text style={{ fontSize: rf(13), color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
+      <View className="items-center justify-center" style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: MINT, marginRight: 8 }}>
+        <Icon size={11} color={ACCENT} />
       </View>
+      <Text style={{ flex: 1, fontSize: 12, color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
       {pillColor ? (
-        <View className="rounded-full" style={{ paddingHorizontal: rs(10), paddingVertical: rs(4), backgroundColor: pillTint || MINT }}>
-          <Text className="font-extrabold" style={{ fontSize: rf(11.5), color: pillColor }}>{value}</Text>
+        <View className="rounded-full" style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: pillTint || MINT }}>
+          <Text className="font-extrabold" style={{ fontSize: 11, color: pillColor }} numberOfLines={1}>{value}</Text>
         </View>
       ) : (
         <Text
-          className={bold ? 'font-extrabold' : 'font-bold'}
-          style={{ fontSize: bold ? rf(15) : rf(13.5), color: valueColor || TEXT_PRIMARY }}
+          className="font-extrabold"
+          style={{ marginLeft: 8, fontSize: 13, color: strong ? PRIMARY : TEXT_PRIMARY, textAlign: 'right' }}
           numberOfLines={1}
         >
           {value}
@@ -648,7 +612,7 @@ function DetailLine({ icon: Icon, label, value, valueColor, pillColor, pillTint,
   );
 }
 
-function PlanCard({ plan, isCurrent, onUpgrade, last }) {
+function PlanCard({ plan, isCurrent, onUpgrade }) {
   const Icon = PLAN_ICON[plan.code] || Crown;
   const isTrial = plan.code === 'FREE_TRIAL';
   const tone = PLAN_TONE[plan.code] || DEFAULT_TONE;
@@ -660,65 +624,55 @@ function PlanCard({ plan, isCurrent, onUpgrade, last }) {
   return (
     <View
       style={{
-        borderRadius: rs(18), padding: rs(12), marginBottom: last ? 0 : rs(10),
+        flex: 1, borderRadius: 14, padding: 10,
         backgroundColor: isCurrent ? MINT : CARD_BG,
         borderWidth: isCurrent ? 1.5 : 1,
         borderColor: isCurrent ? BRIGHT : BORDER,
-        ...softShadow,
       }}
     >
+      <View className="flex-row items-center">
+        <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 10, marginRight: 8, backgroundColor: isCurrent ? CARD_BG : tone.tint }}>
+          <Icon size={15} color={tone.accent} />
+        </View>
+        <View className="flex-1">
+          <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>
+            {plan.name || (isTrial ? 'Free Trial' : 'Plan')}
+          </Text>
+          <Text className="font-extrabold" style={{ fontSize: 11.5, color: isTrial ? '#B45309' : tone.accent, marginTop: 1 }} numberOfLines={1}>{priceLabel}</Text>
+        </View>
+      </View>
       {isCurrent ? (
-        <View style={{ position: 'absolute', top: rs(12), right: rs(12), borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT }}>
-          <Text className="text-white font-extrabold" style={{ fontSize: rf(9) }}>Current Plan</Text>
+        <View className="flex-row items-center" style={{ alignSelf: 'flex-start', marginTop: 7, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ACCENT }}>
+          <Check size={10} color="#FFFFFF" strokeWidth={3} />
+          <Text className="text-white font-extrabold" style={{ fontSize: 10, marginLeft: 3 }}>Current Plan</Text>
         </View>
       ) : null}
 
-      <View className="flex-row items-center">
-        <View className="items-center justify-center" style={{ width: rs(48), height: rs(48), borderRadius: rs(16), marginRight: rs(12), backgroundColor: tone.tint }}>
-          <Icon size={rf(21)} color={tone.accent} />
-        </View>
-        <View className="flex-1">
-          <Text className="font-extrabold" style={{ fontSize: rf(17), color: TEXT_PRIMARY }} numberOfLines={1}>
-            {plan.name || (isTrial ? 'Free Trial' : 'Plan')}
-          </Text>
-          <Text className="font-extrabold" style={{ fontSize: rf(13.5), color: tone.accent, marginTop: rs(2) }}>
-            {priceLabel}
-          </Text>
-        </View>
-      </View>
-
       {features.length > 0 ? (
-        <View style={{ marginTop: rs(12) }}>
+        <View style={{ marginTop: 8 }}>
           {features.map((f, i) => (
-            <View key={i} className="flex-row items-center" style={{ marginBottom: rs(7) }}>
-              <View className="items-center justify-center" style={{ width: rs(19), height: rs(19), borderRadius: rs(10), backgroundColor: MINT, marginRight: rs(8) }}>
-                <Check size={rf(11)} color={ACCENT} strokeWidth={3} />
+            <View key={i} className="flex-row items-start" style={{ marginBottom: 5 }}>
+              <View className="items-center justify-center" style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: isCurrent ? CARD_BG : MINT, marginRight: 5, marginTop: 1 }}>
+                <Check size={9} color={ACCENT} strokeWidth={3.2} />
               </View>
-              <Text className="flex-1" style={{ fontSize: rf(12), color: TEXT_PRIMARY, lineHeight: rf(16) }}>{f}</Text>
+              <Text className="flex-1" style={{ fontSize: 11, color: TEXT_PRIMARY, lineHeight: 15 }} numberOfLines={2}>{f}</Text>
             </View>
           ))}
         </View>
       ) : null}
 
-      {isCurrent ? (
-        <View
-          className="flex-row items-center justify-center rounded-2xl"
-          style={{ marginTop: rs(13), paddingVertical: rs(12), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BRIGHT, opacity: 0.85 }}
-        >
-          <Check size={rf(15)} color={ACCENT} strokeWidth={2.6} />
-          <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: rf(13), color: ACCENT }}>Current Plan</Text>
-        </View>
-      ) : onUpgrade ? (
+      {/* The current plan is marked by its badge; only other plans get a CTA. */}
+      {!isCurrent && onUpgrade ? (
         <Pressable
           onPress={onUpgrade}
-          className="items-center justify-center rounded-2xl"
+          className="items-center justify-center"
           style={
             isTrial
-              ? { marginTop: rs(13), paddingVertical: rs(12), backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: tone.accent }
-              : { marginTop: rs(13), paddingVertical: rs(12), backgroundColor: ACCENT }
+              ? { marginTop: 'auto', borderRadius: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: tone.accent }
+              : { marginTop: 'auto', borderRadius: 12, paddingVertical: 9, backgroundColor: ACCENT }
           }
         >
-          <Text className="font-extrabold" style={{ fontSize: rf(13), color: isTrial ? tone.accent : '#FFFFFF' }}>
+          <Text className="font-extrabold" style={{ fontSize: 13, color: isTrial ? tone.accent : '#FFFFFF' }}>
             {isTrial ? 'Get Started' : 'Upgrade Now'}
           </Text>
         </Pressable>
@@ -731,106 +685,96 @@ function UpgradePanel({
   shopCount, onDec, onInc, onSet, quote, quoteLoading, quoteTotal, activating, onConfirm, onCancel,
 }) {
   return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: rs(20), padding: rs(13), borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
+    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
       <View className="flex-row items-center">
-        <Crown size={rf(18)} color={ACCENT} />
-        <Text className="font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(15), color: TEXT_PRIMARY }}>Activate Basic Plan</Text>
+        <Crown size={16} color={ACCENT} />
+        <Text className="font-extrabold" style={{ marginLeft: 7, fontSize: 14, color: TEXT_PRIMARY }}>Activate Basic Plan</Text>
       </View>
-      <Text style={{ fontSize: rf(12), color: TEXT_SECONDARY, marginTop: rs(4) }}>
-        How many shops do you want to cover?
-      </Text>
+      <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 3 }}>How many shops do you want to cover?</Text>
 
-      {/* Stepper */}
-      <View className="flex-row items-center justify-center" style={{ marginTop: rs(16) }}>
+      {/* Stepper + quick-pick chips 1..5 on one row */}
+      <View className="flex-row items-center" style={{ marginTop: 12 }}>
         <Pressable
           onPress={onDec}
           disabled={shopCount <= 1}
           className="items-center justify-center rounded-full"
-          style={{ width: rs(44), height: rs(44), backgroundColor: shopCount <= 1 ? SOFT_MINT : MINT, opacity: shopCount <= 1 ? 0.5 : 1 }}
+          style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount <= 1 ? 0.45 : 1 }}
         >
-          <Minus size={rf(18)} color={ACCENT} strokeWidth={2.6} />
+          <Minus size={16} color={ACCENT} strokeWidth={2.6} />
         </Pressable>
-        <View className="items-center" style={{ marginHorizontal: rs(24) }}>
-          <Text className="font-extrabold" style={{ fontSize: rf(30), color: TEXT_PRIMARY }}>{shopCount}</Text>
-          <Text className="uppercase font-bold" style={{ fontSize: rf(10.5), color: TEXT_SECONDARY, letterSpacing: 0.6 }}>
-            shop{shopCount === 1 ? '' : 's'}
-          </Text>
+        <View className="items-center" style={{ width: 62 }}>
+          <Text className="font-extrabold" style={{ fontSize: 22, color: TEXT_PRIMARY }}>{shopCount}</Text>
+          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: TEXT_SECONDARY, letterSpacing: 0.6 }}>shop{shopCount === 1 ? '' : 's'}</Text>
         </View>
         <Pressable
           onPress={onInc}
           disabled={shopCount >= 5}
           className="items-center justify-center rounded-full"
-          style={{ width: rs(44), height: rs(44), backgroundColor: shopCount >= 5 ? SOFT_MINT : MINT, opacity: shopCount >= 5 ? 0.5 : 1 }}
+          style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount >= 5 ? 0.45 : 1 }}
         >
-          <Plus size={rf(18)} color={ACCENT} strokeWidth={2.6} />
+          <Plus size={16} color={ACCENT} strokeWidth={2.6} />
         </Pressable>
-      </View>
-
-      {/* Quick-pick chips 1..5 */}
-      <View className="flex-row justify-center" style={{ marginTop: rs(16), marginHorizontal: -rs(3) }}>
-        {[1, 2, 3, 4, 5].map((n) => {
-          const active = n === shopCount;
-          return (
-            <Pressable
-              key={n}
-              onPress={() => onSet(n)}
-              className="items-center justify-center rounded-full"
-              style={{ width: rs(36), height: rs(36), marginHorizontal: rs(3), backgroundColor: active ? ACCENT : SOFT_MINT }}
-            >
-              <Text className="font-extrabold" style={{ fontSize: rf(13), color: active ? '#FFFFFF' : TEXT_SECONDARY }}>
-                {n}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <View className="flex-row flex-1 justify-end">
+          {[1, 2, 3, 4, 5].map((n) => {
+            const active = n === shopCount;
+            return (
+              <Pressable
+                key={n}
+                onPress={() => onSet(n)}
+                className="items-center justify-center rounded-full"
+                style={{ width: 30, height: 30, marginLeft: 4, backgroundColor: active ? ACCENT : SOFT_MINT }}
+              >
+                <Text className="font-extrabold" style={{ fontSize: 12.5, color: active ? '#FFFFFF' : TEXT_SECONDARY }}>{n}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       {/* Total */}
       <View
-        className="flex-row items-center rounded-2xl"
-        style={{ paddingHorizontal: rs(16), paddingVertical: rs(13), marginTop: rs(16), backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}
+        className="flex-row items-center"
+        style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, backgroundColor: MINT, borderWidth: 1, borderColor: '#CDEFD5' }}
       >
-        <Text className="font-bold flex-1" style={{ fontSize: rf(12.5), color: TEXT_SECONDARY }}>Total payable</Text>
+        <Text className="font-bold flex-1" style={{ fontSize: 12, color: TEXT_SECONDARY }}>Total payable</Text>
         {quoteLoading ? (
           <ActivityIndicator color={ACCENT} />
         ) : (
-          <Text className="font-extrabold" style={{ fontSize: rf(20), color: ACCENT }}>
-            {money(quoteTotal)}
-          </Text>
+          <Text className="font-extrabold" style={{ fontSize: 17, color: PRIMARY }}>{money(quoteTotal)}</Text>
         )}
       </View>
       {quote?.discountApplied ? (
-        <Text className="font-semibold text-center" style={{ fontSize: rf(11), color: PRIMARY, marginTop: rs(6) }}>
+        <Text className="font-semibold text-center" style={{ fontSize: 11, color: PRIMARY, marginTop: 5 }}>
           Multi-shop discount applied ({money(quote.pricePerShop)}/shop)
         </Text>
       ) : null}
 
       {/* Confirm / cancel */}
-      <Pressable
-        onPress={onConfirm}
-        disabled={activating}
-        className="flex-row items-center justify-center rounded-2xl"
-        style={{ paddingVertical: rs(14), marginTop: rs(16), backgroundColor: ACCENT, opacity: activating ? 0.6 : 1 }}
-      >
-        {activating ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <>
-            <CreditCard size={rf(16)} color="#FFFFFF" />
-            <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: rf(14.5) }}>
-              Confirm &amp; Activate
-            </Text>
-          </>
-        )}
-      </Pressable>
-      <Pressable
-        onPress={onCancel}
-        disabled={activating}
-        className="items-center justify-center"
-        style={{ paddingVertical: rs(12), marginTop: rs(4) }}
-      >
-        <Text className="font-bold" style={{ fontSize: rf(13), color: TEXT_SECONDARY }}>Cancel</Text>
-      </Pressable>
+      <View className="flex-row" style={{ marginTop: 12 }}>
+        <Pressable
+          onPress={onCancel}
+          disabled={activating}
+          className="items-center justify-center"
+          style={{ flex: 1, marginRight: 8, borderRadius: 12, paddingVertical: 11, borderWidth: 1.5, borderColor: BORDER, backgroundColor: CARD_BG }}
+        >
+          <Text className="font-bold" style={{ fontSize: 13, color: TEXT_SECONDARY }}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={onConfirm}
+          disabled={activating}
+          className="flex-row items-center justify-center"
+          style={{ flex: 2, borderRadius: 12, paddingVertical: 11, backgroundColor: ACCENT, opacity: activating ? 0.6 : 1 }}
+        >
+          {activating ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <CreditCard size={15} color="#FFFFFF" />
+              <Text className="text-white font-extrabold" style={{ marginLeft: 7, fontSize: 13.5 }}>Confirm &amp; Activate</Text>
+            </>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }

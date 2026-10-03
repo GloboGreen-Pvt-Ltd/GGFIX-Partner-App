@@ -13,21 +13,26 @@ import {
   ShieldCheck,
   Skull,
   Pencil,
+  Database,
+  Ruler,
+  Wifi,
+  Headphones,
 } from 'lucide-react-native';
 import { rf, rs } from '../../../utils/responsive';
+import { SELL, SellButton } from '../sell/sellTheme';
 
 // Header-only constants, matching the custom white header already used by
 // this flow's sibling screens (DeviceMissingPartsScreen, DeviceInformationScreen)
 // — this screen previously had no header of its own and relied on the plain
 // native-stack title, which looked flatter than its siblings.
 const HEADER_WHITE = '#FFFFFF';
-const HEADER_LINE = '#E2E8E2';
-const HEADER_INK = '#172117';
+const HEADER_LINE = '#E6E6E6';
+const HEADER_INK = '#1E1E1E';
 const HEADER_SOFT = '#F8F8F8';
 
 const sellConditionsFor = (deviceLabel) => [
-  { key: 'WORKING', label: `Working ${deviceLabel}`, sub: 'Turns on · No major issues', icon: Smartphone, color: '#004C40', bg: 'bg-success/10', activeBg: 'bg-success/15', border: 'border-success' },
-  { key: 'DEAD', label: `${deviceLabel} Dead / Unknown`, sub: "Won't turn on · Not sure", icon: Skull, color: '#DC2626', bg: 'bg-danger/10', activeBg: 'bg-danger/15', border: 'border-danger' },
+  { key: 'WORKING', label: `Working ${deviceLabel}`, sub: 'Turns on · No major issues', icon: Smartphone, color: SELL.green, tint: SELL.greenLight },
+  { key: 'DEAD', label: `${deviceLabel} Dead / Unknown`, sub: "Won't turn on · Not sure", icon: Skull, color: SELL.danger, tint: SELL.dangerLight },
 ];
 import { notify } from '../../../components/confirm';
 import {
@@ -39,6 +44,27 @@ import {
 } from '../../../components/rnr';
 import { getModelOptions } from '../../../api/masterData';
 import { createSavedDevice, updateSavedDevice } from '../../../api/customer';
+import useDeviceSpecForm from '../../../lib/hooks/useDeviceSpecForm';
+import { SPEC_ATTRIBUTE_KEYS, formatSpecValue, specDetailRows } from '../../../utils/deviceSpecs';
+
+// Section icon + right-hand caption per category-specific field.
+const SPEC_ICONS = {
+  color: Palette,
+  ram: Cpu,
+  storageCapacity: HardDrive,
+  storageType: Database,
+  caseSize: Ruler,
+  connectivity: Wifi,
+  deviceType: Headphones,
+};
+const SPEC_CAPTIONS = {
+  ram: 'Memory',
+  storageCapacity: 'Capacity',
+  storageType: 'Drive',
+  caseSize: 'Size',
+  connectivity: 'Network',
+  deviceType: 'Type',
+};
 
 // Each name maps to its OWN distinct, semantically-matched hex — previously
 // "blue", "green", "pink" and "purple" all resolved to the same bright green,
@@ -110,6 +136,7 @@ export default function SelectVariantScreen({ navigation, route }) {
   const [storages, setStorages] = useState([]);
   const [specs, setSpecs] = useState([]);
   const [colorsList, setColorsList] = useState([]);
+  const [modelOptions, setModelOptions] = useState(null);
 
   const editHints = route?.params?.editHints || null;
   const editSellOrderId = route?.params?.editSellOrderId || null;
@@ -132,10 +159,30 @@ export default function SelectVariantScreen({ navigation, route }) {
   // a single Storage grid and doesn't require a RAM selection.
   const specsStorageOnly = specs.length > 0 && specs.every((sp) => sp.storageOnly);
 
+  /**
+   * Laptop / Smartwatch / Audio Device take their own attributes (RAM +
+   * Storage Capacity + Storage Type; Case Size + Connectivity; Device Type +
+   * Connectivity) — defined once in utils/deviceSpecs.js and shared with the
+   * Booking flow's DeviceColorStorageScreen. Mobile and Tablet (spec.usesSpecs
+   * false) keep the colour + RAM/Storage form below exactly as it was.
+   */
+  const spec = useDeviceSpecForm({
+    hints: [route?.params?.deviceCategory, categoryCode, route?.params?.categoryName, categoryId],
+    categoryId,
+    modelId,
+    modelOptions,
+    initial: { ...(route?.params?.specs || editHints?.specs || {}), color: route?.params?.color },
+    legacy: {
+      ramOptionId: route?.params?.ramOptionId,
+      storageOptionId: route?.params?.storageOptionId,
+    },
+  });
+
   useEffect(() => {
     (async () => {
       try {
         const opts = await getModelOptions(modelId);
+        setModelOptions(opts);
         // Prefer THIS model's configured colors + RAM/storage variants; fall back
         // to the full master lists (then a hardcoded color list) when nothing is set.
         const cs = opts.colors.length ? opts.colors : opts.allColors;
@@ -151,6 +198,8 @@ export default function SelectVariantScreen({ navigation, route }) {
         setRams(opts.allRams);
         setStorages(opts.allStorages);
       } catch (_) {}
+      // Never leave the spec form waiting on a lookup that failed.
+      setModelOptions((prev) => prev || {});
       setLoading(false);
     })();
   }, []);
@@ -168,8 +217,12 @@ export default function SelectVariantScreen({ navigation, route }) {
   }, [rams, storages, ram, storage]);
 
   const onContinue = async () => {
-    if (!color) return;
-    if (!noRamStorage && (!storage || (!specsStorageOnly && !ram))) return;
+    if (spec.usesSpecs) {
+      if (!spec.ready) return;
+    } else {
+      if (!color) return;
+      if (!noRamStorage && (!storage || (!specsStorageOnly && !ram))) return;
+    }
 
     // Only send UUID-typed fields the backend can parse. Hardcoded category
     // codes like 'SMARTPHONE' (from Home tiles / fallback list) would fail
@@ -199,7 +252,23 @@ export default function SelectVariantScreen({ navigation, route }) {
       storageOptionId: noRamStorage ? undefined : onlyUuid(storage?.id),
       color: color?.name || color?.id,
       imei: (flow === 'SELL' && !noImei) ? imei : undefined,
+      deviceCategory: spec.category || undefined,
     };
+    if (spec.usesSpecs) {
+      // Category-specific path: no master option ids; the attributes travel
+      // as `specs` (stored form) to the listing / booking request.
+      const attrs = {};
+      SPEC_ATTRIBUTE_KEYS.forEach((k) => { if (spec.values[k]) attrs[k] = spec.values[k]; });
+      payload.specs = attrs;
+      payload.color = spec.values.color;
+      payload.ramOptionId = undefined;
+      payload.storageOptionId = undefined;
+      // Display copies for screens and clients that only read ramLabel /
+      // storageLabel (marketplace ram_label / storage_label). Laptop only —
+      // the canonical values are the attributes above.
+      payload.ramLabel = attrs.ram ? formatSpecValue('ram', attrs.ram) : undefined;
+      payload.storageLabel = attrs.storageCapacity ? formatSpecValue('storageCapacity', attrs.storageCapacity) : undefined;
+    }
 
     if (flow === 'PROFILE') {
       setSaving(true);
@@ -237,7 +306,7 @@ export default function SelectVariantScreen({ navigation, route }) {
   // Same header as the loaded state below (not just the bare Loader) — the
   // native-stack header is hidden for this route, so without this the back
   // button would be missing for the brief moment this screen is loading.
-  if (loading) {
+  if (loading || spec.loading) {
     return (
       <View className="flex-1" style={{ backgroundColor: HEADER_WHITE }}>
         <View
@@ -262,7 +331,7 @@ export default function SelectVariantScreen({ navigation, route }) {
             </Pressable>
             <Text
               className="flex-1 text-text text-center"
-              style={{ fontSize: rf(16), fontWeight: '700', paddingHorizontal: rs(8) }}
+              style={{ fontSize: 17, fontWeight: '800', paddingHorizontal: rs(8) }}
               numberOfLines={1}
             >
               Your Device
@@ -275,10 +344,12 @@ export default function SelectVariantScreen({ navigation, route }) {
     );
   }
 
-  const ready =
-    color &&
-    (noRamStorage || (storage && (specsStorageOnly || ram))) &&
-    (flow !== 'SELL' || noImei || imei.trim());
+  const ready = spec.usesSpecs
+    ? spec.ready && (flow !== 'SELL' || noImei || imei.trim())
+    : color &&
+      (noRamStorage || (storage && (specsStorageOnly || ram))) &&
+      (flow !== 'SELL' || noImei || imei.trim());
+  const specRows = spec.usesSpecs ? specDetailRows({ deviceCategory: spec.category, specs: spec.values }) : [];
   const ctaLabel = flow === 'PROFILE'
     ? (isEdit ? 'Update Device' : 'Save Device')
     : flow === 'REPAIR' ? 'Choose Repair Service'
@@ -286,7 +357,7 @@ export default function SelectVariantScreen({ navigation, route }) {
     : 'Continue';
 
   return (
-    <View className="flex-1" style={{ backgroundColor: HEADER_WHITE }}>
+    <View className="flex-1" style={{ backgroundColor: SELL.page }}>
       {/* Custom white header — matches DeviceMissingParts/DeviceInformation,
           this flow's other screens. The native-stack header is hidden for
           this route (OwnerNavigator's SelectVariant registration) so this is
@@ -313,7 +384,7 @@ export default function SelectVariantScreen({ navigation, route }) {
           </Pressable>
           <Text
             className="flex-1 text-text text-center"
-            style={{ fontSize: rf(16), fontWeight: '700', paddingHorizontal: rs(8) }}
+            style={{ fontSize: 17, fontWeight: '800', paddingHorizontal: rs(8) }}
             numberOfLines={1}
           >
             Your Device
@@ -341,27 +412,31 @@ export default function SelectVariantScreen({ navigation, route }) {
             "premium device profile" direction (same gradient technique as
             Device Information's hero). */}
         <LinearGradient
-          colors={['#EAF7F1', '#FFFFFF']}
+          colors={[SELL.greenLight, '#FFFFFF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ borderRadius: 20, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8E2' }}
+          style={{ borderRadius: 20, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: SELL.greenLine }}
         >
           <View className="flex-row items-center">
-            <View className="h-20 w-20 rounded-2xl items-center justify-center mr-3.5 overflow-hidden" style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(0,76,64,0.10)' }}>
+            <View className="h-20 w-20 rounded-2xl items-center justify-center mr-3.5 overflow-hidden" style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: SELL.greenLine }}>
               {modelImageUrl ? (
                 <Image source={{ uri: modelImageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
-                <Smartphone size={30} color="#004C40" />
+                <Smartphone size={30} color={SELL.green} />
               )}
             </View>
             <View className="flex-1">
               <Text className="text-[11px] text-text-muted uppercase tracking-widest">Your Device</Text>
-              <Text className="text-[16px] font-extrabold text-text mt-0.5" numberOfLines={2}>{modelName}</Text>
+              <Text className="text-[15px] font-extrabold text-text mt-0.5" numberOfLines={2}>{modelName}</Text>
               {brandName ? (
-                <Text className="text-[11.5px] text-text-muted mt-0.5">{brandName}</Text>
+                <Text className="text-[11px] text-text-muted mt-0.5">{brandName}</Text>
               ) : null}
             </View>
-            {ready ? <Badge variant="softSuccess">READY</Badge> : null}
+            {ready ? (
+              <View style={{ alignSelf: 'flex-start', backgroundColor: SELL.green, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>READY</Text>
+              </View>
+            ) : null}
           </View>
         </LinearGradient>
 
@@ -374,7 +449,22 @@ export default function SelectVariantScreen({ navigation, route }) {
             ServicePriceEstimateScreen, DeviceMissingPartsScreen,
             DeviceInformationScreen), so showing them here would mean
             fabricating data this screen has no access to. */}
-        {(brandName || storage?.label || color?.name || (flow === 'SELL' && !noImei)) ? (
+        {spec.usesSpecs ? (
+          <View className="bg-card border border-border rounded-2xl mb-3 overflow-hidden">
+            <Text className="text-[10.5px] font-extrabold text-text-muted tracking-widest px-3 pt-3 pb-2">DEVICE DETAILS</Text>
+            {brandName ? <DetailRow label="Brand" value={brandName} /> : null}
+            <DetailRow label="Model" value={modelName} />
+            {specRows.map((r) => <DetailRow key={r.key} label={r.label} value={r.value} />)}
+            {spec.values.color ? (
+              <DetailRow
+                label="Color"
+                value={spec.values.color}
+                leading={<View className="h-3.5 w-3.5 rounded-full border border-border" style={{ backgroundColor: swatchFor(spec.values.color) }} />}
+              />
+            ) : null}
+            {flow === 'SELL' && !noImei ? <DetailRow label="IMEI" value={imei ? imei.replace(/./g, '•').slice(0, 15) || imei : '—'} last /> : null}
+          </View>
+        ) : (brandName || storage?.label || color?.name || (flow === 'SELL' && !noImei)) ? (
           <View className="bg-card border border-border rounded-2xl mb-3 overflow-hidden">
             <Text className="text-[10.5px] font-extrabold text-text-muted tracking-widest px-3 pt-3 pb-2">DEVICE DETAILS</Text>
             {brandName ? <DetailRow label="Brand" value={brandName} /> : null}
@@ -391,35 +481,62 @@ export default function SelectVariantScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {/* Selection summary chips */}
-        {(ram || storage || color) ? (
-          <View className="flex-row flex-wrap mb-3">
-            {ram?.label ? (
-              <View className="bg-primary/10 rounded-full px-3 py-1 mr-2 mb-2 flex-row items-center">
-                <Cpu size={11} color="#004C40" />
-                <Text className="text-primary text-[11px] font-bold ml-1">{ram.label}</Text>
+        {/* Category-specific fields (Laptop / Smartwatch / Audio Device) */}
+        {spec.usesSpecs ? spec.fields.map((f) => {
+          const Icon = SPEC_ICONS[f.key] || HardDrive;
+          const current = spec.values[f.key];
+          return (
+            <View key={f.key} className="bg-card border border-border rounded-2xl p-3 mb-3">
+              <View className="flex-row items-center mb-2.5">
+                <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+                  <Icon size={14} color={SELL.green} />
+                </View>
+                <Text className="text-[13px] font-extrabold text-text flex-1">{f.label}</Text>
+                {f.key === 'color' && current ? (
+                  <View className="flex-row items-center">
+                    <View className="h-4 w-4 rounded-full border border-border mr-1" style={{ backgroundColor: swatchFor(current) }} />
+                    <Text className="text-[11px] font-bold text-text" numberOfLines={1}>{current}</Text>
+                  </View>
+                ) : (
+                  <Text className="text-[11px] text-text-muted">{f.required ? SPEC_CAPTIONS[f.key] : 'Optional'}</Text>
+                )}
               </View>
-            ) : null}
-            {storage?.label ? (
-              <View className="bg-secondary/10 rounded-full px-3 py-1 mr-2 mb-2 flex-row items-center">
-                <HardDrive size={11} color="#004C40" />
-                <Text className="text-secondary text-[11px] font-bold ml-1">{storage.label}</Text>
-              </View>
-            ) : null}
-            {color?.name ? (
-              <View className="bg-warning/10 rounded-full px-3 py-1 mr-2 mb-2 flex-row items-center">
-                <View className="h-3 w-3 rounded-full mr-1 border border-border" style={{ backgroundColor: swatchFor(color.name) }} />
-                <Text className="text-warning text-[11px] font-bold">{color.name}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
+              {f.key === 'color' ? (
+                <ColorTiles
+                  colors={f.options.map((o) => ({ id: o.value, name: o.value, hexCode: o.hex }))}
+                  isActive={(name) => current === name}
+                  onPick={(name) => spec.setValue('color', name)}
+                />
+              ) : (
+                <View className="flex-row flex-wrap -mx-1">
+                  {f.options.map((o) => {
+                    const active = current === o.value;
+                    return (
+                      <View key={o.value} className="p-1" style={{ width: f.options.length > 4 && f.key !== 'deviceType' && f.key !== 'connectivity' ? '33.333%' : '50%' }}>
+                        <Pressable
+                          onPress={() => spec.setValue(f.key, active ? null : o.value)}
+                          className="rounded-xl py-3 px-1 items-center"
+                          style={{ borderWidth: 1.5, borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.green : SELL.card }}
+                        >
+                          <Text className="text-[13px] font-extrabold text-center" style={{ color: active ? '#FFFFFF' : SELL.ink }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                            {o.label}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        }) : null}
 
         {/* Color picker */}
+        {!spec.usesSpecs ? (
         <View className="bg-card border border-border rounded-2xl p-3 mb-3">
           <View className="flex-row items-center mb-2.5">
-            <View className="h-8 w-8 rounded-full bg-warning/10 items-center justify-center mr-2">
-              <Palette size={14} color="#F59E0B" />
+            <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+              <Palette size={14} color={SELL.green} />
             </View>
             <Text className="text-[13px] font-extrabold text-text flex-1">Color</Text>
             {color ? (
@@ -429,44 +546,20 @@ export default function SelectVariantScreen({ navigation, route }) {
               </View>
             ) : null}
           </View>
-          <View className="flex-row flex-wrap -mx-1">
-            {colorsList.map((c) => {
-              const name = c.name || c.id;
-              const active = color?.name === name || color?.id === name;
-              const sw = c.hexCode || swatchFor(name);
-              return (
-                <View key={c.id || name} className="p-1" style={{ width: '33.333%' }}>
-                  <Pressable
-                    onPress={() => setColor({ id: c.id || name, name })}
-                    className={`rounded-xl border p-2.5 items-center ${active ? 'bg-primary/5 border-primary' : 'bg-card border-border'}`}
-                  >
-                    <View className="flex-row items-center justify-center">
-                      <View className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: sw }} />
-                      {active ? (
-                        <View className="ml-1 h-4 w-4 rounded-full bg-primary items-center justify-center">
-                          <Check size={10} color="#fff" />
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text
-                      className={`text-[11px] font-bold mt-1.5 text-center ${active ? 'text-primary' : 'text-text'}`}
-                      numberOfLines={1}
-                    >
-                      {name}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </View>
+          <ColorTiles
+            colors={colorsList}
+            isActive={(name) => color?.name === name || color?.id === name}
+            onPick={(name, c) => setColor({ id: c.id || name, name })}
+          />
         </View>
+        ) : null}
 
         {/* Model variants — RAM + Storage combos, or storage-only sizes the model ships */}
-        {!noRamStorage && specs.length > 0 ? (
+        {!spec.usesSpecs && !noRamStorage && specs.length > 0 ? (
         <View className="bg-card border border-border rounded-2xl p-3 mb-3">
           <View className="flex-row items-center mb-2.5">
-            <View className="h-8 w-8 rounded-full bg-primary/10 items-center justify-center mr-2">
-              <HardDrive size={14} color="#004C40" />
+            <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+              <HardDrive size={14} color={SELL.green} />
             </View>
             <Text className="text-[13px] font-extrabold text-text flex-1">{specsStorageOnly ? 'Storage' : 'RAM & Storage'}</Text>
             <Text className="text-[11px] text-text-muted">Variant</Text>
@@ -483,9 +576,10 @@ export default function SelectVariantScreen({ navigation, route }) {
                       setRam(sp.storageOnly ? null : { id: sp.ramOptionId, label: sp.ramLabel });
                       setStorage({ id: sp.storageOptionId, label: sp.storageLabel });
                     }}
-                    className={`rounded-xl border py-3 items-center ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+                    className="rounded-xl py-3 items-center"
+                    style={{ borderWidth: 1.5, borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.green : SELL.card }}
                   >
-                    <Text className={`text-[14px] font-extrabold ${active ? 'text-white' : 'text-text'}`} numberOfLines={1}>
+                    <Text className="text-[13px] font-extrabold" style={{ color: active ? '#FFFFFF' : SELL.ink }} numberOfLines={1}>
                       {sp.label}
                     </Text>
                   </Pressable>
@@ -497,11 +591,11 @@ export default function SelectVariantScreen({ navigation, route }) {
         ) : null}
 
         {/* RAM (fallback: model has no variants configured) */}
-        {!noRamStorage && specs.length === 0 ? (
+        {!spec.usesSpecs && !noRamStorage && specs.length === 0 ? (
         <View className="bg-card border border-border rounded-2xl p-3 mb-3">
           <View className="flex-row items-center mb-2.5">
-            <View className="h-8 w-8 rounded-full bg-primary/10 items-center justify-center mr-2">
-              <Cpu size={14} color="#004C40" />
+            <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+              <Cpu size={14} color={SELL.green} />
             </View>
             <Text className="text-[13px] font-extrabold text-text flex-1">RAM</Text>
             <Text className="text-[11px] text-text-muted">Memory</Text>
@@ -513,9 +607,10 @@ export default function SelectVariantScreen({ navigation, route }) {
                 <View key={r.id} className="p-1" style={{ width: '33.333%' }}>
                   <Pressable
                     onPress={() => setRam(r)}
-                    className={`rounded-xl border py-3 items-center ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+                    className="rounded-xl py-3 items-center"
+                    style={{ borderWidth: 1.5, borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.green : SELL.card }}
                   >
-                    <Text className={`text-[14px] font-extrabold ${active ? 'text-white' : 'text-text'}`}>{r.label}</Text>
+                    <Text className="text-[13px] font-extrabold" style={{ color: active ? '#FFFFFF' : SELL.ink }}>{r.label}</Text>
                   </Pressable>
                 </View>
               );
@@ -525,11 +620,11 @@ export default function SelectVariantScreen({ navigation, route }) {
         ) : null}
 
         {/* Storage (fallback) */}
-        {!noRamStorage && specs.length === 0 ? (
+        {!spec.usesSpecs && !noRamStorage && specs.length === 0 ? (
         <View className="bg-card border border-border rounded-2xl p-3 mb-3">
           <View className="flex-row items-center mb-2.5">
-            <View className="h-8 w-8 rounded-full bg-secondary/10 items-center justify-center mr-2">
-              <HardDrive size={14} color="#004C40" />
+            <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+              <HardDrive size={14} color={SELL.green} />
             </View>
             <Text className="text-[13px] font-extrabold text-text flex-1">Storage</Text>
             <Text className="text-[11px] text-text-muted">Capacity</Text>
@@ -541,9 +636,10 @@ export default function SelectVariantScreen({ navigation, route }) {
                 <View key={s.id} className="p-1" style={{ width: '33.333%' }}>
                   <Pressable
                     onPress={() => setStorage(s)}
-                    className={`rounded-xl border py-3 items-center ${active ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+                    className="rounded-xl py-3 items-center"
+                    style={{ borderWidth: 1.5, borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.green : SELL.card }}
                   >
-                    <Text className={`text-[14px] font-extrabold ${active ? 'text-white' : 'text-text'}`}>{s.label}</Text>
+                    <Text className="text-[13px] font-extrabold" style={{ color: active ? '#FFFFFF' : SELL.ink }}>{s.label}</Text>
                   </Pressable>
                 </View>
               );
@@ -556,8 +652,8 @@ export default function SelectVariantScreen({ navigation, route }) {
         {flow === 'SELL' && !noImei ? (
           <View className="bg-card border border-border rounded-2xl p-3 mb-3">
             <View className="flex-row items-center mb-2.5">
-              <View className="h-8 w-8 rounded-full bg-success/10 items-center justify-center mr-2">
-                <Tag size={14} color="#004C40" />
+              <View className="h-8 w-8 rounded-full items-center justify-center mr-2" style={{ backgroundColor: SELL.greenLight }}>
+                <Tag size={14} color={SELL.green} />
               </View>
               <Text className="text-[13px] font-extrabold text-text flex-1">IMEI Number</Text>
               <Text className="text-[10px] text-text-muted">Required for sell</Text>
@@ -585,14 +681,19 @@ export default function SelectVariantScreen({ navigation, route }) {
                   <View key={o.key} className="px-1 flex-1">
                     <Pressable
                       onPress={() => setCondition(o.key)}
-                      className={`rounded-xl border-2 p-3 items-center ${active ? `${o.activeBg} ${o.border}` : 'bg-card border-border'}`}
+                      className="rounded-xl p-3 items-center"
+                      style={{ borderWidth: 1.5, borderColor: active ? o.color : SELL.line, backgroundColor: active ? o.tint : SELL.card }}
                     >
-                      <View className={`h-10 w-10 rounded-full items-center justify-center mb-1.5 ${o.bg}`}>
+                      <View className="h-10 w-10 rounded-full items-center justify-center mb-1.5" style={{ backgroundColor: active ? SELL.card : o.tint }}>
                         <Icon size={20} color={o.color} />
                       </View>
                       <Text className="text-[12px] font-extrabold text-text text-center" numberOfLines={1}>{o.label}</Text>
                       <Text className="text-[10px] text-text-muted mt-0.5 text-center" numberOfLines={2}>{o.sub}</Text>
-                      {active ? <Badge variant={o.key === 'WORKING' ? 'softSuccess' : 'softDanger'} className="mt-1.5">SELECTED</Badge> : null}
+                      {active ? (
+                        <View style={{ marginTop: 6, backgroundColor: o.color, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>SELECTED</Text>
+                        </View>
+                      ) : null}
                     </Pressable>
                   </View>
                 );
@@ -601,20 +702,57 @@ export default function SelectVariantScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        <View className="bg-success/5 border border-success/20 rounded-2xl p-3 flex-row items-center">
-          <ShieldCheck size={16} color="#004C40" />
-          <Text className="text-[11px] text-text ml-2 flex-1">
-            Genuine parts · Certified technicians · 30-day repair warranty
-          </Text>
-        </View>
+        {flow === 'REPAIR' || flow === 'PROFILE' ? (
+          <View className="rounded-2xl p-3 flex-row items-center" style={{ backgroundColor: SELL.greenLight }}>
+            <ShieldCheck size={16} color={SELL.green} />
+            <Text className="text-[11px] text-text ml-2 flex-1">
+              Genuine parts · Certified technicians · 30-day repair warranty
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
 
-      <BottomActionBar
-        title={ctaLabel}
-        onPress={onContinue}
-        loading={saving}
-        disabled={!ready}
-      />
+      <BottomActionBar>
+        <SellButton title={ctaLabel} arrow onPress={onContinue} loading={saving} disabled={!ready} />
+      </BottomActionBar>
+    </View>
+  );
+}
+
+/** Colour swatch tiles, three to a row. */
+function ColorTiles({ colors, isActive, onPick }) {
+  return (
+    <View className="flex-row flex-wrap -mx-1">
+      {colors.map((c) => {
+        const name = c.name || c.id;
+        const active = isActive(name);
+        const sw = c.hexCode || swatchFor(name);
+        return (
+          <View key={c.id || name} className="p-1" style={{ width: '33.333%' }}>
+            <Pressable
+              onPress={() => onPick(name, c)}
+              className="rounded-xl p-2.5 items-center"
+              style={{ borderWidth: 1.5, borderColor: active ? SELL.green : SELL.line, backgroundColor: active ? SELL.greenLight : SELL.card }}
+            >
+              <View className="flex-row items-center justify-center">
+                <View className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: sw }} />
+                {active ? (
+                  <View className="ml-1 h-4 w-4 rounded-full items-center justify-center" style={{ backgroundColor: SELL.green }}>
+                    <Check size={10} color="#fff" />
+                  </View>
+                ) : null}
+              </View>
+              <Text
+                className="text-[11px] font-bold mt-1.5 text-center"
+                style={{ color: active ? SELL.greenDark : SELL.ink }}
+                numberOfLines={1}
+              >
+                {name}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -626,7 +764,7 @@ function DetailRow({ label, value, leading, last }) {
       className="flex-row items-center px-3"
       style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}
     >
-      <Text className="text-[12.5px] text-text-muted" style={{ width: 92 }}>{label}</Text>
+      <Text className="text-[12px] text-text-muted" style={{ width: 92 }}>{label}</Text>
       <View className="flex-1 flex-row items-center" style={{ gap: 6 }}>
         {leading}
         <Text className="text-[13px] font-bold text-text flex-1" numberOfLines={1}>{value}</Text>

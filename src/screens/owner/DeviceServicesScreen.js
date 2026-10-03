@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
   content: { padding: 12, paddingBottom: 24 },
   deviceCard: {
     flexDirection: 'row',
@@ -265,5 +265,5 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 8,
   },
-  continueText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  continueText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });

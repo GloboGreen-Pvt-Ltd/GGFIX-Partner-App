@@ -173,7 +173,7 @@ export function Glass({ radius = R.card, style, fill = GLASS.card, shadow = GLAS
       <View
         pointerEvents="none"
         style={{
-          ...StyleSheet.absoluteFillObject,
+          ...StyleSheet.absoluteFill,
           borderRadius: radius,
           borderWidth: HAIRLINE,
           borderColor: tinted ? 'rgba(255,255,255,0.35)' : GLASS.hairline,

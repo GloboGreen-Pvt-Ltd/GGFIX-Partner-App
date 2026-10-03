@@ -1,65 +1,56 @@
 /**
- * GGFix palette — 2026 refresh. Mirrors src/theme/colors.js — the two MUST
- * stay in step, since roughly half the app styles with className strings and
- * the other half with StyleSheet objects reading `tokens`. Key names are
- * unchanged from before (every existing `bg-primary` / `tokens.x` call site
- * across the app keeps working, including the ~114 sites `bg-primary` alone
- * covers); only the hex values move to the current brand sheet — see the
- * header comment in theme/colors.js for the full before/after mapping.
+ * GGFix palette — brand sheet (Oct 2026). Mirrors src/theme/colors.js — the
+ * two MUST stay in step, since roughly half the app styles with className
+ * strings and the other half with StyleSheet objects reading `tokens`. Key
+ * names are unchanged (every existing `bg-primary` / `tokens.x` call site keeps
+ * working); only the hex values move — see the header comment in
+ * theme/colors.js for the six brand colours and the shades derived from them.
  *
- *   Deep Green (primary):    #004C40 — unchanged.
- *   Primary Green (mid):     #008F72 — `primary-bright` / `primary-light`.
- *   Accent Green:            #16A36A — `accent-dark` (white-text-safe).
- *   Light Green Background:  #EAF8F3 — `primary-soft` / `accent-soft`.
- *   Page Background:         #F7F9F8 — `background`, distinct from `card`.
- *   Border:                  #E4EBE8
- *
- * `accent`/`accent-light` are still the lighter lime tints and stay
- * DARK-text-only (white on them is under the 3:1 floor). `accent-dark` is the
- * new, darker Accent Green and IS white-text-safe — reach for it on filled
- * buttons/badges instead of the lime. `attention` (amber, pending/warning)
- * is unchanged and also DARK-text-only.
+ *   Green  #09AD2A — `primary` (DEFAULT / -500). `primary-dark` (#078F23) is
+ *                    the shade for green TEXT on light backgrounds.
+ *   Red    #F84141 — `danger` / `error`.
+ *   Ink    #1E1E1E — `text`.
+ *   Page   #F8F8F8 — `background`, behind white `card`s.
+ *   Muted  #F3F3F3 — `surface-muted`.
+ *   Yellow #F3BF23 — `attention` / `warning`. DARK text only.
  */
 
-// Green ramp. 400/500/600 are the brand's three greens verbatim; the rest are
-// tints and shades of the same hue, needed because screens use -50/-200 steps.
+// Green ramp around the brand green (#09AD2A at 500). The tints match the
+// mint fills the redesigned screens already use; 600 is the text shade.
 const green = {
-  50: '#EAF8F3',
-  100: '#EAF8F3',
-  200: '#C8EEBF',
-  300: '#A6E58C',
-  400: '#7ED957', // Light lime tint — dark-text-only badges/highlights
-  500: '#008F72', // Primary Green (mid) — large fills, gradients, progress
-  600: '#004C40', // Deep Green — the interactive/primary green
-  700: '#076808',
-  800: '#065C07',
-  900: '#044504',
+  50: '#EAF8EC',
+  100: '#EAF8EC',
+  200: '#CDEFD4',
+  300: '#8FDB9F',
+  400: '#4CC463',
+  500: '#09AD2A', // Brand green — fills, active states, progress
+  600: '#078F23', // Deep green — green text on light backgrounds
+  700: '#06701B',
+  800: '#055A16',
+  900: '#033F0F',
 };
 
-// Accent Green — genuinely distinct from the primary-bright mid-green above,
-// so it isn't folded into the ramp (which only has room for one value per step).
-const accentDarkGreen = '#16A36A';
-
-// Attention ramp — pending / warning states.
+// Attention ramp around the brand yellow (#F3BF23 at 500) — pending / warning.
+// 100 + 700 are the soft fill and the dark text that sits on it.
 const amber = {
-  50: '#FFFBEB',
-  100: '#FEF3C7',
-  200: '#FDE68A',
-  300: '#FCD34D',
-  500: '#F59E0B',
-  600: '#D97706',
-  700: '#B45309',
-  800: '#92400E',
+  50: '#FFFBEA',
+  100: '#FFF8E1',
+  200: '#FBE7A6',
+  300: '#F8D66B',
+  500: '#F3BF23',
+  600: '#D9A60F',
+  700: '#8A6A00',
+  800: '#6B5200',
 };
 
-// Danger ramp.
+// Danger ramp around the brand red (#F84141 at 500).
 const red = {
-  50: '#FEF2F2',
-  100: '#FEE2E2',
-  200: '#FECACA',
-  300: '#FCA5A5',
-  500: '#DC2626',
-  700: '#B91C1C',
+  50: '#FEECEC',
+  100: '#FDDADA',
+  200: '#FBB9B9',
+  300: '#FA8A8A',
+  500: '#F84141',
+  700: '#C82A2A',
 };
 
 /* ── Responsive spacing tokens: `26p` means "26px at the reference width" ───
@@ -101,28 +92,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Primary — the interactive green (see the note above).
+        // Primary — the interactive brand green (see the note above).
         primary: {
-          DEFAULT: green[600],
+          DEFAULT: green[500],
           bright: green[500],
           light: green[500],
           dark: green[600],
           soft: green[100],
           ...green,
         },
-        // Accent — brand lime. Highlights, badges, success emphasis.
-        // Pair with `text-text`, never `text-white`.
-        // `dark` is the newer Accent Green (#16A36A) — unlike the lime
-        // DEFAULT/light, it IS white-text-safe; use it for filled
-        // buttons/badges instead of the lime.
+        // Accent — the same brand green; `dark` is the text shade and
+        // `light` / `soft` the mint tints (dark text only).
         accent: {
-          DEFAULT: green[400],
+          DEFAULT: green[500],
           light: green[200],
-          dark: accentDarkGreen,
+          dark: green[600],
           soft: green[50],
           ...green,
         },
-        // Attention — pending / warning. Also pairs with `text-text`.
+        // Attention — pending / warning (brand yellow). Pairs with `text-text`
+        // or `text-attention-dark`, never `text-white`.
         attention: {
           DEFAULT: amber[500],
           light: amber[300],
@@ -130,9 +119,9 @@ module.exports = {
           soft: amber[100],
           ...amber,
         },
-        // Secondary — kept as an alias for the screens that still use it. Under
-        // this palette the secondary role IS the deep green (filled secondary
-        // buttons, selected states), which is what its consumers want.
+        // Secondary — kept as an alias for the screens that still use it: the
+        // deep green, for filled secondary buttons and selected states.
+        // Mirrors `secondary: tokens.primaryDark` in theme/colors.js.
         secondary: {
           DEFAULT: green[600],
           light: green[500],
@@ -142,32 +131,30 @@ module.exports = {
         },
         // Surfaces
         // Mirrors theme/colors.js — the two must stay in step. `background`
-        // is the page wash — a soft mint-white, distinct from pure-white
-        // `card`/`surface` — matching the app's own established convention of
-        // a tinted page behind white cards.
-        background: '#F7F9F8',
+        // is the page wash behind pure-white `card`/`surface`.
+        background: '#F8F8F8',
         card: '#FFFFFF',
         surface: {
           DEFAULT: '#FFFFFF',
-          muted: '#F8F8F8',
+          muted: '#F3F3F3',
         },
         // Text
         text: {
-          DEFAULT: '#102A2E',
-          muted: '#667875',
-          subtle: '#8FA08F',
+          DEFAULT: '#1E1E1E',
+          muted: '#6B6B6B',
+          subtle: '#8A8A8A',
         },
         // Lines
         border: {
-          DEFAULT: '#E4EBE8',
-          strong: '#CBD5CB',
+          DEFAULT: '#E6E6E6',
+          strong: '#D6D6D6',
         },
         // Status
-        success: green[600],
+        success: green[500],
         warning: amber[500],
         danger: red[500],
         error: red[500],
-        // No blue survives the palette; "info" was only ever a neutral notice.
+        // No blue in the palette; "info" was only ever a neutral notice.
         info: green[500],
       },
       fontFamily: {
