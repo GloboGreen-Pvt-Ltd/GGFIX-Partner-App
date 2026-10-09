@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Calendar, Clock, MapPin, FileText, User, IndianRupee, Smartphone, Truck, Phone, UserCheck, CheckCircle2, Camera, Video, CalendarClock } from 'lucide-react-native';
 import { Badge, Button, Loader, ScreenHeader } from '../../components/rnr';
 import { confirmShopRepairBooking, getShopRepairBooking, markPickupReceivedAtShop } from '../../api/orders';
+import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
 import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions } from '../../api/masterData';
 import { cleanIssueSummary } from '../../utils/pickupEstimateMeta';
 import { normalizeDeviceImageUrl } from '../../utils/images';
@@ -146,6 +147,15 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
   }, [id, preloaded]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Customer-side changes (cancel / reschedule / estimate approval) show live.
+  // Silent: keeps the current data on a failed tick and never shows the loader.
+  useFocusPolling(useCallback(async () => {
+    if (!id) return;
+    try {
+      const next = await getShopRepairBooking(id);
+      setData((prev) => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    } catch (_) { /* keep the last snapshot */ }
+  }, [id]));
 
   // Resolve device label + image from the booking's master-data IDs. The shop
   // endpoint returns IDs only; we want "Apple iPhone 14 Pro · 16 GB · 512 GB"

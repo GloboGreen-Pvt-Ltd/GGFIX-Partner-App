@@ -34,6 +34,7 @@ import {
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 import { listShopRepairBookings } from '../../../api/orders';
+import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
 import { getModelsByBrand, getRamOptions, getStorageOptions, parseModelNumbers } from '../../../api/masterData';
 import {
   SCOPES, SCOPE_LIST, countScope, hasInvoice, pickupsOnly, scopeFor, scopeListFor,
@@ -610,6 +611,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // Reload on focus (e.g. returning from a detail screen), and — separately —
   // debounce the search so typing doesn't fire a request per keystroke.
   useFocusEffect(useCallback(() => { load(); loadPickups(); }, [load, loadPickups]));
+  // loadPickups is already silent; polling surfaces new customer pickups live.
+  useFocusPolling(loadPickups);
   const didSearchMount = useRef(false);
   useEffect(() => {
     if (!didSearchMount.current) { didSearchMount.current = true; return; }

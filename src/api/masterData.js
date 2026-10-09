@@ -149,12 +149,20 @@ export async function visualSearch(asset, { limit = 5, ocrText, barcode } = {}) 
     confidence: res?.confidence || 'low',
     bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
     matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
+    // Text the service read from the photo (newer service versions).
+    ocrText: typeof res?.ocrText === 'string' ? res.ocrText : '',
   };
 }
 
 // Existing
 export async function getBrands() {
   return unwrap(await masterApi.get('/master/brands'));
+}
+/** Catalogue model whose model number matches (e.g. Android Build.MODEL). */
+export async function getModelByNumber(number) {
+  const num = String(number || '').trim();
+  if (!num) return null;
+  return await masterApi.get('/master/models/by-number', { query: { number: num } }).catch(() => null);
 }
 export async function getModelsByBrand(brandId) {
   if (!brandId) return [];

@@ -4,6 +4,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Calendar, Clock, ChevronRight, MapPin, Truck, User, FileText, IndianRupee, Phone } from 'lucide-react-native';
 import { Badge, Chip, EmptyState, Loader, ScreenHeader } from '../../components/rnr';
 import { listShopRepairBookings } from '../../api/orders';
+import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
+import { SCOPES, statusOf } from './AllBooking/bookingScopes';
+
+// DELIVERED is a closed pickup (bookingScopes PICKUP_CLOSED) — bucket it with
+// COMPLETED so it isn't counted as Active yet hidden from every filter.
+const bucketOf = (row) => { const s = statusOf(row); return s === 'DELIVERED' ? 'COMPLETED' : s; };
+const isNew = (row) => SCOPES.PICKUP_REQUEST.match(statusOf(row));
 
 const STATUS_FILTERS = [
   { key: 'ALL',          label: 'All' },
@@ -151,9 +158,10 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError(null);
+  // `silent` = background poll: no loader, and a failed tick keeps the list.
+  const load = useCallback(async (isRefresh = false, silent = false) => {
+    if (isRefresh) setRefreshing(true); else if (!silent) setLoading(true);
+    if (!silent) setError(null);
     try {
       const data = await listShopRepairBookings();
       const pickups = (Array.isArray(data) ? data : []).filter((b) => b.serviceMode === 'PICKUP');
@@ -162,6 +170,7 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
       // of only the currently-selected filter's subset.
       setAllItems(pickups);
     } catch (e) {
+      if (silent) return;
       setError(e?.body?.message || e?.message || 'Failed to load pickup requests');
       setAllItems([]);
     } finally {
@@ -171,28 +180,25 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // New customer bookings / customer cancellations appear without leaving the screen.
+  useFocusPolling(useCallback(() => load(false, true), [load]));
 
   const items = useMemo(() => {
     if (statusFilter === 'ALL') return allItems;
     if (statusFilter === 'ACTIVE') {
-      return allItems.filter((b) => {
-        const s = (b.status || '').toUpperCase();
-        return s !== 'COMPLETED' && s !== 'CANCELLED' && s !== 'DELIVERED';
-      });
+      return allItems.filter((b) => !['COMPLETED', 'CANCELLED'].includes(bucketOf(b)));
     }
-    if (statusFilter === 'NEW') {
-      return allItems.filter((b) => ['ORDER_PLACED', 'PICKUP_REQUESTED'].includes((b.status || '').toUpperCase()));
-    }
-    return allItems.filter((b) => (b.status || '').toUpperCase() === statusFilter);
+    if (statusFilter === 'NEW') return allItems.filter(isNew);
+    return allItems.filter((b) => bucketOf(b) === statusFilter);
   }, [allItems, statusFilter]);
 
   const counts = useMemo(() => {
     const c = { ALL: allItems.length, ACTIVE: 0, NEW: 0, COMPLETED: 0, CANCELLED: 0 };
     for (const it of allItems) {
-      const s = (it.status || '').toUpperCase();
+      const s = bucketOf(it);
       if (s === 'COMPLETED') c.COMPLETED += 1;
       else if (s === 'CANCELLED') c.CANCELLED += 1;
-      else { c.ACTIVE += 1; if (s === 'ORDER_PLACED' || s === 'PICKUP_REQUESTED') c.NEW += 1; }
+      else { c.ACTIVE += 1; if (isNew(it)) c.NEW += 1; }
     }
     return c;
   }, [allItems]);

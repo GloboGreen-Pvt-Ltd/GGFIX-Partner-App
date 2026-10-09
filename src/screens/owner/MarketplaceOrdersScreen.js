@@ -46,6 +46,7 @@ import { selectShopId, selectUserId } from '../../store/authSlice';
 import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../utils/deviceSpecs';
+import { loadChatBuyOrders, notifyNewBuyOrders, ordersForListing } from '../../utils/buyOrders';
 
 // GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
 // neutrals #F8F8F8 / #F3F3F3.
@@ -98,26 +99,25 @@ function statusMeta(rawStatus, type) {
   return { key: 'PENDING', short: 'Pending', accent: PENDING_FG, tint: PENDING_BG, Icon: Clock };
 }
 
-// The 4 sell-journey milestones. The product model only ever distinguishes
-// Pending / Sold / Cancelled (see statusMeta above) — there's no separate
-// "under review" or "buyer found" flag to read, so those two middle steps
-// are only ever shown complete once the order actually reaches Sold (they
-// necessarily happened en route to a sale), never fabricated independently.
+// The 4 sell-journey milestones. Order Placed / Buyer Details come from a
+// customer's buy order for this listing (utils/buyOrders.js — the order and
+// the buyer's name / phone / address arrive in the shop's chat); Sold
+// completes all four.
 const SELL_STEPS = [
   { key: 'listed', label: 'Listed', Icon: FileText },
-  { key: 'review', label: 'Under Review', Icon: Search },
-  { key: 'buyer', label: 'Buyer Found', Icon: User },
+  { key: 'ordered', label: 'Order Placed', Icon: Search },
+  { key: 'buyer', label: 'Buyer Details', Icon: User },
   { key: 'payment', label: 'Payment', Icon: CreditCard },
 ];
 
-function sellStepIndex(statusKey) {
-  // Number of completed steps (0–4). Sold ⇒ all 4. Pending/Cancelled ⇒ only
-  // "Listed", the one fact this screen actually knows for certain.
-  return statusKey === 'DONE' ? 4 : 1;
+function sellStepIndex(statusKey, hasOrder) {
+  // Number of completed steps (0–4). Sold ⇒ all 4; a live buy order ⇒ 3.
+  if (statusKey === 'DONE') return 4;
+  return hasOrder && statusKey !== 'CANCELLED' ? 3 : 1;
 }
 
-function SellProgressTracker({ statusKey, dateLabel }) {
-  const completed = sellStepIndex(statusKey);
+function SellProgressTracker({ statusKey, hasOrder, dateLabel }) {
+  const completed = sellStepIndex(statusKey, hasOrder);
   return (
     <View
       style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: SOFT_MINT }}
@@ -160,7 +160,7 @@ function SellProgressTracker({ statusKey, dateLabel }) {
   );
 }
 
-function OrderCard({ item, showPrice, isSell, onPress }) {
+function OrderCard({ item, showPrice, isSell, hasOrder, onPress }) {
   const orderId = item.id ? String(item.id).slice(0, 10).toUpperCase().replace(/-/g, '') : '';
   const created = item.createdAt ? new Date(item.createdAt) : null;
   const dateLabel = created
@@ -240,7 +240,7 @@ function OrderCard({ item, showPrice, isSell, onPress }) {
         <ChevronRight size={16} color="#BDBDBD" />
       </View>
 
-      {isSell ? <SellProgressTracker statusKey={meta.key} dateLabel={dateLabel} /> : null}
+      {isSell ? <SellProgressTracker statusKey={meta.key} hasOrder={hasOrder} dateLabel={dateLabel} /> : null}
     </Pressable>
   );
 }
@@ -348,19 +348,20 @@ function BottomNavMimic({ navigation, activeKey }) {
   );
 }
 
-export default function MarketplaceOrdersScreen({ navigation }) {
+export default function MarketplaceOrdersScreen({ navigation, route }) {
   // Tablet: cap the column and centre it, matching the employee reports. Order
   // cards stretched to 1024pt put the thumbnail and the price at opposite
   // edges. Phones keep contentW undefined and are unaffected.
   const r = useResponsive();
   const contentW = r.isTablet ? Math.min(r.width - rs(32), 700) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
-  const [tab, setTab] = useState('Sell');
+  const [tab, setTab] = useState(route?.params?.initialTab === 'Buy' ? 'Buy' : 'Sell');
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [buyOrders, setBuyOrders] = useState([]);
   const shopId = useSelector(selectShopId);
   const userId = useSelector(selectUserId);
 
@@ -457,6 +458,18 @@ export default function MarketplaceOrdersScreen({ navigation }) {
   }, [tab, shopId, userId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Customer buy orders (from chat) drive Order Placed / Buyer Details, and a
+  // new one also raises the "Order placed" notification.
+  useFocusEffect(useCallback(() => {
+    if (tab !== 'Sell') return undefined;
+    let alive = true;
+    loadChatBuyOrders().then((orders) => {
+      if (!alive) return;
+      setBuyOrders(orders);
+      notifyNewBuyOrders(orders);
+    });
+    return () => { alive = false; };
+  }, [tab]));
 
   // Switching tabs resets the status filter — a "Cancelled" filter picked on
   // Sell shouldn't silently hide every Buy order too.
@@ -699,6 +712,7 @@ export default function MarketplaceOrdersScreen({ navigation }) {
               item={item}
               showPrice={tab === 'Sell'}
               isSell={tab === 'Sell'}
+              hasOrder={tab === 'Sell' && ordersForListing(buyOrders, item).length > 0}
               onPress={() =>
                 navigation.navigate('MarketplaceListingDetails', { productId: item.id, listing: item })
               }

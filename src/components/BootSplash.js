@@ -1,426 +1,255 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import Svg, {
-  Circle, Defs, G, LinearGradient, Mask, Path, Pattern, RadialGradient, Rect, Stop,
-} from 'react-native-svg';
-import { MapPin, ShieldCheck, Users } from 'lucide-react-native';
-import { rf, rs } from '../utils/responsive';
-import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
+import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 /**
- * The loader shown while RootNavigator reads the stored session (see
- * RootNavigator's `sessionLoading` state — this component owns no session,
- * timer, or navigation logic of its own; it just renders until that flips
- * false, plus a little past that — see RootNavigator's boot-overlay fade).
- *
- * Visuals only: a light brand page (GGFIX brand sheet — see theme/colors.js)
- * with device hero art pulled from the CDN (not bundled — swap the URL below
- * to update the art without a JS change). Uses expo-image (already a project
- * dependency) rather than RN's Image for the remote asset, for its disk cache —
- * a cold app launch is the one moment it can't already be warm in memory.
- *
- * The page BASE is still a flat colour, not an image: the old dark-teal
- * Background.png doesn't belong to the brand sheet, and a flat #F8F8F8 also
- * matches the native launch splash (app.config.js) and App.js's root view, so
- * the handoff from the OS splash to this one is a single cut with no colour
- * jump. The brand backdrop (SplashBackdrop below) is vector art drawn on top of
- * that base and faded in after mount, so the cut stays seamless and the page
- * still doesn't read as a plain sheet once it settles.
+ * GGFIX boot screen (same design as the Customer app's LaunchOverlay), shown
+ * by RootNavigator while the session loads; RootNavigator owns the fade-out:
+ * green wavy top (glowing logo, wordmark, services), the device line-up over
+ * the wave edge, then tagline · progress · trust row on a light base.
+ *  - All art ships in the app (assets/boot-device.png, boot-logo-glyph.png;
+ *    the rest is drawn), so it shows instantly on a cold launch.
+ *  - The whole block scales down to fit between the system bars.
  */
-const DEVICE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Device.png';
+const DEVICE = require('../../assets/boot-device.png');
+const GLYPH = require('../../assets/boot-logo-glyph.png');
+const DEVICE_RATIO = 675 / 900; // height / width of boot-device.png
 
-// Fires the moment this module is first imported (RootNavigator imports it at
-// the top of the file, so this runs at app startup, before BootSplash ever
-// mounts) — warms expo-image's disk cache for the hero art. Best-effort only:
-// never gates rendering or the native-splash handoff on this resolving, so a
-// slow network never adds startup delay.
-ExpoImage.prefetch([DEVICE_URL], 'disk').catch(() => {});
+const BASE = '#F4F6F5';
+const INK = '#141414';
+const GREEN = '#0FA046';
+const NEON = '#2BEA7F';
+const YELLOW = '#F3BF23';
+const MINT = '#E2F4E8';
 
-const PAGE_BG = '#F8F8F8';      // brand page background
-const GREEN = '#09AD2A';        // brand green — "FIX", progress, icons
-const GREEN_TEXT = '#078F23';   // deeper green for green copy on the light page
-const YELLOW = '#F3BF23';       // brand yellow — accent underlines
-const TEXT_PRIMARY = '#1E1E1E'; // ink
-const TEXT_SECONDARY = '#6B6B6B';
-const TRACK = '#E6E6E6';        // progress track + trust-row dividers
+const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-const MINT = '#EAF8EC';         // brand mint — top wash, front wave
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-// A "+" mark centred on (x, y) — the small tech accents scattered on the page.
-const plusPath = (x, y, s) => `M${x - s} ${y}H${x + s}M${x} ${y - s}V${y + s}`;
-
-/**
- * The brand backdrop behind the splash content: a mint wash from the top, a
- * dot grid that fades out down the page, signal rings in two corners, a soft
- * green glow behind the device art (its own layer, so it can breathe), a few
- * green / yellow accents and two soft waves grounding the footer. Everything is
- * low-contrast tint on the #F8F8F8 base so the copy on top keeps its contrast.
- *
- * Drawn in window coordinates. The content column is vertically centred, so the
- * hero art sits close to the same fraction of the height on every phone — the
- * glow is anchored there rather than measured, which would cost a layout pass.
- */
-function SplashBackdrop({ width: W, height: H, opacity, glow }) {
-  const glowY = H * 0.46;
-  const glowR = Math.max(W, 360) * 0.62;
-  const ring = (cx, cy, radii) => radii.map((r, i) => (
-    <Circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke={GREEN} strokeWidth={1.5} strokeOpacity={0.16 - i * 0.03} />
-  ));
+function TrustIcon({ kind, size }) {
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
-      <Svg width={W} height={H}>
-        <Defs>
-          <LinearGradient id="splashWash" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={MINT} stopOpacity="1" />
-            <Stop offset="0.38" stopColor={MINT} stopOpacity="0" />
-          </LinearGradient>
-          <Pattern id="splashDots" width="18" height="18" patternUnits="userSpaceOnUse">
-            <Circle cx="2" cy="2" r="1.4" fill={GREEN} fillOpacity="0.28" />
-          </Pattern>
-          <LinearGradient id="splashDotFade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
-            <Stop offset="0.42" stopColor="#FFFFFF" stopOpacity="0" />
-          </LinearGradient>
-          <Mask id="splashDotMask" x="0" y="0" width={W} height={H} maskUnits="userSpaceOnUse">
-            <Rect x="0" y="0" width={W} height={H} fill="url(#splashDotFade)" />
-          </Mask>
-          <LinearGradient id="splashWave" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={GREEN} stopOpacity="0.13" />
-            <Stop offset="1" stopColor={GREEN} stopOpacity="0.04" />
-          </LinearGradient>
-        </Defs>
-
-        <Rect x="0" y="0" width={W} height={H} fill="url(#splashWash)" />
-        <Rect x="0" y="0" width={W} height={H} fill="url(#splashDots)" mask="url(#splashDotMask)" />
-
-        {ring(W + W * 0.02, H * 0.05, [W * 0.18, W * 0.3, W * 0.42, W * 0.54])}
-        {ring(-W * 0.06, H * 0.74, [W * 0.14, W * 0.24, W * 0.34])}
-
-        <G>
-          <Path d={plusPath(W * 0.13, H * 0.2, 6)} stroke={GREEN} strokeOpacity={0.35} strokeWidth={2} strokeLinecap="round" />
-          <Path d={plusPath(W * 0.9, H * 0.4, 5)} stroke={GREEN} strokeOpacity={0.28} strokeWidth={2} strokeLinecap="round" />
-          <Path d={plusPath(W * 0.94, H * 0.76, 4)} stroke={YELLOW} strokeOpacity={0.7} strokeWidth={2} strokeLinecap="round" />
-          <Circle cx={W * 0.82} cy={H * 0.19} r={4} fill={YELLOW} fillOpacity={0.75} />
-          <Circle cx={W * 0.07} cy={H * 0.43} r={3} fill={YELLOW} fillOpacity={0.6} />
-          <Circle cx={W * 0.17} cy={H * 0.6} r={5} fill={GREEN} fillOpacity={0.14} />
-          <Circle cx={W * 0.93} cy={H * 0.56} r={3} fill={GREEN} fillOpacity={0.3} />
-        </G>
-
-        <Path
-          d={`M0 ${H * 0.86} C${W * 0.3} ${H * 0.81} ${W * 0.58} ${H * 0.91} ${W} ${H * 0.85} L${W} ${H} L0 ${H} Z`}
-          fill="url(#splashWave)"
-        />
-        <Path
-          d={`M0 ${H * 0.92} C${W * 0.36} ${H * 0.97} ${W * 0.64} ${H * 0.88} ${W} ${H * 0.93} L${W} ${H} L0 ${H} Z`}
-          fill={MINT}
-          fillOpacity={0.9}
-        />
-      </Svg>
-
-      {/* Glow behind the device art — separate layer so it can breathe. */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: glow }]}>
-        <Svg width={W} height={H}>
-          <Defs>
-            <RadialGradient id="splashGlow" cx={W / 2} cy={glowY} r={glowR} gradientUnits="userSpaceOnUse">
-              <Stop offset="0" stopColor={GREEN} stopOpacity="0.26" />
-              <Stop offset="0.5" stopColor={GREEN} stopOpacity="0.09" />
-              <Stop offset="1" stopColor={GREEN} stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-          <Circle cx={W / 2} cy={glowY} r={glowR} fill="url(#splashGlow)" />
-        </Svg>
-      </Animated.View>
-    </Animated.View>
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {kind === 'shield' ? (
+        <>
+          <Path d="M12 2.2l7.6 2.9v6c0 5-3.4 8.9-7.6 10.7-4.2-1.8-7.6-5.7-7.6-10.7v-6z" fill={GREEN} />
+          <Path d="M8.3 12.1l2.6 2.6 5-5.2" fill="none" stroke="#FFFFFF" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : kind === 'people' ? (
+        <>
+          <Path d="M12 1.6l1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3z" fill={YELLOW} />
+          <Circle cx={6.2} cy={11.2} r={2.1} fill={GREEN} />
+          <Circle cx={17.8} cy={11.2} r={2.1} fill={GREEN} />
+          <Circle cx={12} cy={10.4} r={2.6} fill={GREEN} />
+          <Path d="M2.4 20.5c0-2.6 1.7-4.4 3.8-4.4s3.8 1.8 3.8 4.4zM14 20.5c0-2.6 1.7-4.4 3.8-4.4s3.8 1.8 3.8 4.4z" fill={GREEN} />
+          <Path d="M7 21.4c0-3.3 2.2-5.6 5-5.6s5 2.3 5 5.6z" fill={GREEN} />
+        </>
+      ) : (
+        <>
+          <Path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z" fill={GREEN} />
+          <Circle cx={12} cy={9} r={3} fill={YELLOW} />
+        </>
+      )}
+    </Svg>
   );
 }
 
-function TrustItem({ icon, label, labelFont }) {
+function TrustItem({ kind, label, circle, font }) {
   return (
     <View style={styles.trustItem}>
-      {icon}
-      <Text style={[styles.trustLabel, { fontSize: labelFont, lineHeight: labelFont * 1.32 }]}>{label}</Text>
+      <View style={{ width: circle, height: circle, borderRadius: circle / 2, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}>
+        <TrustIcon kind={kind} size={circle * 0.56} />
+      </View>
+      <Text style={[styles.trustLabel, { fontSize: font, lineHeight: font * 1.3, marginTop: 6 }]}>{label}</Text>
     </View>
   );
 }
 
 export default function BootSplash() {
-  const { width, height } = useWindowDimensions();
-  const isTablet = width >= 600;
-  const contentWidth = isTablet ? Math.min(width * 0.62, 460) : Math.min(width, 460);
+  const { width: W, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [fit, setFit] = useState(1);
+  const [device, setDevice] = useState(null); // { y, h } of the device art inside the block
 
-  // Three height tiers instead of one continuous scale — every dimension
-  // below picks its own value per tier (logo/hero/fonts/gaps all tuned
-  // separately, not just multiplied by one factor), so a short screen
-  // compresses gaps first and only shrinks the hero image / fonts as far as
-  // it actually needs to. This replaces the previous single `vScale` clamp,
-  // which could still let the total content height exceed a short screen's
-  // available space (content is centered, not scrollable, so overflow used
-  // to clip at both edges — "Keep Devices Moving" cut off at the bottom).
-  const isSmallHeight = height < 700;
-  const isMediumHeight = height >= 700 && height < 850;
-  // tier(small, medium, large) — picks by height bucket; isTablet overrides
-  // are applied separately per-element below where the tablet target differs
-  // from just "the large-height phone value".
-  const tier = (small, medium, large) => (isSmallHeight ? small : isMediumHeight ? medium : large);
+  // Size tiers from the height actually available between the system bars.
+  const availH = height - insets.top - insets.bottom;
+  const tier = (s, m, l) => (availH < 680 ? s : availH < 820 ? m : l);
+  const k = clamp(W / 390, 0.82, 1.3);
+  const cw = Math.min(W, 460); // content column
+  const gap = (n) => n * tier(0.6, 0.8, 1) * k;
 
-  // Gaps compress first (priority #1 in a short-screen squeeze), on their own
-  // scale independent of font/image sizing.
-  const gapScale = tier(0.62, 0.82, 1);
-  const gap = (n) => rs(n) * gapScale;
+  const logo = tier(78, 90, 100) * k;
+  const word = tier(42, 48, 54) * k;
+  const devW = Math.min(cw * 0.86, (availH * tier(0.24, 0.26, 0.28)) / DEVICE_RATIO);
+  const devH = devW * DEVICE_RATIO;
+  const tag = tier(21, 24, 27) * k;
+  const barW = Math.min(cw * 0.62, 300);
 
-  const logoSize = isTablet ? clamp(width * 0.13, 90, 112) : tier(74, 86, 96);
-  const titleFont = isTablet ? 60 : tier(46, 52, 58);
-  const bylineFont = isTablet ? 17 : tier(14, 15, 16);
-  const servicesFont = isTablet ? 18 : tier(15, 16, 17);
-  const taglineFont = isTablet ? 27 : tier(21, 24, 26);
-  const loadingLabelFont = isTablet ? 18 : tier(15, 16, 17);
-  const trustLabelFont = isTablet ? 15 : tier(12, 13, 14);
-  const trustIconSize = isTablet ? 34 : tier(26, 28, 30);
-  const scriptFont = isTablet ? 28 : tier(21, 24, 27);
-
-  const progressWidth = Math.min(contentWidth * tier(0.7, 0.68, 0.66), isTablet ? 500 : 260);
-
-  // Device.png's real aspect ratio isn't known ahead of time — read it off the
-  // image that's actually rendering (expo-image's onLoad) so the hero art
-  // never stretches, with a sane fallback before it resolves.
-  const [deviceRatio, setDeviceRatio] = useState(0.62);
-
-  // The hero image is the single biggest reason a short screen could
-  // overflow, so it gets TWO caps and takes whichever is smaller: a width cap
-  // (same idea as before — a % of the content column) AND a height cap (a %
-  // of the actual window height). On a short/wide-aspect device the height
-  // cap wins and the image shrinks well below its width-only size instead of
-  // pushing the trust row / "Keep Devices Moving" off screen.
-  const heroWidthCap = contentWidth * tier(0.78, 0.8, 0.8);
-  const heroHeightCap = height * tier(0.2, 0.235, 0.26);
-  const deviceWidth = Math.min(heroWidthCap, heroHeightCap / deviceRatio);
+  // Green area: everything above roughly the middle of the device art.
+  const devTop = device ? device.y : 300;
+  const D = device ? device.h : devH;
+  const EXT = height; // the shape runs far above / beside the block so scaling never uncovers an edge
+  const SW = W * 1.8;
+  const ox = W * 0.4;
+  const yL = devTop + D * 0.02 + EXT; // edge at the far left
+  const yR = devTop + D * 0.62 + EXT; // edge at the far right
+  const greenPath = `M0 0H${SW}V${yR}C${ox + W * 0.75} ${yR - D * 0.05} ${ox + W * 0.55} ${devTop + D * 0.55 + EXT} ${ox + W * 0.3} ${devTop + D * 0.3 + EXT}S${ox - W * 0.1} ${yL - D * 0.1} 0 ${yL}Z`;
+  const mintPath = `M0 ${yL + D * 0.05}C${ox} ${yL - D * 0.05} ${ox + W * 0.25} ${devTop + D * 0.5 + EXT} ${ox + W * 0.45} ${devTop + D * 0.62 + EXT}S${ox + W * 0.9} ${yR + D * 0.12} ${SW} ${yR + D * 0.2}V${yR + D * 0.32}C${ox + W * 0.6} ${yR + D * 0.42} ${ox + W * 0.2} ${yL + D * 0.15} 0 ${yL + D * 0.55}Z`;
+  const glowPath = `M${ox + W * 0.55} 0C${ox + W * 0.9} ${EXT + D * 0.4} ${ox + W * 1.05} ${EXT + devTop * 0.5} ${SW} ${EXT + devTop * 0.9}V0Z`;
 
   const logoAnim = useRef(new Animated.Value(0)).current;
   const textAnim = useRef(new Animated.Value(0)).current;
   const deviceAnim = useRef(new Animated.Value(0)).current;
   const barAnim = useRef(new Animated.Value(0)).current;
-  // Backdrop fades in over the flat base (keeps the native-splash cut seamless);
-  // the hero glow then breathes slowly for as long as the splash is up.
-  const backdropAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
-    console.log('[BOOT] BootSplash mounted @', since()); // TEMP DEBUG — remove once verified on a real device/dev-client build
-    Animated.timing(backdropAnim, {
-      toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true,
-    }).start();
-    const breathe = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.6, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    breathe.start();
     Animated.stagger(140, [
       Animated.timing(logoAnim, { toValue: 1, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(textAnim, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(deviceAnim, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
+  }, [logoAnim, textAnim, deviceAnim]);
+
+  // RootNavigator keeps this up for its minimum boot time (~5 s) and then
+  // fades it, so the bar fills over that window.
+  useEffect(() => {
     Animated.timing(barAnim, {
-      toValue: 1,
-      duration: 1000,
-      delay: 520,
-      easing: Easing.out(Easing.cubic),
+      toValue: 0.95,
+      duration: 4600,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: false, // animates `width`, which the native driver can't touch
     }).start();
-    return () => breathe.stop();
-  }, [logoAnim, textAnim, deviceAnim, barAnim, backdropAnim, glowAnim]);
+  }, [barAnim]);
+
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
-      <SplashBackdrop width={width} height={height} opacity={backdropAnim} glow={glowAnim} />
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={[styles.content, { maxWidth: contentWidth, paddingHorizontal: rs(24) }]}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading GGFIX"
+      style={[StyleSheet.absoluteFill, styles.root]}
+    >
+      <StatusBar style="light" />
+      {/* Soft light waves along the bottom edge. */}
+      <Svg pointerEvents="none" style={{ position: 'absolute', left: 0, bottom: 0 }} width={W} height={height * 0.22} viewBox={`0 0 ${W} 100`} preserveAspectRatio="none">
+        <Path d={`M0 30C${W * 0.25} 10 ${W * 0.45} 70 ${W} 40V100H0Z`} fill="#EAF0EC" />
+        <Path d={`M0 70C${W * 0.35} 45 ${W * 0.6} 95 ${W} 75V100H0Z`} fill="#E3ECE6" />
+      </Svg>
+
+      <View style={[styles.safe, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
+        <View
+          onLayout={(e) => {
+            // Shrink the whole block if it's still taller than the space.
+            const h = e.nativeEvent.layout.height;
+            const room = availH - 16;
+            const next = h > room ? Math.max(0.7, room / h) : 1;
+            if (Math.abs(next - fit) > 0.01) setFit(next);
+          }}
+          style={[styles.content, { transform: [{ scale: fit }] }]}
+        >
+          {/* Green wavy backdrop (drawn behind the block, bleeding past every edge). */}
+          <Svg pointerEvents="none" style={{ position: 'absolute', left: -ox, top: -EXT }} width={SW} height={yR + D * 0.5}>
+            <Defs>
+              <LinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor="#0A5E31" />
+                <Stop offset="0.55" stopColor="#0C7F3E" />
+                <Stop offset="1" stopColor="#12A350" />
+              </LinearGradient>
+            </Defs>
+            <Path d={mintPath} fill={MINT} />
+            <Path d={greenPath} fill="url(#g)" />
+            <Path d={glowPath} fill="#FFFFFF" opacity={0.06} />
+            <Circle cx={ox + W * 1.02} cy={EXT - 30} r={W * 0.36} fill="none" stroke="#FFFFFF" strokeOpacity={0.28} strokeWidth={1} />
+          </Svg>
+
+          {/* Logo — white glyph in a glowing ring. */}
+          <Animated.View style={{ opacity: logoAnim, transform: [{ scale: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }}>
+            <View
+              style={{
+                width: logo, height: logo, borderRadius: logo / 2, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: '#0B6A36', borderWidth: 2.5, borderColor: NEON,
+                shadowColor: NEON, shadowOpacity: 0.9, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 12,
+              }}
+            >
+              <Image source={GLYPH} style={{ width: logo * 0.64, height: logo * 0.64 }} resizeMode="contain" />
+            </View>
+          </Animated.View>
+
+          <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(16) }}>
+            <Text style={[styles.wordmark, { fontSize: word, lineHeight: word * 1.08 }]}>
+              GG<Text style={{ color: NEON }}>FIX</Text>
+            </Text>
+            <Text style={[styles.byline, { fontSize: 13 * k, marginTop: gap(6) }]}>BY GLOBO GREEN</Text>
+            <Text style={[styles.services, { fontSize: 15 * k, marginTop: gap(14) }]}>
+              Repair  <Text style={{ color: YELLOW }}>•</Text>  Pickup  <Text style={{ color: YELLOW }}>•</Text>  Buy  <Text style={{ color: YELLOW }}>•</Text>  Sell
+            </Text>
+          </Animated.View>
+
+          {/* Devices over the wave edge, with small accent ticks either side. */}
           <Animated.View
-            style={{
-              alignItems: 'center',
-              opacity: logoAnim,
-              transform: [{ scale: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+            onLayout={(e) => {
+              const { y, height: h } = e.nativeEvent.layout;
+              if (!device || Math.abs(device.y - y) > 1 || Math.abs(device.h - h) > 1) setDevice({ y, h });
             }}
-          >
-            <Image
-              source={require('../../assets/logo.png')}
-              style={{ width: logoSize, height: logoSize, marginBottom: gap(14) }}
-              resizeMode="contain"
-            />
-          </Animated.View>
-
-          <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(8) }}>
-            <Text style={[styles.wordmark, { fontSize: rf(titleFont) }]}>
-              GG<Text style={{ color: GREEN }}>FIX</Text>
-            </Text>
-            <Text style={[styles.byline, { fontSize: rf(bylineFont), marginTop: gap(6) }]}>BY GLOBO GREEN</Text>
-            <Text style={[styles.services, { fontSize: rf(servicesFont), marginTop: gap(10) }]}>
-              Repair  •  Pickup  •  Buy  •  Sell
-            </Text>
-          </Animated.View>
-
-          <Animated.View
             style={{
-              width: deviceWidth,
-              aspectRatio: 1 / deviceRatio,
-              marginTop: gap(20),
+              width: devW, height: devH, marginTop: gap(18),
               opacity: deviceAnim,
               transform: [{ translateY: deviceAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
             }}
           >
-            <ExpoImage
-              source={DEVICE_URL}
-              style={{ width: '100%', height: '100%' }}
-              contentFit="contain"
-              cachePolicy="disk"
-              onLoad={(e) => {
-                console.log('[BOOT] Device image loaded @', since()); // TEMP DEBUG
-                const { width: w, height: h } = e?.source || {};
-                if (w > 0 && h > 0) setDeviceRatio(h / w);
-              }}
-            />
+            <Svg pointerEvents="none" style={StyleSheet.absoluteFill} viewBox="0 0 100 75">
+              <Path d="M-4 22l6 6M-6 31l7 2" stroke={GREEN} strokeWidth={1.6} strokeLinecap="round" />
+              <Path d="M95 12l-4 6M101 19l-7 3" stroke={YELLOW} strokeWidth={1.6} strokeLinecap="round" />
+            </Svg>
+            <Image source={DEVICE} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
           </Animated.View>
 
-          <View style={{ alignItems: 'center', marginTop: gap(18) }}>
-            <Text style={[styles.tagline, { fontSize: rf(taglineFont), lineHeight: rf(taglineFont) * 1.4 }]}>
-              ALL YOUR TECH NEEDS,{'\n'}COVERED.
-            </Text>
-            <View style={[styles.taglineUnderline, { marginTop: gap(10) }]} />
+          <View style={{ alignItems: 'center', marginTop: gap(14) }}>
+            <Text style={[styles.tagline, { fontSize: tag, lineHeight: tag * 1.22 }]}>ALL YOUR TECH NEEDS,</Text>
+            <Text style={[styles.tagline, { fontSize: tag * 1.08, lineHeight: tag * 1.3, color: GREEN }]}>COVERED.</Text>
+            <Svg width={tag * 5.4} height={tag * 0.45} viewBox="0 0 120 10" style={{ marginTop: -2 }}>
+              <Path d="M2 8h7" stroke={YELLOW} strokeWidth={2.4} strokeLinecap="round" />
+              <Path d="M24 7.5Q70 1 116 6" stroke={YELLOW} strokeWidth={2.8} strokeLinecap="round" fill="none" />
+            </Svg>
           </View>
 
-          <View style={{ width: progressWidth, marginTop: gap(22), alignItems: 'center' }}>
+          <View style={{ width: barW, marginTop: gap(20), alignItems: 'center' }}>
             <View style={styles.progressTrack}>
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  { width: barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '70%'] }) },
-                ]}
-              />
+              <Animated.View style={[styles.progressFill, { width: barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]}>
+                <View style={styles.progressShine} />
+              </Animated.View>
             </View>
-            <Text style={[styles.loadingLabel, { fontSize: rf(loadingLabelFont), marginTop: gap(10) }]}>
-              LOADING...
-            </Text>
+            <Text style={[styles.loadingLabel, { fontSize: 13 * k, marginTop: gap(12) }]}>LOADING...</Text>
           </View>
 
-          <View style={[styles.trustRow, { marginTop: gap(24) }]}>
-            <TrustItem icon={<ShieldCheck size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />} label={'TRUSTED\nSERVICE'} labelFont={rf(trustLabelFont)} />
+          <View style={[styles.trustRow, { width: cw - 40, marginTop: gap(24) }]}>
+            <TrustItem kind="shield" circle={tier(44, 50, 56) * k} font={11 * k} label={'TRUSTED\nSERVICE'} />
             <View style={styles.divider} />
-            <TrustItem
-              icon={<Users size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />}
-              label={'THOUSANDS\nOF HAPPY CUSTOMERS'}
-              labelFont={rf(trustLabelFont)}
-            />
+            <TrustItem kind="people" circle={tier(44, 50, 56) * k} font={11 * k} label={'THOUSANDS\nOF HAPPY\nCUSTOMERS'} />
             <View style={styles.divider} />
-            <TrustItem icon={<MapPin size={rs(trustIconSize)} color={GREEN} strokeWidth={2} />} label={'ACROSS\nINDIA'} labelFont={rf(trustLabelFont)} />
-          </View>
-
-          <View style={{ alignItems: 'center', marginTop: gap(16) }}>
-            <Text style={[styles.script, { fontSize: rf(scriptFont) }]}>Keep Devices Moving</Text>
-            <View style={[styles.scriptUnderline, { marginTop: gap(6) }]} />
+            <TrustItem kind="pin" circle={tier(44, 50, 56) * k} font={11 * k} label={'ACROSS\nINDIA'} />
           </View>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: PAGE_BG },
-  // justifyContent: 'center' treats the whole splash as one block and centers
-  // it — extra space on a tall screen is split evenly above and below instead
-  // of being dumped into one gap partway down. Kept deliberately over
-  // `space-between`: every element's size/gap above is now tiered so the
-  // block's natural height already fits a short screen, and `space-between`
-  // is what previously produced a shrunken logo up top with a large dead
-  // zone in the middle — switching back to it would reintroduce that.
+  root: { backgroundColor: BASE, zIndex: 1000, elevation: 1000, overflow: 'hidden' },
   safe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  wordmark: {
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: TEXT_PRIMARY,
-  },
-  byline: {
-    fontWeight: '700',
-    letterSpacing: 2.4,
-    color: TEXT_SECONDARY,
-  },
-  services: {
-    fontWeight: '500',
-    color: TEXT_SECONDARY,
-    letterSpacing: 0.3,
-  },
-  tagline: {
-    textAlign: 'center',
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    color: TEXT_PRIMARY,
-  },
-  taglineUnderline: {
-    width: rs(40),
-    height: rs(3),
-    borderRadius: rs(2),
-    backgroundColor: YELLOW,
-  },
+  content: { width: '100%', alignItems: 'center' },
+  wordmark: { fontWeight: '900', letterSpacing: -1, color: '#FFFFFF' },
+  byline: { fontWeight: '600', letterSpacing: 4, color: '#FFFFFF' },
+  services: { fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 },
+  tagline: { textAlign: 'center', fontWeight: '900', letterSpacing: 0.2, color: INK },
   progressTrack: {
-    width: '100%',
-    height: rs(5),
-    borderRadius: rs(3),
-    backgroundColor: TRACK,
-    overflow: 'hidden',
+    width: '100%', height: 13, borderRadius: 7, backgroundColor: '#E1E7E3', overflow: 'hidden',
+    borderWidth: 2, borderColor: '#FFFFFF',
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: rs(3),
-    backgroundColor: GREEN,
-  },
-  loadingLabel: {
-    fontWeight: '600',
-    letterSpacing: 2,
-    color: TEXT_SECONDARY,
-  },
-  trustRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  trustItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: rs(6),
-    maxWidth: rs(110),
-  },
-  trustLabel: {
-    textAlign: 'center',
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-  },
-  divider: {
-    width: 1,
-    height: rs(30),
-    backgroundColor: TRACK,
-  },
-  script: {
-    fontStyle: 'italic',
-    fontWeight: '600',
-    color: GREEN_TEXT,
-  },
-  scriptUnderline: {
-    width: rs(90),
-    height: rs(2),
-    borderRadius: rs(1),
-    backgroundColor: YELLOW,
-  },
+  progressFill: { height: '100%', borderRadius: 6, backgroundColor: GREEN, overflow: 'hidden' },
+  progressShine: { position: 'absolute', left: 0, right: 0, top: 0, height: '45%', backgroundColor: 'rgba(255,255,255,0.22)' },
+  loadingLabel: { fontWeight: '600', letterSpacing: 5, color: '#3A3A3A' },
+  trustRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around' },
+  trustItem: { flex: 1, alignItems: 'center' },
+  trustLabel: { textAlign: 'center', fontWeight: '800', color: INK },
+  divider: { width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: '#DCE3DE' },
 });

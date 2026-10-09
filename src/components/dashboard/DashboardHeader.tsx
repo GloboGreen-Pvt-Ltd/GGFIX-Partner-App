@@ -19,6 +19,7 @@ import {
   VERIFIED_ICON,
 } from './theme';
 import { DashboardSearchBar } from './DashboardSearchBar';
+import colors from '../../theme/colors';
 import { ProfileAvatar } from '../ProfileAvatar';
 
 // Hit-slop that pads a button's real (compact) footprint out to the
@@ -43,6 +44,7 @@ export interface DashboardHeaderProps {
   onCartPress: () => void;
   onSearchPress: () => void;
   onScanPress: (mode: 'qr' | 'lens') => void;
+  onVoicePress?: () => void;
 }
 
 /**
@@ -71,6 +73,7 @@ export function DashboardHeader({
   onCartPress,
   onSearchPress,
   onScanPress,
+  onVoicePress,
 }: DashboardHeaderProps) {
   const { width } = useWindowDimensions();
   const cls = getSizeClass(width);
@@ -88,21 +91,17 @@ export function DashboardHeader({
   const actionGap = isTablet ? 14 : 8;
 
   const avatarHitSlop = hitSlopFor(avatarSize);
-  // Circular white button behind each header action icon — matches the
-  // reference design's soft, raised icon-button treatment (distinct from
-  // the plain bare-icon look this row used before).
+  // Outlined white circle behind each header action icon — the Customer
+  // app's Home header (IconCircle) treatment.
   const actionButtonStyle = {
     width: actionButtonSize,
     height: actionButtonSize,
     borderRadius: actionButtonSize / 2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    shadowColor: '#0B1F14',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   };
 
   return (
@@ -204,7 +203,7 @@ export function DashboardHeader({
               style={actionButtonStyle}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <ArrowLeftRight size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
+              <ArrowLeftRight size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
             <Touchable
               onPress={onNotificationsPress}
@@ -213,21 +212,26 @@ export function DashboardHeader({
               style={actionButtonStyle}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <Bell size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
+              <Bell size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
               {notifUnread > 0 ? (
                 <View
                   style={{
                     position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    minWidth: 9,
-                    height: 9,
-                    borderRadius: 5,
-                    backgroundColor: C.error,
+                    top: -3,
+                    right: -3,
+                    minWidth: 18,
+                    height: 18,
+                    paddingHorizontal: 4,
+                    borderRadius: 9,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.danger,
                     borderWidth: 1.5,
                     borderColor: '#FFFFFF',
                   }}
-                />
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF' }}>{notifUnread > 9 ? '9+' : notifUnread}</Text>
+                </View>
               ) : null}
             </Touchable>
             <Touchable
@@ -237,7 +241,7 @@ export function DashboardHeader({
               style={actionButtonStyle}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <ShoppingCart size={actionIconSize} color={PINE} strokeWidth={HEADER_ACTION_STROKE} />
+              <ShoppingCart size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
           </View>
         </View>
@@ -246,7 +250,7 @@ export function DashboardHeader({
             centered/width-capped container so it lines up with it on
             tablet instead of stretching edge-to-edge on its own. */}
         <View style={{ paddingBottom: 12 }}>
-          <DashboardSearchBar pad={0} onSearchPress={onSearchPress} onScanPress={onScanPress} />
+          <DashboardSearchBar pad={0} onSearchPress={onSearchPress} onScanPress={onScanPress} onVoicePress={onVoicePress} />
         </View>
       </View>
     </View>

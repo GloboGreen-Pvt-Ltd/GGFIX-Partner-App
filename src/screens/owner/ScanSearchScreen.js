@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
 import {
   ChevronLeft,
   ScanLine,
@@ -28,6 +27,7 @@ import {
   searchByIdentifiers,
   runVisualSearch,
   runDeviceIdentify,
+  runTextRecognition,
   catalogueMatchesFromText,
 } from '../../utils/scanSearch';
 import { rf, rs } from '../../utils/responsive';
@@ -38,30 +38,12 @@ import { rf, rs } from '../../utils/responsive';
 // `eas build --profile development`). Calling it inside Expo Go throws
 // immediately (native module not linked); that's caught below and surfaced
 // as a clear message rather than crashing or silently pretending OCR ran.
-async function runTextRecognition(uri) {
-  try {
-    const result = await TextRecognition.recognize(uri);
-    return { ok: true, text: result?.text || '' };
-  } catch (e) {
-    // The package's own error text when unlinked is "...doesn't seem to be
-    // linked. Make sure: ... You rebuilt the app after installing..." — this
-    // is exactly what Expo Go throws, since it can't include an arbitrary
-    // third-party native module.
-    const nativeModuleMissing = /native module|doesn.?t seem to be linked|requirenativecomponent|cannot read prop.*null|null is not an object/i.test(String(e?.message || ''));
-    return {
-      ok: false,
-      devBuildRequired: nativeModuleMissing,
-      message: nativeModuleMissing
-        ? 'On-device text recognition needs a development build of this app — it cannot run inside Expo Go.'
-        : (e?.message || 'Text recognition failed.'),
-    };
-  }
-}
 
 // GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const BRIGHT = '#00A86B';
-const MINT = '#E8F7F2';
+// Brand palette (same swatches as the Customer app's scanner).
+const ACCENT = '#1E1E1E';
+const BRIGHT = '#09AD2A';
+const MINT = 'rgba(9,173,42,0.10)';
 
 // Barcode types both modes can decode — QR plus the common retail/product
 // barcode families (matches what ScanQrCodeScreen / ScanImeiScreen already
@@ -116,6 +98,7 @@ export default function ScanSearchScreen({ navigation, route }) {
   const [ocrPhotoUri, setOcrPhotoUri] = useState(null); // last lens capture/pick — kept for Retake + result thumbnail
   const [showManualEntry, setShowManualEntry] = useState(false); // fallback-only, see runLensOCR
   const [manualText, setManualText] = useState('');
+  const capturingRef = useRef(false); // one lens capture at a time
   const cameraRef = useRef(null);
   const handlingRef = useRef(false); // scan-lock — see PREVENT DUPLICATE SCANS below
 
@@ -360,7 +343,8 @@ export default function ScanSearchScreen({ navigation, route }) {
   };
 
   const captureLensPhoto = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || capturingRef.current) return;
+    capturingRef.current = true;
     try {
       // Quality kept high (not heavily compressed) and unprocessed so OCR has
       // enough resolution to read small printed label text.
@@ -368,6 +352,8 @@ export default function ScanSearchScreen({ navigation, route }) {
       if (photo?.uri) runLensCapture(photo.uri);
     } catch (e) {
       notify('Capture failed', e?.message || 'Could not take the photo. Try again.');
+    } finally {
+      capturingRef.current = false;
     }
   };
 
@@ -510,7 +496,9 @@ export default function ScanSearchScreen({ navigation, route }) {
                 <ImagePlus size={rf(21)} color="#FFFFFF" />
               </Pressable>
               <Pressable onPress={captureLensPhoto} className="items-center justify-center" style={{ height: rs(68), width: rs(68), borderRadius: rs(34), backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: BRIGHT }}>
-                <View style={{ height: rs(52), width: rs(52), borderRadius: rs(26), backgroundColor: ACCENT }} />
+                <View className="items-center justify-center" style={{ height: rs(52), width: rs(52), borderRadius: rs(26), backgroundColor: BRIGHT }}>
+                  <CameraIcon size={rf(24)} color="#FFFFFF" />
+                </View>
               </Pressable>
               <Pressable onPress={openManualEntry} className="items-center justify-center" style={{ height: rs(48), width: rs(48), borderRadius: rs(24), backgroundColor: 'rgba(255,255,255,0.18)', marginLeft: rs(22) }}>
                 <SearchIcon size={rf(19)} color="#FFFFFF" />

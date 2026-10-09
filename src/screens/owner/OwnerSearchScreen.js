@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Platform,
   Pressable,
   StatusBar,
   Text,
@@ -12,11 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronLeft, Search, X, Package, Truck, User, Phone, Smartphone, Clock, Mic, Camera } from 'lucide-react-native';
+import { ChevronLeft, Search, X, Package, Truck, User, Phone, Smartphone, Clock, Mic, MicOff, Camera } from 'lucide-react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { ticketApi } from '../../api/client';
 import { listShopRepairBookings } from '../../api/orders';
 import { pickupsOnly } from './AllBooking/bookingScopes';
-import { loadSearchableModels, searchModels, buildDeviceParams } from '../../utils/deviceSearch';
+import { loadSearchableModels, searchModels } from '../../utils/deviceSearch';
+import { navigateDeviceAction } from '../../utils/deviceActions';
 import DeviceActionSheet from '../../components/DeviceActionSheet';
 import { useResponsive } from '../../theme/responsive';
 
@@ -52,6 +55,10 @@ const GREEN_DARK = '#087A0A';
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 350;
 const RECENTS_KEY = 'owner.search.recents';
+// Web Speech API (Chrome / Edge / Safari); Android uses its speech intent.
+const WebSpeech = Platform.OS === 'web' && typeof window !== 'undefined'
+  ? (window.SpeechRecognition || window.webkitSpeechRecognition || null)
+  : null;
 const MAX_RECENTS = 6;
 
 // Work-record needle: case-insensitive with '#' and spaces dropped, so
@@ -84,30 +91,78 @@ export default function OwnerSearchScreen({ navigation, route }) {
   // fast fires several requests and they do not necessarily land in order.
   const reqRef = useRef(0);
 
-  /**
-   * Voice and image search are not implemented — see the note on the buttons.
-   *
-   * Alert, not the app's `notify()` toast: a toast shows for two seconds at the
-   * bottom of the screen and is easy to miss entirely, which reads as "the
-   * button does nothing". An Alert has to be dismissed, so the answer lands.
-   */
-  const unavailable = useCallback((what) => {
-    const why = what === 'voice'
-      ? 'Speech recognition is not part of this build yet, so the microphone cannot listen. Type the device or booking instead.'
-      : 'Identifying a device from a photo needs a recognition service, which is not wired up yet. Type the model instead.';
-    Alert.alert(what === 'voice' ? 'Voice search unavailable' : 'Image search unavailable', why, [{ text: 'OK' }]);
+  const inputRef = useRef(null);
+  const recRef = useRef(null);
+  const [listening, setListening] = useState(false);
+
+  // No in-app speech engine (Expo Go / unsupported browser): the keyboard's own
+  // mic still dictates, so focus the field and say so. Alert, not a toast, so
+  // the answer can't be missed.
+  const voiceFallback = useCallback(() => {
+    setListening(false);
+    Alert.alert('Voice search', 'Use the microphone on your keyboard to dictate the device, ticket or customer.', [{ text: 'OK' }]);
+    setTimeout(() => inputRef.current?.focus?.(), 150);
   }, []);
 
-  // Home's mic / camera buttons open this screen with `launch`, so tapping them
-  // there and tapping them here give the same answer instead of one silently
-  // doing nothing.
+  // Voice search — same engines as the Customer app's Search: Android's speech
+  // recogniser via intent, the Web Speech API on web. The heard text becomes
+  // the query, which the debounced search below runs.
+  const startVoice = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        setListening(true);
+        const r = await IntentLauncher.startActivityAsync('android.speech.action.RECOGNIZE_SPEECH', {
+          extra: {
+            'android.speech.extra.LANGUAGE_MODEL': 'free_form',
+            'android.speech.extra.LANGUAGE': 'en-IN',
+            'android.speech.extra.PROMPT': 'Say a device, ticket ID or customer',
+          },
+        });
+        const heard = r?.extra?.['android.speech.extra.RESULTS']?.[0];
+        if (heard) setQuery(String(heard));
+      } catch (_) {
+        voiceFallback();
+      } finally {
+        setListening(false);
+      }
+      return;
+    }
+    if (!WebSpeech) { voiceFallback(); return; }
+    try {
+      recRef.current?.abort?.();
+      const rec = new WebSpeech();
+      rec.lang = 'en-IN';
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.onresult = (e) => {
+        const text = Array.from(e.results).map((x) => x[0]?.transcript || '').join(' ').trim();
+        if (text) setQuery(text);
+      };
+      rec.onerror = voiceFallback;
+      rec.onend = () => setListening(false);
+      recRef.current = rec;
+      setListening(true);
+      rec.start();
+    } catch (_) {
+      voiceFallback();
+    }
+  }, [voiceFallback]);
+  const stopVoice = useCallback(() => {
+    try { recRef.current?.stop?.(); } catch (_) {}
+    setListening(false);
+  }, []);
+  useEffect(() => () => { try { recRef.current?.abort?.(); } catch (_) {} }, []);
+
+  // Camera = the existing visual device scanner (ScanSearchScreen lens mode).
+  const openLens = useCallback(() => navigation.navigate('ProductScan'), [navigation]);
+
+  // Home's mic / camera buttons open this screen with `launch`.
   const launched = route?.params?.launch;
   useEffect(() => {
-    if (launched === 'voice' || launched === 'image') {
-      unavailable(launched);
-      navigation.setParams({ launch: undefined }); // don't re-fire on re-render
-    }
-  }, [launched, unavailable, navigation]);
+    if (launched === 'voice') startVoice();
+    else if (launched === 'image') openLens();
+    if (launched) navigation.setParams({ launch: undefined }); // don't re-fire on re-render
+  }, [launched, startVoice, openLens, navigation]);
 
   // ScanSearchScreen hands off here (a "multiple matches" or "single device"
   // scan result) with a query already known — land on the real result list
@@ -198,13 +253,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
    * Action → flow. The device object is passed WHOLE (ids included) so no
    * downstream screen re-searches by name and lands on a different record.
    *
-   * The routes mirror what SelectModelScreen's own `onPick` does for each flow,
-   * which is why the receiving screens need no changes:
-   *   BOOK → DeviceColorStorage, nested inside the RepairServiceBookingShop
-   *          navigator, so it goes through that route with `screen`/`params`.
-   *   SELL → OwnerSellChooseSalesCategory (the OWNER_LIST flow).
-   *   BUY  → the Buy tab, which takes a `q`; there is no per-model product
-   *          route to deep-link, so it lands pre-filtered on the model name.
+   * Routes live in utils/deviceActions.js (shared with the product camera).
    */
   const onAction = (key, device) => {
     // Refuses to navigate without a real model id, per the spec's guard.
@@ -215,24 +264,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
     }
     setSheetFor(null);
     pushRecent(query);
-
-    if (key === 'BOOK') {
-      const params = buildDeviceParams(device, 'BOOKING');
-      navigation.navigate('RepairServiceBookingShop', { screen: 'DeviceColorStorage', params });
-      return;
-    }
-    if (key === 'SELL') {
-      navigation.navigate('OwnerSellChooseSalesCategory', buildDeviceParams(device, 'OWNER_LIST'));
-      return;
-    }
-    navigation.navigate('OwnerTabs', {
-      screen: 'Buy',
-      params: {
-        q: device.displayName || device.modelName,
-        categoryId: device.categoryId,
-        categoryName: device.categoryName,
-      },
-    });
+    navigateDeviceAction(navigation, key, device);
   };
 
   const openWorkRecord = (item) => {
@@ -371,6 +403,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
             >
               <Search size={16} color={GREEN} strokeWidth={2} />
               <TextInput
+                ref={inputRef}
                 value={query}
                 onChangeText={setQuery}
                 autoFocus
@@ -387,20 +420,22 @@ export default function OwnerSearchScreen({ navigation, route }) {
                   <X size={13} color="#667066" strokeWidth={2} />
                 </Pressable>
               ) : null}
-              {/* Voice and image search are stubs: neither a speech-recognition
-                  module nor an image-identification service exists in this app
-                  yet. They stay visible so the entry points are in place, and
-                  say plainly why they do nothing rather than failing silently. */}
               <Pressable
-                onPress={() => unavailable('voice')}
+                onPress={listening ? stopVoice : startVoice}
+                accessibilityRole="button"
+                accessibilityLabel={listening ? 'Stop voice search' : 'Voice search'}
                 hitSlop={6}
                 className="w-7 h-7 rounded-full items-center justify-center mr-1"
                 style={{ backgroundColor: '#F0F8EF' }}
               >
-                <Mic size={15} color={GREEN_DARK} strokeWidth={2} />
+                {listening
+                  ? <MicOff size={15} color={GREEN_DARK} strokeWidth={2} />
+                  : <Mic size={15} color={GREEN_DARK} strokeWidth={2} />}
               </Pressable>
               <Pressable
-                onPress={() => unavailable('image')}
+                onPress={openLens}
+                accessibilityRole="button"
+                accessibilityLabel="Product scanner"
                 hitSlop={6}
                 className="w-7 h-7 rounded-full items-center justify-center"
                 style={{ backgroundColor: '#F0F8EF' }}

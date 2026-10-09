@@ -87,6 +87,9 @@ export default {
       'expo-asset',
       ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock GGFIX.' }],
       ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
+      // Product camera / QR scanner and gallery pick (iOS usage strings).
+      ['expo-camera', { cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
+      ['expo-image-picker', { photosPermission: 'GGFIX uses your photos only to identify a device from a picture you choose.', cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
       // Android 11+ package visibility for the WhatsApp / SMS receipt share.
       // `android/` is gitignored in the mirror, so the hand-edited manifest never
       // reaches an EAS build — this is what puts the <queries> block in the

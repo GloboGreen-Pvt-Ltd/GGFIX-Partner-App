@@ -45,6 +45,9 @@ import OwnerCartScreen from '../screens/owner/OwnerCartScreen';
 import OwnerNotificationsScreen from '../screens/owner/OwnerNotificationsScreen';
 import OwnerSearchScreen from '../screens/owner/OwnerSearchScreen';
 import ScanSearchScreen from '../screens/owner/ScanSearchScreen';
+import ProductScanScreen from '../screens/owner/ProductScanScreen';
+import OwnerBuyHomeScreen from '../screens/owner/OwnerBuyHomeScreen';
+import OwnerSellHubScreen from '../screens/owner/OwnerSellHubScreen';
 import TicketDetailScreen from '../screens/owner/AllBooking/TicketDetailScreen';
 import DeviceDetailScreen from '../screens/owner/AllBooking/DeviceDetailScreen';
 import BookingSummaryScreen from '../screens/owner/AllBooking/BookingSummaryScreen';
@@ -319,10 +322,10 @@ function OwnerTabs({ onLogout }) {
         {(props) => <DashboardScreen {...props} onLogout={onLogout} />}
       </Tab.Screen>
       <Tab.Screen name="Bookings" component={BookingHistoryScreen} />
-      <Tab.Screen name="Buy" component={OwnerBuyListingScreen} options={{ title: 'Buy' }} />
+      <Tab.Screen name="Buy" component={OwnerBuyHomeScreen} options={{ title: 'Buy' }} />
       <Tab.Screen
         name="Sell"
-        component={OwnerSellHomeScreen}
+        component={OwnerSellHubScreen}
         options={{ title: 'Sell' }}
         initialParams={{ flow: 'OWNER_LIST' }}
       />
@@ -437,6 +440,11 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerNotifications" component={OwnerNotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSearch" component={OwnerSearchScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ScanSearch" component={ScanSearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ProductScan" component={ProductScanScreen} options={{ headerShown: false }} />
+      {/* Buy listing (search / category results) and the previous Sell home,
+          now opened from the Customer-style Buy / Sell tabs. */}
+      <Stack.Screen name="OwnerBuyListing" component={OwnerBuyListingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerSellHome" component={OwnerSellHomeScreen} options={{ headerShown: false }} initialParams={{ flow: 'OWNER_LIST' }} />
       <Stack.Screen name="OwnerBuyListingDetails" component={OwnerBuyListingDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellRequests" component={SellRequestsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellMobile" component={OwnerSellMobileChoiceScreen} options={{ headerShown: false }} />

@@ -463,3 +463,6 @@ export async function runVisualSearch(uri, { limit = 5, ocrText, barcode } = {})
     return { ok: false, unavailable: true, notConfigured: !!e?.notConfigured, message };
   }
 }
+
+// On-device OCR lives in the shared product detector (lib/productDetect).
+export { runOcr as runTextRecognition } from '../lib/productDetect';

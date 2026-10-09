@@ -9,6 +9,7 @@ import { resolveDeviceImageSource } from '../../utils/images';
 import { getModelsByBrand } from '../../api/masterData';
 import { useResponsive } from '../../theme/responsive';
 import { hasCategorySpecs, specDetailRows } from '../../utils/deviceSpecs';
+import { loadChatBuyOrders, ordersForListing, sendOrderOutcome } from '../../utils/buyOrders';
 
 // GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
 // neutrals #F8F8F8 / #F3F3F3.
@@ -118,6 +119,14 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(!route?.params?.listing);
   const [acting, setActing] = useState(false);
   const [viewer, setViewer] = useState(null); // photo index open full screen
+  // Customer buy orders for this listing (from the shop's chat) — Buyer Details.
+  const [buyers, setBuyers] = useState([]);
+  useEffect(() => {
+    if (!item?.title) return undefined;
+    let alive = true;
+    loadChatBuyOrders().then((orders) => { if (alive) setBuyers(ordersForListing(orders, item)); });
+    return () => { alive = false; };
+  }, [item?.title]);
 
   const updateStatus = async (newStatus, prettyLabel) => {
     if (!productId) return;
@@ -125,7 +134,9 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
     try {
       const res = await marketplaceApi.put(`/marketplace/products/${productId}`, { body: { status: newStatus } });
       setItem(res);
-      notify('Updated', `Listing marked as ${prettyLabel}.`);
+      // Sold / not sold → order confirmation in the buyer's Customer-app chat.
+      const sent = await sendOrderOutcome(res || item, newStatus === 'SOLD');
+      notify('Updated', `Listing marked as ${prettyLabel}.${sent ? ` Order ${newStatus === 'SOLD' ? 'confirmation' : 'update'} sent to ${sent} buyer${sent === 1 ? '' : 's'}.` : ''}`);
     } catch (e) {
       notify('Action failed', e?.message || 'Could not update the listing');
     } finally {
@@ -331,6 +342,25 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 <Text className="font-extrabold" style={{ fontSize: 10.5, letterSpacing: 0.8, color: C.muted }}>DESCRIPTION TYPE</Text>
                 <Text className="font-bold" style={{ fontSize: 13, color: C.ink, marginTop: 1 }}>{descriptionText}</Text>
               </View>
+            </View>
+          ) : null}
+
+          {/* Buyer details — customer buy orders placed on this listing. */}
+          {buyers.length ? (
+            <View style={cardStyle}>
+              <Text className="font-extrabold" style={{ fontSize: 10.5, letterSpacing: 0.8, color: C.muted, marginBottom: 6 }}>BUYER DETAILS</Text>
+              {buyers.map((b, i) => (
+                <View key={b.key} className="flex-row" style={{ paddingTop: i ? 8 : 0, marginTop: i ? 8 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: C.soft }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                    <Ionicons name="person-outline" size={15} color={C.green} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text className="font-bold" style={{ fontSize: 13, color: C.ink }}>{b.buyer || 'Customer'}{b.orderNo ? `  ·  ${b.orderNo}` : ''}</Text>
+                    {b.phone ? <Text style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{b.phone}</Text> : null}
+                    {b.address ? <Text style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{b.address}</Text> : null}
+                  </View>
+                </View>
+              ))}
             </View>
           ) : null}
 
