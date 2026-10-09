@@ -1,0 +1,152 @@
+// The app resolves its API bases in src/api/config.js from EXPO_PUBLIC_* env vars
+// (.env for local runs, eas.json `env` for builds) — the values mirrored into
+// `extra` below are informational only. Default is the TLS edge; set
+// EXPO_PUBLIC_API_HOST=192.168.1.5 to point at a backend on your LAN instead.
+const host = process.env.EXPO_PUBLIC_API_HOST || '';
+const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.ggfix.in';
+const masterPort = process.env.EXPO_PUBLIC_MASTER_PORT || '8091';
+const masterBase =
+  process.env.EXPO_PUBLIC_MASTER_DATA_BASE ||
+  process.env.EXPO_PUBLIC_MASTER_BASE ||
+  (host ? `http://${host}:${masterPort}` : edge);
+
+export default {
+  expo: {
+    name: 'GGFIX Partner',
+    slug: 'ggfix-partner-app',
+    // EAS account/organization that owns the project (from your Expo dashboard).
+    // Verify this matches expo.dev → your account. Change if different.
+    owner: 'globogreen-system-and-technology-private-limited',
+    version: '1.0.0',
+    platforms: ['ios', 'android', 'web'],
+    orientation: 'portrait',
+    userInterfaceStyle: 'automatic',
+    jsEngine: 'hermes',
+    icon: './assets/logo.png',
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: 'com.ggfix.shopapp',
+      infoPlist: {
+        // iOS has no shared Downloads folder, so a saved statement lands in the
+        // app's own Documents directory. These two keys are what make that
+        // directory show up in the Files app under "GGFIX Partner" — without them
+        // the file is saved somewhere the owner cannot reach.
+        UIFileSharingEnabled: true,
+        LSSupportsOpeningDocumentsInPlace: true,
+        NSLocationWhenInUseUsageDescription:
+          'We use your location to show pickup-enabled repair shops nearby and to set your default delivery address.',
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true,
+        },
+      },
+    },
+    android: {
+      package: 'com.ggfix.shopapp',
+      adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#ffffff' },
+      // 'resize' (not the default 'pan') so the root view actually shrinks
+      // when the keyboard opens — KeyboardAvoidingView's Android behaviors
+      // assume this; under 'pan' the OS slides the whole window instead,
+      // which is what was pushing/cropping the login card. Native-config
+      // only — takes effect on the next native rebuild, not a JS/Metro reload.
+      softwareKeyboardLayoutMode: 'resize',
+      // READ_CONTACTS backs Cash Book → Add Customer → "Add from Contacts".
+      // POST_NOTIFICATIONS backs the "Download complete" receipt a saved
+      // statement leaves in the shade (Android 13+).
+      // The expo-contacts plugin below injects the first too, but they are
+      // listed here so the manifest's permission set is readable in one place.
+      permissions: [
+        'ACCESS_FINE_LOCATION',
+        'ACCESS_COARSE_LOCATION',
+        'READ_CONTACTS',
+        'POST_NOTIFICATIONS',
+      ],
+    },
+    plugins: [
+      // Owns the native launch splash. JS controls the hide moment itself
+      // via SplashScreen.preventAutoHideAsync()/hideAsync() in App.js, so it
+      // stays up exactly until BootSplash.js has painted its first frame —
+      // this is what replaced the old top-level `splash` key, which had no
+      // JS-side hook and let the OS hide it on its own timing.
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/logo.png',
+          resizeMode: 'contain',
+          // Brand page colour — same as BootSplash and App.js's root view, so
+          // the hand-off between them is seamless. Native config: takes effect
+          // on the next native/EAS build, not a Metro reload.
+          backgroundColor: '#F8F8F8',
+        },
+      ],
+      // Peer deps of @expo/vector-icons (used app-wide) and expo-audio
+      // respectively — expo-doctor flags these as required native modules;
+      // without the plugin registration prebuild never links them, and the
+      // app can crash outside Expo Go the first time an icon font or an
+      // audio asset is touched.
+      'expo-font',
+      'expo-asset',
+      ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock GGFIX.' }],
+      ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
+      // Product camera / QR scanner and gallery pick (iOS usage strings).
+      ['expo-camera', { cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
+      ['expo-image-picker', { photosPermission: 'GGFIX uses your photos only to identify a device from a picture you choose.', cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
+      // Android 11+ package visibility for the WhatsApp / SMS receipt share.
+      // `android/` is gitignored in the mirror, so the hand-edited manifest never
+      // reaches an EAS build — this is what puts the <queries> block in the
+      // generated one. See plugins/withAndroidQueries.js.
+      './plugins/withAndroidQueries',
+      // Cleartext HTTP for the plain-http backend. The bare android.usesCleartextTraffic
+      // key is ignored by Expo prebuild — it must be set via expo-build-properties.
+      [
+        'expo-build-properties',
+        {
+          android: {
+            usesCleartextTraffic: true,
+            // Ship native libraries for real phones only (arm64-v8a). This drops the
+            // emulator-only ABIs (x86/x86_64, ~52MB) and old 32-bit devices
+            // (armeabi-v7a, ~16MB), shrinking the universal APK from ~114MB to ~50MB.
+            // buildArchs writes `reactNativeArchitectures` into gradle.properties.
+            buildArchs: ['arm64-v8a'],
+          },
+        },
+      ],
+      [
+        'expo-location',
+        {
+          locationAlwaysAndWhenInUsePermission:
+            'We use your location to show pickup-enabled repair shops nearby.',
+        },
+      ],
+      [
+        'expo-contacts',
+        {
+          contactsPermission:
+            'We use your contacts so you can pick a customer or supplier from your phone book instead of typing the number.',
+        },
+      ],
+      'expo-image',
+      'expo-sharing',
+      'expo-status-bar',
+    ],
+    extra: {
+      API_HOST: host || edge,
+      API_BASE_URL: null,
+      AUTH_BASE: null,
+      MASTER_BASE: masterBase,
+      TICKET_BASE: null,
+      TECHNICIAN_BASE: null,
+      SHOP_BASE: null,
+      INVENTORY_BASE: null,
+      MARKETPLACE_BASE: null,
+      PICKUP_BASE: null,
+      ORDER_BASE: null,
+      // Required for EAS builds. Get this value by running `npx eas init`
+      // (it prints the ID), or copy it from expo.dev → your project → settings.
+      eas: {
+        projectId:
+          process.env.EAS_PROJECT_ID ||
+          '758360b1-f465-47b7-a1bd-867b8387a932',
+      },
+    },
+  },
+};
