@@ -277,7 +277,6 @@ function MobileStep({ s, k, mobile, setMobile, loading, error, onSubmit, onCreat
           placeholderTextColor="#BDBDBD"
           keyboardType="number-pad"
           maxLength={MOBILE_DIGITS}
-          autoFocus
           returnKeyType="done"
           onSubmitEditing={onSubmit}
           accessibilityLabel="Mobile number"
