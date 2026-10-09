@@ -12,6 +12,7 @@ import {
   Easing,
   Platform,
   KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,22 +22,28 @@ import { useNavigation } from '@react-navigation/native';
 import { getSession } from '../../auth/session';
 import { fetchMe, updateOwnerProfile } from '../../api/auth';
 import { uploadMedia } from '../../api/masterData';
+import { getOwnerKycDocuments } from '../../api/shops';
 import { notify } from '../../components/confirm';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
+import { T } from '../../components/dashboard/theme';
 import { useResponsive } from '../../theme/responsive';
 
-// Swiggy / Zomato green palette — same as the rest of the owner-side flows.
-// Constant names left as PRIMARY etc. so the rest of the file keeps reading
-// naturally; only the hex values are swapped.
-const PRIMARY = '#087A0A';        // BRAND_GREEN_DARK
-const PRIMARY_MID = '#087A0A';    // ACCENT_GREEN
-const PRIMARY_LIGHT = '#16BB05';  // BRAND_GREEN
-const SUCCESS = '#087A0A';
-const TEXT = '#172117';
-const MUTED = '#667066';
-const BORDER = '#E2E8E2';
-const BG = '#F0F8EF';
-const PRIMARY_SOFT = '#E6F7E3';
+// Same green + white palette as My Account, so the two screens read as one.
+const G = '#09AD2A';             // Primary green
+const G_DEEP = '#07921F';        // Pressed / gradient end
+const ACCENT = G;
+const BRIGHT = G;
+const MINT = '#EAF8EC';          // Very light green (icon tiles, pills)
+const SOFT_MINT = '#F6FBF7';     // Input / note panels
+const PAGE_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#ECECEC';
+const TEXT = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const SUCCESS = G;
+// Header colours — taken from the Buy / Sell / Booking headers.
+const HEADER_BORDER = '#DCE7E2';
+const HEADER_TEXT = '#111827';
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -56,6 +63,8 @@ export default function OwnerPersonalInfoScreen() {
   const [mobile, setMobile] = useState('');
   const [additional, setAdditional] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  // Same rule as My Account: "Verified" only once the owner's KYC is APPROVED.
+  const [isVerified, setIsVerified] = useState(false);
 
   // View / Edit mode — purely a UI state, doesn't touch any profile data.
   const [isEditing, setIsEditing] = useState(false);
@@ -65,8 +74,15 @@ export default function OwnerPersonalInfoScreen() {
   const r = useResponsive();
   // Tablet/iPad: cap the column and centre it so a form doesn't stretch
   // edge-to-edge. Phones keep contentW undefined and are unaffected.
-  const contentW = r.isTablet ? Math.min(r.width - rs(32), 740) : undefined;
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 900) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
+  // Avatar scales with the device class: smaller on small phones, larger on tablets.
+  const avatarSize = r.isTablet ? rs(76) : r.isSmallPhone ? rs(52) : rs(60);
+  const avatarBox = { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 };
+  // Explicit pixel size for the photo (circle minus its 3px border each side) —
+  // Android's Image renders nothing, or at the photo's own size, without it.
+  const photoSize = avatarSize - 6;
+  const photoBox = { width: photoSize, height: photoSize, borderRadius: photoSize / 2 };
 
   // Guards so the async /auth/me fetch doesn't clobber whatever the user has
   // already typed. Without these the network response would overwrite the
@@ -79,6 +95,14 @@ export default function OwnerPersonalInfoScreen() {
     mobile: false,
     additional: false,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    getOwnerKycDocuments()
+      .then((kyc) => { if (!cancelled) setIsVerified(kyc?.status === 'APPROVED'); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     // Pull live data from /auth/me so the form reflects what's actually in
@@ -125,7 +149,7 @@ export default function OwnerPersonalInfoScreen() {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.75,
@@ -201,41 +225,46 @@ export default function OwnerPersonalInfoScreen() {
     if (navigation.canGoBack()) navigation.goBack();
   };
 
+  // The header pencil is the only way into Edit Mode.
+  const openEdit = () => setIsEditing(true);
+
   return (
     <View style={styles.root}>
-      {/* Compact gradient header — sized to its own content (back button +
-          title/subtitle + OWNER badge) only. The profile card below sits in
-          normal document flow with a plain positive margin, never a negative
-          one, so there is no way for it to render underneath the header. */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY }}>
-        <LinearGradient
-          colors={[PRIMARY_LIGHT, PRIMARY]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
+      {/* Header — same pattern as the Buy / Sell / Booking screens: white bar
+          with a bottom border, round back button, centred title + subtitle,
+          round action button on the right (Edit in View Mode). */}
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        <View style={styles.hero}>
           <View style={[styles.heroTopRow, capStyle]}>
             <Pressable
               onPress={handleBack}
-              hitSlop={10}
-              style={({ pressed }) => [styles.heroBackBtn, pressed && { opacity: 0.7 }]}
+              hitSlop={8}
+              style={({ pressed }) => [styles.heroIconBtn, pressed && { opacity: 0.7 }]}
             >
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={19} color={HEADER_TEXT} />
             </Pressable>
             <View style={styles.heroTitleWrap}>
               <Text style={styles.heroTitle} numberOfLines={1}>
-                {isEditing ? 'Edit Personal Information' : 'Personal Information'}
+                {isEditing ? 'Edit Personal Info' : 'Personal Information'}
               </Text>
               <Text style={styles.heroSubtitle} numberOfLines={1}>
-                {isEditing ? 'Update your profile details' : 'View your profile details'}
+                {isEditing ? 'Update your profile details' : 'View and manage your profile details'}
               </Text>
             </View>
-            <View style={styles.heroKickerPill}>
-              <Ionicons name="shield-checkmark" size={11} color="#FFFFFF" />
-              <Text style={styles.heroKicker}>OWNER</Text>
-            </View>
+            {!isEditing ? (
+              <Pressable
+                onPress={openEdit}
+                hitSlop={8}
+                style={({ pressed }) => [styles.heroIconBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="pencil" size={16} color={G} />
+              </Pressable>
+            ) : (
+              <View style={{ width: rs(36) }} />
+            )}
           </View>
-        </LinearGradient>
+        </View>
       </SafeAreaView>
 
       <KeyboardAvoidingView
@@ -249,61 +278,47 @@ export default function OwnerPersonalInfoScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Profile summary card — normal flow, plain positive margin below
-              the header. Never overlaps it. */}
-          <View style={[styles.identityCard, capStyle]}>
+          {/* Profile summary — white block (avatar, name, shop, verified). */}
+          <View style={[styles.identity, capStyle]}>
             <View style={styles.identityTopRow}>
-              <View style={styles.avatarWrap}>
+              <View style={avatarBox}>
                 <Pressable
                   onPress={pickAvatar}
                   disabled={uploadingAvatar}
-                  style={({ pressed }) => [styles.avatar, pressed && { opacity: 0.85 }]}
+                  style={({ pressed }) => [styles.avatar, avatarBox, pressed && { opacity: 0.85 }]}
                 >
+                  {avatarUrl ? (
+                    <Image source={{ uri: avatarUrl }} style={photoBox} resizeMode="cover" />
+                  ) : null}
                   {uploadingAvatar ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
-                  ) : (
+                    <View style={[styles.avatarSpinner, photoBox]}>
+                      <ActivityIndicator color={G} />
+                    </View>
+                  ) : avatarUrl ? null : (
                     <Text style={styles.avatarText}>{initials}</Text>
                   )}
                 </Pressable>
-                {isEditing ? (
-                  <Pressable
-                    onPress={pickAvatar}
-                    disabled={uploadingAvatar}
-                    style={styles.avatarEditBtn}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="camera" size={11} color="#fff" />
-                  </Pressable>
-                ) : null}
               </View>
 
               <View style={styles.identityText}>
                 <Text style={styles.name} numberOfLines={1}>
                   {fullName || 'Shop Owner'}
                 </Text>
-                <View style={styles.shopRow}>
-                  <Ionicons name="storefront-outline" size={12} color={MUTED} />
-                  <Text style={styles.shopName} numberOfLines={1}>
-                    {shopName}
-                  </Text>
-                </View>
-                <View style={styles.verifiedPill}>
-                  <Ionicons name="shield-checkmark" size={10} color={SUCCESS} />
-                  <Text style={styles.verifiedText}>Verified Owner</Text>
-                </View>
+                {shopName ? (
+                  <View style={styles.shopRow}>
+                    <Ionicons name="storefront-outline" size={12} color={MUTED} />
+                    <Text style={styles.shopName} numberOfLines={1}>
+                      {shopName}
+                    </Text>
+                  </View>
+                ) : null}
+                {isVerified ? (
+                  <View style={styles.verifiedPill}>
+                    <Ionicons name="shield-checkmark" size={10} color={SUCCESS} />
+                    <Text style={styles.verifiedText}>Verified Owner</Text>
+                  </View>
+                ) : null}
               </View>
-
-              {!isEditing ? (
-                <Pressable
-                  onPress={() => setIsEditing(true)}
-                  style={({ pressed }) => [styles.editPillBtn, pressed && { opacity: 0.8 }]}
-                >
-                  <Ionicons name="pencil" size={13} color={PRIMARY} />
-                  <Text style={styles.editPillText}>Edit</Text>
-                </Pressable>
-              ) : null}
             </View>
 
             {isEditing ? (
@@ -313,7 +328,7 @@ export default function OwnerPersonalInfoScreen() {
                 style={({ pressed }) => [styles.changePhotoBtn, pressed && { opacity: 0.85 }]}
               >
                 <View style={styles.changePhotoIconWrap}>
-                  <Ionicons name="camera-outline" size={18} color={PRIMARY} />
+                  <Ionicons name="camera-outline" size={18} color={ACCENT} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.changePhotoTitle}>Change Profile Photo</Text>
@@ -323,13 +338,10 @@ export default function OwnerPersonalInfoScreen() {
             ) : null}
           </View>
 
-          {/* Personal Details */}
+          {/* ONE card for all the details — Personal Details and Contact
+              Numbers are groups inside it, split by a divider. */}
           <View style={[styles.card, capStyle]}>
-            <SectionHeader
-              icon="person-outline"
-              title="Personal Details"
-              subtitle={isEditing ? 'Keep your information up to date' : null}
-            />
+            <SectionHeader title="Personal Details" />
 
             <View style={styles.cardBody}>
               {isEditing ? (
@@ -354,35 +366,28 @@ export default function OwnerPersonalInfoScreen() {
                 </>
               ) : (
                 <>
-                  <DetailRow label="Full Name" value={fullName || '—'} />
-                  <DetailRow label="Email Address" value={email || '—'} last />
+                  <DetailRow icon="person-outline" label="Full Name" value={fullName || '—'} />
+                  <DetailRow icon="mail-outline" label="Email Address" value={email || '—'} last />
                 </>
               )}
             </View>
-          </View>
 
-          {/* Contact Numbers */}
-          <View style={[styles.card, capStyle]}>
-            <SectionHeader
-              icon="call-outline"
-              title="Contact Numbers"
-              subtitle={isEditing ? 'Add or update your contact number(s)' : null}
-            />
+            <View style={styles.groupDivider} />
+            <SectionHeader title="Contact Numbers" />
 
             <View style={styles.cardBody}>
               {isEditing ? (
                 <>
                   <PhoneField
-                    icon="logo-whatsapp"
-                    iconColor="#25D366"
-                    label="Mobile Number (WhatsApp)"
+                    icon="call-outline"
+                    label="Mobile Number"
                     value={mobile}
                     onChangeText={onChangeMobile}
                     placeholder="Mobile number"
                     keyboardType="phone-pad"
                   />
                   <PhoneField
-                    icon="call-outline"
+                    icon="add-outline"
                     label="Additional Number (Optional)"
                     value={additional}
                     onChangeText={onChangeAdditional}
@@ -394,15 +399,15 @@ export default function OwnerPersonalInfoScreen() {
               ) : (
                 <>
                   <DetailRow
-                    label="Mobile Number (WhatsApp)"
-                    value={mobile ? `+91  ${mobile}` : '—'}
-                    trailing={<Ionicons name="logo-whatsapp" size={16} color="#25D366" style={{ marginLeft: rs(8) }} />}
+                    icon="call-outline"
+                    label="Mobile Number"
+                    value={mobile ? `+91 ${mobile}` : '—'}
                   />
                   <DetailRow
+                    icon="add-outline"
                     label="Additional Number"
-                    value={additional ? `+91  ${additional}` : 'Not added'}
+                    value={additional ? `+91 ${additional}` : 'Not added'}
                     muted={!additional}
-                    trailing={!additional ? <Text style={styles.dash}>—</Text> : null}
                     last
                   />
                 </>
@@ -410,22 +415,17 @@ export default function OwnerPersonalInfoScreen() {
             </View>
           </View>
 
-          {/* Privacy / information note */}
-          <View style={[styles.privacyCard, capStyle]}>
-            <View style={styles.privacyIconWrap}>
-              <Ionicons name="lock-closed" size={16} color={PRIMARY} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.privacyHeading}>Your information is safe with us</Text>
-              <Text style={styles.privacyText}>
-                Your contact details stay private and are only used for service updates.
-              </Text>
-            </View>
+          {/* Privacy note — plain text line, not another card. */}
+          <View style={[styles.privacyNote, capStyle]}>
+            <Ionicons name="shield-checkmark" size={14} color={ACCENT} />
+            <Text style={styles.privacyText}>
+              Your contact details stay private and are only used for service updates.
+            </Text>
           </View>
 
           {loading ? (
             <View style={[styles.loadingRow, capStyle]}>
-              <ActivityIndicator color={PRIMARY} />
+              <ActivityIndicator color={ACCENT} />
               <Text style={styles.loadingText}>Loading profile…</Text>
             </View>
           ) : null}
@@ -445,11 +445,7 @@ export default function OwnerPersonalInfoScreen() {
                 onPress={handleSave}
               >
                 <LinearGradient
-                  colors={
-                    savedFlash
-                      ? [SUCCESS, '#087A0A']
-                      : [PRIMARY, PRIMARY_MID, PRIMARY_LIGHT]
-                  }
+                  colors={savedFlash ? [SUCCESS, SUCCESS] : [G, G_DEEP]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.button}
@@ -477,34 +473,27 @@ export default function OwnerPersonalInfoScreen() {
   );
 }
 
-// Shared card header — icon chip + title, with an optional subtitle (Edit
-// Mode only; View Mode intentionally has no section description).
-function SectionHeader({ icon, title, subtitle }) {
-  return (
-    <View style={styles.cardHeaderRow}>
-      <View style={styles.cardHeaderIconWrap}>
-        <Ionicons name={icon} size={16} color={PRIMARY} />
-      </View>
-      <View style={styles.cardHeaderTextWrap}>
-        <Text style={styles.cardHeaderTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.cardHeaderHelper} numberOfLines={1}>{subtitle}</Text> : null}
-      </View>
-    </View>
-  );
+// Group label inside the details card.
+function SectionHeader({ title }) {
+  return <Text style={styles.groupLabel}>{title}</Text>;
 }
 
 // View Mode — a compact read-only label/value row with a hairline divider
 // between rows (skipped on `last`).
-function DetailRow({ label, value, muted, trailing, last }) {
+function DetailRow({ icon, label, value, muted, last }) {
   return (
     <View>
       <View style={styles.viewRow}>
-        <Text style={styles.viewRowLabel} numberOfLines={1}>{label}</Text>
-        <View style={styles.viewRowValueWrap}>
+        {icon ? (
+          <View style={styles.viewRowIconWrap}>
+            <Ionicons name={icon} size={16} color={ACCENT} />
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.viewRowLabel} numberOfLines={1}>{label}</Text>
           <Text style={[styles.viewRowValue, muted && styles.viewRowValueMuted]} numberOfLines={1}>
             {value}
           </Text>
-          {trailing}
         </View>
       </View>
       {!last ? <View style={styles.viewRowDivider} /> : null}
@@ -522,12 +511,12 @@ function Field({ icon, iconColor, label, last, ...inputProps }) {
       <View style={styles.inputRow}>
         {icon ? (
           <View style={styles.inputIconWrap}>
-            <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
+            <Ionicons name={icon} size={15} color={iconColor || ACCENT} />
           </View>
         ) : null}
         <TextInput
           style={styles.input}
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9A9A9A"
           {...inputProps}
         />
       </View>
@@ -544,7 +533,7 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <View style={styles.inputIconWrap}>
-          <Ionicons name={icon} size={15} color={iconColor || PRIMARY} />
+          <Ionicons name={icon} size={15} color={iconColor || ACCENT} />
         </View>
         <View style={styles.phoneCodeWrap}>
           <Text style={styles.phoneCodeText}>+91</Text>
@@ -552,7 +541,7 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
         </View>
         <TextInput
           style={styles.input}
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9A9A9A"
           {...inputProps}
         />
       </View>
@@ -561,74 +550,56 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+  root: { flex: 1, backgroundColor: PAGE_BG },
 
-  // Compact gradient header
+  // Header (Buy / Sell / Booking pattern)
   hero: {
-    paddingHorizontal: rs(20),
-    paddingTop: rs(10),
-    paddingBottom: rs(18),
-    borderBottomLeftRadius: rs(28),
-    borderBottomRightRadius: rs(28),
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: rs(16),
+    paddingTop: rs(8),
+    paddingBottom: rs(12),
+    borderBottomWidth: 1,
+    borderBottomColor: HEADER_BORDER,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  heroBackBtn: {
-    width: rs(38),
-    height: rs(38),
-    borderRadius: rs(19),
+  heroIconBtn: {
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(18),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    marginRight: rs(12),
+    backgroundColor: '#F4FBF8',
+    borderWidth: 1,
+    borderColor: HEADER_BORDER,
   },
-  heroTitleWrap: { flex: 1, marginRight: rs(8) },
+  heroTitleWrap: { flex: 1, alignItems: 'center', marginHorizontal: rs(8) },
   heroTitle: {
-    color: '#FFFFFF',
-    fontSize: rf(17),
+    color: HEADER_TEXT,
+    fontSize: T.headline,
     fontWeight: '800',
   },
   heroSubtitle: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: rf(11.5),
-    fontWeight: '500',
+    color: '#667085',
+    fontSize: T.caption2,
     marginTop: rs(2),
-  },
-  heroKickerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(5),
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  heroKicker: {
-    color: '#FFFFFF',
-    fontSize: rf(10.5),
-    fontWeight: '800',
-    letterSpacing: 0.7,
-    marginLeft: rs(4),
   },
 
   content: {
-    paddingHorizontal: rs(18),
-    paddingTop: rs(16),
-    paddingBottom: rs(100),
+    paddingHorizontal: rs(16),
+    paddingTop: rs(12),
+    paddingBottom: rs(90),
   },
 
-  // Profile summary card — plain flow, plain positive spacing above/below.
-  identityCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: rs(24),
-    padding: rs(16),
-    marginBottom: rs(16),
-    shadowColor: '#172117',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+  // Profile summary — white block, no border, same look as the details card.
+  identity: {
+    backgroundColor: CARD_BG,
+    borderRadius: rs(18),
+    paddingHorizontal: rs(14),
+    paddingVertical: rs(14),
+    marginBottom: rs(12),
   },
   identityTopRow: {
     flexDirection: 'row',
@@ -639,73 +610,48 @@ const styles = StyleSheet.create({
     marginLeft: rs(14),
     justifyContent: 'center',
   },
-  avatarWrap: {},
   avatar: {
-    width: rs(66),
-    height: rs(66),
-    borderRadius: rs(33),
-    backgroundColor: PRIMARY,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: MINT,
   },
-  avatarImage: { width: rs(60), height: rs(60) },
-  avatarText: { color: '#fff', fontSize: rf(23), fontWeight: '800', letterSpacing: 1 },
-  avatarEditBtn: {
+  avatarSpinner: {
     position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: rs(22),
-    height: rs(22),
-    borderRadius: rs(11),
-    backgroundColor: PRIMARY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.6)',
   },
-  name: { fontSize: rf(16.5), fontWeight: '800', color: TEXT },
+  avatarText: { color: G, fontSize: T.title3, fontWeight: '800', letterSpacing: 1 },
+  name: { fontSize: T.headline, fontWeight: '700', color: TEXT },
   shopRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(4) },
-  shopName: { fontSize: rf(12), color: MUTED, marginLeft: rs(4), fontWeight: '600' },
+  shopName: { fontSize: T.caption1, color: MUTED, marginLeft: rs(5), fontWeight: '500' },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: PRIMARY_SOFT,
-    paddingHorizontal: rs(8),
+    backgroundColor: MINT,
+    paddingHorizontal: rs(9),
     paddingVertical: rs(3),
     borderRadius: 999,
     marginTop: rs(6),
   },
   verifiedText: {
-    fontSize: rf(9.5),
-    color: PRIMARY,
-    fontWeight: '800',
-    marginLeft: rs(3),
+    fontSize: T.caption2,
+    color: ACCENT,
+    fontWeight: '700',
+    marginLeft: rs(4),
   },
-  editPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PRIMARY_SOFT,
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(8),
-    borderRadius: rs(14),
-  },
-  editPillText: { fontSize: rf(12.5), fontWeight: '800', color: PRIMARY, marginLeft: rs(5) },
 
   changePhotoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: rs(14),
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: MINT,
     borderWidth: 1,
-    borderColor: PRIMARY_LIGHT,
+    borderColor: BRIGHT,
     borderRadius: rs(16),
     paddingHorizontal: rs(14),
     paddingVertical: rs(12),
@@ -719,59 +665,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginRight: rs(10),
   },
-  changePhotoTitle: { fontSize: rf(13), fontWeight: '700', color: PRIMARY },
-  changePhotoSub: { fontSize: rf(10.5), color: MUTED, marginTop: rs(1) },
+  changePhotoTitle: { fontSize: T.footnote, fontWeight: '700', color: ACCENT },
+  changePhotoSub: { fontSize: T.caption2, color: MUTED, marginTop: rs(1) },
 
-  // Form cards — shared header row (icon + title[/subtitle in Edit Mode])
+  // The one details card, with group labels inside.
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: rs(22),
-    paddingHorizontal: rs(16),
-    paddingVertical: rs(14),
-    marginBottom: rs(16),
-    shadowColor: '#172117',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
+    backgroundColor: CARD_BG,
+    borderRadius: rs(18),
+    paddingHorizontal: rs(14),
+    paddingVertical: rs(12),
+    marginBottom: rs(12),
   },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center' },
-  cardHeaderIconWrap: {
-    width: rs(32),
-    height: rs(32),
-    borderRadius: rs(12),
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PRIMARY_SOFT,
-    marginRight: rs(10),
-  },
-  cardHeaderTextWrap: { flex: 1 },
-  cardHeaderTitle: { fontSize: rf(15.5), fontWeight: '800', color: TEXT },
-  cardHeaderHelper: { fontSize: rf(11.5), color: MUTED, fontWeight: '500', marginTop: rs(2) },
-  cardBody: { marginTop: rs(12) },
+  cardBody: { marginTop: rs(4) },
+  groupLabel: { fontSize: T.caption2, fontWeight: '700', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase' },
+  groupDivider: { height: 1, backgroundColor: BORDER, marginVertical: rs(10) },
 
-  // View Mode rows
+  // View Mode rows — icon tile, small label above its value (stacked, so a
+  // long label never truncates the value beside it).
   viewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: rs(11),
+    paddingVertical: rs(10),
   },
-  viewRowLabel: { fontSize: rf(12.5), color: MUTED, fontWeight: '600', flex: 1, marginRight: rs(8) },
-  viewRowValueWrap: { flexDirection: 'row', alignItems: 'center' },
-  viewRowValue: { fontSize: rf(13.5), color: TEXT, fontWeight: '700' },
-  viewRowValueMuted: { color: MUTED, fontWeight: '600' },
-  viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER },
-  dash: { fontSize: rf(14), color: MUTED, fontWeight: '700', marginLeft: rs(8) },
+  viewRowIconWrap: {
+    width: rs(34), height: rs(34), borderRadius: rs(10),
+    backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: rs(12),
+  },
+  viewRowLabel: { fontSize: T.caption2, color: MUTED, fontWeight: '500' },
+  viewRowValue: { fontSize: T.footnote, color: TEXT, fontWeight: '600', marginTop: rs(2) },
+  viewRowValueMuted: { color: MUTED, fontWeight: '500' },
+  viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginLeft: rs(46) },
 
   // Edit Mode fields
   field: { marginBottom: rs(14) },
   fieldLast: { marginBottom: 0 },
-  label: { fontSize: rf(11), color: MUTED, fontWeight: '700', marginBottom: rs(6), letterSpacing: 0.3 },
+  label: { fontSize: T.caption2, color: MUTED, fontWeight: '700', marginBottom: rs(6), letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FAF7',
+    backgroundColor: SOFT_MINT,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: rs(14),
@@ -784,7 +716,7 @@ const styles = StyleSheet.create({
     borderRadius: rs(11),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PRIMARY_SOFT,
+    backgroundColor: MINT,
     marginRight: rs(8),
   },
   phoneCodeWrap: {
@@ -795,59 +727,39 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: BORDER,
   },
-  phoneCodeText: { fontSize: rf(13), color: TEXT, fontWeight: '700', marginRight: rs(3) },
+  phoneCodeText: { fontSize: T.footnote, color: TEXT, fontWeight: '700', marginRight: rs(3) },
   input: {
     flex: 1,
     paddingVertical: rs(8),
-    fontSize: rf(14),
+    fontSize: T.footnote,
     color: TEXT,
     fontWeight: '600',
   },
 
-  // Privacy / information card
-  privacyCard: {
+  // Privacy note
+  privacyNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: rs(14),
-    paddingVertical: rs(14),
+    paddingHorizontal: rs(6),
     marginBottom: rs(14),
-    backgroundColor: PRIMARY_SOFT,
-    borderRadius: rs(20),
   },
-  privacyIconWrap: {
-    width: rs(34),
-    height: rs(34),
-    borderRadius: rs(17),
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: rs(10),
-  },
-  privacyHeading: { fontSize: rf(12.5), color: PRIMARY, fontWeight: '700' },
-  privacyText: { fontSize: rf(11), color: MUTED, marginTop: rs(3), lineHeight: rf(15.5), fontWeight: '500' },
+  privacyText: { flex: 1, fontSize: T.caption2, color: MUTED, marginLeft: rs(6), lineHeight: 16, fontWeight: '500' },
 
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: rs(10),
-    backgroundColor: '#FFFFFF',
-    borderRadius: rs(14),
     paddingVertical: rs(12),
-    shadowColor: '#172117',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
   },
-  loadingText: { color: MUTED, marginLeft: rs(8), fontSize: rf(11) },
+  loadingText: { color: MUTED, marginLeft: rs(8), fontSize: T.caption2 },
 
   // Sticky save bar
   saveBarSafe: { backgroundColor: '#FFFFFF', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
   saveBar: { paddingHorizontal: rs(18), paddingTop: rs(10), paddingBottom: rs(6) },
   buttonShadow: {
     borderRadius: 999,
-    shadowColor: PRIMARY,
+    shadowColor: ACCENT,
     shadowOpacity: 0.28,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -861,5 +773,5 @@ const styles = StyleSheet.create({
     paddingVertical: rs(14),
   },
   buttonInner: { flexDirection: 'row', alignItems: 'center' },
-  buttonText: { fontSize: rf(15), fontWeight: '800', color: '#FFFFFF', marginLeft: rs(8), letterSpacing: 0.3 },
+  buttonText: { fontSize: T.subhead, fontWeight: '800', color: '#FFFFFF', marginLeft: rs(8), letterSpacing: 0.3 },
 });

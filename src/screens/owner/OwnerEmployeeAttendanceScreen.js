@@ -21,21 +21,43 @@ const MONTHS = [
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Color tokens — dot legend. Three teal steps off the #004C40 brand so the
-// statuses stay tellable apart at 6px; amber/red keep their own meaning.
+// GGFIX brand sheet (theme/colors.js) — the same greens, mint and greys as the
+// Employee Details screen this one opens from. Replaces the old #004C40 teal
+// theme, which no other screen used.
+const GREEN = '#09AD2A';       // fills, rings, icons
+const GREEN_TEXT = '#078F23';  // green copy on white / mint
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const BORDER = '#E6E6E6';
+const HAIR = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
+const RED = '#F84141';
+const YELLOW = '#F3BF23';
+const YELLOW_TEXT = '#8A6A00'; // yellow takes dark text only — white on it is under 2:1
+const YELLOW_SOFT = '#FFF8E1';
+const GREY = '#8A8A8A';
+
+// Dot legend + stat rings, from the brand sheet alone. Five statuses, five
+// marks that stay tellable apart at 6px: Late is red like the late check-in
+// times below it, Leave is the yellow the Employee Details "Leave" tile uses,
+// Permission (part of a day off) its dark shade, Holiday ink, Week off grey.
 const STATUS_COLORS = {
-  LEAVE: '#0E9384',      // mid teal
-  LATE: '#F59E0B',       // yellow
-  PERMISSION: '#F59E0B', // orange
-  WEEK_OFF: '#7FB8AE',   // light teal
-  HOLIDAY: '#004C40',    // brand teal
+  LEAVE: YELLOW,
+  LATE: RED,
+  PERMISSION: YELLOW_TEXT,
+  WEEK_OFF: GREY,
+  HOLIDAY: INK,
 };
+// `text` is the label colour under each ring — the ring colour itself, except
+// yellow, which needs its dark shade to be readable on white.
 const RING_COLORS = {
-  present: '#004C40',
-  late: '#F59E0B',
-  permission: '#F59E0B',
-  leaves: '#0E9384',
-  holidays: '#004C40',
+  present: { ring: GREEN, text: GREEN_TEXT },
+  late: { ring: RED, text: RED },
+  permission: { ring: YELLOW_TEXT, text: YELLOW_TEXT },
+  leaves: { ring: YELLOW, text: YELLOW_TEXT },
+  holidays: { ring: INK, text: INK },
 };
 
 function pad2(n) {
@@ -128,7 +150,7 @@ export default function OwnerEmployeeAttendanceScreen({ route }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, capStyle]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />}
       >
         {/* Overview card with calendar */}
         <View style={styles.card}>
@@ -137,17 +159,17 @@ export default function OwnerEmployeeAttendanceScreen({ route }) {
             <View style={styles.monthPill}>
               <Text style={styles.monthPillText}>{MONTHS[month - 1]} {year}</Text>
               <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-back" size={rs(14)} color="#FFFFFF" />
+                <Ionicons name="chevron-back" size={rs(14)} color={GREEN_TEXT} />
               </TouchableOpacity>
               <View style={styles.monthPillSep} />
               <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-forward" size={rs(14)} color="#FFFFFF" />
+                <Ionicons name="chevron-forward" size={rs(14)} color={GREEN_TEXT} />
               </TouchableOpacity>
             </View>
           </View>
 
           {loading && !data ? (
-            <ActivityIndicator size="large" color="#004C40" style={{ marginVertical: rs(24) }} />
+            <ActivityIndicator size="large" color={GREEN} style={{ marginVertical: rs(24) }} />
           ) : (
             <>
               {/* Stat ring circles */}
@@ -244,10 +266,10 @@ export default function OwnerEmployeeAttendanceScreen({ route }) {
 function StatRing({ value, label, color }) {
   return (
     <View style={styles.statRingWrap}>
-      <View style={[styles.statRing, { borderColor: color }]}>
+      <View style={[styles.statRing, { borderColor: color.ring }]}>
         <Text style={styles.statRingValue}>{value}</Text>
       </View>
-      <Text style={[styles.statRingLabel, { color }]}>{label}</Text>
+      <Text style={[styles.statRingLabel, { color: color.text }]}>{label}</Text>
     </View>
   );
 }
@@ -258,12 +280,12 @@ function DayCard({ day }) {
   if (status === 'LEAVE') {
     return (
       <View style={[styles.dayCard, styles.dayCardLeave]}>
-        <View style={styles.dayLeftAccent} />
+        <View style={[styles.dayLeftAccent, styles.dayLeftAccentLeave]} />
         <View style={styles.dayInner}>
           <View style={styles.dayTopRow}>
             <Text style={styles.dayDate}>{dateLabel}</Text>
             <View style={[styles.dayPill, styles.dayPillLeave]}>
-              <Text style={styles.dayPillTextOn}>Leave</Text>
+              <Text style={styles.dayPillTextLeave}>Leave</Text>
             </View>
           </View>
         </View>
@@ -273,7 +295,7 @@ function DayCard({ day }) {
   if (status === 'WEEK_OFF') {
     return (
       <View style={[styles.dayCard, styles.dayCardWeekOff]}>
-        <View style={styles.dayLeftAccent} />
+        <View style={[styles.dayLeftAccent, styles.dayLeftAccentWeekOff]} />
         <View style={styles.dayInner}>
           <View style={styles.dayTopRow}>
             <Text style={styles.dayDate}>{dateLabel}</Text>
@@ -293,16 +315,16 @@ function DayCard({ day }) {
       <View style={styles.dayInner}>
         <View style={styles.dayTopRow}>
           <View style={styles.dayDateRow}>
-            <Ionicons name="calendar-outline" size={rs(15)} color="#004C40" />
+            <Ionicons name="calendar-outline" size={rs(15)} color={GREEN} />
             <Text style={styles.dayDate}>{dateLabel}</Text>
           </View>
           <View style={styles.dayTopRight}>
             <View style={[styles.dayPill, styles.dayPillGeneral]}>
-              <Text style={styles.dayPillText}>General</Text>
+              <Text style={[styles.dayPillText, { color: GREEN_TEXT }]}>General</Text>
             </View>
             {isPermission ? (
               <View style={[styles.dayPill, styles.dayPillPermission]}>
-                <Text style={styles.dayPillText}>{day.notes || 'Permission'}</Text>
+                <Text style={[styles.dayPillText, { color: YELLOW_TEXT }]}>{day.notes || 'Permission'}</Text>
               </View>
             ) : null}
           </View>
@@ -357,134 +379,140 @@ function formatDateLabel(day) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: rs(12), paddingBottom: rs(24) },
+  safe: { flex: 1, backgroundColor: PAGE_BG },
+  content: { padding: rs(10), paddingBottom: rs(20) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: RED },
 
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(14),
-    padding: rs(13),
+    borderRadius: rs(12),
+    padding: rs(10),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderColor: HAIR,
+    shadowColor: INK, shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(12) },
-  cardTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(8) },
+  cardTitle: { fontSize: 13, fontWeight: '800', color: INK },
 
+  // Mint pill with green text — the same month pill as Employee Details.
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#004C40',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(6),
+    backgroundColor: MINT,
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(5),
     borderRadius: 999,
     gap: rs(7),
   },
-  monthPillText: { color: '#FFFFFF', fontSize: rf(11.5), fontWeight: '700' },
-  monthPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
+  monthPillText: { color: GREEN_TEXT, fontSize: 11, fontWeight: '800' },
+  monthPillSep: { width: rs(1), height: rs(12), backgroundColor: MINT_LINE },
 
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: rs(14) },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: rs(8) },
   statRingWrap: { alignItems: 'center', flex: 1 },
   statRing: {
-    width: rs(54),
-    height: rs(54),
-    borderRadius: rs(27),
-    borderWidth: 3,
+    width: rs(44),
+    height: rs(44),
+    borderRadius: rs(22),
+    borderWidth: 2.5,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  statRingValue: { fontSize: rf(14), fontWeight: '800', color: '#172117' },
-  statRingLabel: { fontSize: rf(10.5), fontWeight: '700', marginTop: rs(5) },
+  statRingValue: { fontSize: 11.5, fontWeight: '800', color: INK },
+  statRingLabel: { fontSize: 10, fontWeight: '700', marginTop: rs(4) },
 
-  calendar: { marginTop: rs(4), marginBottom: rs(8) },
-  calRowHeader: { flexDirection: 'row', marginBottom: rs(6) },
+  calendar: { marginTop: rs(2), marginBottom: rs(4) },
+  calRowHeader: { flexDirection: 'row', marginBottom: rs(4) },
   calRow: { flexDirection: 'row' },
   calCell: {
     flex: 1,
-    aspectRatio: 1,
+    height: rs(38),
     alignItems: 'center',
     justifyContent: 'center',
   },
   calHeaderCell: {
     flex: 1,
     textAlign: 'center',
-    fontSize: rf(10),
+    fontSize: 10,
     fontWeight: '800',
-    color: '#172117',
+    color: MUTED,
   },
-  calHeaderSunday: { color: '#DC2626' },
-  calCellNum: { fontSize: rf(13), fontWeight: '700', color: '#172117' },
-  calCellSunday: { color: '#DC2626' },
-  calCellToday: { color: '#004C40', fontWeight: '800' },
-  calDayWrap: { width: rs(28), height: rs(28), borderRadius: rs(14), alignItems: 'center', justifyContent: 'center' },
-  calDayToday: { backgroundColor: '#E6F7E3' },
-  calDot: { width: rs(6), height: rs(6), borderRadius: rs(3), marginTop: rs(2) },
+  calHeaderSunday: { color: RED },
+  calCellNum: { fontSize: 12, fontWeight: '700', color: INK },
+  calCellSunday: { color: RED },
+  calCellToday: { color: '#FFFFFF', fontWeight: '800' },
+  calDayWrap: { width: rs(26), height: rs(26), borderRadius: rs(13), alignItems: 'center', justifyContent: 'center' },
+  calDayToday: { backgroundColor: GREEN },
+  calDot: { width: rs(5), height: rs(5), borderRadius: rs(3), marginTop: rs(1) },
 
-  legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(10), marginTop: rs(8) },
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: rs(10), marginTop: rs(4) },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: rs(4) },
   legendDot: { width: rs(8), height: rs(8), borderRadius: rs(4) },
-  legendText: { fontSize: rf(10.5), color: '#172117', fontWeight: '500' },
+  legendText: { fontSize: 10.5, color: MUTED, fontWeight: '600' },
 
   dailySection: {
-    marginTop: rs(12),
+    marginTop: rs(10),
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(14),
-    padding: rs(13),
+    borderRadius: rs(12),
+    padding: rs(10),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderColor: HAIR,
+    shadowColor: INK, shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  dailyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(10) },
-  dailyTitle: { fontSize: rf(15), fontWeight: '800', color: '#172117' },
+  dailyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(8) },
+  dailyTitle: { fontSize: 13, fontWeight: '800', color: INK },
   dailyMonthPill: { flexDirection: 'row', alignItems: 'center', gap: rs(8) },
-  dailyMonthText: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  dailyMonthText: { fontSize: 12, fontWeight: '800', color: GREEN_TEXT },
   dailyMonthBtn: {
-    backgroundColor: '#004C40',
-    width: rs(26),
-    height: rs(26),
-    borderRadius: rs(13),
+    backgroundColor: GREEN,
+    width: rs(24),
+    height: rs(24),
+    borderRadius: rs(12),
     alignItems: 'center',
     justifyContent: 'center',
   },
 
+  // Day cards: white with a coloured left edge — green for a working day,
+  // yellow for leave, grey for a week off — matching the calendar dots.
   dayCard: {
     flexDirection: 'row',
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#FFFFFF',
     borderRadius: rs(10),
-    marginBottom: rs(8),
+    marginBottom: rs(6),
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: BORDER,
   },
-  dayCardLeave: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
-  dayCardWeekOff: { backgroundColor: '#F0F8EF', borderColor: '#E6F7E3' },
-  dayLeftAccent: { width: rs(4), backgroundColor: '#004C40' },
-  dayInner: { flex: 1, padding: rs(10) },
+  dayCardLeave: { backgroundColor: YELLOW_SOFT, borderColor: '#F8D66B' },
+  dayCardWeekOff: { backgroundColor: HAIR, borderColor: BORDER },
+  dayLeftAccent: { width: rs(3), backgroundColor: GREEN },
+  dayLeftAccentLeave: { backgroundColor: YELLOW },
+  dayLeftAccentWeekOff: { backgroundColor: GREY },
+  dayInner: { flex: 1, paddingHorizontal: rs(10), paddingVertical: rs(8) },
   dayTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayDateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
   dayTopRight: { flexDirection: 'row', gap: rs(6) },
-  dayDate: { fontSize: rf(12.5), fontWeight: '800', color: '#172117' },
+  dayDate: { fontSize: 12, fontWeight: '800', color: INK },
   dayPill: {
     paddingHorizontal: rs(10),
     paddingVertical: rs(3),
     borderRadius: 999,
   },
-  dayPillGeneral: { backgroundColor: '#E6F7E3' },
-  dayPillPermission: { backgroundColor: '#FEE2E2' },
-  dayPillLeave: { backgroundColor: '#DC2626' },
-  dayPillWeekOff: { backgroundColor: '#004C40' },
-  dayPillText: { fontSize: rf(10), fontWeight: '700', color: '#172117' },
-  dayPillTextOn: { fontSize: rf(10), fontWeight: '700', color: '#FFFFFF' },
+  dayPillGeneral: { backgroundColor: MINT },
+  dayPillPermission: { backgroundColor: YELLOW_SOFT },
+  dayPillLeave: { backgroundColor: YELLOW },
+  dayPillWeekOff: { backgroundColor: MUTED },
+  dayPillText: { fontSize: 10, fontWeight: '700', color: INK },
+  dayPillTextOn: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
+  dayPillTextLeave: { fontSize: 10, fontWeight: '800', color: YELLOW_TEXT },
 
-  dayCols: { flexDirection: 'row', marginTop: rs(10), alignItems: 'center' },
+  dayCols: { flexDirection: 'row', marginTop: rs(6), alignItems: 'center' },
   dayCol: { flex: 1 },
-  dayColDivider: { width: rs(1), height: rs(30), backgroundColor: '#E2E8E2', marginHorizontal: rs(6) },
-  dayColValue: { fontSize: rf(13.5), fontWeight: '800', color: '#004C40' },
-  dayColValueLate: { color: '#DC2626' },
-  dayColLabel: { fontSize: rf(10.5), color: '#667066', marginTop: rs(3) },
+  dayColDivider: { width: rs(1), height: rs(26), backgroundColor: BORDER, marginHorizontal: rs(6) },
+  dayColValue: { fontSize: 12, fontWeight: '800', color: GREEN_TEXT },
+  dayColValueLate: { color: RED },
+  dayColLabel: { fontSize: 10, color: MUTED, marginTop: rs(2) },
 
-  empty: { fontSize: rf(12), color: '#667066', textAlign: 'center', paddingVertical: rs(16) },
+  empty: { fontSize: 12, color: MUTED, textAlign: 'center', paddingVertical: rs(16) },
 });

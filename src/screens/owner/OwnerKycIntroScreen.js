@@ -64,9 +64,10 @@ export default function OwnerKycIntroScreen({ navigation }) {
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
-              className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
+              hitSlop={6}
+              className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
             >
-              <ChevronLeft size={22} color="#172117" />
+              <ChevronLeft size={20} color="#172117" />
             </TouchableOpacity>
             <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
               KYC Documents
@@ -92,7 +93,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 22, padding: 18, overflow: 'hidden' }}
+            style={{ borderRadius: 20, padding: 14, overflow: 'hidden' }}
           >
             <View
               style={{
@@ -110,19 +111,19 @@ export default function OwnerKycIntroScreen({ navigation }) {
             />
             <View
               style={{
-                width: 46, height: 46, borderRadius: 16,
+                width: 40, height: 40, borderRadius: 14,
                 backgroundColor: 'rgba(255,255,255,0.22)',
                 alignItems: 'center', justifyContent: 'center',
                 borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
-              <ShieldCheck size={24} color="#FFFFFF" strokeWidth={2.3} />
+              <ShieldCheck size={21} color="#FFFFFF" strokeWidth={2.3} />
             </View>
-            <Text className="text-white text-[19px] font-extrabold" style={{ letterSpacing: -0.3 }}>
+            <Text className="text-white text-[17px] font-extrabold" style={{ letterSpacing: -0.3 }}>
               Let's verify your shop
             </Text>
-            <Text className="text-white/85 text-[12.5px] mt-1.5 leading-5">
+            <Text className="text-white/85 text-[12px] mt-1.5 leading-5">
               Have these documents handy. The whole process takes about 5 minutes.
             </Text>
           </LinearGradient>
@@ -194,7 +195,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             <Lock size={14} color="#FFFFFF" />
           </View>
           <Text
-            className="flex-1 text-[11.5px] font-semibold leading-4"
+            className="flex-1 text-[11px] font-semibold leading-4"
             style={{ color: BRAND_GREEN_DARK }}
           >
             Your documents are encrypted and used only for verification.
@@ -214,13 +215,13 @@ export default function OwnerKycIntroScreen({ navigation }) {
             end={{ x: 1, y: 1 }}
             style={{
               borderRadius: 18,
-              paddingVertical: 16,
+              paddingVertical: 13,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Text className="text-white text-[15px] font-extrabold">Get Started</Text>
+            <Text className="text-white text-[13px] font-extrabold">Get Started</Text>
             <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
           </LinearGradient>
         </TouchableOpacity>

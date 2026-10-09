@@ -43,8 +43,8 @@ export default function UpdateStatusScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117', padding: 16 },
-  title: { fontSize: 18, fontWeight: '600', color: '#F7FAF7', marginBottom: 16 },
-  option: { backgroundColor: '#172117', borderRadius: 8, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#172117', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  optionText: { fontSize: 16, color: '#F7FAF7' },
+  safe: { flex: 1, backgroundColor: '#172117', padding: 12 },
+  title: { fontSize: 17, fontWeight: '600', color: '#F7FAF7', marginBottom: 12 },
+  option: { backgroundColor: '#172117', borderRadius: 8, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: '#172117', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  optionText: { fontSize: 15, color: '#F7FAF7' },
 });

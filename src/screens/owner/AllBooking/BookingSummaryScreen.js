@@ -74,7 +74,7 @@ function DetailRow({ icon: Icon, label, value }) {
         <Text className="text-[10.5px] uppercase font-semibold text-gray-400 mb-0.5" style={{ letterSpacing: 0.6 }}>
           {label}
         </Text>
-        <Text className="text-[13.5px] font-semibold text-gray-900 leading-5">
+        <Text className="text-[13px] font-semibold text-gray-900 leading-5">
           {value}
         </Text>
       </View>
@@ -190,9 +190,10 @@ export default function BookingSummaryScreen({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
           <View
             className="flex-row items-center px-3 py-1.5 rounded-full bg-surface-muted"
@@ -241,7 +242,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
               <Text className="text-[10.5px] font-bold uppercase tracking-widest text-gray-400" style={{ letterSpacing: 1 }}>
                 Tracking ID
               </Text>
-              <Text className="text-[16px] font-extrabold text-gray-900 mt-0.5">
+              <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5">
                 #{displayTrackingId}
               </Text>
             </View>
@@ -266,7 +267,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Customer Details */}
         <View className="px-4" style={{ marginTop: 14 }}>
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={User} label="CUSTOMER DETAILS" />
@@ -280,7 +281,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Device & Repair */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Smartphone} label="DEVICE & REPAIR" />
@@ -292,7 +293,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         {/* Service Information */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Activity} label="SERVICE INFORMATION" />
@@ -320,7 +321,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
                 </View>
               </View>
               <Text
-                className="text-[18px] font-extrabold"
+                className="text-[17px] font-extrabold"
                 style={{ color: BRAND_GREEN_DARK }}
               >
                 {displayPrice}
@@ -331,7 +332,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
             {payment ? (
               <>
                 <View className="flex-row items-center mt-3">
-                  <Text className="flex-1 text-[12.5px] text-gray-700">{payment.label}</Text>
+                  <Text className="flex-1 text-[12px] text-gray-700">{payment.label}</Text>
                   <Text className="text-[13px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                     − ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </Text>
@@ -340,9 +341,9 @@ export default function BookingSummaryScreen({ route, navigation }) {
                   className="flex-row items-center mt-2 pt-2"
                   style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
                 >
-                  <Text className="flex-1 text-[12.5px] font-extrabold text-gray-900">Balance Amount</Text>
+                  <Text className="flex-1 text-[12px] font-extrabold text-gray-900">Balance Amount</Text>
                   <Text
-                    className="text-[15px] font-extrabold"
+                    className="text-[13px] font-extrabold"
                     style={{ color: payment.balance > 0 ? '#B45309' : BRAND_GREEN_DARK }}
                   >
                     ₹{Number(payment.balance).toLocaleString('en-IN')}
@@ -402,7 +403,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
               }}
             >
               <UserCog size={18} color="#FFFFFF" />
-              <Text className="ml-2 text-white text-[15px] font-extrabold">
+              <Text className="ml-2 text-white text-[13px] font-extrabold">
                 Assign To Technician
               </Text>
             </LinearGradient>

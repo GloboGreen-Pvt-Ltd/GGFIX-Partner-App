@@ -69,8 +69,8 @@ export default function NewBookingScreen({ navigation }) {
       <View style={styles.content}>
         <TouchableOpacity style={styles.newCustomerCard} onPress={goNewCustomer} activeOpacity={0.9}>
           <View style={styles.newCustomerIcon}>
-            <Ionicons name="people" size={34} color="#FFFFFF" />
-            <Ionicons name="add-circle" size={18} color="#16BB05" style={styles.newCustomerPlus} />
+            <Ionicons name="people" size={28} color="#FFFFFF" />
+            <Ionicons name="add-circle" size={16} color="#16BB05" style={styles.newCustomerPlus} />
           </View>
           <Text style={styles.newCustomerText}>New Customer</Text>
         </TouchableOpacity>
@@ -126,20 +126,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   newCustomerCard: {
     alignSelf: 'center',
-    width: 140,
-    height: 140,
+    width: 116,
+    height: 116,
     backgroundColor: '#087A0A',
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 28,
-    marginBottom: 18,
+    marginTop: 20,
+    marginBottom: 14,
   },
-  newCustomerIcon: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  newCustomerIcon: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   newCustomerPlus: { position: 'absolute', right: -6, bottom: -6 },
   newCustomerText: { color: '#FFFFFF', fontWeight: '700', marginTop: 8 },
   searchBox: {
@@ -157,8 +157,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 10,

@@ -11,10 +11,11 @@ import {
 import { ArrowLeft, UserPlus, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '../components/rnr';
+import { GREEN, MUTED, INK, SCREEN_BG, FIELD_BORDER } from './authUi';
 
-const GREEN = '#087A0A';
-const MUTED = '#667066';
-const SCREEN_BG = '#F7FAF7';
+// Same brand-green wash and tint border as the shared AuthShell.
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
 
 // Placeholder — the full sign-up flow is built later. For now this gives the
 // "Create account" option a destination so it isn't a dead button.
@@ -30,9 +31,9 @@ export default function CreateAccountScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SCREEN_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#E6F7E3" />
+      <StatusBar barStyle="dark-content" backgroundColor={MINT} />
       <LinearGradient
-        colors={['#E6F7E3', '#F0F8EF', SCREEN_BG]}
+        colors={[MINT, '#F3FAF4', SCREEN_BG]}
         locations={[0, 0.45, 1]}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 320 }}
       />
@@ -52,7 +53,7 @@ export default function CreateAccountScreen({ navigation }) {
           alignItems: 'center',
           justifyContent: 'center',
           borderWidth: 1,
-          borderColor: '#E6F7E3',
+          borderColor: MINT_LINE,
         }}
       >
         <ArrowLeft size={20} color={GREEN} />
@@ -78,21 +79,21 @@ export default function CreateAccountScreen({ navigation }) {
         >
           <View
             style={{
-              height: 72,
-              width: 72,
-              borderRadius: 22,
+              height: 56,
+              width: 56,
+              borderRadius: 18,
               backgroundColor: '#FFFFFF',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 16,
+              marginBottom: 12,
               borderWidth: 1,
-              borderColor: '#E6F7E3',
+              borderColor: MINT_LINE,
             }}
           >
-            <UserPlus size={32} color={GREEN} />
+            <UserPlus size={26} color={GREEN} />
           </View>
 
-          <Text style={{ fontSize: 22, fontWeight: '800', color: '#172117', letterSpacing: -0.4 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: INK, letterSpacing: -0.4 }}>
             Create account
           </Text>
 
@@ -102,7 +103,7 @@ export default function CreateAccountScreen({ navigation }) {
               alignItems: 'center',
               marginTop: 12,
               backgroundColor: '#FFFFFF',
-              borderColor: '#E2E8E2',
+              borderColor: FIELD_BORDER,
               borderWidth: 1,
               borderRadius: 999,
               paddingHorizontal: 12,
@@ -132,8 +133,8 @@ export default function CreateAccountScreen({ navigation }) {
             onPress={goBack}
             fullWidth
             size="lg"
-            style={{ marginTop: 24, height: 54, borderRadius: 16 }}
-            textClassName="text-[15px] font-extrabold tracking-wide"
+            style={{ marginTop: 16, height: 46, borderRadius: 16 }}
+            textClassName="text-[13px] font-extrabold tracking-wide"
           >
             Back to sign in
           </Button>

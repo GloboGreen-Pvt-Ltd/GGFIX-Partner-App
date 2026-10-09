@@ -4,7 +4,6 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
-  ChevronRight,
   ChevronDown,
   Smartphone,
   Hash,
@@ -17,18 +16,30 @@ import {
   Phone,
   Send,
   Wallet,
+  Star,
+  Wrench,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
+import { rs } from '../../../utils/responsive';
+import { useResponsive } from '../../../theme/responsive';
+import { specDisplayParts, specRequestFields } from '../../../utils/deviceSpecs';
 
-// Swiggy / Zomato green palette — same as the rest of the booking flow.
 // One deep green for the whole screen, matching the rest of the booking flow.
 // Explicit values rather than `text-primary`/`bg-success` classes: NativeWind
 // compiles its stylesheet at build time and this project's cached copy still
 // holds the old #087A0A, so the token classes keep painting green.
-const ACCENT = '#004C40';
-const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';
-const ACCENT_14 = 'rgba(0, 76, 64, 0.14)';
+const ACCENT = '#09AD2A';       // GGFIX green — fills, icons
+const PRIMARY = '#078F23';      // green TEXT on white / mint
+const INK = '#1E1E1E';
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const SOFT_MINT = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E6E6E6';
+const HAIR = '#F3F3F3';         // card hairline on the grey page
+const TEXT_SECONDARY = '#6B6B6B';
+const ACCENT_10 = '#EAF8EC';
 
 // The two modes the counter actually deals in. Values match the ADVANCE|FULL
 // CHECK constraint on tickets.payment_type (migration 85) — the API stores the
@@ -81,6 +92,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     storageLabel: params.storageLabel,
     ramOptionId: params.ramOptionId,
     storageOptionId: params.storageOptionId,
+    // Laptop / Smartwatch / Audio Device attributes from Your Device (stored
+    // form, e.g. { ram: '16GB', storageType: 'NVME_SSD' }); absent for Mobile/Tablet.
+    deviceCategory: params.deviceCategory,
+    specs: params.specs,
     imei: params.imei,
     complaint: params.complaint,
     issueAudioUrl: params.issueAudioUrl || null,
@@ -194,6 +209,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     ramOptionId: d.ramOptionId,
     storageOptionId: d.storageOptionId,
     color: d.color,
+    // deviceCategory + ram / storageCapacity / storageType / caseSize /
+    // connectivity / deviceType, each its own ticket column (null when the
+    // category doesn't take it). Mobile/Tablet send only deviceCategory.
+    ...specRequestFields(d.deviceCategory, d.specs),
     imei: d.imei,
     issueDescription: d.complaint,
     issueAudioUrl: d.issueAudioUrl || null,
@@ -204,7 +223,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     // derives all three, so nothing here can date a receipt from a device clock.
     paymentType: paymentType || null,
     paymentAmount: paidSplit[index] ?? null,
-    deviceDisplayName: d.modelName ? `${d.modelName}${d.modelNumber ? ` · ${d.modelNumber}` : ''}${d.ramLabel || d.storageLabel ? ` (${[d.ramLabel, d.storageLabel].filter(Boolean).join(' / ')})` : ''}` : null,
+    deviceDisplayName: d.modelName ? `${d.modelName}${d.modelNumber ? ` · ${d.modelNumber}` : ''}${specDisplayParts(d).length ? ` (${specDisplayParts(d).join(' / ')})` : ''}` : null,
     deviceImageUrl: d.imageUrl || null,
     repairServicesSummary: serviceSummaryFor(d) || null,
     priceItemsJson: priceItemsJsonFor(d),
@@ -306,24 +325,55 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
   const customerPhone = params.customer?.phone || params.customer?.mobile || '';
   const deviceCount = devices.length;
 
+  const r = useResponsive();
+  // Tablet / large-screen: cap the column and centre it, same convention as
+  // the other booking-flow screens. Memoized so its object identity is
+  // stable across re-renders — this is passed into `PaymentSection`, which
+  // is `memo()`'d specifically to avoid re-rendering on every keystroke in
+  // the amount field; a fresh object here on every render would defeat that.
+  const colStyle = useMemo(
+    () => (r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null),
+    [r.isTablet, r.width],
+  );
+
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      {/* ── White header — matches app's other white headers ─────── */}
+    <View className="flex-1" style={{ backgroundColor: '#F8F8F8' }}>
+      {/* ── White header — compact, with a subtitle. Right side: Add another
+          device (new bookings only; an edit is one ticket), else a spacer
+          that keeps the title centred. ─────────────────────────────────── */}
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 20, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(12), paddingHorizontal: rs(14), borderBottomWidth: 1, borderBottomColor: BORDER }}
       >
-        <View className="relative flex-row items-center justify-center">
+        <View className="flex-row items-center" style={colStyle}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="absolute left-0 h-10 w-10 rounded-full bg-surface-muted items-center justify-center active:opacity-70"
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={18} color={INK} strokeWidth={2} />
           </Pressable>
-          <View className="items-center px-12">
-            <Text className="text-text text-[16px] font-bold text-center" numberOfLines={1}>
+          <View className="flex-1" style={{ paddingHorizontal: rs(8) }}>
+            <Text className="text-center" style={{ color: INK, fontSize: 17, fontWeight: '800' }} numberOfLines={1}>
               Service Booking Devices List
             </Text>
+            <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+              Review customer devices and services
+            </Text>
           </View>
+          {params.editMode ? (
+            <View style={{ width: 36 }} />
+          ) : (
+            <Pressable
+              onPress={addMore}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add another device"
+              className="items-center justify-center active:opacity-80"
+              style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: ACCENT }}
+            >
+              <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -338,216 +388,257 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         contentContainerStyle={{ paddingTop: 0, paddingBottom: 170 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Customer card overlapping hero ────────────────────────── */}
-        <View className="px-4" style={{ marginTop: 14 }}>
-          <View className="rounded-2xl p-3.5" style={cardOutline}>
-            <View className="flex-row items-center">
-              <View className="h-14 w-14 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: ACCENT_10 }}>
-                <User size={22} color={ACCENT} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-[11px] text-text-muted font-bold tracking-widest">CUSTOMER</Text>
-                <Text className="text-[15px] font-extrabold text-text mt-0.5" numberOfLines={1}>
-                  {customerName}
-                </Text>
-                {customerPhone ? (
-                  <View className="flex-row items-center mt-0.5">
-                    <Phone size={11} color="#667066" />
-                    <Text className="text-[11.5px] text-text-muted ml-1">{customerPhone}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View className="rounded-full px-2.5 py-1 flex-row items-center" style={{ backgroundColor: ACCENT_10 }}>
-                <CircleCheck size={11} color={ACCENT} />
-                <Text className="text-[10px] font-extrabold ml-1" style={{ color: ACCENT }}>VERIFIED</Text>
+        {/* ── Customer summary card ─────────────────────────────────────
+            "Regular Customer" from the reference isn't added — there is no
+            such field anywhere in this app (checked: no isReturning /
+            regularCustomer / repeat-customer signal exists), so it would be
+            fabricated. "Verified" is kept as-is — it was already here,
+            unconditional, before this pass. ──────────────────────────── */}
+        <View className="px-4" style={{ marginTop: rs(12) }}>
+          <View style={colStyle}>
+            <View
+              className="overflow-hidden"
+              style={{
+                borderRadius: 16, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
+                paddingHorizontal: 12, paddingVertical: 10,
+              }}
+            >
+              <View className="flex-row items-center">
+                <View
+                  className="items-center justify-center"
+                  style={{ height: 40, width: 40, borderRadius: 13, marginRight: 10, backgroundColor: '#FFFFFF' }}
+                >
+                  <User size={18} color={ACCENT} strokeWidth={2} />
+                </View>
+                <View className="flex-1">
+                  <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: TEXT_SECONDARY }}>CUSTOMER</Text>
+                  <Text className="font-extrabold" style={{ color: INK, fontSize: 15, marginTop: rs(1) }} numberOfLines={1}>
+                    {customerName}
+                  </Text>
+                  {customerPhone ? (
+                    <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+                      <Phone size={11} color={TEXT_SECONDARY} strokeWidth={2} />
+                      <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: rs(4) }}>{customerPhone}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View
+                  className="flex-row items-center"
+                  style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFFFF' }}
+                >
+                  <CircleCheck size={11} color={ACCENT} strokeWidth={2} />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 3 }}>Verified</Text>
+                </View>
               </View>
             </View>
           </View>
         </View>
 
         {/* ── Section rail ──────────────────────────────────────── */}
-        <View className="px-4 pt-5 pb-2 flex-row items-center">
-          <ReceiptText size={14} color={ACCENT} />
-          <Text className="text-text font-extrabold text-[12.5px] tracking-widest ml-1.5">
+        <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(14), paddingBottom: rs(6) }, colStyle]}>
+          <ReceiptText size={14} color={ACCENT} strokeWidth={2} />
+          <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
             DEVICES IN THIS BOOKING
           </Text>
           <View className="flex-1" />
-          <View className="rounded-full px-2 py-0.5 ml-2" style={{ backgroundColor: ACCENT_10 }}>
-            <Text className="text-[10px] font-extrabold" style={{ color: ACCENT }}>{deviceCount}</Text>
+          <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>
+              {deviceCount} Device{deviceCount === 1 ? '' : 's'}
+            </Text>
           </View>
         </View>
 
-        {/* ── Device cards ──────────────────────────────────────── */}
-        <View className="px-4">
-          {devices.map((d, idx) => {
-            const subTotal = totalFor(d);
-            const summary = [d.ramLabel, d.storageLabel, d.color].filter(Boolean).join(' · ');
-            return (
-              <View
-                key={idx}
-                className="rounded-2xl mb-3 overflow-hidden"
-                style={cardOutline}
-              >
-                {/* Device head */}
-                <View className="flex-row items-center px-3.5 pt-3.5 pb-2">
-                  <View className="h-14 w-14 rounded-2xl items-center justify-center overflow-hidden mr-3" style={{ backgroundColor: ACCENT_10 }}>
-                    {d.imageUrl ? (
-                      <Image source={{ uri: d.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    ) : (
-                      <Smartphone size={26} color={ACCENT} />
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>
-                      {d.modelName || 'Device'}
-                    </Text>
-                    {summary ? (
-                      <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>
-                        {summary}
+        {/* ── Device cards ──────────────────────────────────────────────
+            No "..." menu and no card-level chevron: neither has a backing
+            action on this screen (nothing here opens a per-device detail
+            view), so neither was added — see the final report. "Primary
+            Device" is shown on index 0 only: real, derivable from the
+            array's own order, not a stored/fabricated flag. ────────────── */}
+        <View style={{ paddingHorizontal: rs(16) }}>
+          <View style={colStyle}>
+            {devices.map((d, idx) => {
+              const subTotal = totalFor(d);
+              const summary = specDisplayParts(d, { withColor: true }).join(' · ');
+              const serviceCount = (d.services || []).length;
+              return (
+                <View
+                  key={idx}
+                  style={{
+                    marginBottom: 8, borderRadius: 16, overflow: 'hidden',
+                    backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR,
+                    shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+                  }}
+                >
+                  {/* Device head */}
+                  <View className="flex-row items-center" style={{ padding: 10, paddingBottom: 8 }}>
+                    <View
+                      className="items-center justify-center overflow-hidden"
+                      style={{ height: 50, width: 46, borderRadius: 12, marginRight: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR }}
+                    >
+                      {d.imageUrl ? (
+                        <Image source={{ uri: d.imageUrl }} style={{ width: 38, height: 44 }} resizeMode="contain" />
+                      ) : (
+                        <Smartphone size={21} color={ACCENT} strokeWidth={2} />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text className="font-extrabold" style={{ color: INK, fontSize: 13 }} numberOfLines={1}>
+                        {d.modelName || 'Device'}
                       </Text>
-                    ) : null}
-                    {(d.brandName || d.modelNumber) ? (
-                      <View className="flex-row items-center flex-wrap mt-1">
+                      {summary ? (
+                        <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                          {summary}
+                        </Text>
+                      ) : null}
+                      <View className="flex-row items-center flex-wrap" style={{ marginTop: 5, gap: 5 }}>
                         {d.brandName ? (
-                          <View className="rounded-md px-1.5 py-0.5 mr-1.5" style={{ backgroundColor: ACCENT_10 }}>
-                            <Text className="text-[10px] font-extrabold" style={{ color: ACCENT }}>{d.brandName}</Text>
+                          <View className="rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: MINT }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{d.brandName}</Text>
                           </View>
                         ) : null}
                         {d.modelNumber ? (
-                          <View className="flex-row items-center rounded-md px-1.5 py-0.5" style={{ backgroundColor: ACCENT_10 }}>
+                          <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: MINT }}>
                             <Hash size={9} color={ACCENT} />
-                            <Text className="text-[10px] font-extrabold ml-0.5" style={{ color: ACCENT }}>{d.modelNumber}</Text>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 2 }}>{d.modelNumber}</Text>
+                          </View>
+                        ) : null}
+                        {idx === 0 ? (
+                          <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(7), paddingVertical: rs(2), backgroundColor: '#F3F3F3' }}>
+                            <Star size={9} color={TEXT_SECONDARY} fill={TEXT_SECONDARY} />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_SECONDARY, marginLeft: 2 }}>Primary Device</Text>
                           </View>
                         ) : null}
                       </View>
-                    ) : null}
-                  </View>
-                </View>
-
-                {/* Services list */}
-                {(d.services || []).length > 0 ? (
-                  <View className="px-3.5 pb-3">
-                    <View className="h-px bg-border mb-2.5" />
-                    <Text className="text-[10px] font-extrabold text-text-muted tracking-widest mb-2">
-                      REPAIR SERVICES
-                    </Text>
-                    {(d.services || []).map((s, i) => (
-                      <View key={i} className="flex-row items-center mb-1.5">
-                        <View
-                          className="h-5 w-5 rounded-md items-center justify-center mr-2"
-                          style={{ backgroundColor: ACCENT_14 }}
-                        >
-                          <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT }}>
-                            {i + 1}
-                          </Text>
-                        </View>
-                        <Text className="flex-1 text-text text-[12.5px]" numberOfLines={1}>
-                          {s.serviceName}
-                        </Text>
-                        <Text className="text-text font-extrabold text-[12.5px]">
-                          ₹{formatINR(s.price)}
-                        </Text>
-                      </View>
-                    ))}
-
-                    {/* Dashed separator + per-device subtotal */}
-                    <View
-                      className="my-2"
-                      style={{ borderTopWidth: 1, borderColor: '#E2E8E2', borderStyle: 'dashed' }}
-                    />
-                    <View className="flex-row items-center">
-                      <Tag size={12} color={ACCENT} />
-                      <Text className="flex-1 text-text font-extrabold text-[12.5px] ml-1.5">
-                        Estimated repair amount
-                      </Text>
-                      <Text className="font-extrabold text-[14px]" style={{ color: ACCENT }}>
-                        ₹{formatINR(subTotal)}
-                      </Text>
                     </View>
                   </View>
-                ) : null}
-              </View>
-            );
-          })}
+
+                  {/* Services list — read-only here. This screen has no
+                      add/remove-service capability of its own (services were
+                      finalized on the previous screen), so no "+ Add
+                      Service" button or delete icons are shown — adding
+                      them with no backing handler would be fake UI. */}
+                  {serviceCount > 0 ? (
+                    <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+                      <View style={{ borderTopWidth: 1, borderColor: HAIR, marginBottom: 8 }} />
+                      <View className="flex-row items-center" style={{ marginBottom: 6 }}>
+                        <Wrench size={12} color={ACCENT} strokeWidth={2} />
+                        <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 0.5, marginLeft: rs(6) }}>
+                          REPAIR SERVICES ({serviceCount})
+                        </Text>
+                      </View>
+                      {d.complaint ? (
+                        <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginBottom: 6 }} numberOfLines={2}>
+                          {d.complaint}
+                        </Text>
+                      ) : null}
+                      <View style={{ borderRadius: 12, backgroundColor: SOFT_MINT, paddingHorizontal: 9, paddingVertical: 8 }}>
+                        {(d.services || []).map((s, i) => (
+                          <View
+                            key={i}
+                            className="flex-row items-center"
+                            style={{ marginBottom: i === serviceCount - 1 ? 0 : 7 }}
+                          >
+                            <View
+                              className="items-center justify-center"
+                              style={{ height: 20, width: 20, borderRadius: 7, marginRight: 8, backgroundColor: '#FFFFFF' }}
+                            >
+                              <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{i + 1}</Text>
+                            </View>
+                            <Text className="flex-1" style={{ color: INK, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                              {s.serviceName}
+                            </Text>
+                            <Text className="font-extrabold" style={{ color: INK, fontSize: 12 }}>
+                              ₹{formatINR(s.price)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+
+                      {/* Estimated repair amount — mint strip */}
+                      <View
+                        className="flex-row items-center"
+                        style={{ marginTop: 7, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: MINT }}
+                      >
+                        <Tag size={12} color={ACCENT} strokeWidth={2} />
+                        <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 12, marginLeft: rs(6) }}>
+                          Estimated repair amount
+                        </Text>
+                        <Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>
+                          ₹{formatINR(subTotal)}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
 
           {/* Empty state */}
           {devices.length === 0 ? (
             <View className="rounded-2xl p-6 items-center" style={cardOutline}>
-              <Smartphone size={28} color="#8FA08F" />
-              <Text className="text-text font-extrabold text-[13px] mt-2">No device added yet</Text>
-              <Text className="text-text-muted text-[11px] mt-1 text-center">
-                Tap "Add device" below to start.
-              </Text>
+              <Smartphone size={28} color="#8A8A8A" />
+              <Text style={{ color: INK, fontSize: 13, fontWeight: '800', marginTop: 8 }}>No device added yet</Text>
+              {params.editMode ? null : (
+                <Pressable
+                  onPress={addMore}
+                  accessibilityRole="button"
+                  className="flex-row items-center active:opacity-80"
+                  style={{ marginTop: 10, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: ACCENT }}
+                >
+                  <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800', marginLeft: 5 }}>Add device</Text>
+                </Pressable>
+              )}
             </View>
           ) : null}
         </View>
 
-        {/* ── Add More Device — Swiggy "Add address" pattern ─────── */}
-        {params.editMode ? null : (
-          <View className="px-4 mt-1">
-            <Pressable
-              onPress={addMore}
-              className="rounded-2xl items-center justify-center py-3 active:opacity-80"
-              style={{
-                borderWidth: 2,
-                borderStyle: 'dashed',
-                borderColor: ACCENT,
-                backgroundColor: ACCENT_10,
-              }}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className="h-7 w-7 rounded-full items-center justify-center mr-2"
-                  style={{ backgroundColor: ACCENT }}
-                >
-                  <Plus size={14} color="#fff" />
-                </View>
-                <Text className="text-[13px] font-extrabold" style={{ color: ACCENT }}>
-                  Add another device
-                </Text>
-              </View>
-              <Text className="text-[10.5px] text-text-muted mt-1 px-2 text-center">
-                Same customer? Book multiple devices in one go.
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* ── Grand total — Swiggy "Bill summary" pattern ───────── */}
+        {/* ── Bill summary ─────────────────────────────────────────────── */}
         {deviceCount > 0 ? (
           <>
-            <View className="px-4 pt-5 pb-2 flex-row items-center">
-              <ReceiptText size={14} color={ACCENT} />
-              <Text className="text-text font-extrabold text-[12.5px] tracking-widest ml-1.5">
+            <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(14), paddingBottom: rs(6) }, colStyle]}>
+              <ReceiptText size={14} color={ACCENT} strokeWidth={2} />
+              <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
                 BILL SUMMARY
               </Text>
-              <View className="flex-1" />
             </View>
-            <View className="px-4">
-              <View className="rounded-2xl p-4" style={cardOutline}>
-                {devices.map((d, i) => (
-                  <View key={i} className="flex-row items-center mb-2">
-                    <Text className="flex-1 text-text text-[12.5px]" numberOfLines={1}>
-                      {d.modelName || `Device ${i + 1}`}
-                    </Text>
-                    <Text className="text-text font-extrabold text-[12.5px]">
-                      ₹{formatINR(totalFor(d))}
+            <View style={{ paddingHorizontal: rs(16) }}>
+              <View style={colStyle}>
+                <View
+                  style={{
+                    borderRadius: 16, padding: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR,
+                    shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+                  }}
+                >
+                  {devices.map((d, i) => (
+                    <View key={i} style={{ marginBottom: 8 }}>
+                      <View className="flex-row items-center">
+                        <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 13 }} numberOfLines={1}>
+                          {d.modelName || `Device ${i + 1}`}
+                        </Text>
+                        <Text className="font-extrabold" style={{ color: INK, fontSize: 13 }}>
+                          ₹{formatINR(totalFor(d))}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>
+                        {(d.services || []).length} service{(d.services || []).length === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                  ))}
+                  <View
+                    style={{ borderTopWidth: 1, borderColor: BORDER, borderStyle: 'dashed', marginBottom: 8 }}
+                  />
+                  <View className="flex-row items-center">
+                    <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 13 }}>Grand Total</Text>
+                    <Text className="font-extrabold" style={{ fontSize: 17, color: PRIMARY }}>
+                      ₹{formatINR(grandTotal)}
                     </Text>
                   </View>
-                ))}
-                <View
-                  className="my-2.5"
-                  style={{ borderTopWidth: 1, borderColor: '#E2E8E2', borderStyle: 'dashed' }}
-                />
-                <View className="flex-row items-center">
-                  <Text className="flex-1 text-text font-extrabold text-[13.5px]">Grand Total</Text>
-                  <Text className="text-[19px] font-extrabold" style={{ color: ACCENT }}>
-                    ₹{formatINR(grandTotal)}
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(5) }}>
+                    Final amount may vary slightly based on parts availability.
                   </Text>
                 </View>
-                <Text className="text-text-muted text-[10.5px] mt-1">
-                  Final amount may vary slightly based on parts availability.
-                </Text>
               </View>
             </View>
           </>
@@ -562,70 +653,69 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             grandTotal={grandTotal}
             onChangeMode={onChangeMode}
             onChangeAmount={setPaidText}
+            colStyle={colStyle}
           />
         ) : null}
 
       </ScrollView>
 
-      {/* ── Sticky green CTA ───────────────────────────────── */}
+      {/* ── Sticky submit bar ─────────────────────────────────────────── */}
       <View
         className="absolute left-0 right-0"
-        style={{ bottom: insets.bottom + 4, paddingHorizontal: 16 }}
+        style={{ bottom: insets.bottom + rs(4), paddingHorizontal: rs(16) }}
       >
-        <Pressable
-          onPress={submit}
-          disabled={submitting || deviceCount === 0}
-          className="active:opacity-90"
-          style={{
-            borderRadius: 18,
-            overflow: 'hidden',
-            opacity: (submitting || deviceCount === 0) ? 0.6 : 1,
-            shadowColor: '#172117',
-            shadowOpacity: (submitting || deviceCount === 0) ? 0 : 0.12,
-            shadowRadius: 14,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: (submitting || deviceCount === 0) ? 0 : 6,
-          }}
-        >
+        <View style={colStyle}>
           <View
+            className="flex-row items-center"
             style={{
-              backgroundColor: (submitting || deviceCount === 0) ? '#8FA08F' : ACCENT,
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-              flexDirection: 'row',
-              alignItems: 'center',
+              borderRadius: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 9,
+              backgroundColor: (submitting || deviceCount === 0) ? '#B8B8B8' : ACCENT,
+              shadowColor: ACCENT,
+              shadowOpacity: (submitting || deviceCount === 0) ? 0 : 0.22,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: (submitting || deviceCount === 0) ? 0 : 3,
             }}
           >
             <View className="flex-1">
-              <Text className="text-white text-[11px] font-bold opacity-90">
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>
                 {deviceCount === 0
                   ? 'NO DEVICE YET'
                   : `GRAND TOTAL · ${deviceCount} DEVICE${deviceCount > 1 ? 'S' : ''}`}
               </Text>
-              <Text className="text-white text-[19px] font-extrabold">
+              <Text className="text-white font-extrabold" style={{ fontSize: 17, marginTop: rs(1) }}>
                 ₹{formatINR(grandTotal)}
               </Text>
             </View>
-            <View className="flex-row items-center">
+            <Pressable
+              onPress={submit}
+              disabled={submitting || deviceCount === 0}
+              className="flex-row items-center active:opacity-80"
+              style={{
+                borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9,
+                backgroundColor: '#FFFFFF',
+              }}
+            >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={ACCENT} />
               ) : (
                 <>
-                  <Send size={15} color="#fff" />
-                  <Text className="text-white text-[14px] font-extrabold ml-1.5">
-                    {params.editMode ? 'Update' : 'Submit'}
+                  <Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>
+                    {params.editMode ? 'Update Booking' : 'Submit Booking'}
                   </Text>
-                  <ChevronRight size={18} color="#fff" />
+                  <Send size={15} color={ACCENT} strokeWidth={2} style={{ marginLeft: rs(6) }} />
                 </>
               )}
-            </View>
+            </Pressable>
           </View>
-        </Pressable>
-        {deviceCount === 0 ? (
-          <Text className="text-text-muted text-[10.5px] text-center mt-2">
-            Add at least one device to submit.
-          </Text>
-        ) : null}
+          {deviceCount === 0 ? (
+            <Text className="text-center" style={{ color: TEXT_SECONDARY, fontSize: 11, marginTop: rs(8) }}>
+              Add at least one device to submit.
+            </Text>
+          ) : null}
+        </View>
       </View>
       </KeyboardAvoidingView>
     </View>
@@ -648,7 +738,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
  * payment itself changes.
  */
 const PaymentSection = memo(function PaymentSection({
-  paymentType, paidText, balanceDue, grandTotal, onChangeMode, onChangeAmount,
+  paymentType, paidText, balanceDue, grandTotal, onChangeMode, onChangeAmount, colStyle,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const selectedLabel = labelForMode(paymentType);
@@ -657,88 +747,91 @@ const PaymentSection = memo(function PaymentSection({
 
   return (
     <>
-      <View className="px-4 pt-5 pb-2 flex-row items-center">
-        <Wallet size={14} color={ACCENT} />
-        <Text className="text-text font-extrabold text-[12.5px] tracking-widest ml-1.5">
+      <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(14), paddingBottom: rs(6) }, colStyle]}>
+        <Wallet size={14} color={ACCENT} strokeWidth={2} />
+        <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
           PAYMENT
         </Text>
         <View className="flex-1" />
         {paymentType ? (
-          <View className="rounded-full px-2 py-0.5 ml-2 flex-row items-center" style={{ backgroundColor: ACCENT_10 }}>
+          <View className="rounded-full flex-row items-center" style={{ paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
             <CircleCheck size={10} color={ACCENT} />
-            <Text className="text-[10px] font-extrabold ml-1" style={{ color: ACCENT }}>₹{formatINR(paid)}</Text>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: rs(4) }}>₹{formatINR(paid)}</Text>
           </View>
         ) : (
-          <Text className="text-text-muted text-[10px] font-bold ml-2">OPTIONAL</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_SECONDARY }}>OPTIONAL</Text>
         )}
       </View>
 
-      <View className="px-4">
-        <View className="rounded-2xl p-3.5" style={cardOutline}>
-          <View className="flex-row items-center">
-            {/* Mode dropdown */}
-            <Pressable
-              onPress={() => setPickerOpen(true)}
-              className="flex-1 flex-row items-center rounded-xl px-3 py-3 mr-2.5 active:opacity-70"
-              style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#F8F8F8' }}
-            >
-              <Text
-                className="flex-1 text-[12.5px] font-bold"
-                numberOfLines={1}
-                style={{ color: selectedLabel ? '#172117' : '#8FA08F' }}
+      <View style={{ paddingHorizontal: rs(16) }}>
+        <View style={colStyle}>
+          <View
+            style={{
+              borderRadius: 16, padding: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR,
+            }}
+          >
+            <View className="flex-row items-center flex-wrap" style={{ gap: rs(8) }}>
+              {/* Mode dropdown */}
+              <Pressable
+                onPress={() => setPickerOpen(true)}
+                className="flex-row items-center active:opacity-70"
+                style={{ flex: 1, minWidth: rs(140), borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: SOFT_MINT }}
               >
-                {selectedLabel || 'Payment mode'}
-              </Text>
-              <ChevronDown size={15} color="#667066" />
-            </Pressable>
+                <Text
+                  className="flex-1"
+                  numberOfLines={1}
+                  style={{ fontSize: 12, fontWeight: '700', color: selectedLabel ? INK : '#8A8A8A' }}
+                >
+                  {selectedLabel || 'Payment mode'}
+                </Text>
+                <ChevronDown size={15} color={TEXT_SECONDARY} strokeWidth={2} />
+              </Pressable>
 
-            {/* Amount */}
-            <View
-              className="flex-row items-center rounded-xl px-3"
-              style={{
-                width: 122,
-                borderWidth: 1,
-                borderColor: overTotal ? '#DC2626' : '#E2E8E2',
-                backgroundColor: '#F8F8F8',
-              }}
-            >
-              <Text className="text-[13px] font-extrabold" style={{ color: ACCENT }}>₹</Text>
-              <TextInput
-                value={paidText}
-                onChangeText={(t) => onChangeAmount(sanitizeAmount(t))}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor="#8FA08F"
-                editable={!!paymentType}
-                className="flex-1 text-[13.5px] font-extrabold text-text"
-                style={{ paddingVertical: 11, paddingLeft: 4, textAlign: 'right' }}
-              />
+              {/* Amount */}
+              <View
+                className="flex-row items-center"
+                style={{
+                  width: rs(122), borderRadius: 10, paddingHorizontal: 11,
+                  borderWidth: 1, borderColor: overTotal ? '#F84141' : BORDER, backgroundColor: SOFT_MINT,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '800', color: PRIMARY }}>₹</Text>
+                <TextInput
+                  value={paidText}
+                  onChangeText={(t) => onChangeAmount(sanitizeAmount(t))}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor="#8A8A8A"
+                  editable={!!paymentType}
+                  className="flex-1 font-extrabold"
+                  style={{ color: INK, paddingVertical: 9, paddingLeft: 4, fontSize: 13, textAlign: 'right' }}
+                />
+              </View>
             </View>
+
+            {/* Consequence line — what the customer still owes, or why the field
+                is inert. Both answer the question the row just raised. */}
+            {!paymentType ? (
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(10) }}>
+                Pick a mode to record money collected now. Leave it blank if the customer pays on delivery.
+              </Text>
+            ) : overTotal ? (
+              <Text  style={{ color: '#F84141', fontSize: 11, fontWeight: '700', marginTop: rs(10) }}>
+                More than the grand total ₹{formatINR(grandTotal)}.
+              </Text>
+            ) : (
+              <View className="flex-row items-center" style={{ marginTop: rs(10) }}>
+                <Text className="flex-1" style={{ fontSize: 11, color: TEXT_SECONDARY }}>
+                  {paymentType === 'ADVANCE' ? 'Balance on delivery' : 'Balance'}
+                </Text>
+                <Text
+                  style={{ fontSize: 12, fontWeight: '800', color: balanceDue > 0 ? INK : ACCENT }}
+                >
+                  ₹{formatINR(balanceDue)}
+                </Text>
+              </View>
+            )}
           </View>
-
-          {/* Consequence line — what the customer still owes, or why the field
-              is inert. Both answer the question the row just raised. */}
-          {!paymentType ? (
-            <Text className="text-text-muted text-[10.5px] mt-2.5">
-              Pick a mode to record money collected now. Leave it blank if the customer pays on delivery.
-            </Text>
-          ) : overTotal ? (
-            <Text className="text-danger text-[10.5px] font-bold mt-2.5">
-              More than the grand total ₹{formatINR(grandTotal)}.
-            </Text>
-          ) : (
-            <View className="flex-row items-center mt-2.5">
-              <Text className="flex-1 text-text-muted text-[11px]">
-                {paymentType === 'ADVANCE' ? 'Balance on delivery' : 'Balance'}
-              </Text>
-              <Text
-                className="text-[12.5px] font-extrabold"
-                style={{ color: balanceDue > 0 ? '#172117' : ACCENT }}
-              >
-                ₹{formatINR(balanceDue)}
-              </Text>
-            </View>
-          )}
         </View>
       </View>
 
@@ -748,7 +841,7 @@ const PaymentSection = memo(function PaymentSection({
         <Modal visible transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
           <Pressable className="flex-1 bg-black/50 justify-center px-8" onPress={() => setPickerOpen(false)}>
             <Pressable className="bg-card rounded-2xl overflow-hidden" onPress={(e) => e.stopPropagation()}>
-              <Text className="text-text font-extrabold text-[13px] px-4 pt-4 pb-2">
+              <Text style={{ color: INK, fontSize: 13, fontWeight: '800', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
                 Payment mode
               </Text>
               {PAYMENT_MODES.map((m) => {
@@ -760,8 +853,8 @@ const PaymentSection = memo(function PaymentSection({
                     className="flex-row items-center px-4 py-3 border-t border-border active:bg-background"
                   >
                     <View className="flex-1">
-                      <Text className="text-text text-[13px] font-bold">{m.label}</Text>
-                      <Text className="text-text-muted text-[10.5px] mt-0.5">{m.hint}</Text>
+                      <Text style={{ color: INK, fontSize: 13, fontWeight: '700' }}>{m.label}</Text>
+                      <Text style={{ color: TEXT_SECONDARY, fontSize: 11, marginTop: 2 }}>{m.hint}</Text>
                     </View>
                     {active ? <Check size={16} color={ACCENT} /> : null}
                   </Pressable>
@@ -774,7 +867,7 @@ const PaymentSection = memo(function PaymentSection({
                   onPress={() => { onChangeMode(null); setPickerOpen(false); }}
                   className="px-4 py-3 border-t border-border active:bg-background"
                 >
-                  <Text className="text-text-muted text-[12.5px] font-bold">No payment collected now</Text>
+                  <Text style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '700' }}>No payment collected now</Text>
                 </Pressable>
               ) : null}
             </Pressable>
@@ -796,5 +889,5 @@ const PaymentSection = memo(function PaymentSection({
 const cardOutline = {
   backgroundColor: '#FFFFFF',
   borderWidth: 1,
-  borderColor: '#E2E8E2',
+  borderColor: '#E6E6E6',
 };

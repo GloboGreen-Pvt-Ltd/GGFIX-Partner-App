@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -35,18 +35,40 @@ import {
   FileText,
   Plus,
   Image as ImageIcon,
+  ChevronRight,
+  Award,
+  ArrowRight,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { fetchMe, updateOwnerShop, createOwnerShop, switchShop } from '../../api/auth';
 import { getSession } from '../../auth/session';
 import { uploadMedia } from '../../api/masterData';
 import { confirm, notify } from '../../components/confirm';
+import { rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN     = '#087A0A';
+// GGFIX palette — green #09AD2A, red #F84141, ink #1E1E1E, neutrals
+// #F8F8F8 / #F3F3F3, yellow #F3BF23. One palette for view AND edit mode.
+const BRAND_GREEN      = '#09AD2A';
+const BRAND_GREEN_DARK = '#078F23';
+const ACCENT_GREEN     = '#078F23';
+
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const DANGER = '#F84141';
+const DANGER_TINT = '#FEECEC';
+const STAR = '#F3BF23';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.08,
   shadowRadius: 14,
   shadowOffset: { width: 0, height: 6 },
@@ -54,7 +76,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.05,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -169,6 +191,13 @@ const APPLE_SERVICES = ANDROID_SERVICES;
  */
 export default function OwnerShopInfoScreen({ navigation, route }) {
   const isCreate = route?.params?.mode === 'create';
+  const r = useResponsive();
+  const insets = useSafeAreaInsets();
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 1080), alignSelf: 'center' } : null;
+  // Android / Apple repair cards sit side by side once there is room; the
+  // service tiles inside go 2 across (3 on a wide tablet).
+  const wideCategories = r.width >= 640;
+  const serviceCols = r.width >= 900 ? 3 : 2;
   const [ownerId, setOwnerId] = useState(null);
   const [shopId, setShopId] = useState(null);
   const [shopName, setShopName] = useState('');
@@ -290,7 +319,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       : (slot === 'gst' || slot === 'udyam') ? [3, 4]
       : [1, 1];
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsEditing: true,
       aspect,
       quality: 0.75,
@@ -522,37 +551,48 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
 
   if (!hydrated) {
     return (
-      <View className="flex-1 items-center justify-center" style={{ backgroundColor: '#F0F8EF' }}>
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: PAGE_BG }}>
         <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
       </View>
     );
   }
 
-  // Shared green hero — slim single row + edit/view chip.
+  // Shared hero — decorative mint leaf shapes (same low-risk plain-View
+  // approximation used elsewhere in this app), title/subtitle + edit/view chip.
   const renderHero = () => (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-      <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: 6, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
-      >
-        <View className="flex-row items-center">
+    <SafeAreaView edges={['top']} style={{ backgroundColor: CARD_BG }}>
+      <View style={{ paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(11), overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View pointerEvents="none" style={{ position: 'absolute', top: -rs(30), right: -rs(20), height: rs(140), width: rs(140), borderRadius: rs(70), backgroundColor: MINT, opacity: 0.6 }} />
+        <View pointerEvents="none" style={{ position: 'absolute', top: rs(30), right: rs(40), height: rs(70), width: rs(70), borderRadius: rs(35), backgroundColor: SOFT_MINT, opacity: 0.8 }} />
+
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3"
-            style={{ backgroundColor: '#EFF5EE' }}
+            hitSlop={6}
+            style={{
+              height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
+              alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+              borderWidth: 1, borderColor: BORDER,
+            }}
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={19} color={TEXT_PRIMARY} />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[24px] font-extrabold" numberOfLines={1}>
-            {isCreate ? 'Add Shop' : 'Shop Information'}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
+              {isCreate ? 'Add Shop' : 'Shop Information'}
+            </Text>
+            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>
+              {isCreate ? 'Set up your new business location' : 'Manage your shop details and services'}
+            </Text>
+          </View>
           {/* No preview/edit toggle while adding — there is nothing saved to
               preview yet, and switching to the view tab would strand the owner
               on an empty card with an "Edit Shop Information" button. */}
           {isCreate ? (
-            <View className="px-3 py-1.5 rounded-full flex-row items-center" style={{ backgroundColor: '#E6F7E3' }}>
-              <Plus size={13} color={BRAND_GREEN_DARK} />
-              <Text className="ml-1.5 text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.5 }}>
+            <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: ACCENT }}>
+              <Plus size={13} color="#FFFFFF" />
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, letterSpacing: 0.5 }}>
                 NEW
               </Text>
             </View>
@@ -560,11 +600,11 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             <Pressable
               onPress={() => setEditing((v) => !v)}
               hitSlop={6}
-              className="px-3 py-1.5 rounded-full flex-row items-center"
-              style={{ backgroundColor: '#E6F7E3' }}
+              className="flex-row items-center rounded-full"
+              style={{ paddingHorizontal: rs(13), paddingVertical: rs(9), backgroundColor: ACCENT }}
             >
-              {editing ? <Eye size={13} color={BRAND_GREEN_DARK} /> : <Pencil size={13} color={BRAND_GREEN_DARK} />}
-              <Text className="ml-1.5 text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.5 }}>
+              {editing ? <Eye size={13} color="#FFFFFF" /> : <Pencil size={13} color="#FFFFFF" />}
+              <Text className="text-white font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, letterSpacing: 0.5 }}>
                 {editing ? 'PREVIEW' : 'EDIT'}
               </Text>
             </Pressable>
@@ -583,190 +623,211 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
         <>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 14, paddingBottom: 110 }}
+          style={{ backgroundColor: PAGE_BG }}
+          contentContainerStyle={{ paddingBottom: 96 + insets.bottom }}
         >
-          {/* Identity card */}
-          <View className="bg-white rounded-2xl p-4 flex-row items-center" style={cardShadow}>
-            <View
-              className="w-14 h-14 rounded-2xl items-center justify-center mr-3 overflow-hidden"
-              style={{ backgroundColor: '#E6F7E3' }}
-            >
-              {frontImageUrl ? (
-                <Image source={{ uri: frontImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-              ) : (
-                <Store size={24} color={BRAND_GREEN_DARK} />
-              )}
-            </View>
-            <View className="flex-1">
-              <Text
-                className="text-[10.5px] font-extrabold uppercase"
-                style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-              >
-                Shop
-              </Text>
-              <Text className="text-[16px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
-                {shopName || '—'}
-              </Text>
-              {shopSince ? (
-                <View className="flex-row items-center mt-1">
-                  <CalendarDays size={11} color="#8FA08F" />
-                  <Text className="ml-1 text-[11px] text-gray-500">Since {shopSince}</Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
+          {/* One white surface; sections are separated by hairlines rather than
+              stacked as separate cards. Every detail from before is kept. */}
+          <View style={[{ backgroundColor: CARD_BG, borderBottomWidth: 1, borderBottomColor: BORDER }, capStyle]}>
 
-          {/* Repair categories */}
-          <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
-            <SectionHeader Icon={Wrench} label="REPAIR SERVICE CATEGORIES" />
-            <View className="flex-row -mx-1">
-              <CategoryColumn
-                title="Android Repair"
-                sub="Mobile / Tablet"
-                Icon={Smartphone}
-                items={activeAndroid}
-              />
-              <CategoryColumn
-                title="Apple Repair"
-                sub="iPhone / Tablet"
-                Icon={Apple}
-                items={activeApple}
-              />
-            </View>
-          </View>
-
-          {/* Address */}
-          <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
-            <SectionHeader Icon={MapPin} label="SHOP ADDRESS" />
-            <View
-              className="rounded-2xl p-3 flex-row items-start"
-              style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
-            >
-              <View
-                className="w-9 h-9 rounded-full items-center justify-center mr-3"
-                style={{ backgroundColor: BRAND_GREEN_DARK }}
-              >
-                <MapPin size={16} color="#FFFFFF" />
+          {/* ── Shop identity ── */}
+          <View className="flex-row items-center" style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+            <View style={{ position: 'relative' }}>
+              <View className="items-center justify-center overflow-hidden" style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: MINT }}>
+                {frontImageUrl ? (
+                  <Image source={{ uri: frontImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+                ) : (
+                  <Store size={22} color={ACCENT} />
+                )}
               </View>
-              <Text
-                className="flex-1 text-[13.5px] font-bold text-gray-900 leading-5"
-                numberOfLines={5}
+              <TouchableOpacity
+                onPress={() => setEditing(true)}
+                activeOpacity={0.85}
+                accessibilityLabel="Change shop photo"
+                style={{
+                  position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF',
+                }}
               >
-                {fullAddress || '—'}
-              </Text>
+                <Camera size={11} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
-            {(mobile || openingTime || closingTime || workingDaysLabel(workingDays)) ? (
-              <View className="flex-row items-center mt-3">
-                {mobile ? (
-                  <View className="flex-row items-center flex-shrink">
-                    <Phone size={13} color="#667066" />
-                    <Text className="ml-1.5 text-[12px] font-semibold text-gray-700" numberOfLines={1}>
-                      {mobile}
+            <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+              <View className="flex-row items-center">
+                <Text className="font-extrabold" style={{ flexShrink: 1, fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>
+                  {shopName || '—'}
+                </Text>
+                <View className="rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: MINT }}>
+                  <Text className="font-extrabold" style={{ fontSize: 9, color: PRIMARY, letterSpacing: 0.8 }}>SHOP</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center flex-wrap" style={{ marginTop: 3 }}>
+                {shopSince ? (
+                  <View className="flex-row items-center" style={{ marginRight: 10 }}>
+                    <CalendarDays size={11} color={TEXT_SECONDARY} />
+                    <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }}>Since {shopSince}</Text>
+                  </View>
+                ) : null}
+                {(district || state) ? (
+                  <View className="flex-row items-center" style={{ flexShrink: 1 }}>
+                    <MapPin size={11} color={TEXT_SECONDARY} />
+                    <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
+                      {[district, state].filter(Boolean).join(', ')}
                     </Text>
                   </View>
                 ) : null}
+              </View>
+              <View className="flex-row items-center rounded-full" style={{ alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: MINT }}>
+                <ShieldCheck size={11} color={PRIMARY} />
+                <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }} numberOfLines={1}>Your Trusted Device Service Partner</Text>
+              </View>
+              <Text className="italic" style={{ marginTop: 3, fontSize: 10.5, color: TEXT_SECONDARY }} numberOfLines={1}>Fix Today, A Greener Tomorrow</Text>
+            </View>
+          </View>
+
+          <Divider />
+
+          {/* ── Repair service categories: one card each, on a light band ── */}
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14, backgroundColor: PAGE_BG }}>
+            <View className="flex-row items-center" style={{ marginBottom: 12 }}>
+              <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: MINT, marginRight: 9 }}>
+                <Wrench size={15} color={ACCENT} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>Repair Service Categories</Text>
+                <View className="flex-row items-center" style={{ marginTop: 2 }}>
+                  <Text style={{ flex: 1, fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>Devices we service at our shop</Text>
+                  <View className="flex-row items-center rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: '#FFF8E1' }}>
+                    <Award size={10} color={STAR} />
+                    <Text className="font-extrabold" style={{ marginLeft: 3, fontSize: 9.5, color: TEXT_PRIMARY }} numberOfLines={1}>Wide Range · Trusted</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={{ flexDirection: wideCategories ? 'row' : 'column', gap: 12 }}>
+              <RepairCategoryCard
+                title="Android Repair"
+                sub="Mobile / Tablet"
+                Icon={Smartphone}
+                badge="All Major Brands Supported"
+                items={activeAndroid}
+                tone="green"
+                cols={serviceCols}
+                footerIcon={Phone}
+                footerTitle="Fast. Reliable. Affordable."
+                footerBody="Keep your Android devices running like new!"
+              />
+              <RepairCategoryCard
+                title="Apple Repair"
+                sub="iPhone / Tablet"
+                Icon={Apple}
+                badge="Genuine Care Expertise"
+                items={activeApple}
+                tone="dark"
+                cols={serviceCols}
+                footerIcon={ShieldCheck}
+                footerTitle="Premium Service. Peace of Mind."
+                footerBody="Expert care for your Apple devices!"
+              />
+            </View>
+          </View>
+
+          <Divider />
+
+          {/* ── Address + contact ── */}
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+            <SectionHeader Icon={MapPin} label="SHOP ADDRESS" />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY, lineHeight: 19 }} numberOfLines={5}>
+              {fullAddress || '—'}
+            </Text>
+            {(mobile || openingTime || closingTime || workingDaysLabel(workingDays)) ? (
+              <View className="flex-row items-center flex-wrap" style={{ marginTop: 10, rowGap: 6, columnGap: 14 }}>
+                {mobile ? (
+                  <View className="flex-row items-center">
+                    <Phone size={13} color={PRIMARY} />
+                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>{mobile}</Text>
+                  </View>
+                ) : null}
                 {(openingTime || closingTime) ? (
-                  <>
-                    <View style={{ width: 1, height: 14, backgroundColor: '#E2E8E2', marginHorizontal: 10 }} />
-                    <View className="flex-row items-center flex-shrink">
-                      <Clock size={13} color="#667066" />
-                      <Text className="ml-1.5 text-[12px] font-semibold text-gray-700" numberOfLines={1}>
-                        {[openingTime, closingTime].filter(Boolean).join(' - ')}
-                      </Text>
-                    </View>
-                  </>
+                  <View className="flex-row items-center">
+                    <Clock size={13} color={PRIMARY} />
+                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>
+                      {[openingTime, closingTime].filter(Boolean).join(' - ')}
+                    </Text>
+                  </View>
                 ) : null}
                 {workingDaysLabel(workingDays) ? (
-                  <>
-                    <View style={{ width: 1, height: 14, backgroundColor: '#E2E8E2', marginHorizontal: 10 }} />
-                    <Text className="text-[12px] font-semibold text-gray-700" numberOfLines={1}>
-                      {workingDaysLabel(workingDays)}
-                    </Text>
-                  </>
+                  <View className="flex-row items-center">
+                    <CalendarDays size={13} color={PRIMARY} />
+                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>{workingDaysLabel(workingDays)}</Text>
+                  </View>
                 ) : null}
               </View>
             ) : null}
           </View>
 
-          {/* Photos */}
-          <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center">
-                <View
-                  className="w-7 h-7 rounded-full items-center justify-center mr-2"
-                  style={{ backgroundColor: '#E6F7E3' }}
-                >
-                  <Camera size={14} color={BRAND_GREEN_DARK} />
-                </View>
-                <Text
-                  className="text-[11px] font-extrabold tracking-widest"
-                  style={{ color: BRAND_GREEN_DARK, letterSpacing: 1.3 }}
-                >
-                  SHOP PHOTOS
-                </Text>
-                <Text className="text-[12px] ml-1" style={{ color: '#DC2626' }}>*</Text>
-              </View>
+          <Divider />
+
+          {/* ── Photos ── */}
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+            <View className="flex-row items-center justify-between">
+              <SectionHeader Icon={Camera} label="SHOP PHOTOS" required />
               {(!frontImageUrl || !bannerImageUrl) ? (
-                <View
-                  className="px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: '#FEE2E2' }}
-                >
-                  <Text className="text-[9.5px] font-extrabold" style={{ color: '#B91C1C' }}>
-                    Both required
-                  </Text>
+                <View className="rounded-full" style={{ marginBottom: 10, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: DANGER_TINT }}>
+                  <Text className="font-extrabold" style={{ fontSize: 9.5, color: DANGER }}>Both required</Text>
                 </View>
               ) : null}
             </View>
-            <View className="flex-row -mx-1">
+            <View className="flex-row" style={{ marginHorizontal: -4 }}>
               <PhotoPreview label="Front View" uri={frontImageUrl} />
               <PhotoPreview label="Banner / Visiting Card" uri={bannerImageUrl} />
             </View>
           </View>
 
-          {/* Documents — GST & Udyam certificates */}
-          <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+          <Divider />
+
+          {/* ── Documents — GST & Udyam certificates ── */}
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
             <SectionHeader Icon={FileText} label="SHOP DOCUMENTS" />
-            <View className="flex-row -mx-1">
+            <View className="flex-row" style={{ marginHorizontal: -4 }}>
               <PhotoPreview label="GST Certificate" uri={gstCertificateUrl} />
               <PhotoPreview label="Udyam Certificate" uri={udyamCertificateUrl} />
             </View>
           </View>
-
+          </View>
         </ScrollView>
 
-        {/* Sticky Edit bar */}
+        {/* Sticky Edit bar. The gradient's row layout is set in `style`:
+            LinearGradient isn't wired to NativeWind, so the old className
+            ("flex-row items-center justify-center") was ignored and the icon,
+            label and arrow stacked down the left edge. */}
         <View
-          className="absolute left-0 right-0 bottom-0 px-4 pt-3"
           style={{
-            paddingBottom: 16,
-            backgroundColor: 'rgba(240, 248, 239, 0.96)',
-            borderTopWidth: 1,
-            borderTopColor: '#E2E8E2',
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+            paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6,
+            backgroundColor: 'rgba(255,255,255,0.97)', borderTopWidth: 1, borderTopColor: BORDER,
           }}
         >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => setEditing(true)}
-            style={cardShadow}
-          >
-            <LinearGradient
-              colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                borderRadius: 18,
-                paddingVertical: 15,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+          <View style={capStyle}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit shop information"
+              style={{ borderRadius: 999, ...softShadow, shadowColor: ACCENT, shadowOpacity: 0.25 }}
             >
-              <Pencil size={16} color="#FFFFFF" />
-              <Text className="ml-2 text-white text-[14px] font-extrabold">
-                Edit Shop Information
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[ACCENT, PRIMARY]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ borderRadius: 999, minHeight: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Pencil size={16} color="#FFFFFF" />
+                <Text className="text-white font-extrabold" style={{ marginLeft: 8, fontSize: 13 }}>Edit Shop Information</Text>
+                <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
         </>
       ) : (
@@ -774,10 +835,12 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ padding: 14, paddingBottom: 120 }}
+            style={{ backgroundColor: PAGE_BG }}
+            contentContainerStyle={{ padding: 14, paddingBottom: 110 + insets.bottom }}
           >
+            <View style={capStyle}>
             {/* Basic Info */}
-            <View className="bg-white rounded-2xl p-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3" style={cardShadow}>
               <SectionHeader Icon={Store} label="BASIC SHOP INFO" />
               <Field
                 label="Shop name"
@@ -825,7 +888,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
 
             {/* Repair Categories (edit mode) */}
-            <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={Wrench} label="REPAIR SERVICE CATEGORIES" />
               <View className="flex-row -mx-1">
                 <CategoryColumnEdit
@@ -848,7 +911,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
 
             {/* Address */}
-            <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={MapPin} label="SHOP ADDRESS" />
 
               {/* Location search (OpenStreetMap) */}
@@ -861,26 +924,26 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               <View
                 className="flex-row items-center"
                 style={{
-                  backgroundColor: '#F7FAF7',
+                  backgroundColor: PAGE_BG,
                   borderRadius: 12,
                   borderWidth: 1.5,
-                  borderColor: '#E2E8E2',
+                  borderColor: BORDER,
                   paddingHorizontal: 10,
                 }}
               >
-                <Search size={16} color="#667066" />
+                <Search size={16} color={TEXT_SECONDARY} />
                 <TextInput
                   value={locSearch}
                   onChangeText={onSearchChange}
                   placeholder="Type shop name, area or pincode"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#8E8E8E"
                   autoCorrect={false}
                   style={{
                     flex: 1,
                     paddingVertical: 10,
                     paddingHorizontal: 8,
-                    fontSize: 13.5,
-                    color: '#172117',
+                    fontSize: 13,
+                    color: TEXT_PRIMARY,
                   }}
                 />
                 {searching ? <ActivityIndicator size="small" color={BRAND_GREEN_DARK} /> : null}
@@ -895,7 +958,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                   style={{
                     marginTop: 6,
                     borderWidth: 1,
-                    borderColor: '#E2E8E2',
+                    borderColor: BORDER,
                     borderRadius: 12,
                     overflow: 'hidden',
                     backgroundColor: '#FFFFFF',
@@ -909,7 +972,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                         paddingHorizontal: 12,
                         paddingVertical: 10,
                         borderBottomWidth: k < suggestions.length - 1 ? 1 : 0,
-                        borderBottomColor: '#EFF5EE',
+                        borderBottomColor: SOFT_MINT,
                       }}
                     >
                       <Text numberOfLines={1} className="text-[12px] font-semibold text-gray-800">
@@ -940,9 +1003,9 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: '#F0F8EF',
+                  backgroundColor: MINT,
                   borderWidth: 1.5,
-                  borderColor: '#7ED957',
+                  borderColor: '#CDEFD5',
                   borderRadius: 12,
                   paddingVertical: 11,
                 }}
@@ -952,12 +1015,12 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 ) : (
                   <Crosshair size={15} color={BRAND_GREEN_DARK} />
                 )}
-                <Text className="ml-2 text-[12.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
+                <Text className="ml-2 text-[12px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
                   {locating ? 'Locating…' : 'Get Current Location'}
                 </Text>
               </TouchableOpacity>
 
-              <View style={{ height: 1, backgroundColor: '#EFF5EE', marginVertical: 12 }} />
+              <View style={{ height: 1, backgroundColor: SOFT_MINT, marginVertical: 12 }} />
 
               {/* Address fields */}
               <Field label="Street" value={street} onChangeText={setStreet} placeholder="Street" />
@@ -1010,7 +1073,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
 
             {/* Working Hours */}
-            <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={Clock} label="WORKING HOURS" />
               <Text
                 className="text-[10.5px] uppercase font-bold text-gray-500 mb-1.5"
@@ -1020,7 +1083,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               </Text>
               <View
                 className="flex-row mb-3"
-                style={{ backgroundColor: '#EFF5EE', borderRadius: 12, padding: 3 }}
+                style={{ backgroundColor: SOFT_MINT, borderRadius: 12, padding: 3 }}
               >
                 {WORKING_DAYS_OPTIONS.map((o) => {
                   const active = workingDays === o.value;
@@ -1037,8 +1100,8 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                       }}
                     >
                       <Text
-                        className="text-[11.5px] font-extrabold"
-                        style={{ color: active ? '#FFFFFF' : '#667066' }}
+                        className="text-[11px] font-extrabold"
+                        style={{ color: active ? '#FFFFFF' : TEXT_SECONDARY }}
                       >
                         {o.label}
                       </Text>
@@ -1066,7 +1129,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
 
             {/* Photos */}
-            <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={Camera} label="SHOP PHOTOS" />
               <Text className="text-[11px] text-gray-500 mb-3 leading-4">
                 Both photos are required to publish your shop. Front view should be a
@@ -1089,7 +1152,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </View>
 
             {/* Documents — GST & Udyam certificates */}
-            <View className="bg-white rounded-2xl p-4 mt-4" style={cardShadow}>
+            <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={FileText} label="SHOP DOCUMENTS" />
               <Text className="text-[11px] text-gray-500 mb-3 leading-4">
                 Upload your GST and / or Udyam certificate. At least one helps verify your shop faster.
@@ -1109,18 +1172,20 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 />
               </View>
             </View>
+            </View>
           </ScrollView>
 
           {/* Sticky save bar */}
           <View
-            className="absolute left-0 right-0 bottom-0 px-4 pt-3"
             style={{
-              paddingBottom: 16,
-              backgroundColor: 'rgba(240, 248, 239, 0.96)',
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6,
+              backgroundColor: 'rgba(255,255,255,0.97)',
               borderTopWidth: 1,
-              borderTopColor: '#E2E8E2',
+              borderTopColor: BORDER,
             }}
           >
+            <View style={capStyle}>
             <TouchableOpacity
               activeOpacity={0.9}
               disabled={saving}
@@ -1132,8 +1197,8 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={{
-                  borderRadius: 18,
-                  paddingVertical: 16,
+                  borderRadius: 999,
+                  minHeight: 48,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1147,13 +1212,14 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 ) : (
                   <Save size={18} color="#FFFFFF" />
                 )}
-                <Text className="ml-2 text-white text-[15px] font-extrabold">
+                <Text className="ml-2 text-white text-[13px] font-extrabold">
                   {saving
                     ? (isCreate ? 'Creating...' : 'Saving...')
                     : (isCreate ? 'Create Shop' : 'Save Shop Details')}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
+            </View>
           </View>
         </>
       )}
@@ -1163,56 +1229,90 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function SectionHeader({ Icon, label }) {
+function SectionHeader({ Icon, label, required }) {
   return (
-    <View className="flex-row items-center mb-3">
-      <View
-        className="w-7 h-7 rounded-full items-center justify-center mr-2"
-        style={{ backgroundColor: '#E6F7E3' }}
-      >
-        <Icon size={14} color={BRAND_GREEN_DARK} />
+    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+      <View className="items-center justify-center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: MINT, marginRight: 8 }}>
+        <Icon size={13} color={BRAND_GREEN_DARK} />
       </View>
-      <Text
-        className="text-[11px] font-extrabold tracking-widest"
-        style={{ color: BRAND_GREEN_DARK, letterSpacing: 1.3 }}
-      >
+      <Text className="font-extrabold" style={{ fontSize: 11, color: BRAND_GREEN_DARK, letterSpacing: 1.2 }}>
         {label}
       </Text>
+      {required ? <Text style={{ marginLeft: 3, fontSize: 12, color: DANGER }}>*</Text> : null}
     </View>
   );
 }
 
-function CategoryColumn({ title, sub, Icon, items }) {
+/** Full-width hairline between view-mode sections. */
+function Divider() {
+  return <View style={{ height: 1, backgroundColor: BORDER }} />;
+}
+
+// View-mode repair category card: gradient header (icon, title, device types,
+// badge), the owner's selected services as a grid of identical fixed-size
+// tiles (the SAME activeAndroid / activeApple lists from the saved toggles —
+// nothing fabricated), and a tagline panel. Android = green, Apple = dark.
+// The gradient's row layout lives in `style` (LinearGradient ignores className).
+function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, footerIcon: FooterIcon, footerTitle, footerBody }) {
+  const dark = tone === 'dark';
   return (
-    <View
-      style={{ flex: 1, marginHorizontal: 4, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8E2' }}
-    >
+    <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
       <LinearGradient
-        colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
+        colors={dark ? ['#363636', TEXT_PRIMARY] : [ACCENT, PRIMARY]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' }}
+        style={{ paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}
       >
-        <Icon size={16} color="#FFFFFF" />
-        <Text className="text-white text-[12.5px] font-extrabold mt-1" numberOfLines={1}>
-          {title}
-        </Text>
-        <Text className="text-white/85 text-[10px]">{sub}</Text>
-      </LinearGradient>
-      <View style={{ padding: 10 }}>
-        {items.length === 0 ? (
-          <Text className="text-[11px] text-gray-400 text-center py-2">No services</Text>
-        ) : items.map((s) => (
-          <View
-            key={s}
-            className="flex-row items-center py-2"
-          >
-            <CheckCircle2 size={14} color={ACCENT_GREEN} />
-            <Text className="ml-2 text-[13px] text-gray-800 flex-1" numberOfLines={1}>
-              {s}
-            </Text>
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={20} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+          <Text className="font-extrabold" style={{ fontSize: 15, color: '#FFFFFF' }} numberOfLines={1}>{title}</Text>
+          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 1 }} numberOfLines={1}>{sub}</Text>
+          <View style={{ alignSelf: 'flex-start', marginTop: 6, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: 'rgba(255,255,255,0.2)' }}>
+            <Text className="font-bold" style={{ fontSize: 10, color: '#FFFFFF' }} numberOfLines={1}>{badge}</Text>
           </View>
-        ))}
+        </View>
+      </LinearGradient>
+
+      <View style={{ padding: 10 }}>
+        <View className="flex-row items-center" style={{ paddingHorizontal: 2, marginBottom: 6 }}>
+          <Text className="font-extrabold" style={{ flex: 1, fontSize: 10.5, color: TEXT_SECONDARY, letterSpacing: 0.8 }}>SERVICES</Text>
+          <Text className="font-extrabold" style={{ fontSize: 10.5, color: dark ? TEXT_PRIMARY : PRIMARY }}>{items.length}</Text>
+        </View>
+        {items.length === 0 ? (
+          <Text style={{ fontSize: 11, color: TEXT_SECONDARY, textAlign: 'center', paddingVertical: 12 }}>No services selected</Text>
+        ) : (
+          <View className="flex-row flex-wrap" style={{ marginHorizontal: -3 }}>
+            {items.map((svc) => (
+              <View key={svc} style={{ width: `${100 / cols}%`, padding: 3 }}>
+                <View className="flex-row items-center" style={{ height: 38, borderRadius: 10, paddingHorizontal: 9, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: SOFT_MINT }}>
+                  <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: dark ? TEXT_PRIMARY : ACCENT, alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckCircle2 size={11} color="#FFFFFF" />
+                  </View>
+                  <Text
+                    style={{ flex: 1, marginLeft: 7, fontSize: 11, fontWeight: '600', color: TEXT_PRIMARY }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                  >
+                    {svc}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View className="flex-row items-center" style={{ marginHorizontal: 10, marginBottom: 10, padding: 10, borderRadius: 12, backgroundColor: dark ? SOFT_MINT : MINT }}>
+        <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: CARD_BG, alignItems: 'center', justifyContent: 'center' }}>
+          <FooterIcon size={14} color={dark ? TEXT_PRIMARY : ACCENT} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 9 }}>
+          <Text className="font-extrabold" style={{ fontSize: 12, color: TEXT_PRIMARY }} numberOfLines={1}>{footerTitle}</Text>
+          <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={2}>{footerBody}</Text>
+        </View>
       </View>
     </View>
   );
@@ -1221,7 +1321,7 @@ function CategoryColumn({ title, sub, Icon, items }) {
 function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
   return (
     <View
-      style={{ flex: 1, marginHorizontal: 4, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8E2' }}
+      style={{ flex: 1, marginHorizontal: 4, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}
     >
       <LinearGradient
         colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
@@ -1230,7 +1330,7 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
         style={{ paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' }}
       >
         <Icon size={16} color="#FFFFFF" />
-        <Text className="text-white text-[12.5px] font-extrabold mt-1">{title}</Text>
+        <Text className="text-white text-[12px] font-extrabold mt-1">{title}</Text>
         <Text className="text-white/85 text-[10px]">{sub}</Text>
       </LinearGradient>
       <View style={{ padding: 8 }}>
@@ -1246,7 +1346,7 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
                 style={{
                   width: 16, height: 16, borderRadius: 8,
                   borderWidth: 1.5,
-                  borderColor: active ? BRAND_GREEN_DARK : '#CBD5CB',
+                  borderColor: active ? BRAND_GREEN_DARK : '#D6D6D6',
                   backgroundColor: active ? BRAND_GREEN_DARK : '#FFFFFF',
                   alignItems: 'center', justifyContent: 'center',
                   marginRight: 6,
@@ -1256,7 +1356,7 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
               </View>
               <Text
                 className="text-[11px] flex-1"
-                style={{ color: active ? '#172117' : '#8FA08F' }}
+                style={{ color: active ? TEXT_PRIMARY : '#8E8E8E' }}
                 numberOfLines={1}
               >
                 {name}
@@ -1278,18 +1378,18 @@ function PhotoPreview({ label, uri }) {
       {uri ? (
         <Image
           source={{ uri }}
-          style={{ width: '100%', height: 110, borderRadius: 14, backgroundColor: '#F0F8EF' }}
+          style={{ width: '100%', height: 96, borderRadius: 12, backgroundColor: MINT }}
           resizeMode="cover"
         />
       ) : (
         <View
           style={{
-            width: '100%', height: 110, borderRadius: 14,
-            backgroundColor: '#F0F8EF',
+            width: '100%', height: 96, borderRadius: 12,
+            backgroundColor: MINT,
             alignItems: 'center', justifyContent: 'center',
             borderWidth: 1.5,
             borderStyle: 'dashed',
-            borderColor: '#7ED957',
+            borderColor: '#CDEFD5',
           }}
         >
           <ImageIcon size={22} color={BRAND_GREEN_DARK} />
@@ -1312,10 +1412,10 @@ function PhotoUpload({ label, url, busy, onPress }) {
         disabled={busy}
         style={{
           width: '100%', minHeight: 130, borderRadius: 16,
-          backgroundColor: '#F0F8EF',
+          backgroundColor: MINT,
           borderWidth: 1.5,
           borderStyle: 'dashed',
-          borderColor: '#7ED957',
+          borderColor: '#CDEFD5',
           alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden',
         }}
@@ -1327,7 +1427,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
               <View
                 style={{
                   position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(23, 33, 23, 0.45)',
+                  backgroundColor: 'rgba(30, 30, 30, 0.45)',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
@@ -1339,7 +1439,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
                   position: 'absolute', bottom: 6, right: 6,
                   paddingHorizontal: 8, paddingVertical: 3,
                   borderRadius: 999,
-                  backgroundColor: 'rgba(23, 33, 23, 0.7)',
+                  backgroundColor: 'rgba(30, 30, 30, 0.7)',
                   flexDirection: 'row', alignItems: 'center',
                 }}
               >
@@ -1355,7 +1455,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
             <View
               style={{
                 width: 36, height: 36, borderRadius: 18,
-                backgroundColor: '#E6F7E3',
+                backgroundColor: MINT,
                 alignItems: 'center', justifyContent: 'center',
               }}
             >
@@ -1390,17 +1490,17 @@ function Field({ label, small, last, ...inputProps }) {
         {label}
       </Text>
       <TextInput
-        placeholderTextColor="#8FA08F"
+        placeholderTextColor="#8E8E8E"
         {...inputProps}
         style={{
-          backgroundColor: '#F7FAF7',
+          backgroundColor: PAGE_BG,
           borderRadius: 12,
           borderWidth: 1.5,
-          borderColor: '#E2E8E2',
+          borderColor: BORDER,
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 13.5,
-          color: '#172117',
+          fontSize: 13,
+          color: TEXT_PRIMARY,
         }}
       />
     </View>

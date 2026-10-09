@@ -9,10 +9,10 @@ export function Card({ className, children, padded = true, elevated = true, styl
       {...rest}
       className={cn(
         'bg-card border border-border',
-        padded && 'p-4',
+        padded && 'p-3',
         className,
       )}
-      style={[{ borderRadius: 18 }, elevated && shadows.card, style]}
+      style={[{ borderRadius: 16 }, elevated && shadows.card, style]}
     >
       {children}
     </View>
@@ -24,7 +24,7 @@ export function CardHeader({ className, children }) {
 }
 
 export function CardTitle({ className, children }) {
-  return <Text className={cn('text-[15px] font-extrabold text-text', className)}>{children}</Text>;
+  return <Text className={cn('text-[13px] font-extrabold text-text', className)}>{children}</Text>;
 }
 
 export function CardDescription({ className, children }) {

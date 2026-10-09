@@ -45,13 +45,13 @@ export function ApiPicker({ label, items, loading, error, value, onSelect, place
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 12 },
-  label: { fontSize: 14, marginBottom: 4, color: '#8FA08F' },
+  label: { fontSize: 13, marginBottom: 4, color: '#8FA08F' },
   trigger: { borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 12, minHeight: 48, justifyContent: 'center' },
-  triggerText: { fontSize: 16, color: '#F7FAF7' },
+  triggerText: { fontSize: 15, color: '#F7FAF7' },
   placeholder: { color: '#667066' },
   error: { fontSize: 12, color: '#DC2626', marginTop: 4 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#172117', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: 400 },
   option: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#172117' },
-  optionText: { fontSize: 16, color: '#F7FAF7' },
+  optionText: { fontSize: 15, color: '#F7FAF7' },
 });

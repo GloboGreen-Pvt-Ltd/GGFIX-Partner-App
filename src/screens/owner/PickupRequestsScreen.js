@@ -54,10 +54,10 @@ export default function PickupRequestsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#172117' },
   loader: { flex: 1, justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '700', color: '#F7FAF7', padding: 16 },
-  list: { padding: 16, paddingBottom: 32 },
-  row: { backgroundColor: '#172117', borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#172117' },
-  type: { fontSize: 16, fontWeight: '600', color: '#F7FAF7' },
-  status: { fontSize: 14, color: '#8FA08F', marginTop: 4 },
-  empty: { fontSize: 14, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
+  title: { fontSize: 17, fontWeight: '700', color: '#F7FAF7', padding: 12 },
+  list: { padding: 12, paddingBottom: 24 },
+  row: { backgroundColor: '#172117', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#172117' },
+  type: { fontSize: 13, fontWeight: '600', color: '#F7FAF7' },
+  status: { fontSize: 13, color: '#8FA08F', marginTop: 3 },
+  empty: { fontSize: 13, color: '#8FA08F', textAlign: 'center', marginTop: 20 },
 });

@@ -62,11 +62,11 @@ export default function SellHomeScreen({ navigation }) {
     <View className="flex-1 bg-background">
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: 12, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
         >
           <View className="px-4">
             <Text className="text-text-muted text-[12px] font-bold tracking-widest">SELL & EARN</Text>
-            <Text className="text-text text-[24px] font-extrabold mt-1">Turn your old tech into cash</Text>
+            <Text className="text-text text-[22px] font-extrabold mt-1">Turn your old tech into cash</Text>
             <Text className="text-text-muted text-[13px] mt-1">Best price from verified shops nearby.</Text>
           </View>
         </View>
@@ -74,18 +74,18 @@ export default function SellHomeScreen({ navigation }) {
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Trust strip — 3 cards matching Repair Home's promise cards */}
-        <View className="flex-row px-4 mt-4">
-          <View className="flex-1 bg-card border border-border rounded-2xl py-3 px-2 items-center mx-1">
-            <TrendingUp size={18} color="#16BB05" />
-            <Text className="text-[10px] font-bold text-text text-center mt-1.5">Best Price</Text>
+        <View className="flex-row px-4 mt-3">
+          <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
+            <TrendingUp size={17} color="#16BB05" />
+            <Text className="text-[10px] font-bold text-text text-center mt-1">Best Price</Text>
           </View>
-          <View className="flex-1 bg-card border border-border rounded-2xl py-3 px-2 items-center mx-1">
-            <ShieldCheck size={18} color="#16BB05" />
-            <Text className="text-[10px] font-bold text-text text-center mt-1.5">Verified Shops</Text>
+          <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
+            <ShieldCheck size={17} color="#16BB05" />
+            <Text className="text-[10px] font-bold text-text text-center mt-1">Verified Shops</Text>
           </View>
-          <View className="flex-1 bg-card border border-border rounded-2xl py-3 px-2 items-center mx-1">
-            <Sparkles size={18} color="#F59E0B" />
-            <Text className="text-[10px] font-bold text-text text-center mt-1.5">Free Pickup</Text>
+          <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
+            <Sparkles size={17} color="#F59E0B" />
+            <Text className="text-[10px] font-bold text-text text-center mt-1">Free Pickup</Text>
           </View>
         </View>
 
@@ -121,10 +121,10 @@ export default function SellHomeScreen({ navigation }) {
                     {uri ? (
                       <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
                     ) : (
-                      <Text style={{ fontSize: 34 }}>{meta.emoji}</Text>
+                      <Text style={{ fontSize: 28 }}>{meta.emoji}</Text>
                     )}
                   </View>
-                  <Text className="text-[14px] font-extrabold text-text" numberOfLines={1}>{c.name}</Text>
+                  <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{c.name}</Text>
                   <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={2}>{meta.sub}</Text>
                 </Pressable>
               );

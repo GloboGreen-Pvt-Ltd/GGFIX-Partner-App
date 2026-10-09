@@ -35,31 +35,32 @@ export function ScreenHeader({
       className={cn(
         transparent ? 'bg-transparent' : 'bg-card',
         sticky && !transparent ? 'border-b border-border' : '',
-        'flex-row items-center px-3 pb-3',
+        'flex-row items-center px-3 pb-2',
         className,
       )}
       style={[
         transparent ? null : shadow,
-        { paddingTop: topInset + 12 },
+        { paddingTop: topInset + 8 },
       ]}
     >
       {onBack ? (
         <Pressable
           onPress={onBack}
-          className="h-10 w-10 items-center justify-center rounded-full bg-surface-muted active:opacity-70"
+          hitSlop={6}
+          className="h-9 w-9 items-center justify-center rounded-full bg-surface-muted active:opacity-70"
         >
           <ChevronLeft size={20} color={tokens.text} />
         </Pressable>
       ) : (
-        <View className="h-10 w-10" />
+        <View className="h-9 w-9" />
       )}
       <View className={cn('flex-1 px-2', align === 'left' ? 'items-start' : 'items-center')}>
-        <Text numberOfLines={1} className="text-[16px] font-extrabold text-text">{title}</Text>
+        <Text numberOfLines={1} className="text-[17px] font-extrabold text-text">{title}</Text>
         {subtitle ? (
           <Text numberOfLines={1} className="text-[11px] text-text-muted mt-0.5">{subtitle}</Text>
         ) : null}
       </View>
-      <View className="h-10 min-w-10 items-end justify-center">{right}</View>
+      <View className="h-9 min-w-9 items-end justify-center">{right}</View>
     </View>
   );
 }

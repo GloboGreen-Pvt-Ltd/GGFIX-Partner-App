@@ -47,14 +47,14 @@ export default function DeviceSecurityScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 12, paddingBottom: 24 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 16,
+    padding: 11,
+    marginBottom: 12,
   },
-  title: { fontSize: 14, fontWeight: '700', color: '#172117', marginBottom: 4 },
+  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 4 },
   subtitle: { fontSize: 12, color: '#667066', marginBottom: 8 },
   optionRow: {
     flexDirection: 'row',
@@ -88,10 +88,10 @@ const styles = StyleSheet.create({
   optionLabel: { fontSize: 13, color: '#172117' },
   button: {
     backgroundColor: '#087A0A',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 999,
     alignItems: 'center',
   },
-  buttonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  buttonText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 });
 

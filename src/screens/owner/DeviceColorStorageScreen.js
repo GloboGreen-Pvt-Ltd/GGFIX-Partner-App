@@ -131,14 +131,14 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
   return (
     <ScreenContainer>
       <AppHeader title="Variant" subtitle="Pick the model variant" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 80 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 80 }}>
         <Card>
           <View className="flex-row items-center">
-            <View className="h-14 w-14 rounded-2xl bg-surface-muted items-center justify-center overflow-hidden mr-3">
+            <View className="h-12 w-12 rounded-2xl bg-surface-muted items-center justify-center overflow-hidden mr-2.5">
               {modelImage ? (
                 <Image source={{ uri: modelImage }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
               ) : (
-                <Text className="text-[16px] font-extrabold text-primary">
+                <Text className="text-[15px] font-extrabold text-primary">
                   {(model?.name || '?').toString().charAt(0).toUpperCase()}
                 </Text>
               )}
@@ -152,7 +152,7 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
                   placeholder="Type the model"
                 />
               ) : (
-                <Text className="text-[15px] font-extrabold text-text" numberOfLines={1}>
+                <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>
                   {modelName || 'Device'}
                 </Text>
               )}
@@ -163,8 +163,8 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
           </View>
         </Card>
 
-        <View className="mt-4">
-          <Text className="text-[14px] font-extrabold text-text mb-2 px-1">Color</Text>
+        <View className="mt-3">
+          <Text className="text-[13px] font-extrabold text-text mb-2 px-1">Color</Text>
           <Input
             value={color}
             onChangeText={setColor}
@@ -172,10 +172,10 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
           />
         </View>
 
-        <View className="mt-5">
+        <View className="mt-4">
           <View className="flex-row items-center mb-2 px-1">
             <Cpu size={16} color={tokens.primary} />
-            <Text className="ml-2 text-[14px] font-extrabold text-text">RAM</Text>
+            <Text className="ml-2 text-[13px] font-extrabold text-text">RAM</Text>
           </View>
           <Input value={ramText} onChangeText={setRamText} placeholder="e.g. 8 GB" />
         </View>
@@ -183,7 +183,7 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
         <View className="mt-4">
           <View className="flex-row items-center mb-2 px-1">
             <HardDrive size={16} color={tokens.primary} />
-            <Text className="ml-2 text-[14px] font-extrabold text-text">Storage</Text>
+            <Text className="ml-2 text-[13px] font-extrabold text-text">Storage</Text>
           </View>
           <Input value={storageText} onChangeText={setStorageText} placeholder="e.g. 128 GB" />
         </View>

@@ -101,13 +101,13 @@ export default function OwnerEmployeeSalaryReportScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, capStyle]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#09AD2A']} tintColor="#09AD2A" />}
       >
         {/* Financial year header */}
         <View style={styles.fyCard}>
           <View style={styles.fyLeft}>
             <View style={styles.fyIconWrap}>
-              <Ionicons name="calendar" size={rs(20)} color="#004C40" />
+              <Ionicons name="calendar" size={rs(20)} color="#09AD2A" />
             </View>
             <View style={styles.fyTextWrap}>
               <Text style={styles.fyLabel}>Financial Year</Text>
@@ -116,12 +116,12 @@ export default function OwnerEmployeeSalaryReportScreen({ route, navigation }) {
           </View>
           <View style={styles.yearPill}>
             <TouchableOpacity onPress={() => setYear((y) => y - 1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-              <Ionicons name="chevron-back" size={rs(14)} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={rs(14)} color="#078F23" />
             </TouchableOpacity>
             <Text style={styles.yearPillText}>{year}</Text>
             <View style={styles.yearPillSep} />
             <TouchableOpacity onPress={() => setYear((y) => y + 1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-              <Ionicons name="chevron-forward" size={rs(14)} color="#FFFFFF" />
+              <Ionicons name="chevron-forward" size={rs(14)} color="#078F23" />
             </TouchableOpacity>
           </View>
         </View>
@@ -133,24 +133,24 @@ export default function OwnerEmployeeSalaryReportScreen({ route, navigation }) {
             value={`${totals.totalPresent}`}
             sub="Days"
             icon="people"
-            color="#004C40"
-            bg="#E6F7E3"
+            color="#09AD2A"
+            bg="#EAF8EC"
           />
           <SummaryTile
             label="Total Earned"
             value={formatRupee(totals.totalNet)}
             sub={`${totals.monthsUnpaid} not paid`}
             icon="cash"
-            color="#004C40"
-            bg="#F0F8EF"
+            color="#09AD2A"
+            bg="#EAF8EC"
           />
           <SummaryTile
             label="Avg / Month"
             value={formatRupee(totals.monthsPaid > 0 ? Math.round(totals.totalNet / totals.monthsPaid) : 0)}
             sub="Avg payout"
             icon="trending-up"
-            color="#004C40"
-            bg="#E6F7E3"
+            color="#09AD2A"
+            bg="#EAF8EC"
           />
         </View>
 
@@ -158,7 +158,7 @@ export default function OwnerEmployeeSalaryReportScreen({ route, navigation }) {
         <Text style={styles.sectionHeader}>Monthly Payslips</Text>
 
         {loading && list.length === 0 ? (
-          <ActivityIndicator size="small" color="#004C40" style={{ marginVertical: rs(16) }} />
+          <ActivityIndicator size="small" color="#09AD2A" style={{ marginVertical: rs(16) }} />
         ) : (
           rows.map((row, i) => (
             <MonthCard
@@ -178,7 +178,7 @@ function SummaryTile({ label, value, sub, icon, color, bg }) {
   return (
     <View style={styles.summaryTile}>
       <View style={[styles.summaryIconWrap, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={rs(19)} color={color} />
+        <Ionicons name={icon} size={rs(15)} color={color} />
       </View>
       <Text style={styles.summaryValue}>{value}</Text>
       <Text style={styles.summaryLabel}>{label}</Text>
@@ -208,7 +208,7 @@ function MonthCard({ row, index, onPress }) {
         </View>
         <View style={styles.monthBottomRow}>
           <View style={styles.monthMeta}>
-            <Ionicons name="calendar-outline" size={rs(13)} color="#667066" />
+            <Ionicons name="calendar-outline" size={rs(13)} color="#6B6B6B" />
             <Text style={styles.monthMetaText}>{row.presentDays ?? 0} Days</Text>
           </View>
           <View style={styles.monthSpacer} />
@@ -220,135 +220,135 @@ function MonthCard({ row, index, onPress }) {
       <View style={styles.monthRight}>
         {isEmpty ? (
           <View style={[styles.statusPill, styles.statusPillEmpty]}>
-            <Text style={[styles.statusPillText, { color: '#667066' }]}>Pending</Text>
+            <Text style={[styles.statusPillText, { color: '#6B6B6B' }]}>Pending</Text>
           </View>
         ) : isPaid ? (
           <View style={[styles.statusPill, styles.statusPillPaid]}>
-            <Ionicons name="checkmark-circle" size={rs(13)} color="#004C40" />
-            <Text style={[styles.statusPillText, { color: '#004C40' }]}>Paid</Text>
+            <Ionicons name="checkmark-circle" size={rs(13)} color="#09AD2A" />
+            <Text style={[styles.statusPillText, { color: '#078F23' }]}>Paid</Text>
           </View>
         ) : (
           <View style={[styles.statusPill, styles.statusPillUnpaid]}>
-            <Text style={[styles.statusPillText, { color: '#D97706' }]}>Unpaid</Text>
+            <Text style={[styles.statusPillText, { color: '#8A6A00' }]}>Unpaid</Text>
           </View>
         )}
-        {!isEmpty && <Ionicons name="chevron-forward" size={rs(16)} color="#8FA08F" style={{ marginTop: rs(6) }} />}
+        {!isEmpty && <Ionicons name="chevron-forward" size={rs(14)} color="#8A8A8A" style={{ marginTop: rs(4) }} />}
       </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: rs(12), paddingBottom: rs(24) },
+  safe: { flex: 1, backgroundColor: '#F8F8F8' },
+  content: { padding: rs(10), paddingBottom: rs(20) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: rf(13), color: '#DC2626' },
+  error: { fontSize: 13, color: '#F84141' },
 
   fyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(14),
-    paddingHorizontal: rs(14),
-    paddingVertical: rs(14),
+    borderRadius: rs(12),
+    paddingHorizontal: rs(11),
+    paddingVertical: rs(10),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderColor: '#F3F3F3',
+    shadowColor: '#1E1E1E', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   fyLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flex: 1 },
-  fyIconWrap: { width: rs(38), height: rs(38), borderRadius: rs(11), backgroundColor: '#E6F7E3', alignItems: 'center', justifyContent: 'center' },
+  fyIconWrap: { width: rs(34), height: rs(34), borderRadius: rs(10), backgroundColor: '#EAF8EC', alignItems: 'center', justifyContent: 'center' },
   fyTextWrap: {},
-  fyLabel: { fontSize: rf(11.5), color: '#8FA08F', fontWeight: '600' },
-  fyValue: { fontSize: rf(21), fontWeight: '800', color: '#172117', marginTop: rs(2) },
+  fyLabel: { fontSize: 10.5, color: '#8A8A8A', fontWeight: '600' },
+  fyValue: { fontSize: 17, fontWeight: '800', color: '#1E1E1E', marginTop: rs(1) },
 
   yearPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#004C40',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(7),
+    backgroundColor: '#EAF8EC',
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(5),
     borderRadius: 999,
     gap: rs(7),
   },
-  yearPillText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '700' },
-  yearPillSep: { width: rs(1), height: rs(12), backgroundColor: 'rgba(255,255,255,0.3)' },
+  yearPillText: { color: '#078F23', fontSize: 11.5, fontWeight: '800' },
+  yearPillSep: { width: rs(1), height: rs(12), backgroundColor: '#CDEFD4' },
 
-  summaryRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(10) },
+  summaryRow: { flexDirection: 'row', gap: rs(6), marginTop: rs(8) },
   summaryTile: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(12),
-    padding: rs(10),
+    borderRadius: rs(10),
+    padding: rs(8),
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+    borderColor: '#F3F3F3',
+    shadowColor: '#1E1E1E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   summaryIconWrap: {
-    width: rs(36),
-    height: rs(36),
-    borderRadius: rs(18),
+    width: rs(28),
+    height: rs(28),
+    borderRadius: rs(14),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: rs(8),
+    marginBottom: rs(5),
   },
-  summaryValue: { fontSize: rf(18), fontWeight: '800', color: '#172117' },
-  summaryLabel: { fontSize: rf(11.5), color: '#172117', fontWeight: '700', marginTop: rs(3) },
-  summarySub: { fontSize: rf(10), color: '#8FA08F', marginTop: rs(2) },
+  summaryValue: { fontSize: 14.5, fontWeight: '800', color: '#1E1E1E' },
+  summaryLabel: { fontSize: 10.5, color: '#1E1E1E', fontWeight: '700', marginTop: rs(2) },
+  summarySub: { fontSize: 9.5, color: '#8A8A8A', marginTop: rs(1) },
 
-  sectionHeader: { fontSize: rf(15), fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#1E1E1E', marginTop: rs(12), marginBottom: rs(6) },
 
   monthCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: rs(12),
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(11),
-    marginBottom: rs(8),
-    gap: rs(10),
+    borderRadius: rs(10),
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(8),
+    marginBottom: rs(6),
+    gap: rs(9),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+    borderColor: '#F3F3F3',
+    shadowColor: '#1E1E1E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
-  monthCardEmpty: { backgroundColor: '#F7FAF7' },
+  monthCardEmpty: { backgroundColor: '#F8F8F8' },
 
   monthIndexBubble: {
-    width: rs(33),
-    height: rs(33),
-    borderRadius: rs(17),
-    backgroundColor: '#E6F7E3',
+    width: rs(28),
+    height: rs(28),
+    borderRadius: rs(14),
+    backgroundColor: '#EAF8EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthIndexText: { fontSize: rf(12), fontWeight: '800', color: '#004C40' },
+  monthIndexText: { fontSize: 11, fontWeight: '800', color: '#078F23' },
 
   monthMain: { flex: 1, minWidth: 0 },
   monthHeaderRow: { flexDirection: 'row', alignItems: 'baseline', gap: rs(6) },
-  monthName: { fontSize: rf(14), fontWeight: '800', color: '#172117' },
-  monthYear: { fontSize: rf(11.5), color: '#8FA08F', fontWeight: '600' },
-  monthBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(5) },
+  monthName: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  monthYear: { fontSize: 11, color: '#8A8A8A', fontWeight: '600' },
+  monthBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(3) },
   monthMeta: { flexDirection: 'row', alignItems: 'center', gap: rs(4) },
-  monthMetaText: { fontSize: rf(11.5), color: '#667066', fontWeight: '500' },
+  monthMetaText: { fontSize: 11, color: '#6B6B6B', fontWeight: '500' },
   monthSpacer: { flex: 1 },
-  monthSalary: { fontSize: rf(13.5), fontWeight: '800' },
-  monthSalaryPaid: { color: '#004C40' },
-  monthSalaryEmpty: { color: '#8FA08F' },
+  monthSalary: { fontSize: 13, fontWeight: '800' },
+  monthSalaryPaid: { color: '#078F23' },
+  monthSalaryEmpty: { color: '#8A8A8A' },
 
   monthRight: { alignItems: 'flex-end' },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(4),
-    paddingHorizontal: rs(10),
-    paddingVertical: rs(4),
+    paddingHorizontal: rs(8),
+    paddingVertical: rs(3),
     borderRadius: 999,
     borderWidth: 1.5,
     backgroundColor: '#FFFFFF',
   },
-  statusPillPaid: { borderColor: '#004C40' },
-  statusPillUnpaid: { borderColor: '#FDE68A' },
-  statusPillEmpty: { borderColor: '#E2E8E2' },
-  statusPillText: { fontSize: rf(10.5), fontWeight: '800' },
+  statusPillPaid: { borderColor: '#09AD2A' },
+  statusPillUnpaid: { borderColor: '#F8D66B' },
+  statusPillEmpty: { borderColor: '#E6E6E6' },
+  statusPillText: { fontSize: 10, fontWeight: '800' },
 });

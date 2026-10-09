@@ -5,18 +5,33 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
+    "start:8181": "expo start --port 8181",
+    "start:prod": "cross-env NODE_ENV=production expo start --port 8181",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "expo:fix": "npx expo install --fix"
   },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@react-native-ml-kit/text-recognition",
+          "ggfix-downloads",
+          "ggfix-printer"
+        ]
+      }
+    }
+  },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@gluestack-style/react": "^1.0.57",
     "@gluestack-ui/config": "^1.1.20",
     "@gluestack-ui/themed": "^1.1.73",
     "@legendapp/motion": "^2.5.3",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-ml-kit/text-recognition": "^2.0.0",
     "@react-navigation/bottom-tabs": "^7.3.1",
     "@react-navigation/native": "^7.1.6",
     "@react-navigation/native-stack": "^7.3.1",
@@ -24,27 +39,29 @@
     "burnt": "^0.13.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "expo": "~57.0.20",
+    "expo": "~57.0.26",
     "expo-asset": "~57.0.16",
-    "expo-audio": "~57.0.4",
-    "expo-build-properties": "~57.0.17",
-    "expo-camera": "~57.0.4",
-    "expo-clipboard": "~57.0.1",
+    "expo-audio": "~57.0.5",
+    "expo-build-properties": "~57.0.22",
+    "expo-camera": "~57.0.6",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.17",
-    "expo-contacts": "~57.0.4",
-    "expo-dev-client": "~57.0.18",
+    "expo-contacts": "~57.0.6",
+    "expo-dev-client": "~57.0.19",
     "expo-file-system": "~57.0.6",
     "expo-font": "~57.0.3",
-    "expo-image": "~57.0.4",
-    "expo-image-picker": "~57.0.16",
+    "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.21",
+    "expo-image-picker": "~57.0.20",
     "expo-intent-launcher": "~57.0.1",
-    "expo-linear-gradient": "~57.0.1",
-    "expo-linking": "~57.0.9",
-    "expo-local-authentication": "~57.0.2",
-    "expo-location": "~57.0.16",
-    "expo-notifications": "~57.0.17",
-    "expo-print": "~57.0.1",
-    "expo-sharing": "~57.0.18",
+    "expo-linear-gradient": "~57.0.2",
+    "expo-linking": "~57.0.11",
+    "expo-local-authentication": "~57.0.3",
+    "expo-location": "~57.0.20",
+    "expo-notifications": "~57.0.21",
+    "expo-print": "~57.0.2",
+    "expo-sharing": "~57.0.22",
+    "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "lucide-react-native": "^1.16.0",
     "nativewind": "^4.2.4",
@@ -69,6 +86,7 @@
   "devDependencies": {
     "@types/react": "~19.2.4",
     "babel-preset-expo": "^57.0.9",
+    "cross-env": "^10.1.0",
     "typescript": "~6.0.3"
   }
 }

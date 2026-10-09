@@ -40,6 +40,9 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { getSession } from '../../auth/session';
+import { ion, mci } from '../../components/dashboard/solidIcons';
+import { SERIF } from '../../components/dashboard/theme';
+import { Ionicons } from '@expo/vector-icons';
 import { switchShop, fetchMe } from '../../api/auth';
 import {
   FEATURE,
@@ -49,20 +52,29 @@ import {
 import { showLimitPopup } from '../../subscription/limitPopup';
 import { getOwnerKycDocuments } from '../../api/shops';
 import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } from '../../auth/appLock';
-import { rs } from '../../utils/responsive';
+import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// Swiggy / Zomato green palette — shared with the rest of the owner app.
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN     = '#087A0A';
-const DANGER           = '#DC2626';
+// My Account palette — green + white only (per the redesign brief).
+const G = '#09AD2A';            // Primary green
+const G_LIGHT = '#EAF8EC';      // Very light green (icon tiles, badges)
+const DARK = '#1E1E1E';         // Dark text
+const MUTED = '#6B6B6B';        // Muted dark grey (subtitles)
+const LIGHT = '#F3F3F3';        // Secondary light (borders, toggle off)
+const BG = '#F8F8F8';           // Page background
 
-// PINE is the brand's deep pine at luminance 0.055, i.e. DARK: ~10:1 as a
-// foreground on the white cards here and on the badge tints below. If it ever
-// moves, the thing to check is that the replacement is still dark — a light
-// value silently breaks every foreground use while fills keep working.
-const PINE        = '#004C40';
+// GGFIX palette — same values used across the rest of the app's redesigned screens.
+const ACCENT = '#004C40';       // Dark Green
+const PRIMARY = '#006B57';      // Primary Green
+const BRIGHT = '#00A86B';       // Bright Green
+const MINT = '#E8F7F2';
+const SOFT_MINT = '#F4FBF8';
+const PAGE_BG = '#F8FAF9';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#DCE7E2';
+const TEXT_PRIMARY = '#111827';
+const TEXT_SECONDARY = '#667085';
+const DANGER = '#DC2626';
 const ICON_STROKE = 2; // ONE weight for every icon on the screen.
 
 // Icon-tile colour tones. One small named palette, assigned once per row
@@ -71,27 +83,27 @@ const ICON_STROKE = 2; // ONE weight for every icon on the screen.
 // orange, team pink, …) while staying centralised the same way the old
 // single-tint system was.
 const TONE = {
-  green:  { bg: '#E6F7E3', fg: BRAND_GREEN_DARK },
-  amber:  { bg: '#FDF0DC', fg: '#B45309' },
-  blue:   { bg: '#E7F0FF', fg: '#2563EB' },
-  purple: { bg: '#F1EBFF', fg: '#7C3AED' },
-  orange: { bg: '#FFEADC', fg: '#C2410C' },
-  pink:   { bg: '#FDE7EF', fg: '#DB2777' },
+  green:  { bg: MINT,          fg: ACCENT,    dark: '#16A34A' },
+  amber:  { bg: '#FDF0DC',     fg: '#B45309', dark: '#F59E0B' },
+  blue:   { bg: '#E7F0FF',     fg: '#2563EB', dark: '#3B82F6' },
+  purple: { bg: '#F1EBFF',     fg: '#9333EA', dark: '#A855F7' },
+  orange: { bg: '#FFEADC',     fg: '#F59E0B', dark: '#F97316' },
+  pink:   { bg: '#FDE7EF',     fg: '#DB2777', dark: '#EC4899' },
 };
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
+  shadowColor: '#0B1F14',
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
   elevation: 4,
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#0B1F14',
   shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
   elevation: 2,
 };
 
@@ -116,7 +128,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   // a capped, centred column so this settings list doesn't stretch edge to
   // edge — the same rule OwnerPersonalInfoScreen applies to its form.
   const r = useResponsive();
-  const contentW = r.isTablet ? Math.min(r.width - rs(32), 640) : undefined;
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), 920) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
   const reloadSession = async () => {
@@ -195,6 +207,10 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   const canOpenSwitcher = !isShopLogin && (hasMultipleShops || canAddShop);
   const initials = useMemo(() => initialsOf(displayName), [displayName]);
 
+  // The brand's small uppercase kicker above the page title — the active
+  // shop's own name (real data), not a fixed brand string.
+  const brandKicker = (shopName || 'GGFIX').toUpperCase();
+
   /**
    * Same plan gate the home screen applies: at the subscription's shop ceiling
    * the form must not open. Checked against a freshly fetched allowance, and
@@ -225,514 +241,342 @@ export default function MyAccountScreen({ onLogout, navigation }) {
     }
   };
 
-  return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+  // "My Profile" — the 6 rows the reference screenshot shows (fewer for a
+  // shop-scoped login, which has no personal identity or KYC of its own).
+  // Built as data, not inline JSX conditionals, so the rendered rows and the
+  // "N Options" pill count can never drift apart.
+  const profileRows = [
+    !isShopLogin && {
+      key: 'personal',
+      tone: 'green',
+      Icon: SOLID.personal,
+      label: 'Personal Information',
+      sub: 'Name, mobile, email',
+      onPress: () => navigation?.navigate?.('OwnerPersonalInfo'),
+    },
+    {
+      key: 'subscription',
+      tone: 'amber',
+      Icon: SOLID.subscription,
+      label: 'Subscription',
+      sub: isShopLogin ? 'View current plan' : 'View your plan & upgrade',
+      onPress: () => navigation?.navigate?.('OwnerSubscription'),
+    },
+    {
+      key: 'qr',
+      tone: 'blue',
+      Icon: SOLID.qr,
+      label: 'My QR Code',
+      sub: 'Share your shop instantly',
+      onPress: () => navigation?.navigate?.('OwnerQrCode'),
+    },
+    {
+      key: 'shop',
+      tone: 'green',
+      Icon: SOLID.shop,
+      label: 'Shop Information',
+      sub: 'Address, opening hours, GST',
+      onPress: () => navigation?.navigate?.('OwnerShopInfo'),
+    },
+    !isShopLogin && {
+      key: 'kyc',
+      tone: 'purple',
+      Icon: SOLID.kyc,
+      label: 'KYC Documents',
+      sub: 'Aadhar, PAN, GST / Udyam',
+      onPress: () => navigation?.navigate?.(hasKycDocs ? 'OwnerKycView' : 'OwnerKycIntro'),
+    },
+    {
+      key: 'pickup',
+      tone: 'orange',
+      Icon: SOLID.pickup,
+      label: 'Pickup Service',
+      sub: 'Turn pickup on/off, slot timings & zones',
+      onPress: () => navigation?.navigate?.('OwnerPickupSlots'),
+    },
+  ].filter(Boolean);
 
-      {/* Slim white header — title/badge row + subtitle. */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            paddingTop: rs(6),
-            paddingBottom: rs(14),
-            paddingHorizontal: rs(16),
-            borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
-          }}
-        >
+  // A second, un-numbered group for the rows the reference doesn't picture —
+  // kept exactly as they were (same routes, same visibility rule: always
+  // shown regardless of login type), just moved out of the "6 Options" count
+  // so that pill stays accurate to what the reference actually shows.
+  const moreToolsRows = [
+    {
+      key: 'orders',
+      tone: 'blue',
+      Icon: SOLID.orders,
+      label: 'My Orders',
+      sub: 'View your orders & history',
+      onPress: () => navigation?.navigate?.('MarketplaceOrders'),
+    },
+    {
+      key: 'employees',
+      tone: 'pink',
+      Icon: SOLID.employees,
+      label: 'Employee Management',
+      sub: 'Add, edit & track your team',
+      onPress: () => navigation?.navigate?.('OwnerEmployeeList'),
+    },
+    {
+      key: 'leave',
+      tone: 'green',
+      Icon: SOLID.leave,
+      label: 'Leave Requests',
+      sub: 'Approve or reject leave',
+      onPress: () => navigation?.navigate?.('OwnerLeaveRequests'),
+    },
+  ];
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG }}>
+        <View style={{ paddingHorizontal: rs(16), paddingTop: 0, paddingBottom: rs(8) }}>
           <View style={capStyle}>
-            <View className="flex-row items-center justify-between">
-              <Text className="text-text text-[24px] font-extrabold" numberOfLines={1}>
-                My Account
-              </Text>
-              <View className="flex-row items-center px-2.5 py-1 rounded-full bg-surface-muted">
+            <View className="flex-row items-start justify-between">
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', letterSpacing: 0.4, color: G }} numberOfLines={1}>
+                  {brandKicker}
+                </Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: DARK, marginTop: rs(2) }} numberOfLines={1}>
+                  My Account
+                </Text>
+                <Text style={{ fontSize: 11, color: MUTED, marginTop: rs(2) }} numberOfLines={1}>
+                  Manage your profile, shop and preferences
+                </Text>
+              </View>
+              <View
+                className="flex-row items-center rounded-full"
+                style={{ paddingHorizontal: rs(11), paddingVertical: rs(6), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: G }}
+              >
                 {isShopLogin
-                  ? <Store size={11} color={PINE} strokeWidth={ICON_STROKE} />
-                  : <Crown size={11} color={PINE} strokeWidth={ICON_STROKE} />}
-                <Text
-                  className="ml-1 text-text text-[10.5px] font-extrabold"
-                  style={{ letterSpacing: 0.6 }}
-                >
+                  ? <Store size={rf(12)} color={G} strokeWidth={ICON_STROKE} />
+                  : <Crown size={rf(12)} color={G} strokeWidth={ICON_STROKE} />}
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: G, marginLeft: rs(5), letterSpacing: 0.5 }}>
                   {isShopLogin ? 'SHOP' : 'OWNER'}
                 </Text>
               </View>
             </View>
-            <Text className="mt-1 text-[12.5px] font-medium text-gray-500" numberOfLines={1}>
-              Manage your profile, shop and preferences
-            </Text>
           </View>
         </View>
       </SafeAreaView>
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: rs(14), paddingBottom: 28, paddingTop: 14 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={capStyle}>
-        {/* Identity card */}
-        <View
-          className="bg-white rounded-3xl p-4"
-          style={cardShadow}
-        >
-          <Pressable
-            onPress={() => navigation?.navigate?.(isShopLogin ? 'OwnerShopInfo' : 'OwnerPersonalInfo')}
+        {/* ONE card: profile row, divider, active-shop row — no box inside a box. */}
+        <View style={{ backgroundColor: '#FFFFFF', borderRadius: rs(20), borderWidth: 1, borderColor: LIGHT, ...softShadow }}>
+          <View
             className="flex-row items-center"
+            style={{ paddingHorizontal: rs(12), paddingVertical: rs(12) }}
           >
-            <View style={{ position: 'relative' }}>
+            {/* Avatar pinned top-left (lines up with the name), not centred
+                against the taller details column. */}
+            <View style={{ position: 'relative', alignSelf: 'flex-start' }}>
               <View
                 style={{
-                  padding: 3,
-                  borderRadius: rs(36),
-                  backgroundColor: '#FFFFFF',
-                  borderWidth: 2,
-                  borderColor: '#E6F7E3',
+                  width: rs(54), height: rs(54), borderRadius: rs(27),
+                  backgroundColor: G,
+                  alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden',
+                  borderWidth: 2, borderColor: G_LIGHT,
                 }}
               >
-                <View
-                  style={{
-                    width: rs(56),
-                    height: rs(56),
-                    borderRadius: rs(28),
-                    backgroundColor: BRAND_GREEN_DARK,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {displayAvatar ? (
-                    <Image
-                      source={{ uri: displayAvatar }}
-                      style={{ width: rs(56), height: rs(56), borderRadius: rs(28) }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text
-                      className="text-white font-extrabold"
-                      style={{ fontSize: 19, letterSpacing: 1 }}
-                    >
-                      {initials}
-                    </Text>
-                  )}
-                </View>
+                {displayAvatar ? (
+                  <Image source={{ uri: displayAvatar }} style={{ width: rs(54), height: rs(54) }} resizeMode="cover" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15, letterSpacing: 1 }}>{initials}</Text>
+                )}
               </View>
-              {/* Camera badge — the whole row now navigates to profile/photo
-                  editing, this is just the visual affordance for it. */}
               <View
                 style={{
-                  position: 'absolute', right: -1, bottom: -1,
-                  width: rs(22), height: rs(22), borderRadius: rs(11),
-                  backgroundColor: BRAND_GREEN_DARK,
+                  position: 'absolute', right: -rs(1), bottom: -rs(1),
+                  width: rs(18), height: rs(18), borderRadius: rs(9),
+                  backgroundColor: G,
                   alignItems: 'center', justifyContent: 'center',
                   borderWidth: 2, borderColor: '#FFFFFF',
                 }}
               >
-                <Camera size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
+                <Camera size={rf(9)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
               </View>
             </View>
-            <View className="flex-1 ml-3">
+            <View className="flex-1" style={{ marginLeft: rs(12) }}>
               <View className="flex-row items-center flex-wrap">
-                <Text className="text-[16px] font-extrabold text-gray-900 mr-2" numberOfLines={1}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: DARK, marginRight: rs(6) }} numberOfLines={1}>
                   {displayName}
                 </Text>
                 {isVerified ? (
-                  <View
-                    className="flex-row items-center px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: '#E6F7E3' }}
-                  >
-                    <BadgeCheck size={10} color={PINE} strokeWidth={ICON_STROKE} />
-                    <Text
-                      className="ml-0.5 text-[8.5px] font-extrabold"
-                      style={{ color: BRAND_GREEN_DARK, letterSpacing: 0.4 }}
-                    >
-                      VERIFIED
-                    </Text>
+                  <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: rs(6), paddingVertical: rs(2), backgroundColor: G_LIGHT }}>
+                    <BadgeCheck size={rf(10)} color={G} strokeWidth={ICON_STROKE} />
+                    <Text style={{ fontSize: 8.5, fontWeight: '800', color: G, marginLeft: rs(2), letterSpacing: 0.4 }}>VERIFIED</Text>
                   </View>
                 ) : null}
               </View>
               {displayPhone ? (
-                <View className="flex-row items-center mt-1.5">
-                  <Phone size={11} color="#667066" strokeWidth={ICON_STROKE} />
-                  <Text className="ml-1 text-[12px] font-semibold text-gray-500" numberOfLines={1}>
-                    {displayPhone}
-                  </Text>
+                <View className="flex-row items-center" style={{ marginTop: rs(3) }}>
+                  <Phone size={rf(10)} color={MUTED} strokeWidth={ICON_STROKE} />
+                  <Text style={{ fontSize: 11, color: MUTED, marginLeft: rs(5) }} numberOfLines={1}>{displayPhone}</Text>
                 </View>
               ) : null}
               {displayEmail ? (
-                <View className="flex-row items-center mt-1">
-                  <Mail size={11} color="#667066" strokeWidth={ICON_STROKE} />
-                  <Text className="ml-1 text-[12px] font-semibold text-gray-500" numberOfLines={1}>
-                    {displayEmail}
-                  </Text>
+                <View className="flex-row items-center" style={{ marginTop: rs(1) }}>
+                  <Mail size={rf(10)} color={MUTED} strokeWidth={ICON_STROKE} />
+                  <Text style={{ fontSize: 11, color: MUTED, marginLeft: rs(5) }} numberOfLines={1}>{displayEmail}</Text>
+                </View>
+              ) : null}
+              {!isShopLogin ? (
+                <View className="flex-row items-center" style={{ marginTop: rs(5) }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: G }} numberOfLines={1}>
+                      {shopName || 'No shop linked'}
+                    </Text>
+                    {shopSlug ? (
+                      <Text style={{ fontSize: 10.5, color: MUTED }} numberOfLines={1}>
+                        Shop ID: #{shopSlug.toUpperCase()}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {/* Shop icon beside the shop name, "Switch" under it — the card's
+                      only tap target; opens Switch Shop. */}
+                  {canOpenSwitcher ? (
+                    <Pressable
+                      onPress={() => setShowSwitcher(true)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Switch shop"
+                      style={{ alignItems: 'center', marginLeft: rs(8) }}
+                    >
+                      <View style={{ width: rs(38), height: rs(38), borderRadius: rs(19), backgroundColor: G_LIGHT, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="storefront" size={rf(18)} color={G} />
+                      </View>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: G, marginTop: rs(2) }}>Switch</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
             </View>
-            <ChevronRight size={18} color="#8FA08F" strokeWidth={ICON_STROKE} />
-          </Pressable>
+          </View>
 
-          {/* Active shop pill — hidden for shop-scoped logins (single shop) */}
-          {!isShopLogin ? (
-          <Pressable
-            onPress={() => canOpenSwitcher && setShowSwitcher(true)}
-            disabled={!canOpenSwitcher}
-            className="mt-3.5 flex-row items-center rounded-2xl px-3 py-2.5"
-            style={{
-              backgroundColor: canOpenSwitcher ? '#F0F8EF' : '#F7FAF7',
-              borderWidth: 1,
-              borderColor: canOpenSwitcher ? '#C8EEBF' : '#E2E8E2',
-            }}
-          >
-            <View
-              style={{
-                width: rs(32), height: rs(32), borderRadius: rs(10),
-                backgroundColor: '#FFFFFF',
-                alignItems: 'center', justifyContent: 'center',
-                marginRight: 10,
-                borderWidth: 1, borderColor: '#C8EEBF',
-              }}
-            >
-              <Store size={14} color={PINE} strokeWidth={ICON_STROKE} />
-            </View>
-            <View className="flex-1">
-              <Text
-                className="text-[9.5px] font-extrabold"
-                style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-              >
-                ACTIVE SHOP
-              </Text>
-              <Text className="text-[13.5px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
-                {shopName || 'No shop linked'}
-              </Text>
-              {shopSlug ? (
-                <Text className="text-[10.5px] font-semibold text-gray-500 mt-0.5" numberOfLines={1}>
-                  Shop ID: #{shopSlug.toUpperCase()}
-                </Text>
-              ) : null}
-            </View>
-            {hasMultipleShops ? (
-              <View
-                className="flex-row items-center px-2.5 py-1.5 rounded-full"
-                style={{ backgroundColor: BRAND_GREEN_DARK }}
-              >
-                <ArrowLeftRight size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="ml-1 text-white text-[10.5px] font-extrabold">
-                  Switch ({shops.length})
-                </Text>
-              </View>
-            ) : canAddShop ? (
-              // One shop and nothing to switch between — the pill still opens
-              // the sheet, so it advertises what it actually does from here.
-              <View
-                className="flex-row items-center px-2.5 py-1.5 rounded-full"
-                style={{ backgroundColor: BRAND_GREEN_DARK }}
-              >
-                <Plus size={11} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-                <Text className="ml-1 text-white text-[10.5px] font-extrabold">
-                  Add Shop
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-          ) : null}
         </View>
 
-        {/* My Profile group */}
-        <SectionLabel subtitle="Manage your personal and shop details">My Profile</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
-          {!isShopLogin ? (
-            <MenuRow
-              tone="green"
-              Icon={User}
-              label="Personal Information"
-              sub="Name, mobile, email"
-              onPress={() => navigation?.navigate?.('OwnerPersonalInfo')}
-            />
-          ) : null}
-          <MenuRow
-            tone="amber"
-            Icon={Crown}
-            label="Subscription"
-            sub={isShopLogin ? 'View current plan' : 'View your plan & upgrade'}
-            onPress={() => navigation?.navigate?.('OwnerSubscription')}
-          />
-          <MenuRow
-            tone="blue"
-            Icon={QrCode}
-            label="My QR Code"
-            sub="Share your shop instantly"
-            onPress={() => navigation?.navigate?.('OwnerQrCode')}
-          />
-          <MenuRow
-            tone="green"
-            Icon={Store}
-            label="Shop Information"
-            sub="Address, opening hours, GST"
-            onPress={() => navigation?.navigate?.('OwnerShopInfo')}
-          />
-          {!isShopLogin ? (
-            <MenuRow
-              tone="purple"
-              Icon={FileText}
-              label="KYC Documents"
-              sub="Aadhar, PAN, GST / Udyam"
-              onPress={() => navigation?.navigate?.(hasKycDocs ? 'OwnerKycView' : 'OwnerKycIntro')}
-            />
-          ) : null}
-          <MenuRow
-            tone="orange"
-            Icon={Truck}
-            label="Pickup Service"
-            sub="Turn pickup on/off, slot timings & zones"
-            onPress={() => navigation?.navigate?.('OwnerPickupSlots')}
-          />
-          <MenuRow
-            tone="blue"
-            Icon={ShoppingBag}
-            label="My Orders"
-            sub="View your orders & history"
-            onPress={() => navigation?.navigate?.('MarketplaceOrders')}
-          />
-          <MenuRow
-            tone="pink"
-            Icon={Users}
-            label="Employee Management"
-            sub="Add, edit & track your team"
-            onPress={() => navigation?.navigate?.('OwnerEmployeeList')}
-          />
-          <MenuRow
-            tone="green"
-            Icon={CalendarClock}
-            label="Leave Requests"
-            sub="Approve or reject leave"
-            onPress={() => navigation?.navigate?.('OwnerLeaveRequests')}
-            last
-          />
+        <SectionLabel subtitle="Manage your personal and shop details" count={profileRows.length}>
+          My Profile
+        </SectionLabel>
+        <View style={LIST_STYLE}>
+          {profileRows.map(({ key, ...row }, i) => (
+            <MenuRow key={key} {...row} last={i === profileRows.length - 1} />
+          ))}
         </View>
 
-        {/* Security group */}
+        <SectionLabel subtitle="Orders, team and time off">More Tools</SectionLabel>
+        <View style={LIST_STYLE}>
+          {moreToolsRows.map(({ key, ...row }, i) => (
+            <MenuRow key={key} {...row} last={i === moreToolsRows.length - 1} />
+          ))}
+        </View>
+
         <SectionLabel subtitle="Keep your account safe and secure">Security</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
+        <View style={LIST_STYLE}>
           <AppLockRow />
         </View>
 
-        {/* More group */}
         <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
-        <View className="bg-white rounded-2xl px-3 mt-1" style={softShadow}>
-          <MenuRow
-            tone="blue"
-            Icon={ScrollText}
-            label="Terms & Conditions"
-            sub="Platform usage rules"
-          />
-          <MenuRow
-            tone="green"
-            Icon={ShieldCheck}
-            label="Privacy Policy"
-            sub="How we handle your data"
-          />
-          <MenuRow
-            tone="purple"
-            Icon={HelpCircle}
-            label="FAQs"
-            sub="Common questions answered"
-          />
-          <MenuRow
-            tone="orange"
-            Icon={Headphones}
-            label="Help & Support"
-            sub="Talk to the GGfix team"
-            last
-          />
+        <View style={LIST_STYLE}>
+          <MenuRow tone="blue" Icon={SOLID.terms} label="Terms & Conditions" sub="Platform usage rules" />
+          <MenuRow tone="green" Icon={SOLID.privacy} label="Privacy Policy" sub="How we handle your data" />
+          <MenuRow tone="purple" Icon={SOLID.faq} label="FAQs" sub="Common questions answered" />
+          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the GGfix team" last />
         </View>
 
-        {/* Logout */}
         {onLogout ? (
           <Pressable
             onPress={onLogout}
-            className="mt-4 flex-row items-center justify-center rounded-2xl py-3.5"
-            style={{
-              backgroundColor: '#FDECEE',
-              borderWidth: 1,
-              borderColor: '#F8C9CF',
-            }}
+            className="flex-row items-center"
+            hitSlop={4}
+            style={{ ...ROW_STYLE, marginTop: rs(6) }}
           >
-            <LogOut size={16} color={DANGER} strokeWidth={ICON_STROKE} />
-            <Text className="ml-2 text-[14px] font-extrabold" style={{ color: DANGER }}>
-              Log Out
-            </Text>
+            <View style={{ ...ICON_TILE, backgroundColor: '#FDEEEE' }}>
+              <LogOut size={rf(18)} color={DANGER} strokeWidth={ICON_STROKE} />
+            </View>
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: DANGER }}>Log Out</Text>
           </Pressable>
         ) : null}
 
         {/* Trust footer — reassurance only, no state or navigation. */}
-        <View
-          className="flex-row items-center rounded-2xl mt-3 p-3.5"
-          style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#DCEFD8' }}
-        >
-          <View
-            style={{
-              width: rs(34), height: rs(34), borderRadius: rs(17),
-              backgroundColor: BRAND_GREEN_DARK,
-              alignItems: 'center', justifyContent: 'center',
-              marginRight: 10,
-            }}
-          >
-            <ShieldCheck size={16} color="#FFFFFF" strokeWidth={ICON_STROKE} />
-          </View>
-          <View className="flex-1">
-            <Text className="text-[12.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-              Your data is safe with us
-            </Text>
-            <Text className="text-[11px] text-gray-500 mt-0.5">
-              We follow industry-standard security practices to protect your information.
-            </Text>
-          </View>
+        <View className="flex-row items-center" style={{ borderRadius: rs(14), marginTop: rs(8), padding: rs(11), backgroundColor: G_LIGHT }}>
+          <ShieldCheck size={rf(16)} color={G} strokeWidth={ICON_STROKE} />
+          <Text style={{ flex: 1, fontSize: 11, color: DARK, marginLeft: rs(8), lineHeight: rf(15) }}>
+            Your data is safe with us — we follow industry-standard security practices.
+          </Text>
         </View>
         </View>
       </ScrollView>
 
-      {/* Shop switcher modal */}
-      <Modal
-        visible={showSwitcher}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSwitcher(false)}
-      >
-        <Pressable
-          onPress={() => setShowSwitcher(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.55)', justifyContent: 'flex-end' }}
-        >
+      {/* Switch Shop bottom sheet — real shops from the session, existing switch/add logic. */}
+      <Modal visible={showSwitcher} transparent animationType="fade" onRequestClose={() => setShowSwitcher(false)}>
+        <Pressable onPress={() => setShowSwitcher(false)} style={{ flex: 1, backgroundColor: 'rgba(16, 24, 20, 0.5)', justifyContent: 'flex-end' }}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: 26,
-              borderTopRightRadius: 26,
-              paddingHorizontal: 16,
-              paddingTop: 10,
-              paddingBottom: 28,
-            }}
+            style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28 }}
           >
-            <View
-              style={{
-                alignSelf: 'center', width: 44, height: 5,
-                borderRadius: 999, backgroundColor: '#E2E8E2',
-                marginBottom: 12,
-              }}
-            />
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-[17px] font-extrabold text-gray-900">Switch Shop</Text>
-              <Pressable
-                onPress={() => setShowSwitcher(false)}
-                hitSlop={8}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
-              >
-                <X size={14} color="#172117" strokeWidth={ICON_STROKE} />
+            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: LIGHT, marginBottom: 12 }} />
+            <View className="flex-row items-center justify-between">
+              <Text style={{ fontSize: 17, fontWeight: '700', fontFamily: SERIF, color: DARK }}>Switch Shop</Text>
+              <Pressable onPress={() => setShowSwitcher(false)} hitSlop={8} className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: LIGHT }}>
+                <X size={14} color={DARK} strokeWidth={ICON_STROKE} />
               </Pressable>
             </View>
-            <Text className="text-[12px] text-gray-500 mb-3">
-              {canAddShop
-                ? 'Choose which of your shops to manage, or add a new one.'
-                : 'Choose which of your shops to manage.'}
-            </Text>
-            {/* Capped and scrollable: the list grows every time Add Shop is
-                used, and an un-scrolled sheet pushes the Add Shop row itself
-                off the bottom of the screen once an owner has a handful. */}
-            <ScrollView
-              style={{ maxHeight: 340 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-            {shops.map((s) => {
-              const active = s.id === user?.shopId;
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => handleSwitch(s.id)}
-                  disabled={switching || active}
-                  className="flex-row items-center rounded-2xl border mb-2"
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
-                    borderColor: active ? BRAND_GREEN : '#E2E8E2',
-                  }}
-                >
-                  <View
-                    className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                    style={{ backgroundColor: active ? BRAND_GREEN : '#E6F7E3' }}
+            <Text style={{ fontSize: 12, color: MUTED, marginTop: 2, marginBottom: 12 }}>Choose the shop you want to manage</Text>
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {shops.map((s) => {
+                const active = s.id === user?.shopId;
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => handleSwitch(s.id)}
+                    disabled={switching || active}
+                    className="flex-row items-center"
+                    style={{ ...ROW_STYLE, borderColor: active ? G : LIGHT, backgroundColor: active ? G_LIGHT : '#FFFFFF' }}
                   >
-                    <Store size={16} color={active ? '#FFFFFF' : PINE} strokeWidth={ICON_STROKE} />
-                  </View>
-                  <View className="flex-1">
-                    <Text
-                      className="text-[14px] font-extrabold"
-                      style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
-                      numberOfLines={1}
-                    >
-                      {s.name}
-                    </Text>
-                    <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
-                      {s.slug}
-                    </Text>
-                  </View>
-                  {active ? (
-                    <View
-                      className="w-7 h-7 rounded-full items-center justify-center"
-                      style={{ backgroundColor: '#E6F7E3' }}
-                    >
-                      <Check size={16} color={PINE} strokeWidth={ICON_STROKE} />
+                    <View style={{ ...ICON_TILE, backgroundColor: active ? G : G_LIGHT }}>
+                      <Ionicons name="storefront" size={rf(18)} color={active ? '#FFFFFF' : G} />
                     </View>
-                  ) : (
-                    <ChevronRight size={16} color="#8FA08F" strokeWidth={ICON_STROKE} />
-                  )}
-                </Pressable>
-              );
-            })}
-            {/* Add Shop closes the list: it is the one row that doesn't switch
-                anything, so it sits below every shop with a dashed border to
-                read as an action rather than another shop to pick. */}
-            {canAddShop ? (
-              <Pressable
-                onPress={handleAddShop}
-                disabled={switching}
-                className="flex-row items-center rounded-2xl border mb-2"
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  backgroundColor: '#FFFFFF',
-                  borderColor: '#C8EEBF',
-                  borderStyle: 'dashed',
-                  opacity: switching ? 0.5 : 1,
-                }}
-              >
-                <View
-                  className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                  style={{ backgroundColor: '#E6F7E3' }}
+                    <View className="flex-1">
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: DARK }} numberOfLines={1}>{s.name}</Text>
+                      {s.slug ? (
+                        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Shop ID: #{String(s.slug).toUpperCase()}</Text>
+                      ) : null}
+                    </View>
+                    {active ? (
+                      <View style={{ backgroundColor: G, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>ACTIVE</Text>
+                      </View>
+                    ) : (
+                      <ChevronRight size={16} color={MUTED} strokeWidth={ICON_STROKE} />
+                    )}
+                  </Pressable>
+                );
+              })}
+              {canAddShop ? (
+                <Pressable
+                  onPress={handleAddShop}
+                  disabled={switching}
+                  className="flex-row items-center justify-center"
+                  style={{ marginTop: 4, borderRadius: 14, paddingVertical: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: G, opacity: switching ? 0.5 : 1 }}
                 >
-                  <Plus size={16} color={PINE} strokeWidth={ICON_STROKE} />
-                </View>
-                <View className="flex-1">
-                  <Text
-                    className="text-[14px] font-extrabold"
-                    style={{ color: BRAND_GREEN_DARK }}
-                    numberOfLines={1}
-                  >
-                    Add Shop
-                  </Text>
-                  <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
-                    Open another business location
-                  </Text>
-                </View>
-                <ChevronRight size={16} color={PINE} strokeWidth={ICON_STROKE} />
-              </Pressable>
-            ) : null}
+                  <Plus size={16} color={G} strokeWidth={ICON_STROKE} />
+                  <Text style={{ color: G, fontWeight: '800', fontSize: 13, marginLeft: 6 }}>Add New Shop</Text>
+                </Pressable>
+              ) : null}
             </ScrollView>
             {switching ? (
               <View className="flex-row items-center justify-center mt-2">
-                <ActivityIndicator color={BRAND_GREEN_DARK} />
-                <Text className="ml-2 text-[12px] text-gray-500">Switching…</Text>
+                <ActivityIndicator color={G} />
+                <Text className="ml-2 text-[12px]" style={{ color: MUTED }}>Switching…</Text>
               </View>
             ) : null}
           </Pressable>
@@ -742,12 +586,56 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   );
 }
 
-function SectionLabel({ children, subtitle }) {
+// One white list per section; rows inside are flat and divider-separated.
+const LIST_STYLE = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: rs(16),
+  borderWidth: 1,
+  borderColor: LIGHT,
+  paddingHorizontal: rs(12),
+};
+// Flat list row (reference listing style): no box, thin divider underneath.
+const LIST_ROW = {
+  minHeight: rs(64),
+  paddingVertical: rs(11),
+};
+
+// Compact single-line row (Airtel-style list), shared by every list item.
+const ROW_STYLE = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: rs(14),
+  borderWidth: 1,
+  borderColor: LIGHT,
+  paddingHorizontal: rs(12),
+  minHeight: rs(60),
+  paddingVertical: rs(9),
+  marginBottom: rs(7),
+  shadowColor: '#000000',
+  shadowOpacity: 0.03,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 1,
+};
+const ICON_TILE = {
+  width: rs(36), height: rs(36), borderRadius: rs(10),
+  backgroundColor: G_LIGHT,
+  alignItems: 'center', justifyContent: 'center',
+  marginRight: rs(11),
+};
+
+function SectionLabel({ children, subtitle, count }) {
   return (
-    <View className="mt-5 mb-2 px-1">
-      <Text className="text-[16px] font-extrabold text-gray-900">{children}</Text>
-      {subtitle ? (
-        <Text className="mt-0.5 text-[12px] text-gray-500">{subtitle}</Text>
+    <View className="flex-row items-center" style={{ marginTop: rs(16), marginBottom: rs(8) }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', fontFamily: SERIF, color: DARK }}>{children}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
+      </View>
+      {typeof count === 'number' ? (
+        <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: G_LIGHT }}>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: G }}>
+            {count} Option{count === 1 ? '' : 's'}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -768,65 +656,63 @@ function AppLockRow() {
     await setAppLockEnabled(next);
     setOn(next);
   };
-  const tone = TONE.blue;
   return (
-    <View className="flex-row items-center px-3 py-3.5">
-      <View
-        style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: tone.bg }}
-        className="items-center justify-center mr-3"
-      >
-        <Fingerprint size={18} color={tone.fg} strokeWidth={ICON_STROKE} />
+    <View className="flex-row items-center" style={LIST_ROW}>
+      <View style={{ ...ICON_TILE, backgroundColor: TONE.blue.dark }}>
+        <Ionicons name="lock-closed" size={rf(18)} color="#FFFFFF" />
       </View>
       <View className="flex-1">
-        <Text className="text-[14px] font-extrabold text-gray-900">App Lock</Text>
-        <Text className="text-[11.5px] text-gray-500 mt-0.5">Require fingerprint / pattern / PIN to open</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: DARK }}>App Lock</Text>
+        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Require fingerprint / pattern / PIN to open</Text>
       </View>
       <Switch
         value={on}
         onValueChange={toggle}
         disabled={!ready}
-        trackColor={{ true: ACCENT_GREEN, false: '#CBD5CB' }}
+        trackColor={{ true: G, false: LIGHT }}
         thumbColor="#FFFFFF"
+        ios_backgroundColor={LIGHT}
       />
     </View>
   );
 }
 
-// Each row picks a tone NAME from the shared TONE palette above instead of an
-// ad-hoc colour pair, so the colour-coding (green/amber/blue/purple/orange/
-// pink) stays centralised and can't drift call-site by call-site.
-function MenuRow({ Icon, label, sub, onPress, last, tone = 'green' }) {
+// Solid glyphs for the menu rows — green on a very light green tile.
+const SOLID = {
+  personal: ion('person'),
+  subscription: mci('crown'),
+  qr: ion('qr-code'),
+  shop: ion('storefront'),
+  kyc: ion('document-text'),
+  pickup: mci('truck'),
+  orders: ion('bag-handle'),
+  employees: ion('people'),
+  leave: mci('calendar-clock'),
+  terms: mci('script-text'),
+  privacy: mci('shield-check'),
+  faq: ion('help-circle'),
+  support: ion('headset'),
+};
+
+// One list row: [medium-colour tile + white icon] Title / subtitle, with a thin
+// divider under every row except the section's last.
+function MenuRow({ Icon, label, sub, onPress, tone = 'green', last }) {
   const t = TONE[tone] || TONE.green;
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: '#F7FAF7' }}
+      android_ripple={{ color: LIGHT }}
       className="flex-row items-center"
-      style={{
-        paddingVertical: 11,
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: '#EFF5EE',
-      }}
+      hitSlop={2}
+      style={{ ...LIST_ROW, borderBottomWidth: last ? 0 : 1, borderBottomColor: LIGHT }}
     >
-      <View
-        style={{
-          width: rs(36), height: rs(36), borderRadius: rs(12),
-          backgroundColor: t.bg,
-          alignItems: 'center', justifyContent: 'center',
-          marginRight: 12,
-        }}
-      >
-        <Icon size={17} color={t.fg} strokeWidth={ICON_STROKE} />
+      <View style={{ ...ICON_TILE, backgroundColor: t.dark }}>
+        <Icon size={rf(19)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
       </View>
       <View className="flex-1">
-        <Text className="text-[13.5px] font-extrabold text-gray-900">{label}</Text>
-        {sub ? (
-          <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
-            {sub}
-          </Text>
-        ) : null}
+        <Text style={{ fontSize: 13, fontWeight: '700', color: DARK }} numberOfLines={1}>{label}</Text>
+        {sub ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }} numberOfLines={1}>{sub}</Text> : null}
       </View>
-      <ChevronRight size={16} color="#8FA08F" strokeWidth={ICON_STROKE} />
     </Pressable>
   );
 }

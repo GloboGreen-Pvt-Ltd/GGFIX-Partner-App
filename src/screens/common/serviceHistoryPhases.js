@@ -15,7 +15,7 @@ import { Text, View, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import {
   Truck, Wrench, Play, Pause, Square,
-  ClipboardCheck, Clock, RotateCcw, CheckCircle2,
+  ClipboardCheck, Clock, RotateCcw, CheckCircle2, Check,
 } from 'lucide-react-native';
 
 // Phase keys group the flat status list into the two visual sections the
@@ -28,9 +28,8 @@ const SERVICE = 'SERVICE';
 // Within the SERVICE phase the rows are bucketed again, into the five stages
 // the shop actually reads the job in. Two of them are not sequential: a booking
 // ends EITHER by going out repaired (WORK_PENDING) OR by coming back unrepaired
-// (RETURN_DEVICE), so the renderer lays those two out as a branch — Working
-// Pending on the left, Return Device on the right — and both stay on screen so
-// the shop can see the path not taken.
+// (RETURN_DEVICE). The list renders both, one after the other, each titled with
+// which path it is, so the shop can still see the path not taken.
 const G_ACCEPTED  = 'SERVICE_ACCEPTED';
 const G_PROCESS   = 'IN_PROCESS';
 const G_PENDING   = 'WORK_PENDING';
@@ -54,6 +53,39 @@ const RETURN_TRIGGERS = ['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED', 'RETURN_DE
 // backend's lifecycle guard refuses to move past them — see
 // getCurrentPhaseLabel.
 const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED'];
+
+// The timeline moves ONE step at a time. A row is Done only when its own event
+// exists — a later step never ticks the rows above it — and the shop app can
+// only record a step once the step before it is on the timeline. This is that
+// "step before" for every step the shop app writes; where a fork allows
+// alternatives, any one of the list will do. Steps not listed are written by
+// the technician app or the backend, or are a way out (Repair Cancelled) that
+// can be taken at any point. See stepBlockedBy.
+const MUST_FOLLOW = {
+  RE_ESTIMATED_CONFIRMED:  ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'],
+  CUSTOMER_APPROVED:       ['RE_ESTIMATED_CONFIRMED'],
+  IN_REPAIR:               ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'],
+  QUALITY_CHECK_COMPLETED: ['REPAIR_COMPLETED'],
+  READY:                   ['QUALITY_CHECK_COMPLETED'],
+  // The two ways into Return Device, each the alternative to a repaired-path
+  // step: turning down the re-estimate (vs Customer Approved), or a repair that
+  // was attempted and failed (vs Repair Completed).
+  CUSTOMER_REJECTED:       ['RE_ESTIMATED_CONFIRMED'],
+  REPAIR_NOT_COMPLETED:    ['IN_REPAIR'],
+  RETURN_DELIVERY:         ['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED'],
+  INVOICE_GENERATED:       ['READY', 'RETURN_DELIVERY'],
+  INVOICE_READY:           ['INVOICE_GENERATED'],
+  DELIVERED_PROCESSING:    ['INVOICE_GENERATED'],
+  DELIVERED:               ['DELIVERED_PROCESSING'],
+};
+
+// Forks and ways out, not stages every job walks through — counted in
+// "Step X of Y" only once they have actually happened.
+const ONLY_IF_HAPPENED = new Set(['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED', 'CANCELLED']);
+
+// A step that can't happen once its opposite did: a rejected estimate is never
+// approved, a cancelled job is never delivered.
+const RULED_OUT_BY = { CUSTOMER_APPROVED: 'CUSTOMER_REJECTED', DELIVERED: 'CANCELLED' };
 
 // Canonical 31-row status list. The pickup-phase rows only light up for
 // serviceMode=PICKUP bookings; walk-in bookings carry no PICKUP_* events
@@ -109,14 +141,15 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   // retired by migration 88, which also deleted its history rows — the
   // completed event's timestamp is the record of when the check was done.
   { value: 'QUALITY_CHECK_COMPLETED',                       label: 'Quality Check Completed',               phase: SERVICE, group: G_PENDING },
-  // Handover tail. This is presentation only — the backend LIFECYCLE_ORDER
-  // still advances READY → INVOICE_GENERATED → INVOICE_READY →
-  // DELIVERED_PROCESSING → DELIVERED, and its forward-only guard is what
-  // actually gates transitions. INVOICE_READY stays hidden as a duplicate of
-  // the Invoice Generated step.
+  // Handover tail, in the order the backend LIFECYCLE_ORDER advances it:
+  // READY → INVOICE_GENERATED → INVOICE_READY → DELIVERED_PROCESSING →
+  // DELIVERED. The order matters — the timeline is walked one row at a time,
+  // so Out for Delivery sitting above Invoice Generated would have the shop
+  // tick a row out of order. INVOICE_READY stays hidden as a duplicate of
+  // Invoice Generated.
   { value: 'READY',                                         label: 'Ready for Delivery',                    phase: SERVICE, group: G_PENDING },
-  { value: 'DELIVERED_PROCESSING',                          label: 'Out for Delivery',                      phase: SERVICE, group: G_PENDING },
   { value: 'INVOICE_GENERATED',                             label: 'Invoice Generated',                     phase: SERVICE, group: G_PENDING },
+  { value: 'DELIVERED_PROCESSING',                          label: 'Out for Delivery',                      phase: SERVICE, group: G_PENDING },
   // ── Stage 4 (right branch): Return Device ─────────────────────────────────
   // The unrepaired ending, rendered in red. The last two rows repeat the shared
   // handover tail above — same status codes, own rowId so React keys and the
@@ -124,8 +157,8 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   { value: 'CUSTOMER_REJECTED',                             label: 'Customer Rejected',                     phase: SERVICE, group: G_RETURN },
   { value: 'REPAIR_NOT_COMPLETED',                          label: 'Repair Not Completed',                  phase: SERVICE, group: G_RETURN },
   { value: 'RETURN_DELIVERY',                               label: 'Return Delivery',                       phase: SERVICE, group: G_RETURN },
-  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Out for Delivery',         phase: SERVICE, group: G_RETURN },
   { value: 'INVOICE_GENERATED',     rowId: 'RETURN:INVOICE_GENERATED',    label: 'Invoice Generated',        phase: SERVICE, group: G_RETURN },
+  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Out for Delivery',         phase: SERVICE, group: G_RETURN },
   // ── Stage 5: Completed ────────────────────────────────────────────────────
   { value: 'DELIVERED',                                     label: 'Delivered to Customer',                 phase: SERVICE, group: G_COMPLETED },
   { value: 'CANCELLED',                                     label: 'Repair Cancelled',                      phase: SERVICE, group: G_COMPLETED },
@@ -149,22 +182,50 @@ export function labelForStatus(statusKey) {
   return LABEL_BY_KEY[String(statusKey || '').toUpperCase()] || null;
 }
 
-const SUCCESS = '#16BB05';      // green dot / line for completed steps
-const BRAND_GREEN_DARK = '#087A0A';
-const DOT_BORDER = '#CBD5CB';   // gray ring around upcoming steps
-const LINE_PENDING = '#E2E8E2'; // connector between unreached steps
-const DANGER = '#DC2626';       // Return Device branch — dots, rail and header
-const DANGER_TINT = '#FEE2E2';
+/**
+ * The one-by-one gate every shop-side status action checks before it writes.
+ * Returns null when `statusKey` can be recorded now, or the label of the step
+ * that has to be on the timeline first ("Repair Completed", "Ready for
+ * Delivery or Return Delivery"). `recorded` is the booking's events, or just
+ * their status keys. A step that is already recorded is never blocked —
+ * re-saving it (a re-generated invoice) moves nothing.
+ */
+export function stepBlockedBy(recorded, statusKey) {
+  const key = String(statusKey || '').toUpperCase();
+  const before = MUST_FOLLOW[key];
+  if (!before) return null;
+  const done = new Set(Array.from(recorded || [], (e) =>
+    String((typeof e === 'string' ? e : e?.status) || '').toUpperCase()));
+  if (done.has(key) || before.some((k) => done.has(k))) return null;
+  return before.map((k) => LABEL_BY_KEY[k] || k).join(' or ');
+}
 
-// Per-stage chrome for the five SERVICE groups. `layout` drives the renderer:
-// 'full' stacks down the page at full width; the two 'branch' stages are laid
-// out side by side in one row, left then right.
+// GGFIX palette — same values used across the rest of the booking flow.
+const ACCENT = '#078F23';       // deep GGFIX green (text)
+const PRIMARY = '#09AD2A';      // GGFIX green
+const MINT = '#EAF8EC';
+const BORDER = '#E6E6E6';
+const DIVIDER = '#F3F3F3';      // hairline between list rows
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const SUCCESS = '#09AD2A';      // dot / tint for completed steps
+const BRAND_GREEN_DARK = ACCENT; // kept as an alias — same constant name used throughout this file's JSX below
+const DOT_BORDER = '#D6D6D6';   // ring around upcoming steps
+const DANGER = '#F84141';       // Return Device path — dots and title
+const DANGER_TINT = '#FEECEC';
+const PENDING_TINT = '#FFF8E1';
+const PENDING_FG = '#8A6A00';
+const UPCOMING_BG = '#F3F3F3';  // neutral "Upcoming" badge
+const UPCOMING_FG = MUTED;
+
+// Per-stage chrome for the five SERVICE groups. `hint` names which ending a
+// branch stage is, since the two now sit one after the other in the list.
 const SERVICE_GROUP_META = {
-  [G_ACCEPTED]:  { title: 'Service Accepted', icon: ClipboardCheck, accent: BRAND_GREEN_DARK, tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
-  [G_PROCESS]:   { title: 'In Process',       icon: Wrench,         accent: '#16BB05',        tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
-  [G_PENDING]:   { title: 'Working Pending',  icon: Clock,          accent: '#B45309',        tint: '#FEF3C7', done: SUCCESS, layout: 'branch' },
-  [G_RETURN]:    { title: 'Return Device',    icon: RotateCcw,      accent: DANGER,           tint: DANGER_TINT, done: DANGER, layout: 'branch' },
-  [G_COMPLETED]: { title: 'Completed',        icon: CheckCircle2,   accent: BRAND_GREEN_DARK, tint: '#E6F7E3', done: SUCCESS, layout: 'full' },
+  [G_ACCEPTED]:  { title: 'Service Accepted', icon: ClipboardCheck, accent: ACCENT,     tint: MINT,         done: SUCCESS },
+  [G_PROCESS]:   { title: 'In Process',       icon: Wrench,         accent: ACCENT,     tint: MINT,         done: SUCCESS },
+  [G_PENDING]:   { title: 'Working Pending',  icon: Clock,          accent: PENDING_FG, tint: PENDING_TINT, done: SUCCESS, hint: 'Repaired path' },
+  [G_RETURN]:    { title: 'Return Device',    icon: RotateCcw,      accent: DANGER,     tint: DANGER_TINT,  done: DANGER,  hint: 'Unrepaired return path' },
+  [G_COMPLETED]: { title: 'Completed',        icon: CheckCircle2,   accent: ACCENT,     tint: MINT,         done: SUCCESS },
 };
 
 const PHASE_META = {
@@ -172,15 +233,15 @@ const PHASE_META = {
     title: 'Pickup Service',
     subtitle: 'Doorstep pickup by our pickup person',
     icon: Truck,
-    tint: '#E6F7E3',
-    accent: '#16BB05',
+    tint: MINT,
+    accent: PRIMARY,
   },
   SERVICE: {
     title: 'Shop Service',
     subtitle: 'Booking + repair lifecycle at the shop',
     icon: Wrench,
-    tint: '#E6F7E3',
-    accent: BRAND_GREEN_DARK,
+    tint: MINT,
+    accent: ACCENT,
   },
 };
 
@@ -189,30 +250,20 @@ function PhaseHeader({ phaseKey, anyDone }) {
   if (!meta) return null;
   const Icon = meta.icon;
   return (
-    <View
-      className="flex-row items-center mb-3 mt-1 rounded-2xl px-3 py-2.5"
-      style={{ backgroundColor: '#EFF5EE', borderWidth: 1, borderColor: '#EFF5EE' }}
-    >
+    <View className="flex-row items-center" style={{ marginBottom: 4 }}>
       <View
-        className="w-9 h-9 rounded-full items-center justify-center mr-2.5"
-        style={{ backgroundColor: meta.tint }}
+        className="items-center justify-center"
+        style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: meta.tint, marginRight: 9 }}
       >
-        <Icon size={16} color={meta.accent} />
+        <Icon size={14} color={meta.accent} />
       </View>
-      <View className="flex-1">
-        <Text className="text-[13px] font-extrabold" style={{ color: meta.accent }}>
-          {meta.title}
-        </Text>
-        <Text className="text-[10.5px] text-gray-500 mt-0.5">{meta.subtitle}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>{meta.title}</Text>
+        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{meta.subtitle}</Text>
       </View>
       {anyDone ? (
-        <View
-          className="px-2.5 py-1 rounded-full"
-          style={{ backgroundColor: meta.tint }}
-        >
-          <Text className="text-[9.5px] font-extrabold" style={{ color: meta.accent }}>
-            STARTED
-          </Text>
+        <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: meta.tint }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: meta.accent }}>STARTED</Text>
         </View>
       ) : null}
     </View>
@@ -220,113 +271,95 @@ function PhaseHeader({ phaseKey, anyDone }) {
 }
 
 /**
- * Header for one of the five SERVICE stages. `compact` is the branch-column
- * variant — same shape, smaller, because two of these sit side by side in
- * roughly half the width on a phone.
+ * Title line for one of the five SERVICE stages — a plain list heading (icon,
+ * title, path hint, done count) underlined, no box around it.
  */
-function StageHeader({ groupKey, compact }) {
+function StageHeader({ groupKey, doneCount, total }) {
   const meta = SERVICE_GROUP_META[groupKey];
   if (!meta) return null;
   const Icon = meta.icon;
-  const box = compact ? 24 : 30;
   return (
     <View
-      className="flex-row items-center rounded-xl"
-      style={{
-        backgroundColor: meta.tint,
-        paddingHorizontal: compact ? 8 : 10,
-        paddingVertical: compact ? 6 : 8,
-        marginBottom: 10,
-      }}
+      className="flex-row items-center"
+      style={{ marginTop: 14, paddingBottom: 7, borderBottomWidth: 1, borderBottomColor: BORDER }}
     >
-      <View
-        style={{
-          width: box, height: box, borderRadius: box / 2,
-          backgroundColor: '#FFFFFF',
-          alignItems: 'center', justifyContent: 'center',
-          marginRight: compact ? 6 : 9,
-        }}
-      >
-        <Icon size={compact ? 12 : 15} color={meta.accent} />
+      <View style={{ width: 3, height: 16, borderRadius: 2, backgroundColor: meta.accent, marginRight: 8 }} />
+      <Icon size={13} color={meta.accent} />
+      <Text style={{ marginLeft: 6, fontSize: 12, fontWeight: '800', color: meta.accent }}>{meta.title}</Text>
+      {meta.hint ? (
+        <Text style={{ marginLeft: 6, fontSize: 10, color: MUTED, flexShrink: 1 }} numberOfLines={1}>· {meta.hint}</Text>
+      ) : null}
+      <View style={{ flex: 1 }} />
+      <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: meta.tint }}>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: meta.accent }}>{doneCount}/{total}</Text>
       </View>
-      <Text
-        className="flex-1 font-extrabold"
-        style={{ color: meta.accent, fontSize: compact ? 11 : 12.5 }}
-        numberOfLines={2}
-      >
-        {meta.title}
-      </Text>
     </View>
   );
 }
 
 /**
- * One step on the rail. Extracted so the full-width stages and the two narrow
- * branch columns render identical rows at two sizes, instead of diverging.
+ * One step as a list row: status dot, label, badge, then — once it happened —
+ * its timestamp, note and media. Rows are split by hairlines; the current step
+ * gets a soft tint so it stands out without a card.
  *
- * `doneColor` is what makes the Return Device branch read red: its dots, its
- * connectors and its NOW badge all take the stage's colour rather than the
- * global green.
+ * `doneColor` is what makes the Return Device path read red: its dots and its
+ * Current badge take the stage's colour rather than the global green.
  */
-function StepRow({ opt, ev, completed, isCurrent, isLast, lineCompleted, doneColor, compact }) {
-  const dot = compact ? 12 : 16;
+function StepRow({ opt, ev, completed, isCurrent, isLast, doneColor }) {
   const danger = doneColor === DANGER;
+  const reached = completed || isCurrent;
   return (
-    <View className="flex-row">
-      <View className="items-center" style={{ width: compact ? 14 : 20, marginRight: compact ? 7 : 12 }}>
-        <View
-          style={{
-            width: dot, height: dot, borderRadius: dot / 2,
-            backgroundColor: completed ? doneColor : '#FFFFFF',
-            borderWidth: completed ? 0 : 2, borderColor: DOT_BORDER,
-            marginTop: 2,
-          }}
-        />
-        {!isLast ? (
-          lineCompleted ? (
-            <View className="flex-1 my-1" style={{ width: 2, backgroundColor: doneColor }} />
-          ) : (
-            <View
-              className="flex-1 my-1"
-              style={{ width: 0, borderLeftWidth: 2, borderStyle: 'dashed', borderColor: LINE_PENDING }}
-            />
-          )
+    <View
+      className="flex-row"
+      style={{
+        paddingVertical: 9,
+        paddingHorizontal: isCurrent ? 8 : 0,
+        marginHorizontal: isCurrent ? -8 : 0,
+        borderRadius: isCurrent ? 10 : 0,
+        backgroundColor: isCurrent ? (danger ? DANGER_TINT : MINT) : 'transparent',
+        borderBottomWidth: isLast || isCurrent ? 0 : 1,
+        borderBottomColor: DIVIDER,
+      }}
+    >
+      <View
+        className="items-center justify-center"
+        style={{
+          width: 20, height: 20, borderRadius: 10, marginTop: 1, marginRight: 10,
+          backgroundColor: completed ? doneColor : '#FFFFFF',
+          borderWidth: completed ? 0 : (isCurrent ? 2 : 1.5),
+          borderColor: completed ? 'transparent' : (isCurrent ? doneColor : DOT_BORDER),
+        }}
+      >
+        {completed ? (
+          <Check size={11} color="#FFFFFF" strokeWidth={3} />
+        ) : isCurrent ? (
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: doneColor }} />
         ) : null}
       </View>
-      <View className="flex-1" style={{ paddingBottom: compact ? 12 : 16 }}>
-        <View className="flex-row items-start justify-between">
-          <Text
-            className={`flex-1 pr-1 ${completed ? 'font-extrabold text-text' : 'font-bold text-text-muted'}`}
-            style={{ fontSize: compact ? 11.5 : 13 }}
-          >
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View className="flex-row items-start">
+          <Text style={{ flex: 1, paddingRight: 6, fontSize: 12, fontWeight: reached ? '800' : '600', color: reached ? INK : MUTED }}>
             {opt.label}
           </Text>
           {isCurrent ? (
-            <View
-              className="rounded-full ml-1"
-              style={{
-                backgroundColor: danger ? DANGER_TINT : '#E6F7E3',
-                paddingHorizontal: 7, paddingVertical: 1.5,
-              }}
-            >
-              <Text
-                className="font-extrabold"
-                style={{ color: danger ? DANGER : BRAND_GREEN_DARK, fontSize: 9 }}
-              >
-                NEW
-              </Text>
+            <View style={{ backgroundColor: doneColor, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>Current</Text>
             </View>
-          ) : null}
+          ) : completed ? (
+            <View style={{ backgroundColor: danger ? DANGER_TINT : MINT, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 }}>
+              <Text style={{ color: danger ? DANGER : ACCENT, fontSize: 9, fontWeight: '800' }}>Done</Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: UPCOMING_BG, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 }}>
+              <Text style={{ color: UPCOMING_FG, fontSize: 9, fontWeight: '800' }}>Upcoming</Text>
+            </View>
+          )}
         </View>
         {ev?.createdAt ? (
-          <Text className="text-text-muted mt-1" style={{ fontSize: compact ? 9.5 : 10 }}>
-            {fmt(ev.createdAt)}
-          </Text>
+          <Text style={{ color: MUTED, marginTop: 2, fontSize: 11 }}>{fmt(ev.createdAt)}</Text>
         ) : null}
         {ev?.note && ev.note !== opt.label ? (
-          <Text className="text-text mt-0.5" style={{ fontSize: compact ? 10 : 11 }}>
-            {ev.note}
-          </Text>
+          <Text style={{ color: INK, marginTop: 2, fontSize: 11 }}>{ev.note}</Text>
         ) : null}
         <EventMedia audioUrl={ev?.audioUrl} imageUrls={ev?.imageUrls} />
       </View>
@@ -334,31 +367,7 @@ function StepRow({ opt, ev, completed, isCurrent, isLast, lineCompleted, doneCol
   );
 }
 
-/**
- * The split above the two branch columns, and the join below them. Drawn from
- * plain views rather than SVG: the crossbar runs from the centre of the left
- * column (25% of the row) to the centre of the right one (75%), so the legs
- * land on each column's rail whatever the screen width.
- */
-function BranchFork({ merge }) {
-  const stem = <View style={{ width: 2, height: 9, backgroundColor: LINE_PENDING }} />;
-  const legs = (
-    <View className="flex-row">
-      <View className="flex-1 items-center">{stem}</View>
-      <View className="flex-1 items-center">{stem}</View>
-    </View>
-  );
-  const bar = <View style={{ height: 2, backgroundColor: LINE_PENDING, marginHorizontal: '25%' }} />;
-  return (
-    <View style={merge ? { marginTop: 2, marginBottom: 10 } : { marginBottom: 10 }}>
-      {merge ? legs : <View className="items-center">{stem}</View>}
-      {bar}
-      {merge ? <View className="items-center">{stem}</View> : legs}
-    </View>
-  );
-}
-
-const PLAYER_GREEN = '#087A0A';
+const PLAYER_GREEN = '#09AD2A';
 const fmtClock = (seconds) => {
   const s = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -450,7 +459,7 @@ function EventMedia({ audioUrl, imageUrls }) {
       {hasAudio ? (
         <View
           className="rounded-xl px-3 py-2.5 flex-row items-center"
-          style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#F7FAF7' }}
+          style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: '#F8F8F8' }}
         >
           <TouchableOpacity
             onPress={togglePlay}
@@ -462,22 +471,22 @@ function EventMedia({ audioUrl, imageUrls }) {
           <TouchableOpacity
             onPress={stop}
             className="w-8 h-8 rounded-full items-center justify-center mr-2"
-            style={{ borderWidth: 1, borderColor: '#CBD5CB', backgroundColor: '#FFFFFF' }}
+            style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: '#FFFFFF' }}
           >
-            <Square size={11} color="#667066" fill="#667066" />
+            <Square size={11} color={MUTED} fill={MUTED} />
           </TouchableOpacity>
           <View className="flex-1">
-            <View style={{ height: 4, borderRadius: 2, backgroundColor: '#E2E8E2' }}>
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: BORDER }}>
               <View style={{ height: 4, borderRadius: 2, width: `${pct * 100}%`, backgroundColor: PLAYER_GREEN }} />
             </View>
-            <Text className="text-[10px] text-gray-500 mt-1">{fmtClock(pos)} / {fmtClock(dur)}</Text>
+            <Text style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>{fmtClock(pos)} / {fmtClock(dur)}</Text>
           </View>
           <TouchableOpacity
             onPress={cycleRate}
             className="ml-2 px-2.5 py-1.5 rounded-full"
-            style={{ backgroundColor: '#EFF5EE', borderWidth: 1, borderColor: '#E2E8E2' }}
+            style={{ backgroundColor: MINT, borderWidth: 1, borderColor: BORDER }}
           >
-            <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{rate}x</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_GREEN_DARK }}>{rate}x</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -508,19 +517,10 @@ function fmt(v) {
   });
 }
 
-/**
- * Render the shop-side booking timeline.
- *
- * Caller passes the events list ({ status, note, createdAt, actor }) and the
- * booking's current macro-status. A row lights up when a matching event exists;
- * the most-recent one gets the "NEW" badge.
- *
- * The SERVICE phase renders as five stages rather than one flat rail. Working
- * Pending and Return Device are the two possible endings, so they sit side by
- * side — left and right of a fork — and both are always drawn, greyed out until
- * reached, so the shop can see which way the job went and which way it didn't.
- */
-export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
+// Shared by ServiceHistoryTimeline and getServiceProgress below — one place
+// that decides which rows apply and which of them are completed, so the rail
+// and the "Step X / Y" summary can never disagree.
+function computeRowCompletion(events, phaseFilter) {
   // Index events by status key. Keep the FIRST occurrence so the displayed
   // timestamp is when that state was entered, not when it was re-emitted.
   const eventByStatus = {};
@@ -542,6 +542,8 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
   // so it must only light up on the side that applies — otherwise a plain
   // repaired job shows a green "Out for Delivery" sitting under Return Device.
   const returnPathActive = RETURN_TRIGGERS.some((k) => !!eventByStatus[k]);
+  // Done = this row's own event exists. Nothing else ticks a row: a later step
+  // never marks the ones above it (see MUST_FOLLOW for how order is kept).
   const rowCompleted = (opt) => {
     if (!eventByStatus[opt.value]) return false;
     if (opt.phase === SERVICE && SHARED_TAIL.has(opt.value)) {
@@ -550,7 +552,51 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
     return true;
   };
 
-  // The "current" step (NEW badge) is the event with the most recent createdAt
+  // Steps that belong to this booking's journey, for the "Step X of Y" count:
+  // the branch it took (Working Pending until a return trigger shows up),
+  // minus forks it didn't take and steps their opposite has ruled out.
+  const applies = (opt) => {
+    if (opt.group === G_RETURN && !returnPathActive) return false;
+    if (opt.group === G_PENDING && returnPathActive) return false;
+    if (ONLY_IF_HAPPENED.has(opt.value)) return rowCompleted(opt);
+    const rival = RULED_OUT_BY[opt.value];
+    return !(rival && eventByStatus[rival]);
+  };
+
+  return { eventByStatus, visibleOptions, returnPathActive, applies, rowCompleted };
+}
+
+/**
+ * A dynamic "Step X / Y" summary for the current-status hero card — X and Y
+ * are always computed from the SAME rowCompleted logic the rail itself uses,
+ * never a fixed number. Y only counts steps that apply to this booking: the
+ * branch it actually took (or Working Pending, the default/common ending,
+ * before either branch is reached), and a fork or way out only once it has
+ * happened — so Y isn't padded with a "Repair Cancelled" the job never needed.
+ */
+export function getServiceProgress(events, phaseFilter) {
+  const { visibleOptions, applies, rowCompleted } = computeRowCompletion(events, phaseFilter);
+  const applicable = visibleOptions.filter(applies);
+  const completed = applicable.filter(rowCompleted).length;
+  return { completed, total: applicable.length };
+}
+
+/**
+ * Render the shop-side booking timeline.
+ *
+ * Caller passes the events list ({ status, note, createdAt, actor }) and the
+ * booking's current macro-status. A row lights up only when its own matching
+ * event exists; the most-recent one gets the "Current" badge.
+ *
+ * The SERVICE phase renders as five stages rather than one flat rail. Working
+ * Pending and Return Device are the two possible endings, so they sit side by
+ * side — left and right of a fork — and both are always drawn, greyed out until
+ * reached, so the shop can see which way the job went and which way it didn't.
+ */
+export function ServiceHistoryTimeline({ events, status, phaseFilter, visibleStageLimit }) {
+  const { eventByStatus, visibleOptions, returnPathActive, rowCompleted } = computeRowCompletion(events, phaseFilter);
+
+  // The "current" step (Current badge) is the event with the most recent createdAt
   // — not the highest fixed-list index — so the latest action the technician
   // took gets the indicator, even when an auto-emitted macro-status event like
   // IN_REPAIR sits further down the list. When that status has a copy under
@@ -594,104 +640,62 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter }) {
     }))
     .filter((s) => s.meta && s.rows.length > 0);
 
-  const renderRows = (rows, doneColor, compact) => {
-    const done = rows.map(rowCompleted);
-    // How far down this rail the booking has actually got. Every connector
-    // above it is drawn solid, so the completed steps read as one continuous
-    // green spine.
-    //
-    // The connector used to be green ONLY when the step on each end of it was
-    // completed, which meant any step the booking legitimately skipped — no
-    // spare parts needed, no re-estimate — broke the spine into fragments and
-    // made finished work look unfinished: a delivered booking showed grey line,
-    // green dot, grey line, green dot all the way down. A skipped step still
-    // gets a hollow dot (it did not happen); what it no longer does is cut the
-    // rail. Below the last completed step the connector stays dashed grey —
-    // those steps have not happened yet, and that is the one thing this rail
-    // must not overstate.
-    let lastDone = -1;
-    done.forEach((isDone, i) => { if (isDone) lastDone = i; });
-    return rows.map((opt, idx) => {
-      const completed = done[idx];
-      return (
-        <StepRow
-          key={rowIdOf(opt)}
-          opt={opt}
-          // Suppress the timestamp/note/media on the branch copy that did not
-          // apply, so an inactive shared-tail row stays visibly empty.
-          ev={completed ? eventByStatus[opt.value] : null}
-          completed={completed}
-          isCurrent={rowIdOf(opt) === currentRowId}
-          isLast={idx === rows.length - 1}
-          lineCompleted={idx < lastDone}
-          doneColor={doneColor}
-          compact={compact}
-        />
-      );
-    });
-  };
-
-  const renderStage = (stage, compact) => (
-    <>
-      <StageHeader groupKey={stage.key} compact={compact} />
-      {renderRows(stage.rows, stage.meta.done, compact)}
-    </>
-  );
-
-  // Walk the stages, collapsing the consecutive 'branch' ones into a single
-  // two-column row wrapped in a fork/merge connector.
-  const blocks = [];
-  for (let i = 0; i < stages.length; i += 1) {
-    if (stages[i].meta.layout !== 'branch') {
-      blocks.push(
-        <View key={stages[i].key} style={{ marginBottom: 6 }}>
-          {renderStage(stages[i], false)}
-        </View>,
-      );
-      continue;
-    }
-    const branch = [];
-    while (i < stages.length && stages[i].meta.layout === 'branch') {
-      branch.push(stages[i]);
-      i += 1;
-    }
-    i -= 1; // the for-loop's own increment steps past the last branch stage
-    blocks.push(
-      <View key={`branch-${branch[0].key}`}>
-        <BranchFork />
-        <View className="flex-row" style={{ gap: 10 }}>
-          {branch.map((b) => (
-            // minWidth 0 lets a long label wrap instead of forcing the column
-            // wider than its half of the row.
-            <View key={b.key} className="flex-1" style={{ minWidth: 0 }}>
-              {renderStage(b, true)}
-            </View>
-          ))}
-        </View>
-        <BranchFork merge />
-      </View>,
+  const renderRows = (rows, doneColor) => rows.map((opt, idx) => {
+    const completed = rowCompleted(opt);
+    return (
+      <StepRow
+        key={rowIdOf(opt)}
+        opt={opt}
+        // Suppress the timestamp/note/media on the branch copy that did not
+        // apply, so an inactive shared-tail row stays visibly empty.
+        ev={completed ? eventByStatus[opt.value] : null}
+        completed={completed}
+        isCurrent={rowIdOf(opt) === currentRowId}
+        isLast={idx === rows.length - 1}
+        doneColor={doneColor}
+      />
     );
-  }
+  });
+
+  // Every stage is one titled block of list rows, in lifecycle order —
+  // Working Pending and Return Device included, one after the other.
+  const blocks = stages.map((stage) => (
+    <View key={stage.key}>
+      <StageHeader
+        groupKey={stage.key}
+        doneCount={stage.rows.filter(rowCompleted).length}
+        total={stage.rows.length}
+      />
+      {renderRows(stage.rows, stage.meta.done)}
+    </View>
+  ));
+
+  // Optional collapse — Service History's "View All" toggle. Undefined (the
+  // default) renders every stage; a number caps how many stage blocks render.
+  const visibleBlocks = typeof visibleStageLimit === 'number'
+    ? blocks.slice(0, Math.max(1, visibleStageLimit))
+    : blocks;
 
   return (
     <View>
       {showPickup ? (
-        <View className="mb-2">
+        <View style={{ marginBottom: 8 }}>
           <PhaseHeader phaseKey={PICKUP} anyDone={anyPickupDone} />
-          {renderRows(pickupRows, SUCCESS, false)}
+          <View style={{ borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6 }}>
+            {renderRows(pickupRows, SUCCESS)}
+          </View>
         </View>
       ) : null}
       {serviceRows.length ? (
         <View
-          className="mb-2"
           style={
             showPickup
-              ? { paddingTop: 14, marginTop: 6, borderTopWidth: 1, borderTopColor: '#EFF5EE' }
+              ? { paddingTop: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: BORDER }
               : null
           }
         >
           <PhaseHeader phaseKey={SERVICE} anyDone={anyServiceDone} />
-          {blocks}
+          {visibleBlocks}
         </View>
       ) : null}
     </View>

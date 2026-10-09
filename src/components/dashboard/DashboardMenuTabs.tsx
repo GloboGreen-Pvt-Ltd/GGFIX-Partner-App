@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import type { LucideIcon } from 'lucide-react-native';
 import type { DashboardTool } from '../../types/dashboard';
-import { C, PINE, R } from './theme';
+import { C, R, SERIF } from './theme';
 import { DashboardToolsGrid } from './DashboardToolsGrid';
 
 export interface DashboardMenuTab {
   label: string;
   items: DashboardTool[];
+  /** Optional icon rendered before the label. */
+  icon?: LucideIcon;
+  /** Heading shown inside the tools panel for this tab, e.g. "Service Tools". */
+  panelTitle?: string;
 }
 
 export interface DashboardMenuTabsProps {
@@ -27,8 +32,10 @@ export interface DashboardMenuTabsProps {
 
 const TAB_ACTIVE_TEXT = '#FFFFFF';
 const TAB_INACTIVE = C.label2;
-const TAB_PILL_BG = PINE;
+const TAB_ICON_INACTIVE = '#5F6B7A';
+const TAB_PILL_BG = '#16A34A';
 const SEGMENT_PAD = 4;
+const TAB_ICON_SIZE = 20;
 
 /**
  * Services / Employee / Reports as one premium segmented control over a
@@ -85,7 +92,9 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
         style={{
           flexDirection: 'row',
           marginHorizontal: pad,
-          backgroundColor: C.fill,
+          backgroundColor: '#F1F4F3',
+          borderWidth: 1,
+          borderColor: '#E8ECEF',
           borderRadius: R.control,
           padding: SEGMENT_PAD,
         }}
@@ -96,6 +105,7 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
         />
         {tabs.map((tab, index) => {
           const isActive = index === active;
+          const TabIcon = tab.icon;
           return (
             <Pressable
               key={tab.label}
@@ -104,8 +114,11 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.label}
-              style={{ flex: 1, alignItems: 'center', paddingVertical: 9 }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, gap: 6 }}
             >
+              {TabIcon ? (
+                <TabIcon size={TAB_ICON_SIZE} color={isActive ? TAB_ACTIVE_TEXT : TAB_ICON_INACTIVE} strokeWidth={2} />
+              ) : null}
               <Text style={{ fontSize: 14, fontWeight: isActive ? '700' : '600', color: isActive ? TAB_ACTIVE_TEXT : TAB_INACTIVE }}>
                 {tab.label}
               </Text>
@@ -115,6 +128,14 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
       </View>
 
       <View style={panelStyle} onLayout={onPanelLayout}>
+        {activeTab.panelTitle ? (
+          <Text
+            style={{ fontSize: 19, lineHeight: 24, fontWeight: '700', fontFamily: SERIF, color: '#111827', paddingHorizontal: gridPad + 2, paddingTop: 4, paddingBottom: 8 }}
+            numberOfLines={1}
+          >
+            {activeTab.panelTitle}
+          </Text>
+        ) : null}
         <DashboardToolsGrid key={activeTab.label} items={activeTab.items} pad={gridPad} columns={columns} cardWidth={cardWidth} gap={gap} onPress={onPress} />
       </View>
     </View>

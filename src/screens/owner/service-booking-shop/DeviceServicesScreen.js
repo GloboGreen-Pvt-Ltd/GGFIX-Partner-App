@@ -14,49 +14,149 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  Check,
   X,
   Hash,
   Sparkles,
   ArrowLeft,
+  Headphones,
+  Wifi,
+  Layers,
+  Cog,
+  Database,
+  Keyboard as KeyboardIcon,
+  HardDrive,
+  Fan,
+  ShieldCheck,
+  Mic,
+  Ear,
+  VolumeX,
+  Bluetooth,
+  CreditCard,
+  Square,
+  ImageOff,
+  ScanFace,
+  FingerprintPattern as Fingerprint,
+  Stethoscope,
+  Gauge,
+  Volume1,
+  Bug,
+  SignalHigh,
+  UserCog,
+  Lock,
+  ShieldAlert,
+  Hand,
+  RefreshCw,
+  RotateCw,
+  RotateCcw,
+  Hourglass,
+  TriangleAlert,
 } from 'lucide-react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getRepairServices, getRepairCategories } from '../../../api/masterData';
+import { getRepairServices, getRepairCategories, getRepairServicesGrouped } from '../../../api/masterData';
 import { rf, rs } from '../../../utils/responsive';
 // `isTablet` / `screenWidth` from utils/responsive are read ONCE at module
 // load, so a rotation or split-screen resize never reached this layout. The
 // hook reads the live window during render.
 import { useResponsive } from '../../../theme/responsive';
+import { specDisplayParts } from '../../../utils/deviceSpecs';
 
-// Swiggy / Zomato-inspired palette — green theme. Vibrant green hero gradient,
-// deeper green for the floating cart bar shadow + bill total emphasis. ADD
-// button uses a slightly different green shade so it stays distinct.
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+// GGFIX palette (kept as the same named constants used throughout this file,
+// values aligned to the app's Primary/Dark/Bright green + mint system so the
+// screen reads as one premium surface rather than a plain form).
+const BRAND_GREEN = '#09AD2A'; // warranty / category-chip active fill — GGFIX green
 
-// Icon discs: neutral #F8F8F8 circle, #004C40 glyph. Replaces four different
-// treatments — a green tint, an amber tint, a solid green fill with a white
-// glyph, and a bg-primary/10 square — which made four rows of the same kind
-// look unrelated.
-const SCREEN_BG = '#FFFFFF';
-// Service row surface. `bg-background` used to paint this, so when the page
-// token went white the rows lost their fill; and the picked state was a green
-// wash. Both states are the neutral #F8F8F8 now, with the border carrying the
-// picked/unpicked difference.
-const ROW_BG = '#F8F8F8';
-const ICON_DISC = '#F8F8F8';
-const ICON_TINT = '#004C40';
+// Page background is the soft off-white token so white cards read as
+// elevated surfaces against it, instead of white-on-white with only a
+// shadow to separate them.
+const SCREEN_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const CARD_LINE = '#F3F3F3';   // outer card hairline (cards sit on the grey page)
+const BORDER_SOFT = '#E6E6E6'; // inner borders on white (inputs, chips, dividers)
+// Service row surface — a real white card now (was a flat grey fill), so it
+// sits above the page background instead of blending into it.
+const ROW_BG = '#FFFFFF';
+const ICON_DISC = '#EAF8EC'; // mint icon-tile background
+const ICON_TINT = '#09AD2A'; // icons / fills
+const TEXT_GREEN = '#078F23'; // green text on white / mint
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const PLACEHOLDER = '#8A8A8A';
 
-// Add buttons. The disabled fill is the SAME hue at 35% rather than a separate
-// grey, which is what made the old pair read as one control in two states.
-const ADD_BG = '#004C40';
-const ADD_BG_OFF = 'rgba(0, 76, 64, 0.35)';
+// Add button uses the GGFIX green so it reads as the primary action.
+// Disabled fill is the same hue at 35% rather than a separate grey.
+const ADD_BG = '#09AD2A';
+const ADD_BG_OFF = 'rgba(9, 173, 42, 0.35)';
+
+// Picked-state wash — a service card and its ADDED pill both use this once a
+// service is added, replacing the old red "REMOVE" treatment (which read as
+// a warning rather than a confirmation).
+const MINT_BG = '#EAF8EC';
+const ACCENT_20 = '#CDEFD4'; // mint border
+
+// Soft card shadow (palette: ink, ≤0.06 opacity, ≤10 radius, y ≤3).
+const CARD_SHADOW = {
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.05,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
+};
 
 const WARRANTY_OPTIONS = [
   { code: 'W_3M', label: '3 Months' },
   { code: 'W_6M', label: '6 Months' },
   { code: 'W_12M', label: '12 Months' },
 ];
+
+// One icon per repair category, matched by keyword so it works for however
+// the admin has actually named the category (mobile/laptop/tablet/smartwatch/
+// audio groups all use different wording for similar concepts). Falls back to
+// Wrench for anything unmatched, same as every group's icon used to be.
+function groupIconFor(name) {
+  // Same trim + whitespace-collapse as `iconFor` below, for the same reason:
+  // a category label with stray spacing shouldn't fall through matches it'd
+  // otherwise hit.
+  const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (/screen|display/.test(n)) return Smartphone;
+  if (/battery|power/.test(n)) return BatteryMedium;
+  if (/(audio.*camera)|(camera.*audio)/.test(n)) return Headphones;
+  if (/camera/.test(n)) return Aperture;
+  if (/charg|port/.test(n)) return Zap;
+  if (/speaker|microphone|audio/.test(n)) return Volume2;
+  if (/bluetooth|wireless/.test(n)) return Bluetooth;
+  // Signal/reception checked before the general network|wifi branch — a
+  // category about signal strength reads better with a signal icon than
+  // the generic wifi one.
+  if (/signal|reception|network drop/.test(n)) return SignalHigh;
+  if (/network|connectivity|wifi/.test(n)) return Wifi;
+  // Checked before `button|sensor` — "fingerprint SENSOR" would otherwise
+  // match that branch first and never reach this one. Also checked before
+  // the generic `touch` branch below, so "Touch ID" resolves to the
+  // fingerprint icon rather than a plain touch/hand one.
+  if (/fingerprint|face id|face unlock|touch id/.test(n)) return Fingerprint;
+  if (/touch/.test(n)) return Hand;
+  if (/button|sensor/.test(n)) return LayoutGrid;
+  if (/\bsim\b|sim card|sim tray/.test(n)) return CreditCard;
+  if (/back panel|back glass|back cover|\bbody\b/.test(n)) return Layers;
+  if (/\bframe\b|bezel/.test(n)) return Square;
+  if (/diagnos/.test(n)) return Stethoscope;
+  if (/performance|\blag\b|slow/.test(n)) return Gauge;
+  if (/software|\bos\b|operating system/.test(n)) return Cog;
+  if (/water|liquid/.test(n)) return Droplets;
+  if (/motherboard|hardware/.test(n)) return Cpu;
+  if (/data|backup/.test(n)) return Database;
+  if (/keyboard|touchpad/.test(n)) return KeyboardIcon;
+  if (/storage/.test(n)) return HardDrive;
+  if (/overheat|cooling/.test(n)) return Fan;
+  // Restriction is a more specific security concern than the general
+  // "virus|security" match below, so it's checked first.
+  if (/restrict/.test(n)) return ShieldAlert;
+  if (/virus|security/.test(n)) return ShieldCheck;
+  if (/account|sign.?in|login/.test(n)) return UserCog;
+  return Wrench;
+}
 
 const priceNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
 
@@ -124,22 +224,56 @@ export default function DeviceServicesScreen({ navigation, route }) {
   const [otherFormKey, setOtherFormKey] = useState(0); // bump to remount + clear the draft input
 
 
+  // `categoryId` is the DEVICE category (Mobile/Laptop/Tablet/…) picked back
+  // on the Select Category step, forwarded unchanged through every screen in
+  // between (SelectBrand → … → DeviceColorStorage → here). It was already
+  // available on `params` — this screen just wasn't using it to filter yet.
+  const [groupedForCategory, setGroupedForCategory] = useState(null); // [{id,name,issues:[{id,...}]}] | null
+
   useEffect(() => {
     (async () => {
       try {
-        const [s, c] = await Promise.all([
+        const [s, c, grouped] = await Promise.all([
           getRepairServices().catch(() => []),
           getRepairCategories().catch(() => []),
+          getRepairServicesGrouped(params.categoryId).catch(() => []),
         ]);
         setServices(s);
         setMainCats(c);
+        setGroupedForCategory(Array.isArray(grouped) ? grouped : []);
       } catch (_) { }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Group services by main category (categoryId on the service points to repair-category).
+  // Device-category-filtered groups, via the existing `/master/repair-services
+  // /grouped?deviceCategoryId=` endpoint (already used by the customer app's
+  // repair-service picker) — server decides which repair categories apply to
+  // THIS device category, so a laptop booking never shows "Keyboard &
+  // Touchpad" for a phone or vice versa. Each group's own `issues` only carry
+  // ids, so they're hydrated against the full `services` list fetched above
+  // to get the complete record (code, defaults, …) the rest of this screen
+  // already knows how to render.
+  //
+  // Falls back to the OLD ungrouped-by-categoryId behaviour when there's no
+  // categoryId param, the endpoint returns nothing (e.g. this device category
+  // has no repair-category mapping configured yet), or the request failed —
+  // so an unmapped category still shows its services instead of an empty
+  // screen; it just isn't narrowed to a device-category subset in that case.
   const groups = useMemo(() => {
+    if (params.categoryId && groupedForCategory && groupedForCategory.length > 0) {
+      const byId = new Map((services || []).map((s) => [s.id, s]));
+      return groupedForCategory
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          services: (g.issues || []).map((i) => byId.get(i.id)).filter(Boolean),
+        }))
+        .filter((g) => g.services.length > 0);
+    }
+    // Fallback: group services by main category (categoryId on the service
+    // points to repair-category) — the screen's original, unfiltered grouping.
     const catById = {};
     (mainCats || []).forEach((c) => { catById[c.id] = c; });
     const byCat = new Map();
@@ -149,7 +283,8 @@ export default function DeviceServicesScreen({ navigation, route }) {
       byCat.get(key).services.push(s);
     });
     return Array.from(byCat.values());
-  }, [services, mainCats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services, mainCats, groupedForCategory, params.categoryId]);
 
   // When entering from Edit Booking, auto-expand the groups that already have
   // prefilled picks so the user can see/modify them without hunting for them.
@@ -253,10 +388,14 @@ export default function DeviceServicesScreen({ navigation, route }) {
     return (
       <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
         <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 12, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}
         >
-          <Pressable onPress={() => navigation.goBack()} className="h-10 w-10 rounded-full bg-surface-muted items-center justify-center">
-            <ArrowLeft size={20} color="#172117" />
+          <Pressable
+            onPress={() => navigation.goBack()}
+            className="items-center justify-center"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
+          >
+            <ArrowLeft size={18} color={INK} />
           </Pressable>
         </View>
         <View className="flex-1 items-center justify-center">
@@ -272,20 +411,21 @@ export default function DeviceServicesScreen({ navigation, route }) {
     <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
       {/* ── White header — matches app's other white headers ─────── */}
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 20, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}
       >
-        <View className="relative flex-row items-center justify-center">
+        <View className="relative flex-row items-center justify-center" style={{ minHeight: 36 }}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="absolute left-0 h-10 w-10 rounded-full bg-surface-muted items-center justify-center active:opacity-70"
+            className="absolute left-0 items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={18} color={INK} />
           </Pressable>
 
           <View className="items-center px-12">
             <Text
-              className="text-text font-medium text-center"
-              style={{ fontSize: rf(13) }}
+              className="text-center"
+              style={{ fontSize: 17, fontWeight: '800', color: INK }}
               numberOfLines={1}
             >
               Add Issue Services
@@ -311,7 +451,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
         bottomOffset={rs(140)}
         contentContainerStyle={{
           paddingTop: 0,
-          paddingBottom: rs(160),
+          paddingBottom: rs(120),
           // Tablets: cap the column and centre it. Full-bleed rows on a 10"
           // screen put the price field and its ADD button a hand's width
           // apart, which is a worse form than a narrow one.
@@ -320,100 +460,160 @@ export default function DeviceServicesScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* ── Device "restaurant card" — overlaps the gradient, Zomato-style ── */}
-        <View className="px-4" style={{ marginTop: 14 }}>
+        {/* ── Device summary card — plain white, soft shadow ──────── */}
+        <View className="px-4" style={{ marginTop: 12 }}>
           <View
-            className="bg-card rounded-2xl p-3"
             style={{
-              shadowColor: '#172117',
-              shadowOpacity: 0.12,
-              shadowRadius: 18,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 6,
+              backgroundColor: CARD_BG,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: CARD_LINE,
+              overflow: 'hidden',
+              ...CARD_SHADOW,
+              shadowOpacity: 0.06,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 2,
             }}
           >
-            <View className="flex-row items-center">
-              <View className="h-14 w-14 rounded-full items-center justify-center overflow-hidden mr-3" style={{ backgroundColor: ICON_DISC }}>
-                {params.imageUrl ? (
-                  <Image source={{ uri: params.imageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-                ) : (
-                  <Smartphone size={24} color={ICON_TINT} />
-                )}
-              </View>
-              <View className="flex-1">
-                <Text className="font-medium text-text" style={{ fontSize: rf(13) }} numberOfLines={1}>
-                  {params.modelName || 'Device'}
-                </Text>
-                <Text className="text-text-muted mt-0.5" style={{ fontSize: rf(11.5) }} numberOfLines={1}>
-                  {[params.ramLabel, params.storageLabel, params.color].filter(Boolean).join(' · ')}
-                </Text>
-                {params.modelNumber ? (
-                  <View className="flex-row items-center mt-1.5">
-                    <View className="flex-row items-center bg-primary/10 rounded-md px-1.5 py-0.5">
-                      <Hash size={10} color="#087A0A" />
-                      <Text className="text-primary font-medium ml-0.5" style={{ fontSize: rf(11.5) }}>{params.modelNumber}</Text>
+            <View style={{ backgroundColor: CARD_BG, paddingHorizontal: 12, paddingVertical: 10 }}>
+              <View className="flex-row items-center">
+                <View
+                  className="items-center justify-center overflow-hidden mr-3"
+                  style={{ height: 52, width: 52, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_20 }}
+                >
+                  {params.imageUrl ? (
+                    <Image source={{ uri: params.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="cover" />
+                  ) : (
+                    <Smartphone size={22} color={ICON_TINT} />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: INK }} numberOfLines={2}>
+                    {params.modelName || 'Device'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={2}>
+                    {specDisplayParts(params, { withColor: true }).join(' · ')}
+                  </Text>
+                  {params.modelNumber ? (
+                    <View className="flex-row items-center" style={{ marginTop: 5 }}>
+                      <View
+                        className="flex-row items-center"
+                        style={{ backgroundColor: '#FFFFFF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: ACCENT_20 }}
+                      >
+                        <Hash size={10} color={ICON_TINT} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 2 }}>{params.modelNumber}</Text>
+                      </View>
                     </View>
-                  </View>
-                ) : null}
+                  ) : null}
+                </View>
               </View>
             </View>
+
+            {/* Selected-service count strip — real data (totalSelected/cartTotal,
+                computed below), not a placeholder. Only rendered once at least
+                one service is picked. */}
+            {totalSelected > 0 ? (
+              <View
+                className="flex-row items-center justify-between"
+                style={{ paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: ACCENT_20 }}
+              >
+                <View className="flex-row items-center">
+                  <Check size={12} color={ICON_TINT} strokeWidth={3} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 6 }}>
+                    {totalSelected} service{totalSelected === 1 ? '' : 's'} selected
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: TEXT_GREEN }}>₹{formatINR(cartTotal)}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
         {/* ── Section header ─────────────────────────────────────────────
             Title Case, no letter-spacing: `tracking-widest` only exists to
             make all-caps legible. */}
-        <View className="px-4 pt-4 pb-1.5 flex-row items-center">
-          <Sparkles size={14} color={ICON_TINT} />
-          <Text className="text-text font-medium ml-1.5" style={{ fontSize: rf(11.5) }}>Recommended Repairs</Text>
+        <View className="px-4 flex-row items-center" style={{ paddingTop: 14, paddingBottom: 8 }}>
+          <View
+            className="items-center justify-center mr-2"
+            style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT_BG }}
+          >
+            <Sparkles size={14} color={ICON_TINT} />
+          </View>
+          <View className="flex-1">
+            <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>Recommended Repairs</Text>
+            <Text style={{ fontSize: 11, color: MUTED }}>Tap a category to see issues & pricing</Text>
+          </View>
         </View>
 
-        {/* ── Categories: accordion list (Swiggy menu-section style) ─────── */}
+        {/* ── Categories: premium accordion cards ─────────────────────────
+            Each category is its own elevated white card (was a hairline-
+            separated row list) so the section reads as a set of distinct,
+            tappable groups rather than a flat form list. */}
         <View className="px-4">
-          {groups.map((g) => {
+          {groups.map((g, gi) => {
             const open = !!expanded[g.id];
             const pickedInGroup = g.services.filter((s) => pickedIds.has(s.id)).length;
             const Chevron = open ? ChevronUp : ChevronDown;
+            const GroupIcon = groupIconFor(g.name);
             return (
-              // No card: rows sit on the page, separated by a hairline rather
-              // than by a fill + shadow.
               <View
                 key={g.id}
-                className="overflow-hidden"
-                style={{ borderBottomWidth: 1, borderBottomColor: '#EFF5EE' }}
+                style={{
+                  backgroundColor: CARD_BG,
+                  borderRadius: rs(16),
+                  borderWidth: 1,
+                  borderColor: open ? ICON_TINT + '33' : BORDER_SOFT,
+                  overflow: 'hidden',
+                  marginTop: gi === 0 ? 0 : rs(10),
+                  shadowColor: '#0B1F14',
+                  shadowOpacity: open ? 0.08 : 0.04,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 3 },
+                  elevation: open ? 3 : 1,
+                }}
               >
                 <Pressable
                   onPress={() => toggleGroup(g.id)}
-                  className="flex-row items-center px-3.5 py-3 active:opacity-80"
+                  className="flex-row items-center active:opacity-80"
+                  style={{ paddingHorizontal: rs(14), paddingVertical: rs(12) }}
                 >
-                  <View className="h-9 w-9 rounded-full items-center justify-center mr-3" style={{ backgroundColor: ICON_DISC }}>
-                    <Wrench size={16} color={ICON_TINT} />
+                  <View
+                    className="items-center justify-center mr-3"
+                    style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: ICON_DISC }}
+                  >
+                    <GroupIcon size={18} color={ICON_TINT} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-semibold text-text" style={{ fontSize: rf(13) }} numberOfLines={1}>{g.name}</Text>
+                    <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>{g.name}</Text>
                     <View className="flex-row items-center mt-0.5">
-                      <Text className="text-text-muted" style={{ fontSize: rf(11.5) }}>
+                      <Text className="text-text-muted" style={{ fontSize: 11 }}>
                         {g.services.length} {g.services.length === 1 ? 'option' : 'options'}
                       </Text>
                       {pickedInGroup ? (
                         <>
                           <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                          <Text className="text-success font-medium" style={{ fontSize: rf(11.5) }}>
+                          <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>
                             {pickedInGroup} added
                           </Text>
                         </>
                       ) : null}
                     </View>
                   </View>
-                  <Chevron size={18} color="#667066" />
+                  <View
+                    className="items-center justify-center"
+                    style={{ height: rs(28), width: rs(28), borderRadius: rs(9), backgroundColor: open ? MINT_BG : '#F4F7F5' }}
+                  >
+                    <Chevron size={16} color={ICON_TINT} />
+                  </View>
                 </Pressable>
 
                 {open ? (
-                  <View className="px-3.5 pb-2.5 pt-1">
+                  <View style={{ paddingHorizontal: rs(14), paddingBottom: rs(12), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: BORDER_SOFT }}>
                     {g.services.map((s) => {
                       const r = ensureRow(s.id);
                       const isPicked = pickedIds.has(s.id);
-                      const Icon = iconFor(s.code);
+                      const Icon = iconFor(s.code, s.name);
                       // ₹0 is a valid price now, so ADD is always enabled.
                       const canAdd = true;
                       return (
@@ -438,35 +638,57 @@ export default function DeviceServicesScreen({ navigation, route }) {
             );
           })}
 
-          {/* ── Others: a custom issue not in the service catalog ───────── */}
+          {/* ── Others: a custom issue not in the service catalog ─────────
+              Same premium card treatment as the category accordions above,
+              for visual consistency across the section. */}
           <View
-            className="overflow-hidden"
-            style={{ borderBottomWidth: 1, borderBottomColor: '#EFF5EE' }}
+            style={{
+              backgroundColor: CARD_BG,
+              borderRadius: rs(16),
+              borderWidth: 1,
+              borderColor: expanded['__other__'] ? ICON_TINT + '33' : BORDER_SOFT,
+              overflow: 'hidden',
+              marginTop: rs(10),
+              shadowColor: '#0B1F14',
+              shadowOpacity: expanded['__other__'] ? 0.08 : 0.04,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: expanded['__other__'] ? 3 : 1,
+            }}
           >
             <Pressable
               onPress={() => toggleGroup('__other__')}
-              className="flex-row items-center px-3.5 py-3 active:opacity-80"
+              className="flex-row items-center active:opacity-80"
+              style={{ paddingHorizontal: rs(14), paddingVertical: rs(12) }}
             >
-              <View className="h-9 w-9 rounded-full items-center justify-center mr-3" style={{ backgroundColor: ICON_DISC }}>
-                <Sparkles size={16} color={ICON_TINT} />
+              <View
+                className="items-center justify-center mr-3"
+                style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: ICON_DISC }}
+              >
+                <Sparkles size={18} color={ICON_TINT} />
               </View>
               <View className="flex-1">
-                <Text className="font-semibold text-text" style={{ fontSize: rf(13) }} numberOfLines={1}>Others</Text>
+                <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>Others</Text>
                 <View className="flex-row items-center mt-0.5">
-                  <Text className="text-text-muted" style={{ fontSize: rf(11.5) }}>Add a custom issue</Text>
+                  <Text className="text-text-muted" style={{ fontSize: 11 }}>Add a custom issue</Text>
                   {customIssues.length ? (
                     <>
                       <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                      <Text className="text-success font-medium" style={{ fontSize: rf(11.5) }}>{customIssues.length} added</Text>
+                      <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>{customIssues.length} added</Text>
                     </>
                   ) : null}
                 </View>
               </View>
-              {expanded['__other__'] ? <ChevronUp size={18} color="#667066" /> : <ChevronDown size={18} color="#667066" />}
+              <View
+                className="items-center justify-center"
+                style={{ height: rs(28), width: rs(28), borderRadius: rs(9), backgroundColor: expanded['__other__'] ? MINT_BG : '#F4F7F5' }}
+              >
+                {expanded['__other__'] ? <ChevronUp size={16} color={ICON_TINT} /> : <ChevronDown size={16} color={ICON_TINT} />}
+              </View>
             </Pressable>
 
             {expanded['__other__'] ? (
-              <View className="px-3.5 pb-2.5 pt-1">
+              <View style={{ paddingHorizontal: rs(14), paddingBottom: rs(12), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: BORDER_SOFT }}>
                 {/* Already-added custom issues */}
                 {customIssues.map((c) => (
                   <View
@@ -483,8 +705,8 @@ export default function DeviceServicesScreen({ navigation, route }) {
                         <Sparkles size={18} color={ICON_TINT} />
                       </View>
                       <View className="flex-1 pr-1.5">
-                        <Text className="font-medium text-text " style={{ fontSize: rf(13) }} numberOfLines={2}>{c.name}</Text>
-                        <Text className="text-text-muted mt-0.5" style={{ fontSize: rf(11.5) }} numberOfLines={1}>
+                        <Text className="font-medium text-text " style={{ fontSize: 13 }} numberOfLines={2}>{c.name}</Text>
+                        <Text className="text-text-muted mt-0.5" style={{ fontSize: 11 }} numberOfLines={1}>
                           {c.categoryName}
                           {Number(c.price) > 0
                             ? ` · ₹${Number(c.price).toLocaleString('en-IN')}`
@@ -497,7 +719,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                         style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
                       >
                         <X size={12} color="#DC2626" />
-                        <Text className="text-danger font-medium ml-1" style={{ fontSize: rf(11.5) }}>REMOVE</Text>
+                        <Text className="text-danger font-medium ml-1" style={{ fontSize: 11 }}>REMOVE</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -505,7 +727,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
 
                 {/* Draft: enter issue → pick condition category → price + warranty → ADD */}
                 <View className="rounded-2xl bg-background border-border" style={{ borderWidth: 1, padding: 10 }}>
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>ISSUE</Text>
+                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>ISSUE</Text>
                   <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5">
                     <TextInput
                       key={`other-name-${otherFormKey}`}
@@ -514,13 +736,13 @@ export default function DeviceServicesScreen({ navigation, route }) {
                       placeholder="Describe the issue (e.g. Face ID not working)"
                       placeholderTextColor="#8FA08F"
                       className="text-text"
-                      style={{ paddingVertical: rs(8), fontSize: rf(13) }}
+                      style={{ paddingVertical: rs(8), fontSize: 13 }}
                     />
                   </View>
 
                   {groups.length ? (
                     <>
-                      <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>CONDITION CATEGORY</Text>
+                      <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>CONDITION CATEGORY</Text>
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -537,7 +759,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                               className="mr-2 px-3 py-1.5 rounded-full"
                               style={{ backgroundColor: active ? BRAND_GREEN : '#fff', borderWidth: 1, borderColor: active ? BRAND_GREEN : '#E2E8E2' }}
                             >
-                              <Text className={`font-medium ${active ? 'text-white' : 'text-text'}`} style={{ fontSize: rf(11.5) }}>{g.name}</Text>
+                              <Text className={`font-medium ${active ? 'text-white' : 'text-text'}`} style={{ fontSize: 11 }}>{g.name}</Text>
                             </Pressable>
                           );
                         })}
@@ -545,9 +767,9 @@ export default function DeviceServicesScreen({ navigation, route }) {
                     </>
                   ) : null}
 
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: rf(11.5) }}>PRICE (₹)</Text>
+                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>PRICE (₹)</Text>
                   <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5 flex-row items-center">
-                    <Text className="text-text-muted font-bold mr-1" style={{ fontSize: rf(15) }}>₹</Text>
+                    <Text className="text-text-muted font-bold mr-1" style={{ fontSize: 13 }}>₹</Text>
                     <TextInput
                       key={`other-price-${otherFormKey}`}
                       defaultValue=""
@@ -556,7 +778,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                       placeholderTextColor="#8FA08F"
                       keyboardType="numeric"
                       className="flex-1 text-text"
-                      style={{ paddingVertical: rs(8), fontSize: rf(13) }}
+                      style={{ paddingVertical: rs(8), fontSize: 13 }}
                     />
                   </View>
 
@@ -567,7 +789,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                     style={{ backgroundColor: otherHasName ? ADD_BG : ADD_BG_OFF }}
                   >
                     <Plus size={14} color="#fff" />
-                    <Text className="text-white font-medium ml-1" style={{ fontSize: rf(13) }}>ADD ISSUE</Text>
+                    <Text className="text-white font-medium ml-1" style={{ fontSize: 13 }}>ADD ISSUE</Text>
                   </Pressable>
                 </View>
               </View>
@@ -576,55 +798,65 @@ export default function DeviceServicesScreen({ navigation, route }) {
         </View>
       </KeyboardAwareScrollView>
 
-      {/* ── Floating "View Cart" style sticky CTA ─────────────────────── */}
-      {totalSelected > 0 ? (
-        <View
-          className="absolute left-0 right-0"
-          style={{ bottom: insets.bottom + 4, paddingHorizontal: 16 }}
+      {/* ── Sticky bottom summary — ONE bar, always mounted ───────────────
+          Previously this was two different components: a real summary bar
+          once something was picked, and a separate small floating "Add a
+          service to continue" pill otherwise — a toast-like element sitting
+          over the content with no summary information in it. Now it's a
+          single bar in both states (same shape/position), just disabled and
+          muted with a prompt in place of the total when nothing is picked
+          yet, matching the rest of this app's sticky-CTA pattern (Missing
+          Parts, Service Price & Issue Estimate). */}
+      <View
+        className="absolute left-0 right-0"
+        style={{ bottom: insets.bottom + 4, paddingHorizontal: 16 }}
+      >
+        <Pressable
+          onPress={onContinue}
+          disabled={totalSelected === 0}
+          className="active:opacity-90"
+          style={{
+            borderRadius: rs(18),
+            overflow: 'hidden',
+            backgroundColor: totalSelected > 0 ? ICON_TINT : CARD_BG,
+            borderWidth: totalSelected > 0 ? 0 : 1,
+            borderColor: BORDER_SOFT,
+            shadowColor: '#0B1F14',
+            shadowOpacity: totalSelected > 0 ? 0.22 : 0.06,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: totalSelected > 0 ? 6 : 2,
+          }}
         >
-          <Pressable
-            onPress={onContinue}
-            className="active:opacity-90"
-            style={{
-              borderRadius: 18,
-              overflow: 'hidden',
-              // Flat #004C40. The gradient and its green glow are gone: a
-              // #16BB05 -> #087A0A ramp under a #004C40 palette read as a
-              // leftover, and the coloured shadow doubled it.
-              backgroundColor: ICON_TINT,
-            }}
+          <View
+            style={{ paddingHorizontal: rs(16), paddingVertical: rs(14), flexDirection: 'row', alignItems: 'center' }}
           >
-            <View
-              style={{ paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}
-            >
-              <View className="bg-white/20 rounded-full h-9 px-2.5 items-center justify-center flex-row mr-3">
-                <Text className="text-white font-medium" style={{ fontSize: rf(11.5) }}>{totalSelected}</Text>
-                <Text className="text-white font-bold ml-1" style={{ fontSize: rf(11.5) }}>item{totalSelected > 1 ? 's' : ''}</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-white font-bold opacity-90" style={{ fontSize: rf(11.5) }}>Total estimated</Text>
-                <Text className="text-white font-medium" style={{ fontSize: rf(13) }}>₹{formatINR(cartTotal)}</Text>
-              </View>
-              <View className="flex-row items-center">
-                <Text className="text-white font-medium" style={{ fontSize: rf(13) }}>Continue</Text>
-                <ChevronRight size={18} color="#fff" />
-              </View>
+            <View className="flex-1">
+              <Text
+                className="font-bold"
+                style={{ fontSize: 11, color: totalSelected > 0 ? '#FFFFFF' : '#667085', opacity: totalSelected > 0 ? 0.9 : 1 }}
+              >
+                {totalSelected} Service{totalSelected === 1 ? '' : 's'} Selected
+              </Text>
+              <Text
+                className="font-medium"
+                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : ICON_TINT }}
+              >
+                {totalSelected > 0 ? `Estimated ₹${formatINR(cartTotal)}` : 'Add a service to continue'}
+              </Text>
             </View>
-          </Pressable>
-        </View>
-      ) : (
-        <View
-          className="absolute left-0 right-0 items-center"
-          style={{ bottom: insets.bottom + 6, paddingHorizontal: 16 }}
-        >
-          <View className="bg-card border border-border rounded-full px-4 py-2 flex-row items-center" style={{ elevation: 2 }}>
-            <Plus size={14} color={ADD_BG} />
-            <Text className="text-text-muted font-semibold ml-1.5" style={{ fontSize: rf(11.5) }}>
-              Add a service to continue
-            </Text>
+            <View className="flex-row items-center">
+              <Text
+                className="font-medium"
+                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : '#9AA6A0', marginRight: 2 }}
+              >
+                Continue
+              </Text>
+              <ChevronRight size={18} color={totalSelected > 0 ? '#fff' : '#9AA6A0'} />
+            </View>
           </View>
-        </View>
-      )}
+        </Pressable>
+      </View>
 
     </View>
   );
@@ -640,93 +872,104 @@ function ServiceItem({
 }) {
   return (
     <View
-      className="rounded-2xl mb-2"
+      className="rounded-2xl mb-2.5"
       style={{
-        backgroundColor: ROW_BG,
+        backgroundColor: isPicked ? MINT_BG : ROW_BG,
         borderWidth: isPicked ? 1.5 : 1,
-        borderColor: isPicked ? ICON_TINT : '#E2E8E2',
-        padding: 10,
+        borderColor: isPicked ? ICON_TINT : BORDER_SOFT,
+        padding: rs(12),
+        shadowColor: '#0B1F14',
+        shadowOpacity: isPicked ? 0 : 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: isPicked ? 0 : 1,
       }}
     >
-      <View className="flex-row items-start">
-        {/* Same disc as every other icon on this screen: white circle,
-            #004C40 glyph. It was a rounded square that turned solid green with
-            a white glyph when picked — the only place still doing that. */}
+      {/* Row 1 — icon tile + service name */}
+      <View className="flex-row items-center">
         <View
-          className="h-10 w-10 rounded-full items-center justify-center mr-3"
-          style={{ backgroundColor: '#FFFFFF' }}
+          className="items-center justify-center mr-3"
+          style={{ height: rs(38), width: rs(38), borderRadius: rs(11), backgroundColor: isPicked ? '#FFFFFF' : MINT_BG }}
         >
-          <Icon size={18} color={ICON_TINT} />
+          <Icon size={19} color={ICON_TINT} />
+        </View>
+        <Text className="flex-1 font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={2}>{name}</Text>
+      </View>
+
+      {/* Row 2 — price action row: [₹ input] [Last 5 prices] [+ Add / ✓ Added],
+          all three in one horizontal row so "Last 5 prices" reads as tied to
+          the price field instead of a disconnected line below it. */}
+      <View className="flex-row items-center mt-2.5" style={{ gap: rs(8) }}>
+        <View
+          className="flex-row items-center rounded-full px-3"
+          style={{ height: rs(34), borderWidth: 1, borderColor: isPicked ? ICON_TINT : BORDER_SOFT, backgroundColor: '#FFFFFF' }}
+        >
+          <Text className="text-text-muted mr-1 font-semibold" style={{ fontSize: 11 }}>₹</Text>
+          <TextInput
+            placeholder="0"
+            placeholderTextColor="#8FA08F"
+            keyboardType="numeric"
+            value={String(price ?? '')}
+            onChangeText={onPriceChange}
+            autoComplete="off"
+            importantForAutofill="no"
+            textContentType="none"
+            className="text-text font-bold"
+            style={{ paddingVertical: 0, fontSize: 13, minWidth: rs(42) }}
+          />
         </View>
 
-        <View className="flex-1 pr-1.5">
-          <Text className="font-medium text-text" style={{ fontSize: rf(13) }} numberOfLines={2}>{name}</Text>
+        <Pressable
+          className="active:opacity-70 flex-row items-center rounded-full"
+          style={{ height: rs(34), paddingHorizontal: rs(10), borderWidth: 1, borderColor: ACCENT_20, backgroundColor: '#fff' }}
+        >
+          {/* Explicit hex, not `text-primary`. The token already points at
+              #004C40, but NativeWind compiles classes at BUILD time, so a
+              token change only lands after `expo start --clear` — and this
+              link kept rendering the old green from a warm cache. */}
+          <Text numberOfLines={1} style={{ fontSize: 10.5, fontWeight: '600', color: ICON_TINT }}>Last 5 prices</Text>
+        </Pressable>
 
-          {/* Price input — chip-style. The row wraps rather than squeezing:
-              at a large system font "Last 5 prices" and an 80px field no
-              longer fit beside each other on a 360px phone, and shrinking
-              either one is worse than letting the link drop to its own line. */}
-          <View className="flex-row items-center mt-1.5 flex-wrap">
-            <View className={`flex-row items-center rounded-lg border px-2 ${isPicked ? 'border-success/40 bg-card' : 'border-border bg-card'}`}>
-              <Text className="text-text-muted mr-1" style={{ fontSize: rf(11.5) }}>₹</Text>
-              <TextInput
-                placeholder="0"
-                placeholderTextColor="#8FA08F"
-                keyboardType="numeric"
-                value={String(price ?? '')}
-                onChangeText={onPriceChange}
-                autoComplete="off"
-                importantForAutofill="no"
-                textContentType="none"
-                className="text-text font-bold"
-                style={{ paddingVertical: rs(5), fontSize: rf(13), minWidth: rs(80) }}
-              />
-            </View>
-            <Pressable className="ml-2 active:opacity-60">
-              {/* Explicit hex, not `text-primary`. The token already points at
-                  #004C40, but NativeWind compiles classes at BUILD time, so a
-                  token change only lands after `expo start --clear` — and this
-                  link kept rendering the old green from a warm cache. */}
-              <Text className="underline" style={{ fontSize: rf(11.5), color: ICON_TINT }}>Last 5 prices</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Add / Remove button — Swiggy stepper-shape */}
-        <View className="items-end">
+        <View style={{ marginLeft: 'auto' }}>
           {isPicked ? (
+            // Same remove action as before (onRemove, unchanged) — only the
+            // label/colour changed, from a red "REMOVE" warning to a green
+            // "ADDED" confirmation. Still tappable to remove it.
             <Pressable
               onPress={onRemove}
-              className="flex-row items-center rounded-full px-3 py-1.5 active:opacity-80"
-              style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
+              accessibilityLabel="Remove this service"
+              className="flex-row items-center rounded-full active:opacity-80"
+              style={{ height: rs(34), paddingHorizontal: rs(11), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ICON_TINT }}
             >
-              <X size={12} color="#DC2626" />
-              <Text className="text-danger font-medium ml-1" style={{ fontSize: rf(11.5) }}>REMOVE</Text>
+              <Check size={12} color={ICON_TINT} strokeWidth={3} />
+              <Text className="font-semibold ml-1" style={{ fontSize: 11, color: ICON_TINT }}>Added</Text>
             </Pressable>
           ) : (
             <Pressable
               disabled={!canAdd}
               onPress={onAdd}
-              className={`flex-row items-center rounded-full px-3.5 py-1.5 ${canAdd ? 'active:opacity-80' : ''}`}
+              className={`flex-row items-center rounded-full ${canAdd ? 'active:opacity-80' : ''}`}
               style={{
+                height: rs(34),
+                paddingHorizontal: rs(13),
                 backgroundColor: canAdd ? ADD_BG : ADD_BG_OFF,
                 shadowColor: canAdd ? ADD_BG : 'transparent',
-                shadowOpacity: canAdd ? 0.25 : 0,
+                shadowOpacity: canAdd ? 0.28 : 0,
                 shadowRadius: 8,
                 shadowOffset: { width: 0, height: 3 },
                 elevation: canAdd ? 3 : 0,
               }}
             >
-              <Plus size={12} color="#fff" />
-              <Text className="text-white font-medium ml-0.5" style={{ fontSize: rf(11.5) }}>ADD</Text>
+              <Plus size={13} color="#fff" strokeWidth={2.5} />
+              <Text className="text-white font-semibold ml-1" style={{ fontSize: 11 }}>Add</Text>
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* Warranty pills — like Swiggy's "Size" / Zomato's "Variant" chips */}
-      <View className="mt-2">
-        <Text className="font-medium text-text-muted mb-1" style={{ fontSize: rf(11.5) }}>Warranty</Text>
+      {/* Row 3 — warranty chips */}
+      <View className="mt-3">
+        <Text className="font-semibold text-text-muted mb-1.5" style={{ fontSize: 11 }}>Warranty</Text>
         <View className="flex-row -mx-1">
           {WARRANTY_OPTIONS.map((w) => {
             const active = warranty === w.code;
@@ -734,11 +977,12 @@ function ServiceItem({
               <Pressable
                 key={w.code}
                 onPress={() => onWarrantyChange(active ? '' : w.code)}
-                className="flex-1 mx-1 py-1.5 rounded-full items-center"
+                className="flex-1 mx-1 rounded-full items-center justify-center"
                 style={{
+                  height: rs(38),
                   backgroundColor: active ? BRAND_GREEN : '#fff',
                   borderWidth: 1,
-                  borderColor: active ? BRAND_GREEN : '#E2E8E2',
+                  borderColor: active ? BRAND_GREEN : BORDER_SOFT,
                   shadowColor: active ? BRAND_GREEN : 'transparent',
                   shadowOpacity: active ? 0.25 : 0,
                   shadowRadius: 6,
@@ -750,7 +994,7 @@ function ServiceItem({
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.85}
-                  style={{ fontSize: rf(11.5) }}
+                  style={{ fontSize: 11 }}
                   className={`font-medium ${active ? 'text-white' : 'text-text'}`}
                 >
                   {w.label}
@@ -764,7 +1008,12 @@ function ServiceItem({
   );
 }
 
-function iconFor(code) {
+// `code` is the catalog's own enum value when the backend has one — checked
+// first since it's exact. Most issues (including every "Audio & Microphone"
+// entry: Earpiece/Microphone/Speaker/No Sound) don't carry a distinct code of
+// their own today, so `name` is matched as a fallback, same keyword-matching
+// approach as `groupIconFor` above. Wrench only when neither resolves anything.
+function iconFor(code, name) {
   switch (code) {
     case 'DISPLAY': return Smartphone;
     case 'BATTERY': return BatteryMedium;
@@ -775,6 +1024,89 @@ function iconFor(code) {
     case 'BUTTON': return LayoutGrid;
     case 'WATER_DAMAGE': return Droplets;
     case 'DEAD_PHONE': return Smartphone;
-    default: return Wrench;
+    default: break;
   }
+  // Trim + collapse repeated whitespace before matching, so a label with
+  // stray/leading/trailing spaces (extra space, accidental double space)
+  // still matches the same keywords as the clean version would. None of the
+  // patterns below depend on exact spacing, only substring presence, so
+  // this is a pure robustness addition with no risk to existing matches.
+  const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (/microphone|\bmic\b/.test(n)) return Mic;
+  if (/earpiece|ear speaker|hearing/.test(n)) return Ear;
+  if (/no sound|no audio|mute|silent/.test(n)) return VolumeX;
+  // "Low Sound" specifically — checked before the general speaker/volume/
+  // audio branch below, so a low-volume issue gets a low-volume icon
+  // instead of the plain speaker one.
+  if (/low sound|low volume|\bsound\b/.test(n)) return Volume1;
+  if (/speaker|volume|audio/.test(n)) return Volume2;
+  if (/bluetooth|wireless/.test(n)) return Bluetooth;
+  // Signal/reception checked before the general network|wifi branch — "no
+  // exact substring match" was why "Signal Problem" fell through to Wrench.
+  if (/signal|reception|network drop|no network|poor network/.test(n)) return SignalHigh;
+  if (/network|connectivity|\bwifi\b|wi-fi/.test(n)) return Wifi;
+  // Checked before `button|sensor` — "fingerprint SENSOR" or "face unlock"
+  // would otherwise never reach a dedicated icon. Fingerprint and face
+  // unlock get their own distinct icons rather than sharing one.
+  if (/fingerprint|touch id/.test(n)) return Fingerprint;
+  if (/face id|face unlock/.test(n)) return ScanFace;
+  // "Touch Not Working" / "Ghost Touch" — checked after touch id/fingerprint
+  // above (so those keep their own icon) and before screen|display, since
+  // neither of those regexes contains "touch" and would otherwise never
+  // match this wording at all.
+  if (/touch/.test(n)) return Hand;
+  if (/screen|display|flicker|\blcd\b|\bled\b/.test(n)) return Smartphone;
+  if (/\bsim\b|sim card|sim tray/.test(n)) return CreditCard;
+  // Charging/port concepts checked BEFORE plain battery/power — "Charging
+  // Port Repair" contains "charg", which used to match the battery branch
+  // first and show a battery icon instead of a charging-port one.
+  if (/charging port|charger port|\bport\b|usb|plug|charg/.test(n)) return Zap;
+  if (/battery|power/.test(n)) return BatteryMedium;
+  if (/camera|lens/.test(n)) return Aperture;
+  if (/button|sensor/.test(n)) return LayoutGrid;
+  // "Back Glass Replacement" / "Frame Replacement" and similar physical-
+  // damage service names had no match anywhere below and fell all the way
+  // through to Wrench — this is the actual gap the "wrong/no icon" report
+  // was about.
+  if (/back glass|back panel|back cover|\bbody\b/.test(n)) return Layers;
+  if (/\bframe\b|bezel/.test(n)) return Square;
+  if (/water|liquid/.test(n)) return Droplets;
+  if (/motherboard|hardware|chip|logic board/.test(n)) return Cpu;
+  if (/software|\bos\b|operating system|firmware|update/.test(n)) return Cog;
+  // App crash / bug reports — checked before the generic Wrench fallback so
+  // "Other Diagnosis"/"Software & OS" items phrased this way get a
+  // dedicated icon.
+  if (/crash|\bbug\b/.test(n)) return Bug;
+  if (/data|backup/.test(n)) return Database;
+  if (/keyboard|touchpad|\bkey\b/.test(n)) return KeyboardIcon;
+  if (/storage/.test(n)) return HardDrive;
+  if (/overheat|cooling|\bfan\b|thermal/.test(n)) return Fan;
+  if (/performance|\blag\b|slow/.test(n)) return Gauge;
+  // Random Restart / Boot Loop / Hanging-Freezing / Stuck-on-Logo — these
+  // "device won't behave" issues under Performance/Software-OS had no
+  // keyword coverage at all and fell straight through to the generic
+  // Wrench, which is the actual gap this pass fixes.
+  if (/random restart|\brestart\b/.test(n)) return RotateCw;
+  if (/boot loop|\bloop\b/.test(n)) return RefreshCw;
+  if (/hang(ing)?|freez\w*|\bstuck\b/.test(n)) return Hourglass;
+  if (/intermittent/.test(n)) return TriangleAlert;
+  if (/factory reset|\breset\b/.test(n)) return RotateCcw;
+  if (/diagnos/.test(n)) return Stethoscope;
+  // Password / PIN / device-lock issues — a credentials concern distinct
+  // from the general "security" match below.
+  if (/password|\bpin\b|\block\b|unlock/.test(n)) return Lock;
+  // Restriction is a more specific security concern than plain
+  // "virus|security" below, so it's checked first.
+  if (/restrict/.test(n)) return ShieldAlert;
+  if (/virus|security|malware/.test(n)) return ShieldCheck;
+  if (/account|sign.?in|login/.test(n)) return UserCog;
+  // Last resort before the generic Wrench: any remaining "broken / cracked /
+  // damaged" wording that didn't name a specific part gets a broken-image
+  // icon rather than a plain wrench — still closer to "visually meaningful"
+  // for a damage-type issue with no more specific keyword match.
+  if (/broken|crack|shatter|damage/.test(n)) return ImageOff;
+  // "Other Repair" and anything else genuinely unmatched lands here — the
+  // same generic repair icon the user's own suggested fallback names
+  // (build/wrench/handyman), so no issue row ever renders with no icon.
+  return Wrench;
 }

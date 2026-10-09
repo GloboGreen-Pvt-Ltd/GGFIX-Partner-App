@@ -15,26 +15,51 @@ import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 import {
   ChevronLeft,
-  Download,
   Share2,
   Store,
   Phone,
   User,
   MapPin,
+  ShieldCheck,
+  Camera,
+  ScanLine,
+  Eye,
 } from 'lucide-react-native';
 import { fetchMe } from '../../api/auth';
 import { getSession } from '../../auth/session';
+import { getOwnerKycDocuments } from '../../api/shops';
 import { notify } from '../../components/confirm';
+import { rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
+const ACCENT = '#09AD2A';
+const PRIMARY = '#078F23';
+const BRIGHT = '#09AD2A';
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F3F3F3';
+const PAGE_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+// Rendered QR side — compact, still comfortably scannable for the vCard payload.
+const QR_SIZE = 130;
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.10,
-  shadowRadius: 18,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 6,
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.07,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 4,
+};
+
+const softShadow = {
+  shadowColor: '#1E1E1E',
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
 };
 
 function joinAddress(shop) {
@@ -53,16 +78,32 @@ function joinAddress(shop) {
 }
 
 export default function OwnerQrCodeScreen({ navigation }) {
+  const r = useResponsive();
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 800), alignSelf: 'center' } : null;
   const [user, setUser] = useState(null);
+  const [kycStatus, setKycStatus] = useState(null);
   // qrOnlyRef wraps ONLY the rendered QR image (white background + black
   // modules). Capturing this ref yields the QR by itself — no shop card,
-  // no surrounding text — so Share / Download send a clean, scannable PNG.
+  // no surrounding text — so Share sends a clean, scannable PNG.
   const qrOnlyRef = useRef(null);
 
   useEffect(() => {
     (async () => {
       try { setUser(await fetchMe()); }
       catch { try { setUser(await getSession()); } catch { setUser(null); } }
+    })();
+  }, []);
+
+  // Same reviewed, admin-approved KYC signal MyAccountScreen/OwnerPersonalInfo
+  // use for "Verified Owner" — owner-wide, not per-shop.
+  useEffect(() => {
+    (async () => {
+      try {
+        const kyc = await getOwnerKycDocuments();
+        setKycStatus(kyc?.status || null);
+      } catch {
+        setKycStatus(null);
+      }
     })();
   }, []);
 
@@ -80,6 +121,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
     || '';
   const shopAddress = joinAddress(activeShop);
   const avatarUri  = user?.avatarUrl || activeShop?.frontImageUrl || null;
+  const isVerified = kycStatus === 'APPROVED';
 
   // Payload encoded into the QR. Keep it scan-friendly: vCard-style is the
   // widest-compatible format because every modern camera app recognises it
@@ -96,33 +138,22 @@ export default function OwnerQrCodeScreen({ navigation }) {
     'NOTE:Listed on GGfix\nEND:VCARD'
   ), [shopName, ownerName, ownerPhone, shopPhone, shopAddress]);
 
-  // Share / download the QR image ONLY. captureRef on qrOnlyRef pulls just
-  // the white-on-black QR canvas; the surrounding card stays out of the
-  // captured PNG. Falls back to a text Share.share() if either capture or
+  // Share the QR image only. captureRef on qrOnlyRef pulls just the
+  // white-on-black QR canvas; the surrounding card stays out of the captured
+  // PNG. Falls back to a text Share.share() if either capture or
   // expo-sharing fails — the recipient still gets the contact details.
-  const captureAndShare = async (dialogTitle) => {
+  const onShare = async () => {
     try {
-      const uri = await captureRef(qrOnlyRef, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-      });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
+      const uri = await captureRef(qrOnlyRef, { format: 'png', quality: 1, result: 'tmpfile' });
+      if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           mimeType: 'image/png',
-          dialogTitle,
+          dialogTitle: `${shopName} on GGfix`,
           UTI: 'public.png',
         });
-        return true;
+        return;
       }
-    } catch (_) { /* fall through */ }
-    return false;
-  };
-
-  const onShare = async () => {
-    const ok = await captureAndShare(`${shopName} on GGfix`);
-    if (ok) return;
+    } catch (_) { /* fall through to text share */ }
     try {
       await Share.share({
         message: `${shopName} on GGfix — scan my QR to view the shop.`,
@@ -133,39 +164,41 @@ export default function OwnerQrCodeScreen({ navigation }) {
     }
   };
 
-  const onDownload = async () => {
-    const ok = await captureAndShare('Save QR to gallery');
-    if (!ok) notify('Saved', 'QR captured but sharing isn\'t available on this device.');
-  };
-
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: 6, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
-        >
-          <View className="flex-row items-center">
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PAGE_BG }}>
+        <View style={{ paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12) }}>
+          <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
-              className="w-10 h-10 rounded-full items-center justify-center mr-3"
-              style={{ backgroundColor: '#EFF5EE' }}
+              hitSlop={6}
+              style={{
+                height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
+                alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+                borderWidth: 1, borderColor: BORDER,
+              }}
             >
-              <ChevronLeft size={22} color="#172117" />
+              <ChevronLeft size={19} color={TEXT_PRIMARY} />
             </TouchableOpacity>
-            <Text className="flex-1 text-text text-[24px] font-extrabold" numberOfLines={1}>
-              My QR Code
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
+                My QR Code
+              </Text>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+                Share your business with customers
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={onShare}
               activeOpacity={0.8}
-              className="px-3 py-1.5 rounded-full flex-row items-center"
-              style={{ backgroundColor: '#EFF5EE' }}
+              className="flex-row items-center rounded-full"
+              style={{ paddingHorizontal: rs(13), paddingVertical: rs(8), backgroundColor: ACCENT, ...softShadow }}
             >
-              <Share2 size={13} color="#172117" />
-              <Text className="ml-1.5 text-text text-[11px] font-extrabold" style={{ letterSpacing: 0.5 }}>
+              <Share2 size={13} color="#FFFFFF" />
+              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, color: '#FFFFFF', letterSpacing: 0.5 }}>
                 SHARE
               </Text>
             </TouchableOpacity>
@@ -176,249 +209,232 @@ export default function OwnerQrCodeScreen({ navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: rs(32) }}
       >
-        {/* Outer card is purely visual — the capturable region is the
-            inner <ViewShot> that wraps only the QR canvas. */}
-        <View className="bg-white rounded-3xl p-5 items-center" style={cardShadow}>
-            <View className="flex-row items-center w-full">
+        <View style={capStyle}>
+        {/* Shop QR identity card */}
+        <View
+          className="flex-row items-center"
+          style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 11, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', ...softShadow }}
+        >
+          <View style={{ position: 'relative' }}>
+            <View
+              style={{
+                padding: 3, borderRadius: 27, borderWidth: 1.5, borderColor: BRIGHT, borderStyle: 'dashed',
+              }}
+            >
               <View
                 style={{
-                  padding: 3,
-                  borderRadius: 34,
-                  borderWidth: 1.5,
-                  borderColor: '#7ED957',
-                  borderStyle: 'dashed',
+                  width: 44, height: 44, borderRadius: 22,
+                  backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}
               >
-                <View
-                  style={{
-                    width: 56, height: 56, borderRadius: 28,
-                    backgroundColor: '#E6F7E3',
-                    alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={{ width: 56, height: 56 }} />
-                  ) : (
-                    <Text
-                      className="text-[17px] font-extrabold"
-                      style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-                    >
-                      {shopName.slice(0, 2).toUpperCase()}
-                    </Text>
-                  )}
-                </View>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={{ width: 44, height: 44 }} />
+                ) : (
+                  <Text className="font-extrabold" style={{ fontSize: 15, color: ACCENT, letterSpacing: 1 }}>
+                    {shopName.slice(0, 2).toUpperCase()}
+                  </Text>
+                )}
               </View>
-              <View className="flex-1 ml-3">
-                <Text className="text-[10.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}>
-                  SHOP QR
+            </View>
+            {/* Visual affordance only — tapping goes to the real profile-photo
+                editor, same as every other camera badge in this app. */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('OwnerPersonalInfo')}
+              activeOpacity={0.85}
+              style={{
+                position: 'absolute', right: -rs(2), bottom: -rs(2),
+                width: rs(22), height: rs(22), borderRadius: rs(11),
+                backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
+                borderWidth: 2, borderColor: '#FFFFFF',
+              }}
+            >
+              <Camera size={11} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View className="flex-1" style={{ marginLeft: 12, minWidth: 0 }}>
+            <Text className="font-extrabold" style={{ fontSize: 10.5, color: PRIMARY, letterSpacing: 1 }}>
+              SHOP QR
+            </Text>
+            <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY, marginTop: 1 }} numberOfLines={1}>
+              {shopName}
+            </Text>
+            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
+              Tap-to-scan business card
+            </Text>
+          </View>
+          {isVerified ? (
+            <View
+              className="flex-row items-center rounded-full"
+              style={{ marginLeft: 8, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: MINT }}
+            >
+              <ShieldCheck size={12} color={PRIMARY} />
+              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }}>
+                Verified Owner
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Main QR business card — the ENTIRE ViewShot region is what Share
+            captures, so it carries the header bar, shop/owner name, QR, and
+            footer, and reads as a proper business card rather than a bare QR. */}
+        <View className="items-center" style={{ marginTop: 12 }}>
+          <View
+            style={{ borderRadius: 20, overflow: 'hidden', width: '100%', maxWidth: 300, borderWidth: 1, borderColor: BORDER, ...cardShadow }}
+          >
+            <ViewShot
+              ref={qrOnlyRef}
+              options={{ format: 'png', quality: 1 }}
+              collapsable={false}
+              style={{ backgroundColor: '#FFFFFF' }}
+            >
+              {/* Scan-to-connect header */}
+              <LinearGradient
+                colors={[ACCENT, PRIMARY]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ paddingVertical: 7, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <ScanLine size={12} color="#FFFFFF" />
+                <Text className="text-white font-extrabold" style={{ marginLeft: 6, fontSize: 10, letterSpacing: 1.4 }}>
+                  SCAN TO CONNECT
                 </Text>
-                <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+              </LinearGradient>
+
+              {/* Shop + owner names */}
+              <View style={{ paddingTop: 10, paddingHorizontal: 14, alignItems: 'center' }}>
+                <Text className="font-extrabold text-center" style={{ fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={2}>
                   {shopName}
                 </Text>
-                <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
-                  Tap-to-scan business card
+                <Text className="font-semibold text-center" style={{ fontSize: 11, color: PRIMARY, marginTop: 1 }} numberOfLines={1}>
+                  Owner · {ownerName}
                 </Text>
               </View>
-            </View>
 
-            {/* Branded share card — this is the ENTIRE region captured by
-                Share / Download. It carries the GGfix header bar, shop name,
-                owner name, the actual QR, and a "scan" footer, so the PNG
-                the recipient gets reads as a proper business card not just a
-                bare QR. Outer dashed-border View is purely on-screen styling
-                and is NOT part of the captured image. */}
-            <View
-              className="mt-5 rounded-3xl p-4 items-center justify-center"
-              style={{
-                backgroundColor: '#F0F8EF',
-                borderWidth: 1.5,
-                borderColor: '#C8EEBF',
-                borderStyle: 'dashed',
-                width: '100%',
-              }}
-            >
-              <ViewShot
-                ref={qrOnlyRef}
-                options={{ format: 'png', quality: 1 }}
-                collapsable={false}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 22,
-                  overflow: 'hidden',
-                  width: 280,
-                }}
-              >
-                {/* GGfix brand header */}
-                <LinearGradient
-                  colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center' }}
-                >
-                  <Text className="text-white text-[10.5px] font-extrabold" style={{ letterSpacing: 2 }}>
-                    GGFIX  ·  SCAN TO CONNECT
-                  </Text>
-                </LinearGradient>
-
-                {/* Shop + owner names */}
-                <View style={{ paddingTop: 14, paddingHorizontal: 16, alignItems: 'center' }}>
-                  <Text
-                    className="font-extrabold text-gray-900 text-center"
-                    style={{ fontSize: 18, letterSpacing: -0.2 }}
-                    numberOfLines={2}
-                  >
-                    {shopName}
-                  </Text>
-                  <Text
-                    className="text-[12px] font-semibold mt-0.5 text-center"
-                    style={{ color: BRAND_GREEN_DARK }}
-                    numberOfLines={1}
-                  >
-                    Owner · {ownerName}
-                  </Text>
+              {/* QR with a green corner-bracket frame */}
+              <View style={{ alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 2 }}>
+                {/* Soft mint panel behind the white QR tile */}
+                <View style={{ padding: 9, borderRadius: 18, backgroundColor: MINT }}>
+                <View style={{ padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: BORDER }}>
+                  <QRCode
+                    value={qrValue}
+                    size={QR_SIZE}
+                    color={TEXT_PRIMARY}
+                    backgroundColor="#FFFFFF"
+                    ecl="M"
+                  />
+                  <CornerBracket pos="tl" />
+                  <CornerBracket pos="tr" />
+                  <CornerBracket pos="bl" />
+                  <CornerBracket pos="br" />
                 </View>
-
-                {/* QR with a green corner-bracket frame */}
-                <View style={{ alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
-                  <View
-                    style={{
-                      padding: 12,
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: 16,
-                      borderWidth: 1.5,
-                      borderColor: '#E6F7E3',
-                    }}
-                  >
-                    <QRCode
-                      value={qrValue}
-                      size={196}
-                      color="#172117"
-                      backgroundColor="#FFFFFF"
-                      ecl="M"
-                    />
-                    {/* Corner brackets for a "scan target" feel */}
-                    <CornerBracket pos="tl" />
-                    <CornerBracket pos="tr" />
-                    <CornerBracket pos="bl" />
-                    <CornerBracket pos="br" />
-                  </View>
                 </View>
+              </View>
 
-                {/* Footer */}
-                <View
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingTop: 4,
-                    paddingBottom: 14,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text className="text-[10.5px] text-gray-500 text-center" numberOfLines={2}>
+              {/* Instruction + phone pill */}
+              <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 12, alignItems: 'center' }}>
+                <View className="flex-row items-start" style={{ maxWidth: 230 }}>
+                  <Camera size={11} color={TEXT_SECONDARY} style={{ marginTop: 2, marginRight: 5 }} />
+                  <Text className="text-center flex-1" style={{ fontSize: 10, color: TEXT_SECONDARY, lineHeight: 14 }}>
                     Point your camera at this QR to add {shopName} to your contacts.
                   </Text>
-                  {shopPhone ? (
-                    <View
-                      className="mt-2 flex-row items-center px-3 py-1 rounded-full"
-                      style={{ backgroundColor: '#E6F7E3' }}
-                    >
-                      <Phone size={10} color={BRAND_GREEN_DARK} />
-                      <Text
-                        className="ml-1.5 text-[10.5px] font-extrabold"
-                        style={{ color: BRAND_GREEN_DARK }}
-                      >
-                        {shopPhone}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
-              </ViewShot>
-            </View>
-
-            {/* Owner + Shop details */}
-            <View
-              className="mt-5 w-full rounded-2xl p-3"
-              style={{ backgroundColor: '#F7FAF7' }}
-            >
-              {/* Owner */}
-              <Text
-                className="text-[9.5px] font-extrabold uppercase mb-1.5"
-                style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-              >
-                Owner
-              </Text>
-              <DetailRow Icon={User} label={ownerName} bold />
-              {ownerPhone ? (
-                <DetailRow Icon={Phone} label={ownerPhone} />
-              ) : null}
-
-              {/* Divider */}
-              <View
-                className="my-3"
-                style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }}
-              />
-
-              {/* Shop */}
-              <Text
-                className="text-[9.5px] font-extrabold uppercase mb-1.5"
-                style={{ color: BRAND_GREEN_DARK, letterSpacing: 1 }}
-              >
-                Shop
-              </Text>
-              <DetailRow Icon={Store} label={shopName} bold />
-              {shopPhone ? (
-                <DetailRow Icon={Phone} label={shopPhone} />
-              ) : null}
-              {shopAddress ? (
-                <DetailRow Icon={MapPin} label={shopAddress} multiline />
-              ) : null}
-            </View>
+                {shopPhone ? (
+                  <View
+                    className="flex-row items-center rounded-full"
+                    style={{ marginTop: 8, paddingHorizontal: 11, paddingVertical: 5, backgroundColor: MINT }}
+                  >
+                    <Phone size={11} color={PRIMARY} />
+                    <Text className="font-extrabold" style={{ marginLeft: 5, fontSize: 11, color: PRIMARY }}>
+                      {shopPhone}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </ViewShot>
           </View>
+        </View>
 
-        {/* Actions */}
-        <View className="flex-row mt-4">
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={onDownload}
-            className="flex-1 mr-2 rounded-2xl py-3.5 flex-row items-center justify-center"
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderWidth: 1.5,
-              borderColor: BRAND_GREEN,
-              ...cardShadow,
-            }}
-          >
-            <Download size={16} color={BRAND_GREEN_DARK} />
-            <Text className="ml-2 text-[14px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-              Download
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={onShare}
-            className="flex-1 ml-2"
-            style={cardShadow}
-          >
-            <LinearGradient
-              colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                borderRadius: 16,
-                paddingVertical: 14,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Share2 size={16} color="#FFFFFF" />
-              <Text className="ml-2 text-white text-[14px] font-extrabold">Share QR</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+        {/* Owner + Shop details */}
+        <View
+          style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}
+        >
+          <DetailSection
+            label="OWNER"
+            Icon={User}
+            title={ownerName}
+            sub={ownerPhone}
+            subIcon={Phone}
+          />
+          <View style={{ height: 1, backgroundColor: SOFT_MINT, marginVertical: 11 }} />
+          <DetailSection
+            label="SHOP"
+            Icon={Store}
+            title={shopName}
+            sub={shopAddress || undefined}
+            subIcon={MapPin}
+            actionLabel="VIEW SHOP"
+            ActionIcon={Eye}
+            onAction={() => navigation.navigate('OwnerShopInfo')}
+          />
+        </View>
+
+        {/* Bottom brand message */}
+        <View className="flex-row items-center" style={{ marginTop: 18, marginBottom: 8 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+          <Text className="font-extrabold" style={{ marginHorizontal: rs(10), fontSize: 9.5, letterSpacing: 1.2, color: PRIMARY }}>
+            LOCAL BUSINESS · BETTER TOGETHER
+          </Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+        </View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+// Label, then icon + name + one detail line. The text column is flex-bound so
+// a long address wraps (2 lines max) inside the card instead of running past
+// its edge and pushing the action chip off-screen.
+function DetailSection({ label, Icon, title, sub, subIcon: SubIcon, actionLabel, ActionIcon, onAction }) {
+  return (
+    <View>
+      <Text className="font-extrabold" style={{ fontSize: 10, color: PRIMARY, letterSpacing: 1, marginBottom: 7 }}>
+        {label}
+      </Text>
+      <View className="flex-row items-center">
+        <View className="items-center justify-center" style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: MINT, marginRight: 10 }}>
+          <Icon size={16} color={ACCENT} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY }} numberOfLines={1}>
+            {title}
+          </Text>
+          {sub ? (
+            <View className="flex-row items-start" style={{ marginTop: 2 }}>
+              <SubIcon size={11} color={TEXT_SECONDARY} style={{ marginTop: 2 }} />
+              <Text style={{ flex: 1, marginLeft: 5, fontSize: 11, lineHeight: 16, color: TEXT_SECONDARY }} numberOfLines={2}>
+                {sub}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {onAction ? (
+          <TouchableOpacity
+            onPress={onAction}
+            activeOpacity={0.85}
+            className="flex-row items-center rounded-full"
+            style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: MINT }}
+          >
+            <ActionIcon size={12} color={PRIMARY} />
+            <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }}>
+              {actionLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -429,8 +445,8 @@ export default function OwnerQrCodeScreen({ navigation }) {
 function CornerBracket({ pos }) {
   const isTop = pos === 'tl' || pos === 'tr';
   const isLeft = pos === 'tl' || pos === 'bl';
-  const size = 14;
-  const thickness = 3;
+  const size = 11;
+  const thickness = 2.5;
   return (
     <View
       pointerEvents="none"
@@ -442,7 +458,7 @@ function CornerBracket({ pos }) {
         right: !isLeft ? -2 : undefined,
         width: size,
         height: size,
-        borderColor: BRAND_GREEN_DARK,
+        borderColor: BRIGHT,
         borderTopWidth: isTop ? thickness : 0,
         borderBottomWidth: !isTop ? thickness : 0,
         borderLeftWidth: isLeft ? thickness : 0,
@@ -453,25 +469,5 @@ function CornerBracket({ pos }) {
         borderBottomRightRadius: pos === 'br' ? 4 : 0,
       }}
     />
-  );
-}
-
-function DetailRow({ Icon, label, bold, multiline }) {
-  return (
-    <View className="flex-row items-start py-1">
-      <View
-        className="w-7 h-7 rounded-full items-center justify-center mr-2.5"
-        style={{ backgroundColor: '#E6F7E3' }}
-      >
-        <Icon size={13} color={BRAND_GREEN_DARK} />
-      </View>
-      <Text
-        className={`flex-1 text-[13.5px] ${bold ? 'font-extrabold text-gray-900' : 'font-semibold text-gray-700'}`}
-        numberOfLines={multiline ? 3 : 1}
-        style={{ lineHeight: 18, marginTop: 4 }}
-      >
-        {label}
-      </Text>
-    </View>
   );
 }

@@ -109,7 +109,7 @@ function DetailRow({ icon: Icon, label, value }) {
       </View>
       <View className="flex-1">
         <Text className="text-[10px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.6 }}>{label}</Text>
-        <Text className="text-[13.5px] font-extrabold text-gray-900 mt-0.5">{value || '—'}</Text>
+        <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5">{value || '—'}</Text>
       </View>
     </View>
   );
@@ -168,8 +168,8 @@ export default function ScanQrCodeScreen({ navigation }) {
           <View className="h-16 w-16 rounded-full bg-warning/15 items-center justify-center mb-4">
             <CameraIcon size={28} color="#F59E0B" />
           </View>
-          <Text className="text-text font-extrabold text-[16px] text-center">Camera access needed</Text>
-          <Text className="text-text-muted text-[12.5px] text-center mt-2 leading-5">
+          <Text className="text-text font-extrabold text-[15px] text-center">Camera access needed</Text>
+          <Text className="text-text-muted text-[12px] text-center mt-2 leading-5">
             We need your camera to scan the QR slip and pull up the ticket status.
           </Text>
           <View className="flex-row mt-6">
@@ -205,7 +205,7 @@ export default function ScanQrCodeScreen({ navigation }) {
         <Pressable onPress={() => navigation.goBack()} className="w-10 h-10 rounded-full items-center justify-center bg-white/15 mr-3">
           <ChevronLeft size={22} color="#fff" />
         </Pressable>
-        <Text className="text-white text-[16px] font-extrabold">Scan QR Slip</Text>
+        <Text className="text-white text-[17px] font-extrabold">Scan QR Slip</Text>
       </View>
 
       {/* Frame + brackets (hidden once a result sheet is up) */}
@@ -247,7 +247,7 @@ export default function ScanQrCodeScreen({ navigation }) {
           {loading ? (
             <View className="items-center justify-center py-10">
               <ActivityIndicator size="large" color={BRAND_GREEN} />
-              <Text className="text-gray-500 text-[12.5px] font-semibold mt-3">Looking up ticket…</Text>
+              <Text className="text-gray-500 text-[12px] font-semibold mt-3">Looking up ticket…</Text>
             </View>
           ) : ticket ? (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 18 }}>
@@ -266,7 +266,7 @@ export default function ScanQrCodeScreen({ navigation }) {
                   const m = statusMeta(ticket.status);
                   return (
                     <View className="px-3 py-1.5 rounded-full" style={{ backgroundColor: m.bg }}>
-                      <Text className="text-[11.5px] font-extrabold" style={{ color: m.color }}>{m.label}</Text>
+                      <Text className="text-[11px] font-extrabold" style={{ color: m.color }}>{m.label}</Text>
                     </View>
                   );
                 })()}
@@ -291,7 +291,7 @@ export default function ScanQrCodeScreen({ navigation }) {
                   </View>
                   <View className="flex-1">
                     <Text className="text-[10px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.6 }}>Ticket Status</Text>
-                    <Text className="text-[13.5px] font-extrabold mt-0.5" style={{ color: statusMeta(ticket.status).color }}>
+                    <Text className="text-[13px] font-extrabold mt-0.5" style={{ color: statusMeta(ticket.status).color }}>
                       {statusMeta(ticket.status).label}
                     </Text>
                   </View>
@@ -300,7 +300,7 @@ export default function ScanQrCodeScreen({ navigation }) {
 
               <Pressable onPress={reset} className="mt-4 rounded-2xl py-3.5 flex-row items-center justify-center active:opacity-90" style={{ backgroundColor: BRAND_GREEN }}>
                 <RotateCcw size={16} color="#fff" />
-                <Text className="text-white text-[14px] font-extrabold ml-2">Scan another</Text>
+                <Text className="text-white text-[13px] font-extrabold ml-2">Scan another</Text>
               </Pressable>
             </ScrollView>
           ) : (
@@ -308,13 +308,13 @@ export default function ScanQrCodeScreen({ navigation }) {
               <View className="w-14 h-14 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#FEE2E2' }}>
                 <AlertTriangle size={26} color="#B91C1C" />
               </View>
-              <Text className="text-gray-900 font-extrabold text-[15px] text-center">No ticket found</Text>
+              <Text className="text-gray-900 font-extrabold text-[13px] text-center">No ticket found</Text>
               <Text className="text-gray-500 text-[12px] text-center mt-1.5 leading-5">
                 Couldn't match <Text className="font-extrabold text-gray-700">{notFound}</Text> to a ticket in this shop. Make sure it's a GGFix QR slip.
               </Text>
               <Pressable onPress={reset} className="mt-5 rounded-2xl py-3.5 px-8 flex-row items-center justify-center active:opacity-90" style={{ backgroundColor: BRAND_GREEN }}>
                 <RotateCcw size={16} color="#fff" />
-                <Text className="text-white text-[14px] font-extrabold ml-2">Try again</Text>
+                <Text className="text-white text-[13px] font-extrabold ml-2">Try again</Text>
               </Pressable>
             </View>
           )}
@@ -330,7 +330,7 @@ function SlimHeader({ onBack }) {
       <Pressable onPress={onBack} className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted mr-3">
         <ChevronLeft size={22} color="#172117" />
       </Pressable>
-      <Text className="text-text text-[16px] font-extrabold">Scan QR Slip</Text>
+      <Text className="text-text text-[17px] font-extrabold">Scan QR Slip</Text>
     </View>
   );
 }

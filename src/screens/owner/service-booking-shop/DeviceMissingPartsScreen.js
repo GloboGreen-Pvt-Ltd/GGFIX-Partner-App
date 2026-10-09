@@ -7,7 +7,7 @@ import {
   Volume2, ClipboardList, X, CircleCheck, PackageX,
 } from 'lucide-react-native';
 import { useResponsive } from '../../../theme/responsive';
-import { rf, rs } from '../../../utils/responsive';
+import { rs } from '../../../utils/responsive';
 
 /**
  * Device Missing Parts — a screen, reached from the Device Security Lock popup
@@ -18,31 +18,36 @@ import { rf, rs } from '../../../utils/responsive';
  * <KeyboardProvider> doesn't instrument. On a SCREEN the provider IS in play, so
  * the library is the right tool — see `lib/hooks/useKeyboardHeight` for the full why.
  */
-const ACCENT = '#004C40';
-const ACCENT_10 = 'rgba(0, 76, 64, 0.10)';
-const ACCENT_35 = 'rgba(0, 76, 64, 0.35)';
+// GGFIX palette.
+const ACCENT = '#09AD2A';       // GGFIX green
+const PRIMARY = '#078F23';      // green text
+const MINT = '#EAF8EC';
 const WHITE = '#FFFFFF';
-const INK = '#172117';
-const MUTED = '#8FA08F';
-const SUB = '#667066';
-const LINE = '#E2E8E2';
-const SOFT = '#F8F8F8';
+const PAGE_BG = '#F8F8F8';
+const INK = '#1E1E1E';
+const MUTED = '#8A8A8A';
+const SUB = '#6B6B6B';
+const LINE = '#E6E6E6';
+const HAIR = '#F3F3F3';
+const SOFT = '#F3F3F3';
 
-// Semantic colours for the flag pills — kept red/amber because missing = danger
-// and damaged = warning are industry-standard signals, and they read against
-// #004C40 without competing with it. #B45309 rather than amber-500 #F59E0B,
-// which measures 2.15:1 on white and fails AA.
-const COLOR_MISSING = '#DC2626';
-const COLOR_DAMAGE = '#B45309';
+// Semantic colours for the flag pills: Missing = yellow, Damaged = red.
+// `*_TEXT` is the readable text shade on the tint.
+const MISSING = '#F3BF23';
+const MISSING_TEXT = '#8A6A00';
+const MISSING_BG = '#FFF8E1';
+const DAMAGE = '#F84141';
+const DAMAGE_TEXT = '#D63232';
+const DAMAGE_BG = '#FEECEC';
 
 const PARTS = [
-  { id: 'DISPLAY', name: 'Display', icon: Smartphone },
-  { id: 'BACK_PANEL', name: 'Back Panel', icon: Layers },
-  { id: 'SIM_TRAY', name: 'SIM Card Tray', icon: CreditCard },
-  { id: 'BUTTONS', name: 'Buttons', icon: CircleDot },
-  { id: 'CHARGING_PORT', name: 'Charging Port', icon: Zap },
-  { id: 'CAMERA', name: 'Camera', icon: Camera },
-  { id: 'SPEAKER', name: 'Speaker', icon: Volume2 },
+  { id: 'DISPLAY', name: 'Display', desc: 'Screen and front panel', icon: Smartphone },
+  { id: 'BACK_PANEL', name: 'Back Panel', desc: 'Rear cover and housing', icon: Layers },
+  { id: 'SIM_TRAY', name: 'SIM Card Tray', desc: 'SIM card holder', icon: CreditCard },
+  { id: 'BUTTONS', name: 'Buttons', desc: 'Power, volume and other buttons', icon: CircleDot },
+  { id: 'CHARGING_PORT', name: 'Charging Port', desc: 'USB port and connectors', icon: Zap },
+  { id: 'CAMERA', name: 'Camera', desc: 'Front and rear camera modules', icon: Camera },
+  { id: 'SPEAKER', name: 'Speaker', desc: 'Speaker and audio output', icon: Volume2 },
 ];
 
 export default function DeviceMissingPartsScreen({ navigation, route }) {
@@ -97,18 +102,28 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
 
   // Tablets: cap the column. Full-bleed rows on a 10" screen put a part name and
   // its flag pills a hand's width apart.
-  const colW = r.isTablet ? Math.min(r.width - rs(32), rs(700)) : undefined;
+  const colW = r.isTablet ? Math.min(r.width - rs(32), rs(860)) : undefined;
   const col = colW ? { width: colW, alignSelf: 'center' } : null;
 
+  // Part grid: 2 cards per row on phones, 3 on tablets.
+  const gridGap = 8;
+  const gridCols = r.isTablet ? 3 : 2;
+  const gridInner = (colW || r.width) - rs(14) * 2;
+  const cardW = Math.floor((gridInner - gridGap * (gridCols - 1)) / gridCols);
+
+  const summaryTint = allClear ? ACCENT : (damageCount > 0 ? DAMAGE : MISSING);
+  const summaryText = allClear ? PRIMARY : (damageCount > 0 ? DAMAGE_TEXT : MISSING_TEXT);
+  const summaryBg = allClear ? MINT : (damageCount > 0 ? DAMAGE_BG : MISSING_BG);
+
   return (
-    <View className="flex-1" style={{ backgroundColor: WHITE }}>
-      {/* ── White header — matches the app's other white headers ─────── */}
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+      {/* ── Header ───────────────────────────────────────────────── */}
       <View
         style={{
           backgroundColor: WHITE,
-          paddingTop: insets.top + rs(10),
-          paddingBottom: rs(14),
-          paddingHorizontal: rs(16),
+          paddingTop: insets.top + rs(8),
+          paddingBottom: rs(12),
+          paddingHorizontal: rs(14),
           borderBottomWidth: 1,
           borderBottomColor: LINE,
         }}
@@ -117,113 +132,110 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
           <Pressable
             onPress={() => navigation.goBack()}
             className="items-center justify-center active:opacity-70"
-            style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: SOFT }}
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ArrowLeft size={rf(20)} color={INK} strokeWidth={2} />
+            <ArrowLeft size={18} color={INK} strokeWidth={2} />
           </Pressable>
-          <Text
-            className="flex-1 text-text text-center"
-            style={{ fontSize: rf(16), fontWeight: '700', paddingHorizontal: rs(8) }}
-            numberOfLines={1}
-          >
-            Device Missing Parts
-          </Text>
+          <View className="flex-1" style={{ paddingHorizontal: 8 }}>
+            <Text className="text-center" style={{ fontSize: 17, fontWeight: '800', color: INK }} numberOfLines={1}>
+              Device Missing Parts
+            </Text>
+            <Text className="text-center" style={{ fontSize: 11, color: SUB, marginTop: 1 }} numberOfLines={1}>
+              Inspect and flag the device condition
+            </Text>
+          </View>
           {/* Balances the back button so the title stays optically centred. */}
-          <View style={{ width: rs(40) }} />
+          <View style={{ width: 36 }} />
         </View>
       </View>
 
       <KeyboardAwareScrollView
-        bottomOffset={rs(140)}
-        contentContainerStyle={{ paddingBottom: rs(150), ...(col || {}) }}
+        bottomOffset={rs(110)}
+        contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(12), paddingBottom: insets.bottom + rs(96), ...(col || {}) }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Status strip ──────────────────────────────────────────── */}
-        <View style={{ paddingHorizontal: rs(16), marginTop: rs(12) }}>
+        {/* ── Compact progress summary — two status chips. ─────────── */}
+        <View className="flex-row" style={{ gap: 8 }}>
           <View
             className="flex-row items-center"
-            style={{
-              borderRadius: rs(12),
-              padding: rs(10),
-              backgroundColor: allClear ? ACCENT_10 : 'rgba(220, 38, 38, 0.08)',
-            }}
+            style={{ flex: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: summaryBg }}
           >
-            <View
-              className="items-center justify-center"
-              style={{ height: rs(38), width: rs(38), borderRadius: rs(11), marginRight: rs(10), backgroundColor: WHITE }}
-            >
-              {allClear
-                ? <CircleCheck size={rf(19)} color={ACCENT} strokeWidth={2} />
-                : <PackageX size={rf(19)} color={COLOR_MISSING} strokeWidth={2} />}
-            </View>
-            <View className="flex-1">
-              <Text className="text-text" style={{ fontSize: rf(13.5), fontWeight: '700' }} numberOfLines={1}>
-                {allClear ? 'All parts present' : `${flaggedTotal} part${flaggedTotal === 1 ? '' : 's'} flagged`}
-              </Text>
-              <Text style={{ fontSize: rf(11.5), color: SUB, marginTop: rs(1) }} numberOfLines={1}>
-                {allClear
-                  ? 'Flag anything missing or damaged below.'
-                  : [missingCount ? `${missingCount} missing` : null, damageCount ? `${damageCount} damaged` : null]
-                      .filter(Boolean).join(' · ')}
-              </Text>
-            </View>
+            {allClear
+              ? <CircleCheck size={13} color={summaryTint} strokeWidth={2} />
+              : <PackageX size={13} color={summaryTint} strokeWidth={2} />}
+            <Text style={{ fontSize: 11, fontWeight: '800', color: summaryText, marginLeft: 5 }} numberOfLines={1}>
+              {flaggedTotal} Part{flaggedTotal === 1 ? '' : 's'} Flagged
+            </Text>
+          </View>
+          <View
+            className="flex-row items-center justify-center"
+            style={{ flex: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: WHITE, borderWidth: 1, borderColor: LINE }}
+          >
+            <ClipboardList size={12} color={SUB} strokeWidth={2} />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: SUB, marginLeft: 5 }} numberOfLines={1}>
+              Inspection in progress
+            </Text>
           </View>
         </View>
 
-        {/* ── Part checklist ───────────────────────────────────────── */}
-        <View className="flex-row items-center" style={{ paddingHorizontal: rs(16), paddingTop: rs(16), paddingBottom: rs(8) }}>
-          <ClipboardList size={rf(14)} color={MUTED} strokeWidth={2} />
-          <Text className="text-text-muted" style={{ fontSize: rf(11.5), fontWeight: '600', letterSpacing: 1.2, marginLeft: rs(6) }}>
-            PART CHECKLIST
-          </Text>
-        </View>
-
-        <View style={{ paddingHorizontal: rs(16) }}>
+        {/* ── Part checklist — grid of small cards: icon, name and
+            description, then the Missing / Damaged toggles across the
+            bottom. The details field appears only once a part is flagged. ── */}
+        <View className="flex-row flex-wrap" style={{ marginTop: 10, gap: gridGap }}>
           {PARTS.map((p) => {
             const row = state[p.id] || {};
             const anyFlag = row.missing || row.damage;
+            const flagColor = row.damage ? DAMAGE : (row.missing ? MISSING : null);
+            const flagBg = row.damage ? DAMAGE_BG : (row.missing ? MISSING_BG : null);
             const Icon = p.icon;
             return (
               <View
                 key={p.id}
                 style={{
-                  borderRadius: rs(12),
-                  marginBottom: rs(8),
-                  padding: rs(10),
-                  // OPAQUE on purpose: Android renders an `elevation` shadow
-                  // through a translucent fill, which shows as a grey box behind
-                  // the flagged row.
-                  backgroundColor: anyFlag ? '#F2F6F5' : WHITE,
+                  width: cardW,
+                  borderRadius: 14,
+                  padding: 10,
+                  backgroundColor: anyFlag ? flagBg : WHITE,
                   borderWidth: anyFlag ? 1.5 : 1,
-                  borderColor: anyFlag ? ACCENT_35 : LINE,
+                  borderColor: anyFlag ? flagColor : HAIR,
+                  shadowColor: INK,
+                  shadowOpacity: anyFlag ? 0 : 0.04,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: anyFlag ? 0 : 1,
                 }}
               >
-                <View className="flex-row items-center">
-                  <View
-                    className="items-center justify-center"
-                    style={{ height: rs(38), width: rs(38), borderRadius: rs(11), marginRight: rs(10), backgroundColor: anyFlag ? ACCENT : ACCENT_10 }}
-                  >
-                    <Icon size={rf(18)} color={anyFlag ? WHITE : ACCENT} strokeWidth={2} />
-                  </View>
-                  <Text className="flex-1 text-text" style={{ fontSize: rf(13.5), fontWeight: '600' }} numberOfLines={1}>
-                    {p.name}
-                  </Text>
+                <View
+                  className="items-center justify-center"
+                  style={{ height: 32, width: 32, borderRadius: 10, backgroundColor: anyFlag ? WHITE : MINT }}
+                >
+                  <Icon size={16} color={anyFlag ? flagColor : ACCENT} strokeWidth={2} />
                 </View>
-
-                <View className="flex-row" style={{ marginTop: rs(8) }}>
+                <Text style={{ marginTop: 8, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>
+                  {p.name}
+                </Text>
+                {/* Fixed two-line slot so every card in a row lines up. */}
+                <Text style={{ fontSize: 11, lineHeight: 15, minHeight: 30, color: SUB, marginTop: 1 }} numberOfLines={2}>
+                  {p.desc}
+                </Text>
+                <View className="flex-row" style={{ marginTop: 8, gap: 6 }}>
                   <FlagPill
                     label="Missing"
                     active={!!row.missing}
-                    tint={COLOR_MISSING}
+                    tint={MISSING}
+                    tintText={MISSING_TEXT}
+                    tintBg={MISSING_BG}
                     onPress={() => setField(p.id, 'missing', !row.missing)}
-                    style={{ flex: 1, marginRight: rs(8) }}
+                    style={{ flex: 1 }}
                   />
                   <FlagPill
-                    label="Damage"
+                    label="Damaged"
                     active={!!row.damage}
-                    tint={COLOR_DAMAGE}
+                    tint={DAMAGE}
+                    tintText={DAMAGE_TEXT}
+                    tintBg={DAMAGE_BG}
                     onPress={() => setField(p.id, 'damage', !row.damage)}
                     style={{ flex: 1 }}
                   />
@@ -231,21 +243,21 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
 
                 {anyFlag ? (
                   <TextInput
-                    placeholder="Add details (optional, e.g. cracked at corner)"
+                    placeholder="Add details…"
                     placeholderTextColor={MUTED}
                     value={row.detail || ''}
                     onChangeText={(v) => setField(p.id, 'detail', v)}
                     autoCorrect={false}
                     autoComplete="off"
                     textContentType="none"
-                    className="text-text"
                     style={{
-                      marginTop: rs(8),
-                      borderRadius: rs(10),
-                      paddingHorizontal: rs(12),
-                      paddingVertical: rs(9),
-                      fontSize: rf(12.5),
-                      backgroundColor: SOFT,
+                      marginTop: 8,
+                      borderRadius: 10,
+                      paddingHorizontal: 9,
+                      paddingVertical: 7,
+                      fontSize: 12,
+                      color: INK,
+                      backgroundColor: WHITE,
                       borderWidth: 1,
                       borderColor: LINE,
                     }}
@@ -257,27 +269,42 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
         </View>
       </KeyboardAwareScrollView>
 
-      {/* ── Sticky CTA ───────────────────────────────────────────────── */}
+      {/* ── Sticky CTA ───────────────────────────────────────────── */}
       <View
         className="absolute left-0 right-0"
-        style={{ bottom: 0, backgroundColor: WHITE, paddingHorizontal: rs(16), paddingTop: rs(10), paddingBottom: insets.bottom + rs(8) }}
+        style={{ bottom: 0, backgroundColor: WHITE, borderTopWidth: 1, borderTopColor: LINE, paddingHorizontal: rs(14), paddingTop: 10, paddingBottom: insets.bottom + 10 }}
       >
         <View style={col}>
           <Pressable
             onPress={onContinue}
             className="flex-row items-center active:opacity-90"
-            style={{ borderRadius: rs(16), paddingHorizontal: rs(14), paddingVertical: rs(12), backgroundColor: ACCENT }}
+            style={{
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              backgroundColor: ACCENT,
+              shadowColor: ACCENT,
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 2,
+            }}
             accessibilityRole="button"
           >
             <View className="flex-1">
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: rf(10.5), fontWeight: '600', letterSpacing: 1 }}>
-                {allClear ? 'NO ISSUES FLAGGED' : `${flaggedTotal} PART${flaggedTotal === 1 ? '' : 'S'} FLAGGED`}
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700', letterSpacing: 0.8 }}>
+                {flaggedTotal} PART{flaggedTotal === 1 ? '' : 'S'} FLAGGED
               </Text>
-              <Text className="text-white" style={{ fontSize: rf(14.5), fontWeight: '700', marginTop: rs(1) }} numberOfLines={1}>
-                Next: Review &amp; Submit
+              <Text className="text-white" style={{ fontSize: 13, fontWeight: '800', marginTop: 1 }} numberOfLines={1}>
+                Review &amp; Submit
               </Text>
             </View>
-            <ChevronRight size={rf(18)} color={WHITE} strokeWidth={2} />
+            <View
+              className="items-center justify-center"
+              style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.2)' }}
+            >
+              <ChevronRight size={16} color={WHITE} strokeWidth={2.5} />
+            </View>
           </Pressable>
         </View>
       </View>
@@ -288,17 +315,19 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════════════════════════════════
-function FlagPill({ label, active, tint, onPress, style }) {
+function FlagPill({ label, active, tint, tintText, tintBg, onPress, style }) {
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={4}
       className="flex-row items-center justify-center active:opacity-80"
       style={[
         {
-          borderRadius: 999,
-          paddingVertical: rs(8),
-          backgroundColor: active ? tint : WHITE,
-          borderWidth: 1,
+          height: 30,
+          paddingHorizontal: 4,
+          borderRadius: 9,
+          backgroundColor: active ? tintBg : WHITE,
+          borderWidth: active ? 1.5 : 1,
           borderColor: active ? tint : LINE,
         },
         style,
@@ -306,8 +335,8 @@ function FlagPill({ label, active, tint, onPress, style }) {
       accessibilityRole="checkbox"
       accessibilityState={{ checked: !!active }}
     >
-      {active ? <X size={rf(11)} color={WHITE} strokeWidth={2.5} style={{ marginRight: rs(4) }} /> : null}
-      <Text style={{ fontSize: rf(12), fontWeight: '600', color: active ? WHITE : SUB }}>
+      {active ? <X size={10} color={tintText} strokeWidth={2.75} style={{ marginRight: 2 }} /> : null}
+      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? tintText : SUB }} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>

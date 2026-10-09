@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#172117' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#172117' },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -151,8 +151,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    marginTop: 8,
+    padding: 10,
+    marginTop: 6,
   },
   rowTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   thumb: { width: 48, height: 48, borderRadius: 8, marginRight: 10, backgroundColor: '#E2E8E2' },

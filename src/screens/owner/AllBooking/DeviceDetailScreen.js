@@ -1,61 +1,68 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, ScrollView, Text, View, TouchableOpacity, StatusBar, useWindowDimensions, Linking, Pressable } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Image, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import {
-  Smartphone,
-  Clock,
-  FileText,
-  CalendarClock,
-  Calendar,
-  CheckCircle2,
-  Camera,
-  PlayCircle,
-  ShieldCheck,
-  PackageX,
-  Wrench,
-  Users,
-  Phone,
-  IndianRupee,
-  Wallet,
   ChevronLeft,
-  Tag,
+  Copy,
+  Smartphone,
+  Calendar,
+  CalendarClock,
+  CheckCircle2,
+  IndianRupee,
+  ReceiptText,
+  FileText,
+  Clock,
   ScanLine,
-  Play,
-  Pause,
-  Square,
+  Store,
+  User,
+  Wrench,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
+import { notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
+import { getModelsByBrand } from '../../../api/masterData';
+import { resolveDeviceImageSource } from '../../../utils/images';
 import { getCurrentPhaseLabel } from '../../common/serviceHistoryPhases';
-import ImageViewerModal from '../../../components/ImageViewerModal';
-import { paymentFromTicket } from './ReceiptCard';
+import { paymentFromTicket, priceItemsFromTicket } from './ReceiptCard';
+import { hasInvoice } from './bookingScopes';
+import { rs } from '../../../utils/responsive';
+import { useResponsive } from '../../../theme/responsive';
+import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+// GGFIX palette — same values used across the rest of the booking flow.
+const ACCENT = '#09AD2A';       // GGFIX green
+const PRIMARY = '#078F23';      // deeper GGFIX green
+const MINT = '#EAF8EC';
+const SOFT_MINT = '#F8F8F8';
+const PAGE_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E6E6E6';
+const TEXT_PRIMARY = '#1E1E1E';
+const TEXT_SECONDARY = '#6B6B6B';
+const SUCCESS = '#09AD2A';
+const CREATED_BG = '#FFF3E8';
+const CREATED_FG = '#B45309';
+const CREATED_BORDER = '#F3D9BC';
 
 const cardShadow = {
-  borderWidth: 1,
-  borderColor: '#E2E8E2',
-  shadowColor: '#172117',
+  shadowColor: '#1E1E1E',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
   elevation: 2,
 };
 
-const softShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
+const card = {
+  backgroundColor: CARD_BG,
+  borderRadius: 18,
+  padding: 12,
+  borderWidth: 1,
+  borderColor: '#F3F3F3',
+  ...cardShadow,
 };
 
-// Status → display label + tone, used for the hero status pill. Mirrors the
-// Booking Details screen's vocabulary so the pill reads the same across screens.
 const STATUS_VARIANT = {
   CREATED:              { label: 'Service Accepted',     tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
@@ -74,26 +81,30 @@ const STATUS_VARIANT = {
 
 const TONE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.14)', fg: '#B45309', border: 'rgba(245, 158, 11, 0.35)' },
-  blue:   { bg: 'rgba(22, 187, 5, 0.12)', fg: '#16BB05', border: 'rgba(22, 187, 5, 0.35)' },
-  purple: { bg: 'rgba(126, 217, 87, 0.12)', fg: '#087A0A', border: 'rgba(126, 217, 87, 0.35)' },
-  green:  { bg: 'rgba(8, 122, 10, 0.12)',  fg: BRAND_GREEN_DARK, border: 'rgba(8, 122, 10, 0.35)' },
-  red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C', border: 'rgba(220, 38, 38, 0.35)' },
+  blue:   { bg: 'rgba(9, 173, 42, 0.10)',    fg: ACCENT,    border: 'rgba(9, 173, 42, 0.28)' },
+  purple: { bg: 'rgba(7, 143, 35, 0.12)',   fg: PRIMARY,   border: 'rgba(7, 143, 35, 0.30)' },
+  green:  { bg: 'rgba(9, 173, 42, 0.12)',  fg: SUCCESS,   border: 'rgba(9, 173, 42, 0.32)' },
+  red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C', border: 'rgba(220, 38, 38, 0.32)' },
 };
 
 // Best-effort device-colour → swatch hex so the hero can show a real colour dot
-// next to the colour name (e.g. "Beige"). Falls back to a neutral gray.
+// next to the colour name. Falls back to a neutral grey for anything unmapped.
 const COLOR_HEX = {
   black: '#172117', white: '#EFF5EE', silver: '#CBD5CB', gray: '#8FA08F', grey: '#8FA08F',
   gold: '#D97706', rosegold: '#FECACA', beige: '#FDE68A', cream: '#FEF3C7', graphite: '#667066',
-  blue: '#16BB05', navy: '#087A0A', red: '#DC2626', green: '#16BB05', yellow: '#F59E0B',
-  purple: '#7ED957', violet: '#16BB05', pink: '#16BB05', orange: '#F59E0B', brown: '#92400E',
-  midnight: '#172117', starlight: '#FFFBEB',
+  blue: '#2563EB', navy: '#1E3A8A', red: '#DC2626', green: '#16A34A', yellow: '#F59E0B',
+  purple: '#7C3AED', violet: '#7C3AED', pink: '#EC4899', orange: '#EA580C', brown: '#92400E',
+  midnight: '#172117', starlight: '#FFFBEB', cosmicorange: '#EA580C',
 };
 
 function colorToHex(name) {
-  if (!name) return '#CBD5CB';
-  const k = String(name).trim().toLowerCase();
-  return COLOR_HEX[k] || COLOR_HEX[k.replace(/\s+/g, '')] || COLOR_HEX[k.split(/\s+/)[0]] || '#CBD5CB';
+  if (!name) return '#D6D6D6';
+  const k = String(name).trim().toLowerCase().replace(/\s+/g, '');
+  if (COLOR_HEX[k]) return COLOR_HEX[k];
+  // Marketing names ("Amazonian Red", "Deep Sea Blue") — match the longest
+  // known colour word they contain.
+  const hit = Object.keys(COLOR_HEX).sort((a, b) => b.length - a.length).find((c) => k.includes(c));
+  return hit ? COLOR_HEX[hit] : '#D6D6D6';
 }
 
 // Splits a tracking id into its letter prefix and trailing digits so the header
@@ -104,63 +115,21 @@ function splitTrackingId(id) {
   return m ? { prefix: m[1], digits: m[2] } : { prefix: s, digits: '' };
 }
 
-// Hero "Booked On" stamp — e.g. "Mon, Jul 20 2026 11:37 am".
-function fmtBooked(iso) {
+// "Thu, Oct 1, 2026 · 11:22 AM" — booked date and time on one line.
+function fmtBookedLine(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   const wd = d.toLocaleDateString('en-US', { weekday: 'short' });
   const mo = d.toLocaleDateString('en-US', { month: 'short' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-  return `${wd}, ${mo} ${d.getDate()} ${d.getFullYear()} ${time}`;
-}
-
-function parseDevicePhotos(ticket) {
-  if (ticket?.devicePhotosJson) {
-    try {
-      const p = JSON.parse(ticket.devicePhotosJson);
-      if (p && typeof p === 'object') return p;
-    } catch (_) {}
-  }
-  return {};
-}
-
-function parseTechnicianPhotos(ticket) {
-  if (!ticket?.technicianPhotosJson) return [];
-  try {
-    const p = JSON.parse(ticket.technicianPhotosJson);
-    if (!Array.isArray(p)) return [];
-    return p
-      .map((x) => (typeof x === 'string' ? x : (x?.url || x?.uri || x?.imageUrl || null)))
-      .filter(Boolean);
-  } catch (_) { return []; }
-}
-
-function parseMissingParts(ticket) {
-  if (!ticket?.missingPartsJson) return [];
-  try {
-    const p = JSON.parse(ticket.missingPartsJson);
-    if (Array.isArray(p)) return p.map((x) => (typeof x === 'string' ? x : (x?.name || x?.label))).filter(Boolean);
-  } catch (_) {}
-  return [];
-}
-
-function priceItemsFromTicket(ticket) {
-  if (Array.isArray(ticket?.priceItems)) return ticket.priceItems;
-  if (ticket?.priceItemsJson) {
-    try {
-      const parsed = JSON.parse(ticket.priceItemsJson);
-      if (Array.isArray(parsed)) return parsed;
-    } catch (_) {}
-  }
-  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${wd}, ${mo} ${d.getDate()}, ${d.getFullYear()} · ${time}`;
 }
 
 function formatDateTime(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
-  // e.g. "Thu, 09 Jul, 2026 10:48 pm" — padded day, non-padded lowercase time.
   const wd = d.toLocaleDateString('en-IN', { weekday: 'short' });
   const day = String(d.getDate()).padStart(2, '0');
   const mo = d.toLocaleDateString('en-IN', { month: 'short' });
@@ -168,281 +137,122 @@ function formatDateTime(iso) {
   return `${wd}, ${day} ${mo}, ${d.getFullYear()} ${time}`;
 }
 
-// Uniform, neutral section header — gray chip + green icon — so the screen
-// reads cleanly instead of using a different colour per section.
-function SectionHeader({ icon: Icon, label }) {
+function SectionHeader({ icon: Icon, label, subtitle, right }) {
   return (
-    <View className="flex-row items-center mb-3">
-      <View
-        className="w-7 h-7 rounded-full items-center justify-center mr-2"
-        style={{ backgroundColor: '#E6F7E3' }}
-      >
-        <Icon size={14} color={BRAND_GREEN_DARK} />
+    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+      <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT, marginRight: 9 }}>
+        <Icon size={14} color={ACCENT} />
       </View>
-      <Text
-        className="text-[11px] font-extrabold tracking-widest text-gray-900 flex-1"
-        style={{ letterSpacing: 1.2 }}
-      >
-        {label}
-      </Text>
+      <View className="flex-1">
+        <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY }}>{label}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>{subtitle}</Text> : null}
+      </View>
+      {right}
     </View>
   );
 }
 
-function PhotoSlot({ label, uri, icon: Icon, onPress }) {
-  // Only a FILLED slot is tappable — an empty dashed placeholder has nothing to
-  // open, and making it pressable would give the owner a dead target.
-  const Wrapper = uri && onPress ? TouchableOpacity : View;
-  const wrapperProps = uri && onPress
-    ? { onPress, activeOpacity: 0.85, accessibilityRole: 'button', accessibilityLabel: `${label}, tap to view` }
-    : {};
+function HeaderAction({ icon: Icon, label, onPress }) {
   return (
-    <View style={{ width: '33.333%' }} className="p-1">
-      <Text className="text-[10px] font-bold text-gray-500 text-center mb-1" numberOfLines={1}>{label}</Text>
-      <Wrapper
-        {...wrapperProps}
-        className="rounded-xl overflow-hidden items-center justify-center"
-        style={{
-          aspectRatio: 1,
-          backgroundColor: '#F7FAF7',
-          borderWidth: 1.5,
-          borderStyle: 'dashed',
-          borderColor: '#E2E8E2',
-        }}
-      >
-        {uri ? (
-          <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-        ) : (
-          <Icon size={22} color="#8FA08F" />
-        )}
-      </Wrapper>
-    </View>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      className="flex-row items-center"
+      style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: MINT }}
+    >
+      <Icon size={12} color={PRIMARY} />
+      <Text className="font-extrabold" style={{ fontSize: 11, color: PRIMARY, marginLeft: 4 }}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
-const fmtClock = (seconds) => {
-  const s = Math.max(0, Math.floor(seconds || 0));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-};
-
-// Voice-note audio player for the compliance-note card: play / pause, stop, a
-// 1x ⇄ 2x speed toggle, and a progress bar with elapsed / total time. Each row
-// owns its own AudioPlayer and releases it on unmount so navigating away
-// doesn't leak a player or block the next one.
-function VoiceNotePlayer({ uri }) {
-  // Preloads on creation (matches the old "load ahead so duration shows before
-  // the first play" behavior) and auto-releases when this row unmounts.
-  const player = useAudioPlayer(uri, { updateInterval: 200 });
-  const status = useAudioPlayerStatus(player);
-  const [rate, setRate] = useState(1);
-
-  useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    player.shouldCorrectPitch = true;
-  }, [player]);
-
-  const togglePlay = () => {
-    try {
-      if (status.playing) {
-        player.pause();
-      } else {
-        if (status.didJustFinish || status.currentTime >= (status.duration || 0)) {
-          player.seekTo(0);
-        }
-        player.play();
-      }
-    } catch (_) { /* best-effort playback */ }
-  };
-
-  const stop = () => {
-    try {
-      player.pause();
-      player.seekTo(0);
-    } catch (_) {}
-  };
-
-  const cycleRate = () => {
-    const next = rate >= 2 ? 1 : 2;
-    setRate(next);
-    try { player.setPlaybackRate(next, 'high'); } catch (_) {}
-  };
-
-  const pos = status.currentTime || 0;
-  const dur = status.duration || 0;
-  const pct = dur > 0 ? Math.min(1, pos / dur) : 0;
-
+// Device-card detail line: icon + label on the left, the full value on the
+// right. The value wraps instead of truncating, so nothing is ever cut off.
+function DetailRow({ icon: Icon, label, children, isLast }) {
   return (
     <View
-      className="mt-2 rounded-xl px-3 py-2.5"
-      style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#F7FAF7' }}
+      className="flex-row items-center"
+      style={{ paddingVertical: 6, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F3F3' }}
     >
-      <View className="flex-row items-center">
-        <TouchableOpacity
-          onPress={togglePlay}
-          className="w-9 h-9 rounded-full items-center justify-center mr-2"
-          style={{ backgroundColor: ACCENT_GREEN }}
-        >
-          {status.playing ? <Pause size={15} color="#fff" /> : <Play size={15} color="#fff" />}
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={stop}
-          className="w-8 h-8 rounded-full items-center justify-center mr-2"
-          style={{ borderWidth: 1, borderColor: '#CBD5CB', backgroundColor: '#FFFFFF' }}
-        >
-          <Square size={12} color="#667066" fill="#667066" />
-        </TouchableOpacity>
-        <View className="flex-1">
-          <View style={{ height: 4, borderRadius: 2, backgroundColor: '#E2E8E2' }}>
-            <View style={{ height: 4, borderRadius: 2, width: `${pct * 100}%`, backgroundColor: ACCENT_GREEN }} />
-          </View>
-          <Text className="text-[10px] text-gray-500 mt-1">
-            {fmtClock(pos)} / {fmtClock(dur)}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={cycleRate}
-          className="ml-2 px-2.5 py-1.5 rounded-full"
-          style={{ backgroundColor: '#EFF5EE', borderWidth: 1, borderColor: '#E2E8E2' }}
-        >
-          <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{rate}x</Text>
-        </TouchableOpacity>
+      <View className="items-center justify-center" style={{ width: 20, height: 20, borderRadius: 6, backgroundColor: MINT, marginRight: 7 }}>
+        <Icon size={11} color={ACCENT} />
       </View>
+      <Text style={{ width: 72, fontSize: 11, color: TEXT_SECONDARY, fontWeight: '600' }}>{label}</Text>
+      <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}>{children}</View>
     </View>
   );
 }
 
-
-// "Issue Verified & Updated" card on the owner's Device Detail screen.
-// Lists every compliance note the technician has submitted (from
-// /tickets/{id}/notes) with the typed text, optional voice note, and the
-// image attachments. Returns null when the technician hasn't submitted any.
-function ComplianceNotesCard({ notes, onOpenImage }) {
-  const list = Array.isArray(notes) ? notes : [];
-  if (list.length === 0) return null;
+// One compact vertical-timeline row — icon column + connector on the left,
+// label / value / hint on the right. `isLast` drops the connector.
+function TimelineRow({ icon: Icon, label, value, sub, done, isLast }) {
   return (
-    <View className="px-4 mt-4">
-      <View
-        className="bg-white rounded-2xl p-4"
-        style={cardShadow}
-      >
-        <SectionHeader icon={FileText} label="ISSUE VERIFIED & UPDATED" tint="#FEF3C7" accent="#B45309" />
-        {list.map((n, idx) => {
-          const imgs = Array.isArray(n.imageUrls) ? n.imageUrls : [];
-          return (
-            <View
-              key={n.id || idx}
-              className="flex-row mt-1"
-              style={{
-                paddingTop: idx > 0 ? 12 : 0,
-                borderTopWidth: idx > 0 ? 1 : 0,
-                borderTopColor: '#EFF5EE',
-                marginTop: idx > 0 ? 12 : 0,
-              }}
-            >
-              <View
-                style={{ width: 3, borderRadius: 2, backgroundColor: '#F59E0B', marginRight: 10 }}
-              />
-              <View className="flex-1">
-                {n.note ? (
-                  <Text className="text-[13px] text-gray-900 leading-5">{n.note}</Text>
-                ) : null}
-                {n.audioUrl ? <VoiceNotePlayer uri={n.audioUrl} /> : null}
-                {imgs.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2">
-                    <View className="flex-row">
-                      {imgs.map((u, j) => (
-                        <TouchableOpacity
-                          key={j}
-                          activeOpacity={0.85}
-                          onPress={() => onOpenImage?.(imgs.map((x, k) => ({ uri: x, label: `Issue photo ${k + 1}` })), j)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Issue photo ${j + 1}, tap to view`}
-                        >
-                          <Image
-                            source={{ uri: u }}
-                            style={{ width: 72, height: 72, borderRadius: 8, marginRight: 6 }}
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                ) : null}
-                {n.createdAt ? (
-                  <Text className="text-[10px] text-gray-500 mt-1.5">
-                    {formatDateTime(n.createdAt) || ''}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          );
-        })}
+    <View className="flex-row" style={{ alignItems: 'stretch' }}>
+      <View style={{ width: 28, alignItems: 'center' }}>
+        <View
+          className="items-center justify-center"
+          style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: done ? ACCENT : SOFT_MINT, borderWidth: done ? 0 : 1, borderColor: BORDER }}
+        >
+          <Icon size={13} color={done ? '#FFFFFF' : TEXT_SECONDARY} />
+        </View>
+        {!isLast ? <View style={{ flex: 1, width: 1.5, marginVertical: 3, backgroundColor: BORDER }} /> : null}
+      </View>
+      <View className="flex-1" style={{ paddingBottom: isLast ? 0 : 12, marginLeft: 10 }}>
+        <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.6, color: TEXT_SECONDARY }}>{label}</Text>
+        <Text className="font-extrabold" style={{ fontSize: 13, color: TEXT_PRIMARY, marginTop: 1 }}>{value}</Text>
+        {sub ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }}>{sub}</Text> : null}
       </View>
     </View>
   );
 }
+
+const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function DeviceDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { width: winW } = useWindowDimensions();
-  const contentW = Math.min(winW, 760);
+  const r = useResponsive();
+  const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null;
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
-  const [technician, setTechnician] = useState(null);
-  const [complianceNotes, setComplianceNotes] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Image viewer. `images` is the whole set the tapped thumbnail belongs to,
-  // so a swipe inside the viewer moves through that section's siblings and not
-  // across unrelated sections.
-  //
-  // MUST live up here with the rest of the state, NOT beside the derived photo
-  // sets further down: the two early returns below (`loading && !ticket`, and
-  // "Booking not found") bail before that point, so a hook placed after them
-  // runs on some renders and not others — "Rendered more hooks than during the
-  // previous render", which is exactly what it did.
-  const [viewer, setViewer] = useState({ open: false, images: [], index: 0 });
-  const openViewer = (images, index) => setViewer({ open: true, images, index });
-  const closeViewer = () => setViewer((v) => ({ ...v, open: false }));
+  // The model's catalogue photo, for bookings that carry no deviceImageUrl —
+  // the same fallback the Home "Recent Bookings" cards use.
+  const [modelImage, setModelImage] = useState(null);
 
   const load = useCallback(async () => {
-    if (!ticketId) return;
+    console.log('[DeviceDetail][DEBUG] load() start, ticketId =', ticketId);
+    if (!ticketId) {
+      console.log('[DeviceDetail][DEBUG] no ticketId in route.params — bailing, loader will hang');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const data = await ticketApi.get(`/tickets/${ticketId}`);
+      console.log('[DeviceDetail][DEBUG] GET /tickets/' + ticketId + ' resolved:', JSON.stringify(data)?.slice(0, 500));
       setTicket(data);
+      if (!data?.deviceImageUrl && data?.brandId && data?.modelId) {
+        getModelsByBrand(data.brandId)
+          .then((models) => {
+            const m = (models || []).find((x) => x.id === data.modelId);
+            const url = resolveDeviceImageSource({ url: m?.imageUrl, base64: m?.imageBase64 });
+            if (url) setModelImage(url);
+          })
+          .catch(() => {});
+      }
       // The booking's recorded lifecycle, from the same endpoint the Service
-      // History screen reads. This screen used to render nothing but
-      // ticket.status, so every step that isn't a lifecycle status — the
-      // technician's acceptance, the quality check, the invoice — was simply
-      // absent here while History showed it. Same booking id, same events.
+      // History screen reads — drives the real (dynamic) status pill label.
       try {
         const ev = await ticketApi.get(`/tickets/${ticketId}/events`);
         setEvents(Array.isArray(ev) ? ev : (ev?.content ?? []));
       } catch (_) { setEvents([]); }
-      if (data?.assignedTechnicianId) {
-        try {
-          const list = await ticketApi.get('/technicians');
-          const arr = Array.isArray(list) ? list : (list?.content || []);
-          setTechnician(arr.find((x) => x.id === data.assignedTechnicianId) || null);
-        } catch (_) { setTechnician(null); }
-      } else {
-        setTechnician(null);
-      }
-      // Compliance notes drive the "Issue Verified & Updated" card below.
-      // Failure here shouldn't break the rest of the screen — leave the
-      // section hidden if the call errors out.
-      try {
-        const notes = await ticketApi.get(`/tickets/${ticketId}/notes`);
-        setComplianceNotes(Array.isArray(notes) ? notes : []);
-      } catch (_) { setComplianceNotes([]); }
     } catch (e) {
+      console.log('[DeviceDetail][DEBUG] GET /tickets/' + ticketId + ' FAILED:', e?.status || e?.response?.status, e?.message);
       setError(e.message || 'Failed to load ticket');
     } finally {
+      console.log('[DeviceDetail][DEBUG] load() finally — setLoading(false)');
       setLoading(false);
     }
   }, [ticketId]);
@@ -452,7 +262,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
   if (loading && !ticket) return <Loader label="Loading device details..." />;
   if (error || !ticket) {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
         <EmptyState
           title="Booking not found"
           description={error || 'We could not load this booking.'}
@@ -464,90 +274,78 @@ export default function DeviceDetailScreen({ route, navigation }) {
   }
 
   const trackingId = ticket.trackingId || ticket.id;
+  const tid = splitTrackingId(trackingId);
   const deviceName = ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || 'Device';
+  const storageLabel = hasCategorySpecs(ticket)
+    ? specDisplayParts(ticket).join(' · ')
+    : (ticket.storageLabel || ticket.ramLabel || null);
+  const colorName = ticket.color || null;
   const lineItems = priceItemsFromTicket(ticket);
   const estimatedTotal = ticket.estimatedPrice != null
     ? ticket.estimatedPrice
     : lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
   const payment = paymentFromTicket(ticket, estimatedTotal);
-  const photos = parseDevicePhotos(ticket);
-  const technicianPhotos = parseTechnicianPhotos(ticket);
-  // Labelled, gap-free sets for the viewer. The grids render fixed slots and
-  // can hold blanks; the viewer must not page onto an empty one, so the empties
-  // are dropped here rather than in the grid.
-  const devicePhotoSet = [
-    { uri: photos.front, label: 'Front Side' },
-    { uri: photos.back, label: 'Back Side' },
-  ].filter((x) => !!x.uri);
-  const technicianPhotoSet = (technicianPhotos || [])
-    .map((u, i) => ({ uri: u, label: `Technician photo ${i + 1}` }))
-    .filter((x) => !!x.uri);
-  const missingParts = parseMissingParts(ticket);
   const readyAtText = formatDateTime(ticket.estimatedReadyAt);
   const deliveryAtText = formatDateTime(ticket.estimatedDeliveryAt);
-  const approvalText = ticket.customerApproval === true ? 'Done'
-    : ticket.customerApproval === false ? 'Pending' : null;
-  // Read-only here. Ticket Details owns capturing it — a booking can't be marked
-  // Ready for Delivery without one, and that gate is the sheet on that screen.
   const imeiText = String(ticket.imei || '').trim() || null;
-  const securityType = ticket.deviceSecurityType && ticket.deviceSecurityType !== 'NONE'
-    ? ticket.deviceSecurityType : null;
-  const securityValue = ticket.deviceSecurityValue || null;
-
-  const tid = splitTrackingId(trackingId);
-  const bookedText = fmtBooked(ticket.createdAt);
+  const bookedLine = fmtBookedLine(ticket.createdAt);
+  const deviceImage = ticket.deviceImageUrl || modelImage || null;
+  const customerText = [ticket.customerName, ticket.customerPhone].filter(Boolean).join(' · ') || null;
+  const technicianName = ticket.assignedTechnicianName || ticket.technicianName || null;
   const statusKey = String(ticket.status || '').toUpperCase();
   const statusMeta = STATUS_VARIANT[statusKey] || { label: ticket.status || 'Pending', tone: 'amber' };
   const statusTone = TONE[statusMeta.tone] || TONE.amber;
-  // The pill names the furthest step actually recorded, not the coarser
-  // lifecycle status behind it — so a booking whose quality check just passed
-  // doesn't read "In Service" here while Service History reads "Quality Check
-  // Completed". The tone still comes from the lifecycle status, which is what
-  // decides whether the booking is open, done or cancelled.
   const currentStatusLabel = getCurrentPhaseLabel(events, ticket.status) || statusMeta.label;
-  const StatusIcon = statusKey === 'CANCELLED' ? PackageX : CheckCircle2;
-  const techPhone = technician?.phone || null;
+  const canViewInvoice = hasInvoice(ticket);
 
-  // Green call button in the Assigned Technician card — dials the technician.
-  const contactTechnician = () => {
-    if (!techPhone) return;
-    Linking.openURL(`tel:${techPhone}`).catch(() => {});
+  const copyTrackingId = async () => {
+    try {
+      await Clipboard.setStringAsync(String(trackingId));
+      notify('Copied', `Tracking ID #${trackingId} copied.`, { preset: 'done' });
+    } catch (e) {
+      notify('Copy failed', e?.message || 'Could not copy to clipboard.');
+    }
   };
 
+  const goViewInvoice = () => navigation.navigate('DeliveryInvoiceReport', { ticketId });
+
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* White header (slim — replaces native white header) */}
+      {/* Header */}
       <View
         style={{
           backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
+          paddingTop: insets.top + rs(8),
+          paddingBottom: rs(12),
+          paddingHorizontal: rs(14),
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: BORDER,
         }}
       >
-        <View className="flex-row items-center">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
-          >
-            <ChevronLeft size={22} color="#172117" />
-          </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-            Device Details
-          </Text>
-          <View
-            className="px-2.5 py-1 rounded-full"
-            style={{ maxWidth: 180, backgroundColor: '#E6F7E3' }}
-          >
-            <Text className="text-[11px] font-extrabold" numberOfLines={1}>
-              <Text style={{ color: '#172117' }}>#{tid.prefix}</Text>
-              <Text style={{ color: BRAND_GREEN_DARK }}>{tid.digits}</Text>
-            </Text>
+        <View style={colStyle}>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+              hitSlop={6}
+              style={{
+                height: rs(36), width: rs(36), borderRadius: rs(18), marginRight: rs(10),
+                alignItems: 'center', justifyContent: 'center', backgroundColor: SOFT_MINT,
+                borderWidth: 1, borderColor: BORDER,
+              }}
+            >
+              <ChevronLeft size={19} color={TEXT_PRIMARY} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>
+                Device Details
+              </Text>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
+                View complete information about this device
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -555,504 +353,178 @@ export default function DeviceDetailScreen({ route, navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 20 }}
       >
-        <View style={{ width: contentW, alignSelf: 'center' }}>
-        {/* Floating device card */}
-        <View className="px-4" style={{ marginTop: 12 }}>
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            {/* Top — image + device name + colour swatch */}
+        <View style={colStyle}>
+          {/* ── Device card: photo, full name, variant, colour, status, and the
+              booked date · time + who created the booking on one line. ── */}
+          <View style={[card, { padding: 11 }]}>
             <View className="flex-row items-center">
-              {ticket.deviceImageUrl ? (
-                <Image
-                  source={{ uri: ticket.deviceImageUrl }}
-                  style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: '#EFF5EE', marginRight: 12 }}
-                />
-              ) : (
-                <View
-                  className="w-16 h-16 rounded-2xl items-center justify-center mr-3"
-                  style={{ backgroundColor: '#E6F7E3' }}
-                >
-                  <Smartphone size={28} color={BRAND_GREEN_DARK} />
+              <View style={{ width: 58, height: 62, borderRadius: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: '#F3F3F3', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
+                {deviceImage ? (
+                  <Image source={{ uri: deviceImage }} style={{ width: 50, height: 56 }} resizeMode="contain" />
+                ) : (
+                  <Smartphone size={24} color={ACCENT} />
+                )}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                {/* "DEVICE" + the tracking ID (tap to copy) share the top line. */}
+                <View className="flex-row items-center">
+                  <Text className="uppercase font-bold" style={{ flex: 1, fontSize: 10, letterSpacing: 0.7, color: TEXT_SECONDARY }}>Device</Text>
+                  <TouchableOpacity
+                    onPress={copyTrackingId}
+                    activeOpacity={0.75}
+                    hitSlop={6}
+                    className="flex-row items-center"
+                    style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: MINT }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800' }}>
+                      <Text style={{ color: TEXT_PRIMARY }}>#{tid.prefix}</Text>
+                      <Text style={{ color: ACCENT }}>{tid.digits}</Text>
+                    </Text>
+                    <Copy size={10} color={ACCENT} style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
                 </View>
-              )}
-              <View className="flex-1">
-                <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
-                  Device
-                </Text>
-                <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={2}>
+                <Text className="font-extrabold" style={{ fontSize: 15, lineHeight: 19, marginTop: 1, color: TEXT_PRIMARY }} numberOfLines={2}>
                   {deviceName}
                 </Text>
-                {ticket.color ? (
-                  <View className="flex-row items-center mt-1.5">
-                    <View
-                      style={{
-                        width: 14, height: 14, borderRadius: 7,
-                        backgroundColor: colorToHex(ticket.color),
-                        borderWidth: 1, borderColor: '#E2E8E2',
-                      }}
-                    />
-                    <Text className="text-[12px] text-gray-600 ml-1.5 font-semibold">{ticket.color}</Text>
+                <View className="flex-row items-center flex-wrap" style={{ marginTop: 3, rowGap: 4 }}>
+                  {storageLabel ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginRight: 8 }} numberOfLines={1}>{storageLabel}</Text> : null}
+                  {colorName ? (
+                    <View className="flex-row items-center" style={{ marginRight: 8 }}>
+                      <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colorToHex(colorName), borderWidth: 1, borderColor: BORDER }} />
+                      <Text style={{ fontSize: 11, color: TEXT_PRIMARY, marginLeft: 4, fontWeight: '600' }} numberOfLines={1}>{colorName}</Text>
+                    </View>
+                  ) : null}
+                  <View
+                    className="flex-row items-center rounded-full"
+                    style={{ paddingHorizontal: 7, paddingVertical: 2, backgroundColor: statusTone.bg, borderWidth: 1, borderColor: statusTone.border, maxWidth: '100%' }}
+                  >
+                    <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: statusTone.fg, marginRight: 4 }} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: statusTone.fg, flexShrink: 1 }} numberOfLines={1}>{currentStatusLabel}</Text>
                   </View>
-                ) : null}
+                </View>
               </View>
             </View>
 
-            {/* Divider */}
-            <View style={{ height: 1, backgroundColor: '#EFF5EE', marginVertical: 14 }} />
-
-            {/* Bottom — Tracking ID · Booked On · Status */}
-            <View className="flex-row items-center">
-              {/* Tracking ID */}
-              <View className="flex-row items-center flex-1">
-                <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: '#E6F7E3' }}>
-                  <Tag size={14} color={BRAND_GREEN_DARK} />
-                </View>
-                <View className="ml-2 flex-1">
-                  <Text className="text-[9.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.4 }}>
-                    Tracking ID
-                  </Text>
-                  <Text className="text-[11.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }} numberOfLines={1}>
-                    #{trackingId}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: '#EFF5EE', marginHorizontal: 8 }} />
-
-              {/* Booked On */}
-              {bookedText ? (
-                <View className="flex-row items-center flex-1">
-                  <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: '#E6F7E3' }}>
-                    <Calendar size={14} color={BRAND_GREEN_DARK} />
-                  </View>
-                  <View className="ml-2 flex-1">
-                    <Text className="text-[9.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.4 }}>
-                      Booked On
-                    </Text>
-                    <Text className="text-[11px] font-bold text-gray-900" numberOfLines={2}>
-                      {bookedText}
-                    </Text>
-                  </View>
-                </View>
+            <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: '#F3F3F3' }}>
+              <DetailRow icon={Calendar} label="Booked on">
+                <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{bookedLine || '—'}</Text>
+              </DetailRow>
+              {customerText ? (
+                <DetailRow icon={User} label="Customer">
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{customerText}</Text>
+                </DetailRow>
               ) : null}
-
-              {/* Status pill */}
-              <View
-                className="flex-row items-center rounded-full px-2.5 py-1.5 ml-2"
-                style={{ backgroundColor: statusTone.bg, borderWidth: 1, borderColor: statusTone.border }}
-              >
-                <StatusIcon size={12} color={statusTone.fg} />
-                <Text className="text-[9.5px] font-extrabold ml-1" style={{ color: statusTone.fg }} numberOfLines={1}>
-                  {currentStatusLabel.toUpperCase()}
-                </Text>
-              </View>
+              {technicianName ? (
+                <DetailRow icon={Wrench} label="Technician">
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{technicianName}</Text>
+                </DetailRow>
+              ) : null}
+              {/* Every booking in this app is created from the shop side —
+                  there is no customer self-booking flow — so this is a true
+                  statement, not a fabricated value. */}
+              <DetailRow icon={Store} label="Booking" isLast>
+                <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 7, paddingVertical: 2, backgroundColor: CREATED_BG, borderWidth: 1, borderColor: CREATED_BORDER }}>
+                  <Text className="font-extrabold" style={{ fontSize: 10, color: CREATED_FG }}>Created by Shop</Text>
+                </View>
+              </DetailRow>
             </View>
           </View>
-        </View>
 
-        {/* Price Summary */}
-        <View className="px-4" style={{ marginTop: 14 }}>
-          <View
-            className="bg-white rounded-2xl p-4"
-            style={cardShadow}
-          >
-            <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
+          {/* ── Price Summary ── */}
+          <View style={[card, { marginTop: 10 }]}>
+            <SectionHeader
+              icon={IndianRupee}
+              label="Price Summary"
+              subtitle="Breakdown of services and charges"
+              right={canViewInvoice ? <HeaderAction icon={ReceiptText} label="View Invoice" onPress={goViewInvoice} /> : null}
+            />
             {lineItems.length === 0 ? (
-              <Text className="text-[12px] text-gray-500">No service items recorded.</Text>
+              <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>No service items recorded.</Text>
             ) : (
               <>
                 {lineItems.map((item, idx) => (
-                  <View key={item.id || idx} className="flex-row items-center py-1.5">
-                    <View
-                      className="w-6 h-6 rounded-full items-center justify-center mr-2.5"
-                      style={{ backgroundColor: '#E6F7E3' }}
-                    >
-                      <Text
-                        className="text-[10.5px] font-extrabold"
-                        style={{ color: BRAND_GREEN_DARK }}
-                      >
-                        {idx + 1}
-                      </Text>
+                  <View key={item.id || idx} className="flex-row items-center" style={{ paddingVertical: 5 }}>
+                    <View className="items-center justify-center" style={{ height: 20, width: 20, borderRadius: 10, marginRight: 9, backgroundColor: MINT }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{idx + 1}</Text>
                     </View>
-                    <Text className="text-[12.5px] text-gray-700 flex-1" numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                    <Text className="text-[12.5px] font-bold text-gray-900">
-                      ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text className="font-bold" style={{ fontSize: 12, color: TEXT_PRIMARY }} numberOfLines={1}>{item.label}</Text>
+                      {item.description ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>{item.description}</Text> : null}
+                    </View>
+                    <Text className="font-extrabold" style={{ fontSize: 12, color: TEXT_PRIMARY, marginLeft: 8 }}>{money(item.amount)}</Text>
                   </View>
                 ))}
 
-                <View
-                  className="my-3"
-                  style={{ height: 1, borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }}
-                />
-
-                <View
-                  className="p-3 rounded-2xl flex-row items-center justify-between"
-                  style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
-                >
+                <View className="flex-row items-center justify-between" style={{ marginTop: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: MINT }}>
                   <View>
-                    <Text className="text-[10.5px] uppercase font-bold text-gray-500" style={{ letterSpacing: 0.6 }}>
-                      Estimated Total
-                    </Text>
-                    <Text className="text-[10.5px] text-gray-500">
-                      Inclusive of all services
-                    </Text>
+                    <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.6, color: TEXT_SECONDARY }}>Estimated Total</Text>
+                    <Text style={{ fontSize: 10, color: TEXT_SECONDARY }}>Inclusive of all services</Text>
                   </View>
-                  <Text
-                    className="text-[18px] font-extrabold"
-                    style={{ color: BRAND_GREEN_DARK }}
-                  >
-                    ₹{Number(estimatedTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
+                  <Text className="font-extrabold" style={{ fontSize: 17, color: PRIMARY }}>{money(estimatedTotal)}</Text>
                 </View>
 
-                {/* Payment, straight from the API — tickets.payment_type /
-                    payment_amount / balance_amount. Rendered only when money
-                    was actually collected: a booking that pays on delivery has
-                    no second and third line to show, and "Advance Payment ₹0"
-                    would read as a failed payment rather than none. */}
                 {payment ? (
-                  <View className="mt-2.5">
-                    <View className="flex-row items-center py-2">
-                      <View
-                        className="w-6 h-6 rounded-full items-center justify-center mr-2.5"
-                        style={{ backgroundColor: '#E6F7E3' }}
-                      >
-                        <Wallet size={12} color={BRAND_GREEN_DARK} />
-                      </View>
-                      <Text className="text-[12.5px] text-gray-700 flex-1" numberOfLines={1}>
-                        {payment.label}
-                      </Text>
-                      <Text className="text-[13px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-                        − ₹{Number(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </Text>
+                  <View style={{ marginTop: 8 }}>
+                    <View className="flex-row items-center justify-between" style={{ paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12, color: TEXT_SECONDARY }} numberOfLines={1}>{payment.label}</Text>
+                      <Text className="font-extrabold" style={{ fontSize: 12, color: PRIMARY }}>− {money(payment.amount)}</Text>
                     </View>
-
                     <View
-                      className="p-3 rounded-2xl flex-row items-center justify-between mt-1"
+                      className="flex-row items-center justify-between"
                       style={{
-                        backgroundColor: payment.balance > 0 ? '#FFFBEB' : '#F0F8EF',
-                        borderWidth: 1,
-                        borderColor: payment.balance > 0 ? '#FDE68A' : '#C8EEBF',
+                        marginTop: 4, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12,
+                        backgroundColor: payment.balance > 0 ? '#FFF8E1' : SOFT_MINT,
                       }}
                     >
                       <View>
-                        <Text className="text-[10.5px] uppercase font-bold text-gray-500" style={{ letterSpacing: 0.6 }}>
-                          Balance Amount
-                        </Text>
-                        <Text className="text-[10.5px] text-gray-500">
-                          {payment.balance > 0 ? 'Collect on delivery' : 'Fully settled'}
-                        </Text>
+                        <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.5, color: TEXT_SECONDARY }}>Balance Amount</Text>
+                        <Text style={{ fontSize: 10, color: TEXT_SECONDARY }}>{payment.balance > 0 ? 'Collect on delivery' : 'Fully settled'}</Text>
                       </View>
-                      <Text
-                        className="text-[16px] font-extrabold"
-                        style={{ color: payment.balance > 0 ? '#B45309' : BRAND_GREEN_DARK }}
-                      >
-                        ₹{Number(payment.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </Text>
+                      <Text className="font-extrabold" style={{ fontSize: 13, color: payment.balance > 0 ? '#8A6A00' : PRIMARY }}>{money(payment.balance)}</Text>
                     </View>
-
-                    <Text className="text-[10.5px] text-gray-500 mt-2">
-                      {payment.statusLabel}
-                      {formatDateTime(payment.paidAt) ? ` · ${formatDateTime(payment.paidAt)}` : ''}
-                    </Text>
                   </View>
                 ) : null}
               </>
             )}
           </View>
-        </View>
 
-        {/* Complaint */}
-        {ticket.issueDescription ? (
-          <View className="px-4 mt-4">
-            <View
-              className="bg-white rounded-2xl p-4"
-              style={cardShadow}
-            >
-              <SectionHeader icon={FileText} label="COMPLAINT ISSUE" tint="#E6F7E3" accent="#16BB05" />
-              <View
-                className="p-3 rounded-xl"
-                style={{ backgroundColor: '#F7FAF7' }}
-              >
-                <Text className="text-[12.5px] text-gray-700 leading-5" numberOfLines={8}>
-                  {ticket.issueDescription}
-                </Text>
+          {/* ── Complaint Issue ── */}
+          {ticket.issueDescription ? (
+            <View style={[card, { marginTop: 10 }]}>
+              <SectionHeader icon={FileText} label="Complaint Issue" subtitle="Customer reported issue for this device" />
+              <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: SOFT_MINT }}>
+                <Text style={{ fontSize: 12, color: TEXT_PRIMARY, lineHeight: 17 }}>{ticket.issueDescription}</Text>
               </View>
             </View>
-          </View>
-        ) : null}
+          ) : null}
 
-        {/* Schedule + Approval — connected timeline */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionHeader icon={CalendarClock} label="SERVICE SCHEDULE" />
-
-            {/* Same four rows, in the same order, as Ticket Details' Service Info
-                card — the two screens describe one booking, so they can't list
-                its schedule differently. IMEI sits third for that reason: it is
-                device identity rather than a date, but splitting it out into a
-                card of its own would put the two screens out of step. */}
-            {[
-              { icon: Clock,         label: 'Approx. Ready',     value: readyAtText || 'Not yet set',    done: !!readyAtText },
-              { icon: CalendarClock, label: 'Delivery',          value: deliveryAtText || 'Not yet set', done: !!deliveryAtText },
-              {
-                icon: ScanLine,
-                label: 'IMEI',
-                value: imeiText || 'Not captured yet',
-                done: !!imeiText,
-                valueColor: imeiText ? '#172117' : '#667066',
-              },
-              {
-                icon: CheckCircle2,
-                label: 'Customer Approval',
-                value: approvalText || 'Pending',
-                done: approvalText === 'Done',
-                valueColor: approvalText === 'Done' ? BRAND_GREEN_DARK : '#667066',
-              },
-            ].map((r, i, arr) => {
-              const Icon = r.icon;
-              const isLast = i === arr.length - 1;
-              return (
-                <View key={r.label} style={{ flexDirection: 'row', alignItems: 'stretch', paddingVertical: 6 }}>
-                  {/* Icon + dashed connector column */}
-                  <View style={{ width: 32, alignItems: 'center' }}>
-                    <View
-                      className="w-8 h-8 rounded-full items-center justify-center"
-                      style={{ backgroundColor: r.done ? '#E6F7E3' : '#F0F8EF' }}
-                    >
-                      <Icon size={14} color={r.done ? BRAND_GREEN_DARK : ACCENT_GREEN} />
-                    </View>
-                    {!isLast ? (
-                      <View
-                        style={{
-                          flex: 1,
-                          marginTop: 3,
-                          marginBottom: -9,
-                          borderLeftWidth: 1.5,
-                          borderStyle: 'dashed',
-                          borderColor: '#CBD5CB',
-                        }}
-                      />
-                    ) : null}
-                  </View>
-                  <View className="flex-1 ml-3" style={{ justifyContent: 'center', paddingVertical: 2 }}>
-                    <Text className="text-[10.5px] uppercase font-semibold text-gray-400 mb-0.5" style={{ letterSpacing: 0.6 }}>
-                      {r.label}
-                    </Text>
-                    <Text className="text-[13.5px] font-bold leading-5" style={{ color: r.valueColor || '#172117' }}>
-                      {r.value}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Device Photos */}
-        <View className="px-4 mt-4">
-          <View
-            className="bg-white rounded-2xl p-4"
-            style={cardShadow}
-          >
-            <SectionHeader icon={Camera} label="DEVICE PHOTOS" tint="#F0F8EF" accent="#087A0A" />
-            <View className="flex-row -mx-1 mt-1">
-              {/* Front and back open the zoom viewer as a 2-image set. The
-                  Coverage Video slot deliberately does NOT — it is a video, and
-                  feeding it to an <Image> viewer would show a broken still. */}
-              <PhotoSlot
-                label="Front Side"
-                uri={photos.front}
-                icon={Camera}
-                onPress={() => openViewer(devicePhotoSet, devicePhotoSet.findIndex((x) => x.uri === photos.front))}
+          {/* ── Service Schedule (read-only) ── */}
+          <View style={[card, { marginTop: 10 }]}>
+            <SectionHeader icon={CalendarClock} label="Service Schedule" />
+            <TimelineRow icon={Clock} label="Approx. Ready" value={readyAtText || 'Not yet set'} sub="Expected completion time" done={!!readyAtText} />
+            <TimelineRow icon={CalendarClock} label="Delivery" value={deliveryAtText || 'Not yet set'} sub="Estimated handover time" done={!!deliveryAtText} />
+            <TimelineRow
+              icon={ScanLine}
+              label="IMEI"
+              value={imeiText || 'Not captured yet'}
+              done={!!imeiText}
+              isLast={ticket.customerApproval == null}
+            />
+            {/* Real ticket.customerApproval data, as before. */}
+            {ticket.customerApproval != null ? (
+              <TimelineRow
+                icon={CheckCircle2}
+                label="Customer Booking Approval"
+                value={ticket.customerApproval ? 'Approved' : 'Pending'}
+                done={ticket.customerApproval === true}
+                isLast
               />
-              <PhotoSlot
-                label="Back Side"
-                uri={photos.back}
-                icon={Camera}
-                onPress={() => openViewer(devicePhotoSet, devicePhotoSet.findIndex((x) => x.uri === photos.back))}
-              />
-              <PhotoSlot label="Coverage Video" uri={photos.video} icon={PlayCircle} />
-            </View>
+            ) : null}
           </View>
-        </View>
-
-        {/* Device Security + Service / Damage Parts — side by side */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4 flex-row" style={cardShadow}>
-            {/* Device Security */}
-            <View className="flex-1 pr-3">
-              <SectionHeader icon={ShieldCheck} label="DEVICE SECURITY" />
-              {securityType || securityValue ? (
-                <View>
-                  {securityType ? (
-                    <Text className="text-[10.5px] uppercase font-bold text-gray-500" style={{ letterSpacing: 0.6 }}>
-                      {securityType}
-                    </Text>
-                  ) : null}
-                  <Text className="text-[13.5px] font-extrabold text-gray-900 mt-0.5">
-                    {securityValue || '—'}
-                  </Text>
-                </View>
-              ) : (
-                <Text className="text-[12.5px] text-gray-500">Not provided</Text>
-              )}
-            </View>
-
-            {/* Divider */}
-            <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: '#EFF5EE' }} />
-
-            {/* Service / Damage Parts */}
-            <View className="flex-1 pl-3">
-              <SectionHeader icon={Wrench} label="SERVICE / DAMAGE PARTS" />
-              {missingParts.length === 0 ? (
-                <View className="flex-row items-center">
-                  <CheckCircle2 size={15} color={BRAND_GREEN_DARK} />
-                  <Text className="ml-1.5 text-[12.5px] font-semibold flex-1" style={{ color: BRAND_GREEN_DARK }}>
-                    No missing parts reported
-                  </Text>
-                </View>
-              ) : (
-                <View className="flex-row flex-wrap -mx-0.5">
-                  {missingParts.map((p, i) => (
-                    <View
-                      key={i}
-                      className="px-2.5 py-1 rounded-full m-0.5 flex-row items-center"
-                      style={{ backgroundColor: '#FEE2E2' }}
-                    >
-                      <PackageX size={10} color="#B91C1C" />
-                      <Text className="ml-1 text-[11px] font-semibold" style={{ color: '#B91C1C' }}>
-                        {p}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Technician */}
-        {(ticket.assignedTechnicianId || technician) ? (
-          <View className="px-4 mt-4">
-            <View
-              className="bg-white rounded-2xl p-4"
-              style={cardShadow}
-            >
-              <SectionHeader icon={Users} label="ASSIGNED TECHNICIAN" />
-              <View className="flex-row items-center">
-                <View
-                  className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                  style={{ backgroundColor: BRAND_GREEN }}
-                >
-                  <Text className="text-white text-[15px] font-extrabold">
-                    {(technician?.name || 'T').charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[14px] font-extrabold text-gray-900">
-                    {technician?.name || 'Assigned'}
-                  </Text>
-                  <View className="flex-row items-center mt-0.5">
-                    {technician?.id ? (
-                      <Text className="text-[11px] text-gray-500">
-                        ID: {String(technician.id).slice(0, 8).toUpperCase()}
-                      </Text>
-                    ) : null}
-                    {technician?.roleLabel ? (
-                      <Text className="text-[11px] text-gray-500 ml-2">
-                        • {technician.roleLabel}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-                {techPhone ? (
-                  <TouchableOpacity
-                    onPress={contactTechnician}
-                    activeOpacity={0.8}
-                    className="w-11 h-11 rounded-full items-center justify-center ml-2"
-                    style={{ borderWidth: 1.5, borderColor: ACCENT_GREEN, backgroundColor: '#F0F8EF' }}
-                  >
-                    <Phone size={17} color={ACCENT_GREEN} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Technician uploaded device photos */}
-        {(ticket.assignedTechnicianId || technician || technicianPhotos.length > 0) ? (
-          <View className="px-4 mt-4">
-            <View
-              className="bg-white rounded-2xl p-4"
-              style={cardShadow}
-            >
-              <SectionHeader icon={Camera} label="TECHNICIAN UPLOADS" tint="#F0F8EF" accent="#087A0A" />
-              <Text className="text-[11.5px] text-gray-500 mb-2" numberOfLines={1}>
-                {(technician?.name || ticket.assignedTechnicianName || 'Technician')}
-                {technician?.id ? `  •  ${String(technician.id).slice(0, 8).toUpperCase()}` : (
-                  ticket.assignedTechnicianCode ? `  •  ${ticket.assignedTechnicianCode}` : ''
-                )}
-              </Text>
-              <View className="flex-row -mx-1">
-                {[0, 1, 2].map((i) => (
-                  <View key={i} style={{ width: '33.333%' }} className="p-1">
-                    <View
-                      className="rounded-xl items-center justify-center overflow-hidden"
-                      style={{
-                        aspectRatio: 1,
-                        backgroundColor: '#F7FAF7',
-                        borderWidth: 1.5,
-                        borderStyle: 'dashed',
-                        borderColor: '#E2E8E2',
-                      }}
-                    >
-                      {technicianPhotos[i] ? (
-                        <TouchableOpacity
-                          activeOpacity={0.85}
-                          onPress={() => openViewer(technicianPhotoSet, technicianPhotoSet.findIndex((x) => x.uri === technicianPhotos[i]))}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Technician photo ${i + 1}, tap to view`}
-                          style={{ width: '100%', height: '100%' }}
-                        >
-                          <Image source={{ uri: technicianPhotos[i] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                        </TouchableOpacity>
-                      ) : (
-                        <View className="items-center px-2">
-                          <Camera size={20} color="#8FA08F" />
-                          <Text className="text-[9px] text-gray-500 text-center mt-1">
-                            Awaiting photo
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Technician's compliance / issue-verified note. Renders after the
-            Technician Uploads block — mirrors the order of the technician's
-            own Ticket Detail screen (Your Side images, then Issue Verified
-            & Updated). Hidden when the technician hasn't submitted any. */}
-        <ComplianceNotesCard notes={complianceNotes} onOpenImage={openViewer} />
-
         </View>
       </ScrollView>
-
-      <ImageViewerModal
-        visible={viewer.open}
-        images={viewer.images}
-        index={viewer.index}
-        onClose={closeViewer}
-      />
     </View>
   );
 }

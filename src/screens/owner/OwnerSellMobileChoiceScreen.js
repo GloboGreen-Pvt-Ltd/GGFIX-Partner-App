@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { ClipboardList, FileText, Skull, ChevronRight } from 'lucide-react-native';
 import { ScreenHeader } from '../../components/rnr';
+import { SELL, sellShadow } from '../shared/sell/sellTheme';
 
 // After category/brand/model + colour & storage are picked, the owner chooses
 // how much detail to capture before listing. Each branch routes through a
@@ -12,8 +13,8 @@ const OPTIONS = [
     title: 'Detailed Description',
     sub: 'Full assessment: screening, screen, functional, accessories, warranty, photos, price.',
     icon: ClipboardList,
-    color: '#004C40',
-    bg: 'bg-primary/10',
+    color: SELL.green,
+    bg: SELL.greenLight,
     flow: ['SellScreening', 'SellScreenCondition', 'SellFunctional', 'SellAccessoriesWarranty', 'SellImages', 'SellGadgetPrice'],
   },
   {
@@ -21,8 +22,8 @@ const OPTIONS = [
     title: 'Short Description',
     sub: 'Quick listing: just photos and price.',
     icon: FileText,
-    color: '#004C40',
-    bg: 'bg-success/10',
+    color: SELL.green,
+    bg: SELL.greenLight,
     flow: ['SellImages', 'SellGadgetPrice'],
   },
   {
@@ -30,8 +31,8 @@ const OPTIONS = [
     title: 'Dead Phone Short Description',
     sub: 'Full assessment optimised for dead / non-working phones.',
     icon: Skull,
-    color: '#DC2626',
-    bg: 'bg-danger/10',
+    color: SELL.danger,
+    bg: SELL.dangerLight,
     flow: ['SellScreening', 'SellScreenCondition', 'SellFunctional', 'SellAccessoriesWarranty', 'SellImages', 'SellGadgetPrice'],
   },
 ];
@@ -52,34 +53,46 @@ export default function OwnerSellMobileChoiceScreen({ navigation, route }) {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
       <ScreenHeader title="Choose Description" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text className="text-text-muted text-xs px-1 mb-3 uppercase tracking-widest font-extrabold">
+        <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink, paddingHorizontal: 2 }}>
           How would you like to describe this device?
+        </Text>
+        <Text style={{ fontSize: 13, color: SELL.muted, marginTop: 3, marginBottom: 14, paddingHorizontal: 2 }}>
+          More detail helps buyers trust the listing.
         </Text>
 
         {OPTIONS.map((o) => {
           const Icon = o.icon;
           return (
-            <Pressable
+            <TouchableOpacity
               key={o.key}
               onPress={() => onPick(o)}
-              className="bg-card border border-border rounded-2xl p-4 mb-3 flex-row items-center active:opacity-80"
-              style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`${o.title}. ${o.sub}`}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.card, borderRadius: 18,
+                padding: 14, marginBottom: 12, borderWidth: 1, borderColor: SELL.soft, ...sellShadow,
+              }}
             >
-              <View className={`h-12 w-12 rounded-2xl items-center justify-center mr-3 ${o.bg}`}>
+              <View style={{ height: 48, width: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: o.bg }}>
                 <Icon size={22} color={o.color} />
               </View>
-              <View className="flex-1">
-                <Text className="text-[15px] font-extrabold text-text">{o.title}</Text>
-                <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={3}>{o.sub}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: SELL.ink }}>{o.title}</Text>
+                <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 3, lineHeight: 17 }} numberOfLines={3}>{o.sub}</Text>
+                <View style={{ alignSelf: 'flex-start', marginTop: 7, backgroundColor: o.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 10.5, fontWeight: '700', color: o.key === 'DEAD_SHORT' ? SELL.danger : SELL.greenDark }}>{o.flow.length} steps</Text>
+                </View>
               </View>
-              <ChevronRight size={18} color="#667066" />
-            </Pressable>
+              <View style={{ height: 30, width: 30, borderRadius: 15, backgroundColor: SELL.soft, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <ChevronRight size={16} color={SELL.ink} />
+              </View>
+            </TouchableOpacity>
           );
         })}
-
       </ScrollView>
     </View>
   );

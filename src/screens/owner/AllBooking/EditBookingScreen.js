@@ -81,7 +81,7 @@ function GreenInput(props) {
           borderRadius: 12,
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 13.5,
+          fontSize: 13,
           color: '#172117',
         },
         props.style,
@@ -103,7 +103,7 @@ function SubLink({ icon: Icon, tint, accent, label, sub, onPress, divider }) {
         <Icon size={16} color={accent} />
       </View>
       <View className="flex-1">
-        <Text className="text-[13.5px] font-bold text-gray-900">{label}</Text>
+        <Text className="text-[13px] font-bold text-gray-900">{label}</Text>
         {sub ? <Text className="text-[11px] text-gray-500 mt-0.5">{sub}</Text> : null}
       </View>
       <ChevronRight size={16} color="#8FA08F" />
@@ -205,11 +205,12 @@ export default function EditBookingScreen({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted"
+            hitSlop={6}
+            className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={20} color="#172117" />
           </TouchableOpacity>
-          <Text className="text-text text-[15px] font-extrabold">Edit Booking</Text>
+          <Text className="text-text text-[13px] font-extrabold">Edit Booking</Text>
           <View
             className="px-3 py-1.5 rounded-full bg-surface-muted"
           >
@@ -227,7 +228,7 @@ export default function EditBookingScreen({ route, navigation }) {
           <Text className="text-text text-xl font-extrabold mt-1" numberOfLines={1}>
             {ticket?.deviceModelName || ticket?.modelName || 'Device'}
           </Text>
-          <Text className="text-text-muted text-[11.5px] mt-0.5" numberOfLines={1}>
+          <Text className="text-text-muted text-[11px] mt-0.5" numberOfLines={1}>
             #{ticket?.trackingId || ticketId}
           </Text>
         </View>
@@ -245,7 +246,7 @@ export default function EditBookingScreen({ route, navigation }) {
               className="rounded-2xl px-4 py-3"
               style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
             >
-              <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>
+              <Text className="text-[12px] font-semibold" style={{ color: '#B91C1C' }}>
                 {error}
               </Text>
             </View>
@@ -256,7 +257,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {ticket ? (
           <View className="px-4" style={{ marginTop: 12 }}>
             <View
-              className="bg-white rounded-2xl p-4 flex-row items-center"
+              className="bg-white rounded-2xl p-3 flex-row items-center"
               style={cardShadow}
             >
               <View
@@ -269,10 +270,10 @@ export default function EditBookingScreen({ route, navigation }) {
                 <Text className="text-[10.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.7 }}>
                   Now Editing
                 </Text>
-                <Text className="text-[15px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
+                <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
                   {ticket.deviceModelName || ticket.modelName || 'Device'}
                 </Text>
-                <Text className="text-[11.5px] text-gray-500 mt-0.5" numberOfLines={1}>
+                <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
                   #{ticket.trackingId || ticketId}
                 </Text>
               </View>
@@ -283,12 +284,12 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* Price Summary */}
         <View className="px-4" style={{ marginTop: 14 }}>
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
             {lineItems.length === 0 ? (
-              <Text className="text-[12.5px] text-gray-500">No service items yet.</Text>
+              <Text className="text-[12px] text-gray-500">No service items yet.</Text>
             ) : (
               <>
                 {lineItems.map((item, idx) => (
@@ -304,10 +305,10 @@ export default function EditBookingScreen({ route, navigation }) {
                         {idx + 1}
                       </Text>
                     </View>
-                    <Text className="text-[12.5px] text-gray-700 flex-1" numberOfLines={1}>
+                    <Text className="text-[12px] text-gray-700 flex-1" numberOfLines={1}>
                       {item.label}
                     </Text>
-                    <Text className="text-[12.5px] font-bold text-gray-900">
+                    <Text className="text-[12px] font-bold text-gray-900">
                       ₹{Number(item.amount || 0).toLocaleString('en-IN')}
                     </Text>
                   </View>
@@ -322,11 +323,11 @@ export default function EditBookingScreen({ route, navigation }) {
                   className="p-3 rounded-2xl flex-row items-center justify-between"
                   style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
                 >
-                  <Text className="text-[12.5px] font-bold text-gray-700">
+                  <Text className="text-[12px] font-bold text-gray-700">
                     Estimated Total
                   </Text>
                   <Text
-                    className="text-[16px] font-extrabold"
+                    className="text-[15px] font-extrabold"
                     style={{ color: BRAND_GREEN_DARK }}
                   >
                     ₹{Number(estimatedTotal).toLocaleString('en-IN')}
@@ -340,7 +341,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* IMEI + Notes */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={Hash} label="IMEI & NOTES" />
@@ -367,7 +368,7 @@ export default function EditBookingScreen({ route, navigation }) {
         {/* Estimated Times */}
         <View className="px-4 mt-4">
           <View
-            className="bg-white rounded-2xl p-4"
+            className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
             <SectionHeader icon={CalendarClock} label="ESTIMATED TIMES" tint="#FEF3C7" accent="#B45309" />
@@ -433,12 +434,12 @@ export default function EditBookingScreen({ route, navigation }) {
               </View>
               <View className="flex-1">
                 <Text
-                  className="text-[14px] font-extrabold"
+                  className="text-[13px] font-extrabold"
                   style={{ color: approved ? BRAND_GREEN_DARK : '#172117' }}
                 >
                   Customer Repair Approval
                 </Text>
-                <Text className="text-[11.5px] text-gray-500 mt-0.5">
+                <Text className="text-[11px] text-gray-500 mt-0.5">
                   {approved ? 'Customer has approved the repair' : 'Tap to mark as approved'}
                 </Text>
               </View>
@@ -526,7 +527,7 @@ export default function EditBookingScreen({ route, navigation }) {
             ) : (
               <Check size={18} color="#FFFFFF" strokeWidth={3} />
             )}
-            <Text className="ml-2 text-white text-[15px] font-extrabold">
+            <Text className="ml-2 text-white text-[13px] font-extrabold">
               {saving ? 'Saving...' : 'Save Changes'}
             </Text>
           </LinearGradient>

@@ -6,9 +6,9 @@ import { tokens } from '../../theme/colors';
 
 export function SectionHeader({ title, action, onAction, className, caption }) {
   return (
-    <View className={cn('flex-row items-end justify-between px-4 mt-4 mb-2', className)}>
+    <View className={cn('flex-row items-end justify-between px-3.5 mt-3 mb-1.5', className)}>
       <View className="flex-1 pr-3">
-        <Text className="text-[15px] font-extrabold text-text">{title}</Text>
+        <Text className="text-[13px] font-extrabold text-text">{title}</Text>
         {caption ? (
           <Text className="text-[11px] text-text-muted mt-0.5">{caption}</Text>
         ) : null}

@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronLeft,
   Calendar,
@@ -28,31 +27,39 @@ import {
   FileText,
   Hash,
   IndianRupee,
-  ChevronRight,
-  Search,
   Clock,
   Receipt,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
-import { EmptyState } from '../../components/rnr';
+import { rs } from '../../utils/responsive';
+import { useResponsive } from '../../theme/responsive';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+// GGFIX palette.
+const GREEN = '#09AD2A';
+const GREEN_DEEP = '#078F23';
+const MINT = '#EAF8EC';
+const MINT_LINE = '#CDEFD4';
+const PAGE_BG = '#F8F8F8';
+const CARD_BG = '#FFFFFF';
+const HAIR = '#F3F3F3';
+const BORDER = '#E6E6E6';
+const INK = '#1E1E1E';
+const MUTED = '#6B6B6B';
+const SUBTLE = '#8A8A8A';
+const RED = '#F84141';
+const RED_TINT = '#FEECEC';
+const RED_LINE = '#FBD0D0';
+const RED_TEXT = '#D63232';
+const YELLOW = '#F3BF23';
+const YELLOW_TINT = '#FFF8E1';
+const YELLOW_TEXT = '#8A6A00';
 
 const cardShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 4,
-};
-
-const softShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
+  shadowColor: INK,
+  shadowOpacity: 0.04,
   shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
 };
 
 // Keyed by the BookingStatus tile key that opened this report.
@@ -67,21 +74,16 @@ const ICON_BY_KEY = {
   CUSTOMER_APPROVAL_PENDING: UserCheck,
 };
 
-// Two-stop gradient per status — mirrors the BookingStatus tile colors so the
-// hero on this report screen feels visually continuous with the tile the user
-// tapped to get here.
-// Each pair is `[lighten(systemColour), systemColour]` for the colour the
-// matching BookingStatus tile carries, so the hero here continues the tile the
-// user tapped. Keep them in step if a tile's colour changes.
-const GRADIENT_BY_KEY = {
-  TOTAL_BOOKING:             ['#16BB05', '#16BB05'],   // systemBlue
-  TOTAL_PROCESSED:           ['#7ED957', '#16BB05'],   // systemGreen
-  TOTAL_DELIVERED:           ['#7ED957', '#16BB05'],   // systemTeal
-  OUT_FOR_DELIVERY:          ['#7ED957', '#16BB05'],   // systemCyan
-  TOTAL_INPROCESS:           ['#7ED957', '#16BB05'],   // systemIndigo
-  WORK_PENDING:              ['#DC2626', '#DC2626'],   // systemRed
-  SPARE_PARTS_PENDING:       ['#FCD34D', '#F59E0B'],   // systemOrange
-  CUSTOMER_APPROVAL_PENDING: ['#7ED957', '#16BB05'],   // systemPurple
+// One colour tone per status, matching the Booking Status screen's rows:
+// stalled = red, waiting on a part = yellow, everything else GGFIX green.
+const TONES = {
+  green:  { solid: GREEN,  ink: GREEN_DEEP,  tint: MINT,        line: MINT_LINE },
+  red:    { solid: RED,    ink: RED_TEXT,    tint: RED_TINT,    line: RED_LINE },
+  yellow: { solid: YELLOW, ink: YELLOW_TEXT, tint: YELLOW_TINT, line: '#F7E3A1' },
+};
+const TONE_BY_KEY = {
+  WORK_PENDING: 'red',
+  SPARE_PARTS_PENDING: 'yellow',
 };
 
 const PERIODS = [
@@ -140,16 +142,16 @@ function summarizeIssue(t) {
 
 export default function BookingStatusReportScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 900), alignSelf: 'center' } : null;
   const {
-    statusKey = 'TOTAL_BOOKING',
     label = 'Total Booking',
     statusList = [],
-    bg = BRAND_GREEN_DARK,
     icon = 'TOTAL_BOOKING',
   } = route?.params || {};
 
   const Icon = ICON_BY_KEY[icon] || FileText;
-  const gradient = GRADIENT_BY_KEY[icon] || [BRAND_GREEN, BRAND_GREEN_DARK];
+  const tone = TONES[TONE_BY_KEY[icon]] || TONES.green;
 
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -184,7 +186,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
               ticketApi.get('/tickets', { query: { page: 0, size: 500, status: s } }).catch(() => null),
             ),
           );
-      const merged = responses.flatMap((r) => (Array.isArray(r) ? r : r?.content || []));
+      const merged = responses.flatMap((res) => (Array.isArray(res) ? res : res?.content || []));
 
       const from = startOfPeriod(period);
       const to = endOfPeriod(period);
@@ -226,41 +228,69 @@ export default function BookingStatusReportScreen({ navigation, route }) {
     }, 0);
   }, [tickets]);
 
+  const openInvoice = async (t) => {
+    // Same conditional routing the BillingScreen / TicketDetail use:
+    // existing invoice → DeliveryInvoiceReport, otherwise → InvoiceGenerator.
+    try {
+      const inv = await ticketApi.get(`/tickets/${t.id}/invoice`);
+      if (inv?.id) {
+        navigation.navigate('DeliveryInvoiceReport', { ticketId: t.id });
+        return;
+      }
+    } catch (_) { /* no invoice yet — fall through */ }
+    navigation.navigate('InvoiceGenerator', { ticketId: t.id });
+  };
+
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Slim top header */}
+      {/* Header — white bar, title 17/800 + subtitle 11. */}
       <View
         style={{
-          backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
+          backgroundColor: CARD_BG,
+          paddingTop: insets.top + 8,
+          paddingBottom: 10,
+          paddingHorizontal: 14,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: BORDER,
         }}
       >
-        <View className="flex-row items-center">
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3"
-            style={{ backgroundColor: '#EFF5EE' }}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={{
+              height: 36, width: 36, borderRadius: 18, marginRight: 10,
+              alignItems: 'center', justifyContent: 'center', backgroundColor: PAGE_BG,
+              borderWidth: 1, borderColor: BORDER,
+            }}
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={19} color={INK} />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-            Booking Status Report
-          </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
+              Booking Status Report
+            </Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
           <Pressable
             onPress={() => setShowFilters(true)}
-            className="px-2.5 py-1.5 rounded-full flex-row items-center"
-            style={{ backgroundColor: '#EFF5EE' }}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`Period: ${periodLabel}`}
+            style={{
+              flexDirection: 'row', alignItems: 'center', borderRadius: 999, marginLeft: 8,
+              paddingHorizontal: 10, paddingVertical: 6, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
+            }}
           >
-            <Calendar size={12} color="#172117" />
-            <Text className="text-text text-[11px] font-extrabold ml-1" numberOfLines={1}>
+            <Calendar size={12} color={GREEN_DEEP} />
+            <Text className="font-extrabold" style={{ fontSize: 11, color: GREEN_DEEP, marginLeft: 4 }} numberOfLines={1}>
               {periodLabel}
             </Text>
           </Pressable>
@@ -269,180 +299,105 @@ export default function BookingStatusReportScreen({ navigation, route }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 24 }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => load(true)}
-            tintColor={BRAND_GREEN_DARK}
-            colors={[BRAND_GREEN_DARK]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />
         }
       >
-        {/* Status hero card with gradient — single source of truth for what the
-            user is looking at, mirroring the tile color they came from. */}
-        <View className="px-4 mt-4">
-          <View style={[cardShadow, { borderRadius: 22, overflow: 'hidden' }]}>
-            <LinearGradient
-              colors={gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ padding: 16, position: 'relative' }}
-            >
-              {/* Decorative blobs */}
-              <View
-                style={{
-                  position: 'absolute',
-                  right: -32, top: -28,
-                  width: 110, height: 110,
-                  borderRadius: 999,
-                  backgroundColor: 'rgba(255,255,255,0.10)',
-                }}
-              />
-              <View
-                style={{
-                  position: 'absolute',
-                  right: 60, bottom: -50,
-                  width: 90, height: 90,
-                  borderRadius: 999,
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                }}
-              />
-
-              <View className="flex-row items-center">
-                <View
-                  style={{
-                    width: 52, height: 52, borderRadius: 16,
-                    backgroundColor: 'rgba(255,255,255,0.22)',
-                    alignItems: 'center', justifyContent: 'center',
-                    marginRight: 14,
-                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
-                  }}
-                >
-                  <Icon size={26} color="#FFFFFF" strokeWidth={2.3} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-white/85 text-[10.5px] font-bold tracking-wider">
-                    SHOWING
-                  </Text>
-                  <Text className="text-white text-[18px] font-extrabold" numberOfLines={1}>
-                    {label}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor: '#FFFFFF',
-                    minWidth: 54,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text
-                    className="font-extrabold"
-                    style={{ color: gradient[1], fontSize: 18, letterSpacing: -0.3 }}
-                  >
-                    {String(tickets.length).padStart(2, '0')}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Footer stats */}
-              <View className="flex-row items-center mt-4">
-                <View className="flex-row items-center">
-                  <Calendar size={12} color="rgba(255,255,255,0.85)" />
-                  <Text className="ml-1.5 text-white/85 text-[11px] font-bold">
-                    {periodLabel}
-                  </Text>
-                </View>
-                <View className="w-px h-3 mx-3" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
-                <View className="flex-row items-center">
-                  <IndianRupee size={11} color="rgba(255,255,255,0.85)" />
-                  <Text className="ml-0.5 text-white/85 text-[11px] font-bold">
-                    {fmtINR(totalPrice) || '0'} total
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        {/* Filters action chip */}
-        <View className="flex-row items-center px-5 mt-4 mb-2">
-          <Text className="text-[13px] font-extrabold text-gray-900 flex-1">
-            {tickets.length} {tickets.length === 1 ? 'booking' : 'bookings'}
-          </Text>
-          <Pressable
-            onPress={() => setShowFilters(true)}
-            className="flex-row items-center px-2.5 py-1.5 rounded-full"
-            style={{ backgroundColor: '#F0F8EF' }}
-            hitSlop={8}
+        <View style={capStyle}>
+          {/* Summary — which status this is, how many, and their total. */}
+          <View
+            style={{
+              flexDirection: 'row', alignItems: 'center', backgroundColor: CARD_BG, borderRadius: 14,
+              paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1, borderColor: HAIR, ...cardShadow,
+            }}
           >
-            <SlidersHorizontal size={12} color="#087A0A" />
-            <Text className="ml-1 text-[11.5px] font-extrabold" style={{ color: '#087A0A' }}>
-              Filters
-            </Text>
-          </Pressable>
-        </View>
-
-        {error ? (
-          <View className="px-4">
+            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+              <Icon size={18} color={tone.ink} strokeWidth={2.2} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: SUBTLE }}>SHOWING</Text>
+              <Text className="font-extrabold" style={{ fontSize: 15, color: INK, marginTop: 1 }} numberOfLines={1}>
+                {label}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                <Calendar size={11} color={MUTED} />
+                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{periodLabel}</Text>
+                <View style={{ width: 1, height: 10, backgroundColor: BORDER, marginHorizontal: 8 }} />
+                <IndianRupee size={10} color={MUTED} />
+                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 1 }}>{fmtINR(totalPrice) || '0'} total</Text>
+              </View>
+            </View>
             <View
-              className="rounded-2xl px-4 py-3"
-              style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
+              style={{
+                minWidth: 44, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, marginLeft: 8,
+                alignItems: 'center', backgroundColor: tone.tint, borderWidth: 1, borderColor: tone.line,
+              }}
             >
-              <Text className="text-[12.5px] font-semibold" style={{ color: '#B91C1C' }}>
-                {error}
+              <Text className="font-extrabold" style={{ fontSize: 15, color: tone.ink }}>
+                {String(tickets.length).padStart(2, '0')}
               </Text>
             </View>
           </View>
-        ) : loading ? (
-          <View className="py-10 items-center">
-            <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
+
+          {/* Count + Filters */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+            <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: INK }}>
+              {tickets.length} {tickets.length === 1 ? 'booking' : 'bookings'}
+            </Text>
+            <Pressable
+              onPress={() => setShowFilters(true)}
+              hitSlop={8}
+              accessibilityRole="button"
+              style={{
+                flexDirection: 'row', alignItems: 'center', borderRadius: 999,
+                paddingHorizontal: 10, paddingVertical: 6, backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER,
+              }}
+            >
+              <SlidersHorizontal size={12} color={GREEN_DEEP} />
+              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 11, color: GREEN_DEEP }}>
+                Filters
+              </Text>
+            </Pressable>
           </View>
-        ) : tickets.length === 0 ? (
-          <View className="px-4 mt-2">
-            <View className="bg-white rounded-2xl" style={cardShadow}>
-              <EmptyState
-                icon={<Icon size={28} color={gradient[1]} />}
-                title="No bookings"
-                description={`No "${label}" bookings for ${periodLabel.toLowerCase()}.`}
-                className="py-10"
-              />
+
+          {error ? (
+            <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: RED_TINT, borderWidth: 1, borderColor: RED_LINE }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: RED_TEXT }}>{error}</Text>
             </View>
-          </View>
-        ) : (
-          <View className="px-4">
-            {tickets.map((t, i) => (
+          ) : loading ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={GREEN} />
+            </View>
+          ) : tickets.length === 0 ? (
+            <View
+              style={{
+                alignItems: 'center', backgroundColor: CARD_BG, borderRadius: 14, paddingVertical: 22, paddingHorizontal: 16,
+                borderWidth: 1, borderColor: HAIR, ...cardShadow,
+              }}
+            >
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={22} color={tone.ink} />
+              </View>
+              <Text className="font-extrabold" style={{ marginTop: 10, fontSize: 13, color: INK }}>No bookings</Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: MUTED, textAlign: 'center' }}>
+                No "{label}" bookings for {periodLabel.toLowerCase()}.
+              </Text>
+            </View>
+          ) : (
+            tickets.map((t, i) => (
               <TicketCard
                 key={t.id || i}
                 ticket={t}
                 index={i + 1}
-                accent={gradient[1]}
-                tint={`${gradient[0]}22`}
-                onViewDetails={() =>
-                  navigation.navigate('DeviceDetail', { ticketId: t.id })
-                }
-                onHistory={() =>
-                  navigation.navigate('BookingTimeline', { ticketId: t.id })
-                }
-                onInvoice={async () => {
-                  // Same conditional routing the BillingScreen / TicketDetail use:
-                  // existing invoice → DeliveryInvoiceReport, otherwise → InvoiceGenerator.
-                  try {
-                    const inv = await ticketApi.get(`/tickets/${t.id}/invoice`);
-                    if (inv?.id) {
-                      navigation.navigate('DeliveryInvoiceReport', { ticketId: t.id });
-                      return;
-                    }
-                  } catch (_) { /* no invoice yet — fall through */ }
-                  navigation.navigate('InvoiceGenerator', { ticketId: t.id });
-                }}
+                tone={tone}
+                onViewDetails={() => navigation.navigate('DeviceDetail', { ticketId: t.id })}
+                onHistory={() => navigation.navigate('BookingTimeline', { ticketId: t.id })}
+                onInvoice={() => openInvoice(t)}
               />
-            ))}
-          </View>
-        )}
+            ))
+          )}
+        </View>
       </ScrollView>
 
       {/* Filters bottom sheet */}
@@ -454,29 +409,30 @@ export default function BookingStatusReportScreen({ navigation, route }) {
       >
         <Pressable
           onPress={() => setShowFilters(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.55)', justifyContent: 'flex-end' }}
+          style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.5)', justifyContent: 'flex-end' }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: 26,
-              borderTopRightRadius: 26,
-              paddingHorizontal: 16,
+              backgroundColor: CARD_BG,
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              paddingHorizontal: 14,
               paddingTop: 10,
-              paddingBottom: 28,
+              paddingBottom: insets.bottom + 18,
             }}
           >
-            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[16px] font-extrabold text-gray-900">Filter by period</Text>
+            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Text className="font-extrabold" style={{ flex: 1, fontSize: 15, color: INK }}>Filter by period</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: HAIR }}
               >
-                <X size={14} color="#172117" />
+                <X size={14} color={INK} />
               </Pressable>
             </View>
             {PERIODS.map((p) => {
@@ -485,27 +441,27 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                 <Pressable
                   key={p.value}
                   onPress={() => { setPeriod(p.value); setShowFilters(false); }}
-                  className="rounded-2xl border mb-2 px-4 py-3 flex-row items-center"
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
                   style={{
-                    backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
-                    borderColor: active ? BRAND_GREEN : '#E2E8E2',
+                    flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1,
+                    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6,
+                    backgroundColor: active ? MINT : CARD_BG,
+                    borderColor: active ? GREEN : BORDER,
                   }}
                 >
                   <View
-                    className="w-9 h-9 rounded-2xl items-center justify-center mr-3"
-                    style={{ backgroundColor: active ? BRAND_GREEN : '#E6F7E3' }}
+                    style={{
+                      width: 30, height: 30, borderRadius: 9, marginRight: 10, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: active ? GREEN : MINT,
+                    }}
                   >
-                    <Calendar size={14} color={active ? '#FFFFFF' : BRAND_GREEN_DARK} />
+                    <Calendar size={14} color={active ? '#FFFFFF' : GREEN} />
                   </View>
-                  <Text
-                    className="flex-1 text-[14px] font-extrabold"
-                    style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
-                  >
+                  <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: active ? GREEN_DEEP : INK }}>
                     {p.label}
                   </Text>
-                  {active ? (
-                    <CheckCircle2 size={18} color={BRAND_GREEN_DARK} />
-                  ) : null}
+                  {active ? <CheckCircle2 size={17} color={GREEN} /> : null}
                 </Pressable>
               );
             })}
@@ -516,7 +472,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
   );
 }
 
-function TicketCard({ ticket, index, accent, tint, onViewDetails, onHistory, onInvoice }) {
+function TicketCard({ ticket, index, tone, onViewDetails, onHistory, onInvoice }) {
   const trackingId = ticket.trackingId || (ticket.id ? String(ticket.id).slice(0, 10).toUpperCase() : '—');
   const price = (() => {
     if (ticket.finalPrice != null) return ticket.finalPrice;
@@ -531,145 +487,87 @@ function TicketCard({ ticket, index, accent, tint, onViewDetails, onHistory, onI
 
   return (
     <View
-      className="bg-white rounded-2xl mb-3"
-      style={[softShadow, { padding: 14 }]}
+      style={{
+        backgroundColor: CARD_BG, borderRadius: 14, padding: 10, marginBottom: 8,
+        borderWidth: 1, borderColor: HAIR, ...cardShadow,
+      }}
     >
-      <View className="flex-row items-start">
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
         {/* Numbered chip */}
         <View
           style={{
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: tint || '#E6F7E3',
-            alignItems: 'center', justifyContent: 'center',
-            marginRight: 12,
+            width: 30, height: 30, borderRadius: 9, marginRight: 9,
+            backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <Text
-            className="font-extrabold"
-            style={{ color: accent || BRAND_GREEN_DARK, fontSize: 14 }}
-          >
+          <Text className="font-extrabold" style={{ color: tone.ink, fontSize: 12 }}>
             {String(index).padStart(2, '0')}
           </Text>
         </View>
 
-        <View className="flex-1">
-          {/* Tracking ID + price row */}
-          <View className="flex-row items-center">
-            <View
-              className="flex-row items-center px-2 py-0.5 rounded-md"
-              style={{ backgroundColor: '#F0F8EF' }}
-            >
-              <Hash size={10} color="#16BB05" />
-              <Text
-                className="text-[11px] font-extrabold ml-0.5"
-                style={{ color: '#16BB05', textDecorationLine: 'underline' }}
-                numberOfLines={1}
-              >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {/* Tracking ID + price */}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: MINT, flexShrink: 1 }}>
+              <Hash size={10} color={GREEN} />
+              <Text className="font-extrabold" style={{ fontSize: 11, color: GREEN_DEEP, marginLeft: 2 }} numberOfLines={1}>
                 {trackingId}
               </Text>
             </View>
-            <View className="flex-1" />
+            <View style={{ flex: 1 }} />
             {priceStr ? (
-              <Text
-                className="text-[14px] font-extrabold"
-                style={{ color: BRAND_GREEN_DARK }}
-              >
+              <Text className="font-extrabold" style={{ fontSize: 13, color: GREEN_DEEP, marginLeft: 8 }}>
                 ₹{priceStr}
               </Text>
             ) : null}
           </View>
 
           {/* Customer + device */}
-          {customer || device ? (
-            <Text className="text-[13px] font-extrabold text-gray-900 mt-1" numberOfLines={1}>
-              {customer}
-              {device ? <Text className="text-gray-500 font-semibold">  ·  {device}</Text> : null}
-            </Text>
-          ) : null}
+          <Text className="font-extrabold" style={{ fontSize: 13, color: INK, marginTop: 4 }} numberOfLines={1}>
+            {customer}
+            {device ? <Text style={{ fontWeight: '600', color: MUTED }}>  ·  {device}</Text> : null}
+          </Text>
 
           {/* Issue */}
-          <View className="flex-row items-start mt-1.5">
-            <View
-              style={{
-                width: 18, height: 18, borderRadius: 999,
-                backgroundColor: '#F0F8EF',
-                alignItems: 'center', justifyContent: 'center',
-                marginRight: 6, marginTop: 1,
-              }}
-            >
-              <Wrench size={10} color={BRAND_GREEN_DARK} />
-            </View>
-            <Text className="flex-1 text-[11.5px] text-gray-600 leading-4" numberOfLines={2}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 4 }}>
+            <Wrench size={11} color={GREEN} style={{ marginTop: 2, marginRight: 5 }} />
+            <Text style={{ flex: 1, fontSize: 11, color: MUTED, lineHeight: 15 }} numberOfLines={2}>
               {summarizeIssue(ticket)}
             </Text>
           </View>
 
-          {/* Date row */}
-          <View className="flex-row items-center mt-2">
-            <Calendar size={11} color="#8FA08F" />
-            <Text className="ml-1 text-[11px] font-bold text-gray-500">
-              {fmtDate(ticket.createdAt)}
-            </Text>
+          {/* Date */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <Calendar size={11} color={SUBTLE} />
+            <Text style={{ fontSize: 11, color: SUBTLE, marginLeft: 4 }}>{fmtDate(ticket.createdAt)}</Text>
           </View>
         </View>
       </View>
 
-      {/* Action row — three pills: View Details · History · Invoice. */}
-      <View
-        className="flex-row mt-3 pt-3"
-        style={{
-          borderTopWidth: 1,
-          borderTopColor: '#EFF5EE',
-          gap: 8,
-        }}
-      >
-        <CardAction
-          icon={FileText}
-          label="View Details"
-          tint="rgba(22, 187, 5, 0.12)"
-          fg={BRAND_GREEN_DARK}
-          onPress={onViewDetails}
-        />
-        <CardAction
-          icon={Clock}
-          label="History"
-          tint="rgba(126, 217, 87, 0.12)"
-          fg="#16BB05"
-          onPress={onHistory}
-        />
-        <CardAction
-          icon={Receipt}
-          label="Invoice"
-          tint="rgba(245, 158, 11, 0.16)"
-          fg="#B45309"
-          onPress={onInvoice}
-        />
+      {/* Action row — View Details · History · Invoice. */}
+      <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: HAIR }}>
+        <CardAction icon={FileText} label="View Details" tint={MINT} fg={GREEN_DEEP} onPress={onViewDetails} />
+        <CardAction icon={Clock} label="History" tint={HAIR} fg={INK} onPress={onHistory} />
+        <CardAction icon={Receipt} label="Invoice" tint={YELLOW_TINT} fg={YELLOW_TEXT} onPress={onInvoice} />
       </View>
     </View>
   );
 }
 
-// Compact action button used inside the ticket card. Icon over a tinted
-// chip + label on the right — matches the Booking Details quick-action
-// tile aesthetic but at row-height so three fit side-by-side in the card.
+// Compact action pill used inside the ticket card — three fit side by side.
 function CardAction({ icon: Icon, label, tint, fg, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: '#EFF5EE' }}
-      className="flex-1 flex-row items-center justify-center rounded-xl"
+      android_ripple={{ color: BORDER }}
+      accessibilityRole="button"
       style={{
-        paddingVertical: 8,
-        paddingHorizontal: 6,
-        backgroundColor: tint,
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        height: 30, borderRadius: 9, paddingHorizontal: 4, backgroundColor: tint,
       }}
     >
-      <Icon size={13} color={fg} />
-      <Text
-        className="ml-1.5 text-[11px] font-extrabold"
-        style={{ color: fg }}
-        numberOfLines={1}
-      >
+      <Icon size={12} color={fg} />
+      <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 11, color: fg }} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>

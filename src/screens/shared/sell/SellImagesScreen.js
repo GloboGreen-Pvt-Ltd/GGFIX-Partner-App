@@ -1,33 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
+import { Camera, ImagePlus, X } from 'lucide-react-native';
 import { notify } from '../../../components/confirm';
-import colors from '../../../theme/colors';
-import { Card, PrimaryButton, LabeledInput } from '../../../components/ui';
 import { uploadMedia } from '../../../api/masterData';
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  row: { flexDirection: 'row', flexWrap: 'wrap' },
-  slot: { width: '46%', margin: '2%', height: 120, borderColor: '#7FB8AE', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7FAF7', overflow: 'hidden' },
-  slotImg: { ...StyleSheet.absoluteFillObject },
-  slotLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 6, textAlign: 'center' },
-  slotLabelOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.92)', paddingVertical: 4, fontSize: 12, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  removeBtn: { position: 'absolute', right: 4, top: 4, height: 22, width: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  editBanner: { backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center' },
-  editBannerTitle: { fontSize: 10, fontWeight: '800', color: '#92400E', letterSpacing: 0.5 },
-  editBannerText: { fontSize: 12, color: colors.text, fontWeight: '600', marginTop: 2 },
-  bottom: { padding: 12, backgroundColor: '#fff', borderTopColor: colors.border, borderTopWidth: 1 },
-});
+import { SELL, SellButton, SellCard, SellFooter, SellIntro, EditingBanner } from './sellTheme';
 
 // key maps to the backend ImageBundle field (front/back/side/camera/other)
+// `label` is display only (the key is what the backend receives).
 const SLOTS = [
-  { key: 'front', label: 'Front Side' },
-  { key: 'back', label: 'Backside' },
-  { key: 'side', label: 'side and Center' },
+  { key: 'front', label: 'Front side' },
+  { key: 'back', label: 'Back side' },
+  { key: 'side', label: 'Side & center' },
   { key: 'camera', label: 'Camera' },
-  { key: 'other', label: 'side and Center' },
+  { key: 'other', label: 'Other angle' },
 ];
 
 export default function SellImagesScreen({ navigation, route }) {
@@ -59,7 +45,7 @@ export default function SellImagesScreen({ navigation, route }) {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [3, 4],
         quality: 0.7,
@@ -97,53 +83,83 @@ export default function SellImagesScreen({ navigation, route }) {
     });
   };
 
+  const added = SLOTS.filter((sl) => images[sl.key]).length;
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 12 }}>
-        {isEditing ? (
-          <View style={styles.editBanner}>
-            <Ionicons name="create-outline" size={16} color="#92400E" />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.editBannerTitle}>EDITING ORDER</Text>
-              <Text style={styles.editBannerText}>Your previously uploaded photos are kept — tap to replace any.</Text>
-            </View>
-          </View>
-        ) : null}
-        <Card style={{ padding: 10, marginVertical: 4 }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' }}>Upload for Device Images</Text>
-          <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 8, textAlign: 'center' }}>Maximum file size: 5 MB.</Text>
-          <View style={styles.row}>
-            {SLOTS.map((s) => {
-              const url = images[s.key];
-              const busy = uploading === s.key;
+    <View style={{ flex: 1, backgroundColor: SELL.page }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        {isEditing ? <EditingBanner text="Your previously uploaded photos are kept — tap to replace any." /> : null}
+        <SellIntro title="Device photos" caption="Clear photos help buyers trust the listing. Max 5 MB each." />
+        <SellCard>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5 }}>
+            {SLOTS.map((sl) => {
+              const url = images[sl.key];
+              const busy = uploading === sl.key;
               return (
-                <TouchableOpacity key={s.key} style={styles.slot} onPress={() => pick(s.key)} disabled={busy} activeOpacity={0.8}>
-                  {busy ? (
-                    <ActivityIndicator color="#004C40" />
-                  ) : url ? (
-                    <>
-                      <Image source={{ uri: url }} style={styles.slotImg} resizeMode="cover" />
-                      <TouchableOpacity style={styles.removeBtn} onPress={() => remove(s.key)}>
-                        <Ionicons name="close" size={13} color="#fff" />
-                      </TouchableOpacity>
-                      <Text style={styles.slotLabelOverlay} numberOfLines={1}>{s.label}</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons name="cloud-upload-outline" size={26} color="#7FB8AE" />
-                      <Text style={styles.slotLabel}>{s.label}</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <View key={sl.key} style={{ width: '50%', padding: 5 }}>
+                  <TouchableOpacity
+                    onPress={() => pick(sl.key)}
+                    disabled={busy}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={url ? `Replace ${sl.label} photo` : `Add ${sl.label} photo`}
+                    style={{
+                      height: 112, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+                      borderWidth: 1.5, borderStyle: url ? 'solid' : 'dashed',
+                      borderColor: url ? SELL.green : SELL.greenLine, backgroundColor: url ? SELL.card : SELL.greenLight,
+                    }}
+                  >
+                    {busy ? (
+                      <ActivityIndicator color={SELL.green} />
+                    ) : url ? (
+                      <>
+                        <Image source={{ uri: url }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+                        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.92)' }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: SELL.ink, textAlign: 'center' }} numberOfLines={1}>{sl.label}</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: SELL.card, alignItems: 'center', justifyContent: 'center' }}>
+                          {sl.key === 'camera' ? <Camera size={18} color={SELL.green} /> : <ImagePlus size={18} color={SELL.green} />}
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink, marginTop: 7 }}>{sl.label}</Text>
+                        <Text style={{ fontSize: 11, color: SELL.muted, marginTop: 1 }}>Tap to add</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  {url && !busy ? (
+                    <TouchableOpacity
+                      onPress={() => remove(sl.key)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${sl.label} photo`}
+                      style={{ position: 'absolute', right: 10, top: 10, height: 24, width: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={13} color="#FFFFFF" strokeWidth={2.6} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               );
             })}
           </View>
-          <LabeledInput label="Device Condition" value={condition} onChangeText={setCondition} />
-        </Card>
+        </SellCard>
+
+        <SellCard>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink }}>Device condition</Text>
+          <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 2, marginBottom: 8 }}>A word or two buyers will see, e.g. Good, Like new.</Text>
+          <TextInput
+            value={condition}
+            onChangeText={setCondition}
+            placeholder="Good"
+            placeholderTextColor={SELL.subtle}
+            style={{ minHeight: 46, borderRadius: 12, borderWidth: 1.5, borderColor: SELL.line, paddingHorizontal: 12, fontSize: 13, fontWeight: '600', color: SELL.ink, backgroundColor: SELL.card }}
+          />
+        </SellCard>
       </ScrollView>
-      <View style={styles.bottom}>
-        <PrimaryButton title="Continue →" disabled={!!uploading} onPress={onContinue} />
-      </View>
+      <SellFooter caption={`${added} of ${SLOTS.length} photos added`}>
+        <SellButton title="Continue" arrow disabled={!!uploading} onPress={onContinue} />
+      </SellFooter>
     </View>
   );
 }

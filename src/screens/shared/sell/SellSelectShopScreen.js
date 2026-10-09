@@ -8,7 +8,7 @@ import { getSellOrderQuotations, chooseSellQuotation } from '../../../api/orders
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#fff', marginHorizontal: 12, marginTop: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 11, backgroundColor: '#fff', marginHorizontal: 12, marginTop: 7, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   bottom: { padding: 12, backgroundColor: '#fff', borderTopColor: colors.border, borderTopWidth: 1 },
 });
 
@@ -43,7 +43,7 @@ export default function SellSelectShopScreen({ navigation, route }) {
           <TouchableOpacity key={q.id} style={styles.row} onPress={() => setSelectedId(q.id)}>
             <Ionicons name={selectedId === q.id ? 'radio-button-on' : 'radio-button-off'} size={22} color={selectedId === q.id ? '#087A0A' : colors.textSecondary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={{ fontWeight: '700', color: colors.text, fontSize: 14 }}>{i + 1}. {q.shopName} - {q.shopCity}</Text>
+              <Text style={{ fontWeight: '700', color: colors.text, fontSize: 13 }}>{i + 1}. {q.shopName} - {q.shopCity}</Text>
               <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Quotation Price - ₹{Number(q.quotationPrice).toLocaleString()}</Text>
             </View>
           </TouchableOpacity>

@@ -4,7 +4,7 @@ import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } f
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ClipboardList, House, Receipt, Settings, ShoppingBag, Tag } from 'lucide-react-native';
+import { ArrowLeft, ClipboardList, House, Settings, ShoppingBag, Tag } from 'lucide-react-native';
 import colors from '../theme/colors';
 import BackButton from '../components/BackButton';
 import { getTabBarContentHeight, isTabletWidth, MIN_SAFE_BOTTOM } from './tabBarMetrics';
@@ -35,15 +35,19 @@ import DashboardScreen from '../screens/owner/DashboardScreen';
 import MyAccountScreen from '../screens/owner/MyAccountScreen';
 // All booking-related screens are now grouped under owner/AllBooking/
 import BookingHistoryScreen from '../screens/owner/AllBooking/BookingHistoryScreen';
-import BillingScreen from '../screens/owner/BillingScreen';
 import BookingStatusScreen from '../screens/owner/BookingStatusScreen';
 import BookingStatusReportScreen from '../screens/owner/BookingStatusReportScreen';
 import BookingPreviousReportScreen from '../screens/owner/BookingPreviousReportScreen';
 import OwnerBuyListingDetailsScreen from '../screens/owner/OwnerBuyListingDetailsScreen';
+import SellRequestsScreen from '../screens/owner/SellRequestsScreen';
 import OwnerBuyListingScreen from '../screens/owner/OwnerBuyListingScreen';
 import OwnerCartScreen from '../screens/owner/OwnerCartScreen';
 import OwnerNotificationsScreen from '../screens/owner/OwnerNotificationsScreen';
 import OwnerSearchScreen from '../screens/owner/OwnerSearchScreen';
+import ScanSearchScreen from '../screens/owner/ScanSearchScreen';
+import ProductScanScreen from '../screens/owner/ProductScanScreen';
+import OwnerBuyHomeScreen from '../screens/owner/OwnerBuyHomeScreen';
+import OwnerSellHubScreen from '../screens/owner/OwnerSellHubScreen';
 import TicketDetailScreen from '../screens/owner/AllBooking/TicketDetailScreen';
 import DeviceDetailScreen from '../screens/owner/AllBooking/DeviceDetailScreen';
 import BookingSummaryScreen from '../screens/owner/AllBooking/BookingSummaryScreen';
@@ -127,22 +131,23 @@ const Tab = createBottomTabNavigator();
 const OWNER_TAB_ICONS = {
   Home: House,
   Bookings: ClipboardList,
-  Billing: Receipt,
   Buy: ShoppingBag,
   Sell: Tag,
   MyAccount: Settings,
 };
 
 // Routes registered on the tab navigator but intentionally NOT shown in the
-// bar. Billing (Invoices) stays navigable from the Dashboard, just off the bar.
-const HIDDEN_TABS = ['Billing'];
+// bar. None at the moment: Invoices used to be one (a hidden "Billing" tab);
+// it is now the bookings list with menu 'INVOICE', pushed from Home.
+const HIDDEN_TABS = [];
 
 // ── Bottom bar palette ────────────────────────────────────────────────────
 // Active tab's icon floats in a raised white circle (shadow only) above the
 // bar's top edge, per the uploaded reference — green icon + bold green
 // label. Inactive items are plain black icons/labels, no background.
-const NAV_ACTIVE = colors.primary;
-const NAV_BUBBLE_BG = '#FFFFFF';
+const NAV_ACTIVE = '#09AD2A';
+// Soft green circle behind the active icon (was plain white).
+const NAV_BUBBLE_BG = '#E6F7EA';
 const NAV_INACTIVE = '#000000';
 
 /**
@@ -317,11 +322,10 @@ function OwnerTabs({ onLogout }) {
         {(props) => <DashboardScreen {...props} onLogout={onLogout} />}
       </Tab.Screen>
       <Tab.Screen name="Bookings" component={BookingHistoryScreen} />
-      <Tab.Screen name="Billing" component={BillingScreen} options={{ tabBarLabel: 'Invoices' }} />
-      <Tab.Screen name="Buy" component={OwnerBuyListingScreen} options={{ title: 'Buy' }} />
+      <Tab.Screen name="Buy" component={OwnerBuyHomeScreen} options={{ title: 'Buy' }} />
       <Tab.Screen
         name="Sell"
-        component={OwnerSellHomeScreen}
+        component={OwnerSellHubScreen}
         options={{ title: 'Sell' }}
         initialParams={{ flow: 'OWNER_LIST' }}
       />
@@ -388,7 +392,7 @@ export default function OwnerNavigator({ session, onLogout }) {
         headerStyle: { backgroundColor: colors.headerBg },
         headerShadowVisible: true,
         headerTintColor: colors.headerText,
-        headerTitleStyle: { fontSize: 17, fontWeight: '700', color: colors.headerText },
+        headerTitleStyle: { fontSize: 17, fontWeight: '800', color: colors.headerText },
         headerTitleAlign: 'center',
         headerTitleAllowFontScaling: false,
         headerLeft: () => {
@@ -435,7 +439,14 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerCart" component={OwnerCartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerNotifications" component={OwnerNotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSearch" component={OwnerSearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ScanSearch" component={ScanSearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ProductScan" component={ProductScanScreen} options={{ headerShown: false }} />
+      {/* Buy listing (search / category results) and the previous Sell home,
+          now opened from the Customer-style Buy / Sell tabs. */}
+      <Stack.Screen name="OwnerBuyListing" component={OwnerBuyListingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerSellHome" component={OwnerSellHomeScreen} options={{ headerShown: false }} initialParams={{ flow: 'OWNER_LIST' }} />
       <Stack.Screen name="OwnerBuyListingDetails" component={OwnerBuyListingDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerSellRequests" component={SellRequestsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellMobile" component={OwnerSellMobileChoiceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellSpareParts" component={OwnerSellSparePartsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellChooseSalesCategory" component={OwnerSellChooseSalesCategoryScreen} options={{ headerShown: false }} />
@@ -445,13 +456,13 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SelectBrand" component={SelectBrandScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SelectSeries" component={SelectSeriesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SelectModel" component={SelectModelScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="SelectVariant" component={SelectVariantScreen} options={{ title: 'Your Device' }} />
+      <Stack.Screen name="SelectVariant" component={SelectVariantScreen} options={{ headerShown: false }} />
       {/* Shared sell-flow screens (also registered in the customer stack). */}
       <Stack.Screen name="SellScreening" component={SellScreeningScreen} options={{ title: 'Screening Question' }} />
       <Stack.Screen name="SellScreenCondition" component={SellScreenConditionScreen} options={{ title: 'Screen' }} />
       <Stack.Screen name="SellFunctional" component={SellFunctionalScreen} options={{ title: 'Functional' }} />
       <Stack.Screen name="SellDeviceConfig" component={SellDeviceConfigScreen} options={{ title: 'Device Configuration' }} />
-      <Stack.Screen name="SellAccessoriesWarranty" component={SellAccessoriesWarrantyScreen} options={{ title: 'Accessoires & Warranty' }} />
+      <Stack.Screen name="SellAccessoriesWarranty" component={SellAccessoriesWarrantyScreen} options={{ title: 'Accessories & Warranty' }} />
       <Stack.Screen name="SellImages" component={SellImagesScreen} options={{ title: 'Sell Device Images' }} />
       <Stack.Screen name="OwnerSellGadgetPrice" component={OwnerSellGadgetPriceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellListed" component={OwnerSellListedScreen} options={{ headerShown: false }} />
@@ -483,7 +494,7 @@ export default function OwnerNavigator({ session, onLogout }) {
           title: 'Pickup Service',
           headerStyle: { backgroundColor: '#087A0A' },
           headerTintColor: '#FFFFFF',
-          headerTitleStyle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+          headerTitleStyle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
           headerLeft: () => navigation.canGoBack() ? <GreenHeaderBack onPress={() => navigation.goBack()} /> : null,
         })}
       />
@@ -498,8 +509,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Employee Details',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerEmployeeCreated" component={OwnerEmployeeCreatedScreen} options={{ title: 'Employee Created', headerShown: false }} />
@@ -509,8 +520,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Attendance',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerStaffReport" component={OwnerStaffReportScreen} options={{ headerShown: false }} />
@@ -520,8 +531,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Leave details',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -530,8 +541,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Salary Report',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -540,8 +551,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Pay Slip',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -550,8 +561,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Shift details',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       {/* Both report screens serve two modes. Opened from an employee's detail
@@ -565,8 +576,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={({ route }) => ({
           title: route?.params?.employee ? 'Working Record' : 'Service Report',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         })}
       />
       <Stack.Screen
@@ -583,8 +594,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Apply for leave',
           headerTitleAlign: 'center',
-          headerTintColor: '#087A0A',
-          headerTitleStyle: { color: '#172117', fontWeight: '800', fontSize: 20 },
+          headerTintColor: '#078F23',
+          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerLeaveRequests" component={OwnerLeaveRequestsScreen} options={{ headerShown: false }} />

@@ -28,8 +28,9 @@ const variantClasses = {
   softAccent: 'bg-attention-soft',
 };
 
-// `secondary` / `accent` fill with attention amber, which is a LIGHT fill —
-// white on it is 2.1:1, so those two labels take the dark text colour (7.8:1).
+// `secondary` / `accent` fill with the attention yellow (#F3BF23), a LIGHT
+// fill — white on it is under 2:1, so those two labels take the dark text
+// colour (about 10:1).
 // The green, danger and success fills are dark enough to keep white.
 const textVariantClasses = {
   default: 'text-white',
@@ -46,17 +47,17 @@ const textVariantClasses = {
 };
 
 const sizeClasses = {
-  default: 'py-3.5 px-6',
-  sm: 'py-2.5 px-4',
-  lg: 'py-4 px-8',
-  pill: 'py-3.5 px-6',
-  icon: 'h-11 w-11',
+  default: 'py-2.5 px-5',
+  sm: 'py-2 px-3.5',
+  lg: 'py-3 px-6',
+  pill: 'py-2.5 px-5',
+  icon: 'h-10 w-10',
 };
 
 const sizeRadii = {
-  default: 18,
-  sm: 14,
-  lg: 18,
+  default: 16,
+  sm: 12,
+  lg: 16,
   pill: 999,
   icon: 999,
 };

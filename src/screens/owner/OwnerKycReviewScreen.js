@@ -148,16 +148,16 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F8EF' },
   scroll: { flex: 1 },
-  content: { padding: 14, paddingBottom: 32 },
+  content: { padding: 12, paddingBottom: 24 },
 
   statusCard: {
     flexDirection: 'row',
     backgroundColor: '#16BB05',
     borderRadius: 14,
-    padding: 14,
+    padding: 11,
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 14,
+    gap: 10,
+    marginBottom: 11,
   },
   statusIconWrap: {
     width: 38,
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  statusTitle: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
   statusSub: { fontSize: 11, color: 'rgba(255,255,255,0.92)', marginTop: 2, lineHeight: 15 },
 
   grid: {
@@ -204,9 +204,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     position: 'relative',
-    minHeight: 110,
+    minHeight: 96,
   },
-  previewImg: { width: '100%', height: 110, resizeMode: 'cover' },
+  previewImg: { width: '100%', height: 96, resizeMode: 'cover' },
   previewCheck: {
     position: 'absolute',
     top: 4,
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     gap: 8,
-    minHeight: 110,
+    minHeight: 96,
   },
   pdfBadge: {
     paddingHorizontal: 8,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionBtnSubmit: { backgroundColor: '#087A0A' },
-  actionBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   editBtn: {
     marginTop: 10,

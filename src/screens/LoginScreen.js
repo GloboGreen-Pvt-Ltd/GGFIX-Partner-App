@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -10,63 +11,48 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Defs, Ellipse, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import { ArrowRight, CalendarClock, Phone, ShieldCheck, ShoppingCart } from 'lucide-react-native';
 import { login, requestOtp, requestShopLoginOtp } from '../api/auth';
 import { clearSession } from '../auth/session';
+import { resetOnboardingForTesting } from '../auth/onboarding';
 import { AUTH_BASE } from '../api/config';
-import { Button } from '../components/rnr';
-import { tokens } from '../theme/colors';
-import { rf, rlh, rs } from '../utils/responsive';
 
 /**
- * Shop sign-in: mobile number → OTP. Both steps live in this one screen (rather
- * than two navigator routes) because RootNavigator mounts a single "Login"
- * screen while logged out — keeping the step in local state avoids touching the
- * navigator and keeps the entered number in scope for the resend.
+ * Partner sign-in: mobile number → OTP, same design as the Customer app's
+ * login (shared mock), with the Partner app's own auth:
+ *   1. POST /auth/otp/send (users — owners / staff / technicians); a 400 falls
+ *      back to the shop's own login mobile (requestShopLoginOtp).
+ *   2. login(mobile, { otp }) — SUPER_ADMIN is refused here (admin web only).
  *
- * Wire-level flow, all endpoints already exist in auth-service:
- *   1. POST /auth/otp/send              { email: <mobile> }  — users-table accounts
- *      (SHOP_OWNER / TECHNICIAN). 400s when the mobile isn't on a users row.
- *   2. POST /auth/shop-login/request-otp { mobile }           — fallback for a number
- *      that only exists as a SHOP mobile (loginType=SHOP_LOGIN). Also HEALS a
- *      NULL shops.mobile_otp_code by writing 123456, which is the long-standing
- *      cause of "Invalid OTP" on shops created before migration 54.
- *   3. POST /auth/login                 { email: <mobile>, otp }
- *
- * AuthService.login resolves the identifier against users (by email, then phone)
- * and falls through to shops.mobile — so one mobile+OTP form covers every
- * identity this app serves. Two OTP issuers, one verifier.
- *
- * OTP is SIX digits, not the four drawn in the design: auth-service compares
- * against users.otp_code / shops.mobile_otp_code, both defaulting to 123456.
- * There's no SMS gateway yet — a mobile identifier always resolves to that
- * static code.
+ * Layout follows the approved login mock (941×1672 → 390 dp wide): every size
+ * below is the mock's dp value times `k` (screen width / 390, clamped), so the
+ * page keeps the same proportions on every phone. The device illustration is
+ * the mock's own artwork (assets/login-hero.png, edges feathered so it melts
+ * into the page); the background shapes are drawn as vectors.
  */
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 const MOBILE_DIGITS = 10;
 
-const GREEN = tokens.primary;
-const TEXT = tokens.text;
-const MUTED = tokens.textMuted;
-const SUBTLE = tokens.textSubtle;
-const BORDER = tokens.border;
-const AMBER = tokens.attention;
-const DANGER = tokens.danger;
-
-// Sign-in is the one screen that sits on pure white rather than the app's
-// #F7FAF7 page wash: the brand logo PNG has an opaque white background, so any
-// tinted wash draws a visible square around it.
-const PAGE_BG = '#FFFFFF';
-// Fixed 5px — deliberately NOT rs(), so the logo's corner radius is identical
-// on every device instead of drifting 4.4–5.6px with the width scale.
-const LOGO_RADIUS = 10;
+const PAGE_BG = '#F7F8F7';
+const INK = '#1E1E1E';
+const GREEN_TEXT = '#12A02F';
+const MUTED = '#6B6B6B';
+const SOFT = '#8C8C8C';
+const LINE = '#E6E6E6';
+const DANGER = '#F84141';
+const HERO = require('../../assets/login-hero.png');
+const HERO_RATIO = 700 / 546; // height / width of login-hero.png
 
 export default function LoginScreen({ onLogin, navigation }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [step, setStep] = useState('MOBILE'); // MOBILE | OTP
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -103,9 +89,6 @@ export default function LoginScreen({ onLogin, navigation }) {
         `Current AUTH_BASE: ${AUTH_BASE}. Restart Expo with EXPO_PUBLIC_API_HOST=YOUR_PC_IP.`
       );
     }
-    // Network/unreachable → generic connectivity message; auth failures → the
-    // server's own (non-topology) message so the user still gets useful
-    // feedback like "Invalid OTP".
     const status = e?.status;
     if (!status || status === 0) return "Can't reach the server. Check your connection and try again.";
     return msg;
@@ -130,10 +113,7 @@ export default function LoginScreen({ onLogin, navigation }) {
         try {
           await requestShopLoginOtp(mobile);
         } catch (e2) {
-          // Unknown to BOTH issuers → the number simply isn't registered. Say
-          // that, rather than leaking the second issuer's shop-flavoured 400
-          // ("No shop registered…"), which reads as a bug to an owner who
-          // just mistyped a digit.
+          // Unknown to BOTH issuers → the number simply isn't registered.
           if (e2?.status !== 400) throw e2;
           const notFound = new Error('No account found for that mobile number.');
           notFound.status = 400;
@@ -163,10 +143,8 @@ export default function LoginScreen({ onLogin, navigation }) {
     try {
       setLoading(true);
       const data = await login(mobile, { otp: entered });
-
       // Block SUPER_ADMIN in the mobile shop app — they belong in the admin web.
-      // login() already persisted the session, so clear it here; otherwise the
-      // blocked token survives to the next cold start and routes into the app.
+      // login() already persisted the session, so clear it here.
       if (data?.loginType === 'SUPER_ADMIN') {
         await clearSession();
         setOtp('');
@@ -202,44 +180,82 @@ export default function LoginScreen({ onLogin, navigation }) {
     setNote(null);
   };
 
+  // Mock dp → this screen: k scales every size by width (clamped for tablets).
+  const k = Math.min(Math.max(width / 390, 0.82), 1.25);
+  const s = makeStyles(k);
+  const heroW = 226 * k;
+
   return (
-    <KeyboardAvoidingView
-      style={styles.page}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <StatusBar barStyle="dark-content" backgroundColor={PAGE_BG} />
+    <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <Backdrop k={k} />
+      {/* Device illustration, top-right — aligned to the logo like the mock. */}
+      <Image
+        source={HERO}
+        style={{ position: 'absolute', right: 0, top: insets.top - 47 * k, width: heroW, height: heroW * HERO_RATIO }}
+        resizeMode="contain"
+        accessible={false}
+      />
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + rs(24), paddingBottom: insets.bottom + rs(28) },
-        ]}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 34 * k, paddingBottom: insets.bottom + 18 * k }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {step === 'MOBILE' ? (
-          <MobileStep
-            mobile={mobile}
-            setMobile={setMobile}
-            loading={loading}
-            error={error}
-            onSubmit={sendOtp}
-            onCreateAccount={() => navigation?.navigate('CreateAccount')}
-          />
-        ) : (
-          <OtpStep
-            mobile={mobile}
-            otp={otp}
-            otpRef={otpRef}
-            onOtpChange={onOtpChange}
-            onSubmit={() => verify()}
-            onBack={backToMobile}
-            onResend={() => sendOtp({ resend: true })}
-            seconds={seconds}
-            loading={loading}
-            error={error}
-            note={note}
-          />
-        )}
+        <View style={{ paddingHorizontal: 40 * k }}>
+          <Pressable
+            // DEV-ONLY: long-press the logo to see IntroScreen again on reload.
+            onLongPress={__DEV__ ? () => { resetOnboardingForTesting(); } : undefined}
+            accessibilityRole="image"
+            accessibilityLabel="GGFIX"
+          >
+            <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+          </Pressable>
+          {step === 'MOBILE' ? (
+            <>
+              <Text style={s.h1}>Login with{'\n'}<Text style={{ color: GREEN_TEXT }}>mobile number</Text></Text>
+              <Text style={s.sub}>Welcome to GGFIX Partner App</Text>
+            </>
+          ) : (
+            <>
+              <Text style={s.h1}>Verify with{'\n'}<Text style={{ color: GREEN_TEXT }}>OTP code</Text></Text>
+              <Text style={s.sub}>Code sent to <Text style={{ color: INK, fontWeight: '700' }}>+91 {mobile}</Text></Text>
+            </>
+          )}
+        </View>
+
+        <View style={s.card}>
+          {step === 'MOBILE' ? (
+            <MobileStep
+              s={s}
+              k={k}
+              mobile={mobile}
+              setMobile={setMobile}
+              loading={loading}
+              error={error}
+              onSubmit={sendOtp}
+              onCreateAccount={() => navigation?.navigate('CreateAccount')}
+            />
+          ) : (
+            <OtpStep
+              s={s}
+              k={k}
+              otp={otp}
+              otpRef={otpRef}
+              onOtpChange={onOtpChange}
+              onSubmit={() => verify()}
+              onBack={backToMobile}
+              onResend={() => sendOtp({ resend: true })}
+              seconds={seconds}
+              loading={loading}
+              error={error}
+              note={note}
+            />
+          )}
+        </View>
+
+        <Features s={s} k={k} />
+        <View style={{ flex: 1 }} />
+        <Text style={s.footnote}>GGFix — book repairs, buy and sell your devices.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -247,79 +263,78 @@ export default function LoginScreen({ onLogin, navigation }) {
 
 /* ------------------------------------------------------------------ step 1 */
 
-function MobileStep({ mobile, setMobile, loading, error, onSubmit, onCreateAccount }) {
+function MobileStep({ s, k, mobile, setMobile, loading, error, onSubmit, onCreateAccount }) {
   return (
     <View>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="cover" />
-
-      <Text style={styles.h1}>Login with{'\n'}mobile number</Text>
-      <Text style={styles.sub}>Welcome to your shop dashboard !</Text>
-
-      <View style={styles.inputRow}>
-        <View style={styles.numberCard}>
-          <TextInput
-            value={mobile}
-            onChangeText={(v) => setMobile(v.replace(/[^0-9]/g, '').slice(0, MOBILE_DIGITS))}
-            placeholder="9876543210"
-            placeholderTextColor={SUBTLE}
-            keyboardType="number-pad"
-            maxLength={MOBILE_DIGITS}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={onSubmit}
-            style={styles.numberInput}
-          />
-        </View>
+      <Text style={s.label}>Mobile number</Text>
+      <View style={s.inputBox}>
+        <Phone size={19 * k} color="#7A7A7A" strokeWidth={2} />
+        <View style={s.inputDivider} />
+        <TextInput
+          value={mobile}
+          onChangeText={(v) => setMobile(v.replace(/[^0-9]/g, '').slice(0, MOBILE_DIGITS))}
+          placeholder="9876543210"
+          placeholderTextColor="#BDBDBD"
+          keyboardType="number-pad"
+          maxLength={MOBILE_DIGITS}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={onSubmit}
+          accessibilityLabel="Mobile number"
+          style={[s.input, Platform.OS === 'web' ? { outlineStyle: 'none' } : null]}
+        />
       </View>
 
-      <ErrorBox msg={error} />
+      <ErrorBox s={s} msg={error} />
 
-      <PrimaryButton label="LOGIN" loading={loading} onPress={onSubmit} />
+      <PillButton s={s} k={k} label="LOGIN" loading={loading} onPress={onSubmit} />
 
-      <View style={styles.signupRow}>
-        <Text style={styles.signupMuted}>New to GGFix? </Text>
-        <Pressable onPress={onCreateAccount} hitSlop={8}>
-          <Text style={styles.signupLink}>Create account</Text>
-        </Pressable>
+      <View style={s.orRow}>
+        <View style={s.orLine} />
+        <Text style={s.orText}>OR</Text>
+        <View style={s.orLine} />
       </View>
 
-      <Text style={styles.footnote}>
-        GGFIX Partner — for shop owners and in-shop technicians.
-      </Text>
+      <Pressable onPress={onCreateAccount} hitSlop={8} accessibilityRole="button" accessibilityLabel="Create Your account" style={s.signupRow}>
+        <Text style={s.signupMuted}>New partner? </Text>
+        <Text style={s.signupLink}>Create Your account</Text>
+        <ArrowRight size={16 * k} color={GREEN_TEXT} strokeWidth={2.5} style={{ marginLeft: 8 * k }} />
+      </Pressable>
     </View>
   );
 }
 
 /* ------------------------------------------------------------------ step 2 */
 
-function OtpStep({
-  mobile, otp, otpRef, onOtpChange, onSubmit, onBack, onResend, seconds, loading, error, note,
-}) {
+function OtpStep({ s, k, otp, otpRef, onOtpChange, onSubmit, onBack, onResend, seconds, loading, error, note }) {
   const boxes = Array.from({ length: OTP_LENGTH });
   const canResend = seconds <= 0 && !loading;
 
   return (
     <View>
-      <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
-        <ArrowLeft size={rs(20)} color={TEXT} />
-      </Pressable>
-
-      <Text style={styles.h1Center}>Verify Phone</Text>
-      <Text style={styles.subCenter}>Code is sent to {mobile}</Text>
+      <View style={s.labelRow}>
+        <Text style={[s.label, { marginBottom: 0 }]}>Enter {OTP_LENGTH}-digit OTP</Text>
+        <Pressable onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change number">
+          <Text style={s.changeLink}>Change number</Text>
+        </Pressable>
+      </View>
 
       {/* The visible boxes are display-only; one transparent input sits on top
           of the whole row so backspace, paste and SMS autofill all behave like
           a normal single field instead of six that fight over focus. */}
-      <Pressable onPress={() => otpRef.current?.focus()} style={styles.otpRow}>
+      <Pressable onPress={() => otpRef.current?.focus()} style={s.otpWrap}>
+        {/* Boxes live in their own fixed row so typing never re-spaces them. */}
+        <View style={s.otpRow} pointerEvents="none">
         {boxes.map((_, i) => {
           const char = otp[i] || '';
           const active = otp.length === i;
           return (
-            <View key={i} style={[styles.otpBox, active && styles.otpBoxActive]}>
-              <Text style={char ? styles.otpChar : styles.otpCharEmpty}>{char || '0'}</Text>
+            <View key={i} style={[s.otpBox, active && s.otpBoxActive, char ? s.otpBoxFilled : null]}>
+              <Text style={char ? s.otpChar : s.otpCharEmpty}>{char || '•'}</Text>
             </View>
           );
         })}
+        </View>
         <TextInput
           ref={otpRef}
           value={otp}
@@ -330,19 +345,22 @@ function OtpStep({
           caretHidden
           textContentType="oneTimeCode"
           autoComplete="sms-otp"
-          style={styles.otpHiddenInput}
+          contextMenuHidden
+          underlineColorAndroid="transparent"
+          accessibilityLabel="OTP code"
+          style={s.otpHiddenInput}
         />
       </Pressable>
 
-      {note ? <Text style={styles.note}>{note}</Text> : null}
-      <ErrorBox msg={error} />
+      {note ? <Text style={s.note}>{note}</Text> : null}
+      <ErrorBox s={s} msg={error} />
 
-      <PrimaryButton label="VERIFY" loading={loading} onPress={onSubmit} />
+      <PillButton s={s} k={k} label="VERIFY" loading={loading} onPress={onSubmit} />
 
-      <View style={styles.resendRow}>
-        <Text style={styles.resendMuted}>Not yet code? </Text>
-        <Pressable onPress={onResend} disabled={!canResend} hitSlop={8}>
-          <Text style={[styles.resendLink, !canResend && styles.resendLinkOff]}>
+      <View style={s.resendRow}>
+        <Text style={s.signupMuted}>Didn't get the code? </Text>
+        <Pressable onPress={onResend} disabled={!canResend} hitSlop={8} accessibilityRole="button">
+          <Text style={[s.signupLink, !canResend && { color: SOFT, fontWeight: '600' }]}>
             {seconds > 0 ? `Resend in ${seconds}s` : 'Resend Now'}
           </Text>
         </Pressable>
@@ -353,123 +371,157 @@ function OtpStep({
 
 /* ------------------------------------------------------------------- parts */
 
-function PrimaryButton({ label, loading, onPress }) {
+// NOTE: Pressables take plain style objects only — NativeWind's cssInterop
+// drops function-form `style={({ pressed }) => ...}` on native.
+function PillButton({ s, k, label, loading, onPress }) {
   return (
-    <Button
+    <Pressable
       onPress={onPress}
-      loading={loading}
-      fullWidth
-      elevated={false}
-      // twMerge drops Button's own `rounded-2xl`/`py-3.5`/`bg-primary` in favour
-      // of these, so the CTA keeps the design's squarer 10px corners at a fixed
-      // 56px height and the sage fill instead of the app's #087A0A green.
-      // The hex must stay literal here — Tailwind's JIT only compiles arbitrary
-      // values it can see as source text, so a constant would emit no class.
-      className="rounded-[10px] py-0 bg-[#004C40]"
-      style={styles.cta}
+      disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="active:opacity-90"
+      style={s.ctaShadow}
     >
-      <View style={styles.ctaInner}>
-        <Text style={styles.ctaText}>{label}</Text>
-        <ArrowRight size={rs(18)} color="#FFFFFF" strokeWidth={2.5} />
-      </View>
-    </Button>
+      <LinearGradient colors={['#22B53D', '#13982C']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.cta}>
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <>
+            <Text style={s.ctaText}>{label}</Text>
+            <ArrowRight size={18 * k} color="#FFFFFF" strokeWidth={2.4} style={{ marginLeft: 12 * k }} />
+          </>
+        )}
+      </LinearGradient>
+    </Pressable>
   );
 }
 
-function ErrorBox({ msg }) {
+function ErrorBox({ s, msg }) {
   if (!msg) return null;
   return (
-    <View style={styles.errorBox}>
-      <Text style={styles.errorText}>{msg}</Text>
+    <View style={s.errorBox}>
+      <Text style={s.errorText}>{msg}</Text>
     </View>
   );
 }
 
-const cardSurface = {
-  borderRadius: rs(12),
-  borderWidth: 1,
-  borderColor: BORDER,
-  backgroundColor: tokens.card,
-  shadowColor: '#0B1F14',
-  shadowOpacity: 0.06,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 2,
-};
+function Features({ s, k }) {
+  const items = [
+    { Icon: CalendarClock, label: 'Book\nrepairs', color: '#1FA33A', bg: '#E2F4E5' },
+    { Icon: ShoppingCart, label: 'Buy and sell\nyour devices', color: '#E5A50A', bg: '#FCF1D3' },
+    { Icon: ShieldCheck, label: 'Trusted\n& secure', color: '#E8323A', bg: '#FCE3E3' },
+  ];
+  return (
+    <View style={s.features}>
+      {items.map(({ Icon, label, color, bg }, i) => (
+        <React.Fragment key={label}>
+          {i > 0 ? <View style={s.featureDivider} /> : null}
+          <View style={s.feature}>
+            <View style={[s.featureIcon, { backgroundColor: bg }]}>
+              <Icon size={18 * k} color={color} strokeWidth={2} />
+            </View>
+            <Text style={s.featureText}>{label}</Text>
+          </View>
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
 
-const styles = StyleSheet.create({
+// Soft brand shapes behind the page (mock: mint washes, a green wedge on the
+// right edge and layered green waves in both bottom corners).
+function Backdrop({ k }) {
+  const { width: W, height: H } = useWindowDimensions();
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width={W} height={H}>
+        <Defs>
+          <SvgGradient id="wedge" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor="#8ED89D" />
+            <Stop offset="1" stopColor="#5BC274" />
+          </SvgGradient>
+          <SvgGradient id="deep" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor="#2DAE5C" />
+            <Stop offset="1" stopColor="#14915A" />
+          </SvgGradient>
+        </Defs>
+        {/* faint washes, top-left and mid-left */}
+        <Circle cx={30 * k} cy={70 * k} r={210 * k} fill="#EFF4F0" fillOpacity={0.7} />
+        <Circle cx={-30 * k} cy={330 * k} r={150 * k} fill="#E6F4E9" fillOpacity={0.8} />
+        {/* green wedge on the right edge, behind the card's top corner */}
+        <Path d={`M${W} ${245 * k} L${W} ${345 * k} L${W - 66 * k} ${310 * k} Z`} fill="url(#wedge)" />
+        {/* bottom-left waves */}
+        <Ellipse cx={-6 * k} cy={H + 22 * k} rx={128 * k} ry={140 * k} fill="#CBEED2" />
+        <Ellipse cx={-16 * k} cy={H + 26 * k} rx={104 * k} ry={116 * k} fill="#93DBA7" />
+        <Ellipse cx={-28 * k} cy={H + 18 * k} rx={78 * k} ry={86 * k} fill="url(#deep)" />
+        {/* bottom-right waves */}
+        <Ellipse cx={W + 8 * k} cy={H + 30 * k} rx={124 * k} ry={128 * k} fill="#CBEED2" />
+        <Ellipse cx={W + 16 * k} cy={H + 34 * k} rx={100 * k} ry={104 * k} fill="#93DBA7" />
+        <Ellipse cx={W + 26 * k} cy={H + 28 * k} rx={80 * k} ry={82 * k} fill="url(#deep)" />
+      </Svg>
+    </View>
+  );
+}
+
+const makeStyles = (k) => StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_BG },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: rs(24) },
+  logo: { width: 90 * k, height: 90 * k, borderRadius: 45 * k },
+  h1: { marginTop: 26 * k, fontFamily: 'Inter_800ExtraBold', fontWeight: Platform.OS === 'web' ? '800' : undefined, fontSize: 22.5 * k, lineHeight: 28 * k, color: INK },
+  sub: { marginTop: 6 * k, fontSize: 13 * k, color: MUTED },
 
-  logo: {
-    height: rs(100),
-    width: rs(100),
-    borderRadius: LOGO_RADIUS,
-    marginBottom: rs(22),
-    alignSelf: 'center',
+  card: {
+    marginTop: 30 * k, marginHorizontal: 16 * k, paddingTop: 22 * k, paddingHorizontal: 21 * k, paddingBottom: 20 * k,
+    backgroundColor: '#FFFFFF', borderRadius: 20 * k,
+    shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
-
-  h1: { fontSize: rf(28), lineHeight: rlh(36), fontWeight: '800', color: TEXT, letterSpacing: -0.4 },
-  h1Center: { fontSize: rf(26), lineHeight: rlh(32), fontWeight: '800', color: TEXT, textAlign: 'center' },
-  sub: { fontSize: rf(13.5), lineHeight: rlh(20), color: MUTED, marginTop: rs(8) },
-  subCenter: { fontSize: rf(13.5), lineHeight: rlh(20), color: MUTED, textAlign: 'center', marginTop: rs(8) },
-
-  inputRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(28) },
-  numberCard: {
-    ...cardSurface,
-    flex: 1,
-    height: rs(54),
-    justifyContent: 'center',
-    paddingHorizontal: rs(14),
+  label: { fontSize: 12.5 * k, color: MUTED, marginLeft: 4 * k, marginBottom: 7 * k },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 * k },
+  changeLink: { fontSize: 12.5 * k, fontWeight: '700', color: GREEN_TEXT },
+  inputBox: {
+    flexDirection: 'row', alignItems: 'center', height: 46 * k, paddingLeft: 17 * k, borderRadius: 13 * k,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E9E9E9',
+    shadowColor: '#000000', shadowOpacity: 0.03, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
-  numberInput: { fontSize: rf(15.5), fontWeight: '600', color: TEXT, padding: 0 },
+  inputDivider: { width: 1, height: 22 * k, backgroundColor: '#E3E3E3', marginHorizontal: 14 * k },
+  input: { flex: 1, height: '100%', fontSize: 14.5 * k, color: INK, letterSpacing: 0.3 },
 
-  backBtn: { alignSelf: 'flex-start', height: rs(36), width: rs(36), alignItems: 'center', justifyContent: 'center', marginBottom: rs(8), marginLeft: -rs(8) },
+  ctaShadow: {
+    marginTop: 18 * k, borderRadius: 24 * k,
+    shadowColor: '#13982C', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
+  },
+  cta: { height: 48 * k, borderRadius: 24 * k, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  ctaText: { color: '#FFFFFF', fontSize: 13.5 * k, fontWeight: '800', letterSpacing: 2.2 * k },
 
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: rs(26) },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginTop: 24 * k, paddingHorizontal: 6 * k },
+  orLine: { flex: 1, height: 1, backgroundColor: LINE },
+  orText: { marginHorizontal: 22 * k, fontSize: 12 * k, color: SOFT },
+  signupRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18 * k },
+  signupMuted: { fontSize: 13 * k, color: INK },
+  signupLink: { fontSize: 13 * k, fontWeight: '800', color: GREEN_TEXT },
+
+  otpWrap: { position: 'relative', height: 50 * k },
+  otpRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', height: 50 * k },
   otpBox: {
-    ...cardSurface,
-    flex: 1,
-    height: rs(56),
-    marginHorizontal: rs(4),
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 42 * k, height: 50 * k, borderRadius: 12 * k, borderWidth: 1, borderColor: '#E9E9E9', backgroundColor: '#FFFFFF',
+    alignItems: 'center', justifyContent: 'center',
   },
-  otpBoxActive: { borderColor: GREEN, borderWidth: 1.5 },
-  otpChar: { fontSize: rf(20), fontWeight: '700', color: TEXT },
-  otpCharEmpty: { fontSize: rf(20), fontWeight: '700', color: tokens.borderStrong },
-  otpHiddenInput: { ...StyleSheet.absoluteFillObject, opacity: 0, color: 'transparent' },
+  otpBoxActive: { borderColor: '#13982C', borderWidth: 1.5 },
+  otpBoxFilled: { borderColor: '#9ED8AA', backgroundColor: '#F4FBF5' },
+  otpChar: { fontSize: 20 * k, fontWeight: '800', color: INK },
+  otpCharEmpty: { fontSize: 16 * k, color: '#CFCFCF' },
+  // Fixed-size overlay (never part of the row's layout) — invisible, catches typing / paste / SMS autofill.
+  otpHiddenInput: { position: 'absolute', left: 0, top: 0, width: '100%', height: 50 * k, padding: 0, margin: 0, opacity: 0, color: 'transparent', backgroundColor: 'transparent' },
+  note: { fontSize: 12.5 * k, color: GREEN_TEXT, marginTop: 10 * k, textAlign: 'center' },
+  resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 22 * k },
 
-  note: { fontSize: rf(12.5), color: GREEN, marginTop: rs(10), textAlign: 'center' },
+  errorBox: { marginTop: 12 * k, borderRadius: 12 * k, paddingHorizontal: 12 * k, paddingVertical: 9 * k, backgroundColor: '#FEECEC', borderWidth: 1, borderColor: 'rgba(248,65,65,0.3)' },
+  errorText: { fontSize: 12.5 * k, lineHeight: 17 * k, color: DANGER },
 
-  cta: { height: rs(56), borderRadius: rs(10), marginTop: rs(26), paddingVertical: 0 },
-  ctaInner: { flexDirection: 'row', alignItems: 'center' },
-  // White, because the CTA fill is dark again (#004C40, luminance 0.055):
-  // white on it is 10:1, the dark text token only 1.7:1. This flips with the
-  // fill — it was briefly dark while the fill was the light #64FF43.
-  ctaText: { color: '#FFFFFF', fontSize: rf(14.5), fontWeight: '500', letterSpacing: 1.6, marginRight: rs(10) },
-
-  resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: rs(30) },
-  resendMuted: { fontSize: rf(12.5), color: MUTED },
-  // Amber on the page wash is 2.4:1 — fine as a 12.5px bold link beside its
-  // muted label, but the DARK amber is what keeps it legible, so use that.
-  resendLink: { fontSize: rf(12.5), fontWeight: '700', color: tokens.attentionDark },
-  resendLinkOff: { color: MUTED, fontWeight: '600' },
-
-  signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: rs(24) },
-  signupMuted: { fontSize: rf(13), color: MUTED },
-  signupLink: { fontSize: rf(13), fontWeight: '800', color: GREEN },
-
-  footnote: { fontSize: rf(11), lineHeight: rlh(16), color: MUTED, textAlign: 'center', marginTop: rs(18) },
-
-  errorBox: {
-    marginTop: rs(14),
-    borderRadius: rs(12),
-    borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.3)',
-    backgroundColor: 'rgba(220,38,38,0.08)',
-    paddingHorizontal: rs(12),
-    paddingVertical: rs(9),
-  },
-  errorText: { fontSize: rf(12), lineHeight: rlh(17), color: DANGER },
+  features: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 * k, paddingHorizontal: 16 * k },
+  feature: { flex: 1, alignItems: 'center' },
+  featureIcon: { width: 35 * k, height: 35 * k, borderRadius: 17.5 * k, alignItems: 'center', justifyContent: 'center' },
+  featureText: { marginTop: 8 * k, fontSize: 12 * k, lineHeight: 15 * k, color: '#333333', textAlign: 'center' },
+  featureDivider: { width: 1, height: 30 * k, marginTop: 18 * k, backgroundColor: '#E1E1E1' },
+  footnote: { marginTop: 26 * k, fontSize: 11.5 * k, color: SOFT, textAlign: 'center' },
 });

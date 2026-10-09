@@ -55,9 +55,9 @@ export function StatusChip({ status, tone, label, size = 'md', className }) {
   const key = tone || inferTone(status);
   const palette = PALETTES[key] || PALETTES.neutral;
   const Icon = palette.icon;
-  const padding = size === 'sm' ? 'px-2.5 py-1' : 'px-3 py-1.5';
-  const iconSize = size === 'sm' ? 12 : 14;
-  const textSize = size === 'sm' ? 'text-[10.5px]' : 'text-[12px]';
+  const padding = size === 'sm' ? 'px-2 py-0.5' : 'px-2.5 py-1';
+  const iconSize = size === 'sm' ? 11 : 12;
+  const textSize = size === 'sm' ? 'text-[10px]' : 'text-[11px]';
   return (
     <View className={cn('flex-row items-center self-start rounded-full', padding, palette.bg, className)}>
       <Icon size={iconSize} color={palette.dot} />

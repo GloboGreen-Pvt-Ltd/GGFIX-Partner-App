@@ -20,7 +20,7 @@ export default function SellSuccessScreen({ navigation }) {
               <CheckCircle2 size={26} color="#16BB05" />
             </View>
           </View>
-          <Text className="text-white text-[18px] font-extrabold">Sale Request Submitted!</Text>
+          <Text className="text-white text-[17px] font-extrabold">Sale Request Submitted!</Text>
           <Text className="text-white/85 text-[11px] mt-1 text-center px-8" numberOfLines={3}>
             Verified shops will respond with quotes within minutes. We'll notify you the moment a quote arrives.
           </Text>

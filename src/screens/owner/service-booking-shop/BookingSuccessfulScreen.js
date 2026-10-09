@@ -6,19 +6,19 @@ import * as Sharing from 'expo-sharing';
 import { Card } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
 import { uploadMedia } from '../../../api/masterData';
+import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 
 const APP_LINK = 'https://ggfix.app';
 
 export default function BookingSuccessfulScreen({ navigation, route }) {
   const { tickets = [], devices = [], customer = {} } = route?.params || {};
 
+  // This screen sits in the nested booking stack, so popToTop() alone only
+  // lands on Customer Details, and navigate('Home') can't reach the Home tab
+  // (React Navigation 7 won't resolve a nested screen by name). popTo bubbles
+  // up to the owner stack, unwinds the whole booking flow, and picks the tab.
   const goHome = () => {
-    try {
-      navigation.popToTop();
-    } catch (_) {}
-    try {
-      navigation.navigate('Home');
-    } catch (_) {}
+    navigation.popTo('OwnerTabs', { screen: 'Home' });
   };
   const t0 = tickets[0] || {};
   const primaryTracking = t0.trackingId || 'CSPEN00000000';
@@ -169,7 +169,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
           <Ionicons name="checkmark-circle" size={20} color="#16BB05" />
         </View>
         <View className="flex-1">
-          <Text className="font-extrabold text-text text-[14px]">Booking Successful</Text>
+          <Text className="font-extrabold text-text text-[13px]">Booking Successful</Text>
           <Text className="text-[10px] text-text-muted mt-0.5">{time} on {date}</Text>
         </View>
         <View className="bg-success/10 px-2 py-1 rounded-full">
@@ -213,7 +213,9 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
                       <Text className="text-[10px] text-text-muted">Tracking ID</Text>
                       <Text className="text-[13px] font-extrabold text-primary">#{track || '—'}</Text>
                       <Text className="text-[11px] text-text mt-0.5" numberOfLines={1}>
-                        {dev.modelName}{dev.ramLabel ? ` · ${dev.ramLabel}` : ''}{dev.storageLabel ? ` · ${dev.storageLabel}` : ''}{dev.color ? ` · ${dev.color}` : ''}
+                        {hasCategorySpecs(dev)
+                          ? [dev.modelName, ...specDisplayParts(dev, { withColor: true })].filter(Boolean).join(' · ')
+                          : <>{dev.modelName}{dev.ramLabel ? ` · ${dev.ramLabel}` : ''}{dev.storageLabel ? ` · ${dev.storageLabel}` : ''}{dev.color ? ` · ${dev.color}` : ''}</>}
                       </Text>
                     </View>
                   </View>
@@ -263,7 +265,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
             {deviceList.length > 1 ? (
               <View className="px-3 py-3 flex-row items-center">
                 <Text className="flex-1 font-extrabold text-text text-[13px]">Grand Total · {deviceList.length} devices</Text>
-                <Text className="font-extrabold text-primary text-[15px]">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text className="font-extrabold text-primary text-[13px]">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
             ) : null}
           </Card>

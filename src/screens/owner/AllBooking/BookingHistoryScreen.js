@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Sharing from 'expo-sharing';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import {
   Smartphone,
   Filter,
@@ -24,6 +22,7 @@ import {
   ReceiptIndianRupee,
   Pencil,
   History,
+  CalendarClock,
   ListChecks,
   UserCheck,
 } from 'lucide-react-native';
@@ -35,6 +34,7 @@ import {
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 import { listShopRepairBookings } from '../../../api/orders';
+import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
 import { getModelsByBrand, getRamOptions, getStorageOptions, parseModelNumbers } from '../../../api/masterData';
 import {
   SCOPES, SCOPE_LIST, countScope, hasInvoice, pickupsOnly, scopeFor, scopeListFor,
@@ -44,11 +44,12 @@ import {
   ImeiGateSheet,
   PickupPersonPickerSheet,
   PickupStatusSheet,
+  RescheduleSheet,
   ServiceStatusSheet,
   ShareReceiptSheet,
   TechnicianPickerSheet,
 } from './BookingActionSheets';
-import { ReceiptCard, buildReceiptMessage } from './ReceiptCard';
+import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#16BB05';
@@ -205,11 +206,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   // Scope tiles per row. A phone keeps the 2-up grid — at 3-up the label had
   // barely 50px and wrapped mid-word. A TABLET puts the whole set on ONE line:
-  // every menu is 5 tiles or fewer (5 default / 4 pickup / 2 re-estimated), and
-  // at 5-up a 768pt tablet still leaves ~78pt of label room, which the existing
-  // adjustsFontSizeToFit covers for the longest one ("Ready for Delivery").
+  // every menu is 4 tiles or fewer (4 default / 4 pickup / 2 re-estimated /
+  // 1 invoice), and at that width a 768pt tablet leaves plenty of label room
+  // for the longest one ("Ready for Delivery").
   // That is two rows of vertical space handed back above the first booking.
-  const chipCols = numCols > 1 ? Math.max(1, menuList.length) : 2;
+  // A one-tile menu (Invoice) spans the row instead of sitting at half width.
+  const chipCols = numCols > 1 || menuList.length === 1 ? Math.max(1, menuList.length) : 2;
 
   // Where a tapped ticket row goes. Default is nowhere — the card's own button
   // row names every destination, so a bare tap has nothing unambiguous to mean.
@@ -224,6 +226,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // already live there — duplicating that here would mean two copies of
   // buildEditParams drifting apart.
   const opensEdit = rowTarget === 'EDIT';
+  // Home → Invoice: every booking here is already billed, so assigning a
+  // technician has no place on its cards.
+  const isInvoiceMenu = String(route?.params?.menu || '').toUpperCase() === 'INVOICE';
 
   // Optional header overrides, so a mount can name itself something other than
   // its scope ("SERVICE HISTORY" rather than "ALL BOOKINGS") without inventing a
@@ -303,21 +308,24 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // navigation actions; the tap itself is now the status change, which is the
   // thing the owner does to a booking from this list most often.
   const [statusOpen, setStatusOpen] = useState(false);
+  // Requote list only: the card's Reschedule button (new delivery date & time).
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   // IMEI gate in front of the invoice generator, plus the value handed back by
   // the scanner route (null on a manual open).
   const [imeiGateOpen, setImeiGateOpen] = useState(false);
   const [scannedImei, setScannedImei] = useState(null);
   const [preparing, setPreparing] = useState(false);
-  // Full ticket for the hidden receipt. List rows carry only the card fields —
-  // the receipt needs services, prices and the address, so it is fetched on
-  // demand when Share Receipt is tapped.
+  // Full ticket for the receipt preview. List rows carry only the card
+  // fields — the receipt needs services, prices and the address, so it is
+  // fetched on demand when Share Image is tapped. ShareReceiptSheet renders
+  // and captures the receipt itself now (see BookingActionSheets.js).
   const [receiptTicket, setReceiptTicket] = useState(null);
-  const receiptRef = useRef(null);
 
   const closeSheets = useCallback(() => {
     setTechPickerOpen(false);
     setShareOpen(false);
     setStatusOpen(false);
+    setRescheduleOpen(false);
     setImeiGateOpen(false);
   }, []);
 
@@ -448,6 +456,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // what this list is for is looking a booking up, and Device Details is the
   // read-only view of it. Booking Details is still reachable from there.
   const goDetailsFor = useCallback((b) => {
+    console.log('[BookingHistory][DEBUG] goDetailsFor, b.id =', b?.id, 'b.trackingId =', b?.trackingId);
     if (!b?.id) return;
     closeSheets();
     navigation.navigate('DeviceDetail', { ticketId: b.id });
@@ -463,6 +472,13 @@ export default function BookingHistoryScreen({ navigation, route }) {
     closeSheets();
     navigation.navigate('BookingTimeline', { ticketId: b.id });
   }, [closeSheets, navigation]);
+
+  // Requote list: the slot History takes elsewhere opens the Reschedule sheet.
+  const openRescheduleFor = useCallback((b) => {
+    if (!b?.id) return;
+    setActionBooking(b);
+    setRescheduleOpen(true);
+  }, []);
 
   // Into the edit wizard. Same destination as goDetailsFor plus autoEdit, and
   // shared by the two ways in on the Re-Estimated list — the card tap and the
@@ -483,10 +499,10 @@ export default function BookingHistoryScreen({ navigation, route }) {
     setTechPickerOpen(true);
   }, []);
 
-  // Share Receipt opens a chooser (image vs SMS) rather than sharing straight
-  // away. The full ticket is fetched while that sheet is up: a list row carries
-  // only the card fields, but both options need the services and prices, so
-  // they stay disabled until it lands.
+  // Share Image opens the receipt preview sheet rather than sharing straight
+  // away. The full ticket is fetched while that sheet is up: a list row
+  // carries only the card fields, but the receipt needs services, prices and
+  // the address, so the sheet shows a loading state until it lands.
   const openShareFor = useCallback(async (b) => {
     if (!b?.id) return;
     setActionBooking(b);
@@ -500,59 +516,6 @@ export default function BookingHistoryScreen({ navigation, route }) {
       setPreparing(false);
     }
   }, []);
-
-  // Option 1 — capture the hidden receipt as a PNG and hand it to the system
-  // share sheet so WhatsApp (and others) attach the image. The ViewShot lives
-  // on this screen, not inside a modal: a view inside a closed Modal isn't
-  // mounted and captureRef would fail on it.
-  const shareImage = useCallback(async () => {
-    const ticket = receiptTicket || actionBooking;
-    if (!ticket) return;
-    setShareOpen(false);
-    try {
-      // The receipt only mounts once receiptTicket is set, so the first capture
-      // can land before it has laid out. Retry with a longer wait rather than
-      // dropping straight to the text share — a silent downgrade to plain text
-      // looks like the image share is broken.
-      let uri = null;
-      for (const wait of [80, 300]) {
-        await new Promise((resolve) => setTimeout(resolve, wait));
-        try {
-          uri = await captureRef(receiptRef, { format: 'png', quality: 1, result: 'tmpfile' });
-          break;
-        } catch (_) { /* not laid out yet — retry, then fall back */ }
-      }
-
-      if (uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Booking ${ticket.trackingId || ticket.id}`,
-          UTI: 'public.png',
-        });
-        return;
-      }
-      await Share.share({
-        message: buildReceiptMessage(ticket),
-        title: `Booking ${ticket.trackingId || ticket.id}`,
-      });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
-    }
-  }, [receiptTicket, actionBooking]);
-
-  // Option 2 — share the booking details as text. A bare `sms:` URL doesn't
-  // reliably pre-fill the body on Android, so the text goes through Share.share
-  // and lands in whichever app the user picks.
-  const shareSms = useCallback(async () => {
-    const ticket = receiptTicket || actionBooking;
-    if (!ticket) return;
-    setShareOpen(false);
-    try {
-      await Share.share({ message: buildReceiptMessage(ticket) });
-    } catch (e) {
-      notify('Share failed', e?.message || 'Could not open the share sheet.', { preset: 'error' });
-    }
-  }, [receiptTicket, actionBooking]);
 
   // Keep `load` stable (deps []) by reading the live query from a ref, so the
   // focus effect doesn't re-create load and re-fire a fetch on every keystroke.
@@ -605,7 +568,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
             ...t,
             _modelName: m?.name || t.deviceDisplayName || t.modelName || null,
             _modelNumber: parseModelNumbers(m?.modelNumber).join(' · ') || null,
-            _ramStorage: [ramLabel, storageLabel].filter(Boolean).join(' + ') || null,
+            _ramStorage: hasCategorySpecs(t)
+              ? specDisplayParts(t).join(' · ')
+              : ([ramLabel, storageLabel].filter(Boolean).join(' + ') || null),
             _modelImage: t.deviceImageUrl || modelUrl || null,
           };
         });
@@ -646,6 +611,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // Reload on focus (e.g. returning from a detail screen), and — separately —
   // debounce the search so typing doesn't fire a request per keystroke.
   useFocusEffect(useCallback(() => { load(); loadPickups(); }, [load, loadPickups]));
+  // loadPickups is already silent; polling surfaces new customer pickups live.
+  useFocusPolling(loadPickups);
   const didSearchMount = useRef(false);
   useEffect(() => {
     if (!didSearchMount.current) { didSearchMount.current = true; return; }
@@ -735,7 +702,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(22, 187, 5, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: '#16BB05' }}>#{ref}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
+              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
               {item.pickupAddressText ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={2}>{item.pickupAddressText}</Text>
               ) : null}
@@ -766,7 +733,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="flex-1 flex-row items-center pr-2">
             <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
             <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
+            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
           </View>
         </View>
 
@@ -779,7 +746,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="w-4 items-center mr-1.5"><UserCheck size={11} color="#667066" /></View>
           <Text className="text-[10px] text-text-muted w-16">Pickup By</Text>
           <Text
-            className="text-[11.5px] flex-1 font-semibold"
+            className="text-[11px] flex-1 font-semibold"
             style={{ color: item.pickupPersonName ? '#172117' : '#8FA08F' }}
             numberOfLines={1}
           >
@@ -861,12 +828,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
     const showReceipt = !(delivered && invoiced);
     const showBarcode = !(delivered && invoiced);
 
-    // Base row is Assign · History · Details, plus whichever of Receipt,
-    // Barcode, Invoice and Re-Estimate apply. At six or more an equal split
-    // leaves each slot too narrow for a 10px label beside a 13px glyph, so the
-    // whole row steps down a size rather than letting "Barcode" and "Details"
-    // ellipsise. Under 360dp five is already crowded.
-    const actionCount = 3
+    // Base row is Assign · History · Details (no Assign on the Invoice list),
+    // plus whichever of Receipt, Barcode, Invoice and Re-Estimate apply. At six
+    // or more an equal split leaves each slot too narrow for a 10px label beside
+    // a 13px glyph, so the whole row steps down a size rather than letting
+    // "Barcode" and "Details" ellipsise. Under 360dp five is already crowded.
+    const actionCount = (isInvoiceMenu ? 2 : 3)
       + (showReceipt ? 1 : 0)
       + (showBarcode ? 1 : 0)
       + (invoiced ? 1 : 0)
@@ -880,10 +847,10 @@ export default function BookingHistoryScreen({ navigation, route }) {
         // Without this the card still dims on touch, which reads as "that did
         // nothing" rather than "that isn't a button".
         disabled={!onCardPress}
-        className="bg-card rounded-2xl mb-3 active:opacity-90"
+        className="bg-card rounded-2xl mb-2 active:opacity-90"
         style={{
           flex: numCols > 1 ? 1 : undefined,
-          padding: 12,
+          padding: 10,
           borderWidth: 1,
           borderColor: '#E2E8E2',
           shadowColor: '#172117',
@@ -895,11 +862,11 @@ export default function BookingHistoryScreen({ navigation, route }) {
       >
         {/* Top: image + info (left) + status/date/time (right) */}
         <View className="flex-row items-start">
-          <View className="h-16 w-16 rounded-2xl bg-success/10 items-center justify-center mr-3 overflow-hidden">
+          <View className="h-12 w-12 rounded-2xl bg-success/10 items-center justify-center mr-2.5 overflow-hidden">
             {deviceImage ? (
-              <Image source={{ uri: deviceImage }} style={{ width: 64, height: 64 }} resizeMode="cover" />
+              <Image source={{ uri: deviceImage }} style={{ width: 48, height: 48 }} resizeMode="cover" />
             ) : (
-              <Smartphone size={26} color={ACCENT_GREEN} />
+              <Smartphone size={22} color={ACCENT_GREEN} />
             )}
           </View>
 
@@ -909,7 +876,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(8, 122, 10, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
               </View>
-              <Text className="text-[14.5px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
+              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
               {specs ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{specs}</Text>
               ) : null}
@@ -921,7 +888,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
             {/* right meta column: status pill, then date + time */}
             <View className="items-end" style={{ maxWidth: 118 }}>
               <View
-                className="rounded-full px-2.5 py-1"
+                className="rounded-full px-2 py-0.5"
                 style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}
               >
                 <Text className="text-[9px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>
@@ -929,7 +896,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </Text>
               </View>
               {dateStr ? (
-                <View className="flex-row items-center mt-2">
+                <View className="flex-row items-center mt-1.5">
                   <Calendar size={11} color="#667066" />
                   <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
                 </View>
@@ -942,7 +909,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
         </View>
 
         {/* Divider + detail rows */}
-        <View className="h-px bg-border my-2.5" />
+        <View className="h-px bg-border my-2" />
         <Row icon={<User size={11} color="#667066" />} label="Customer" value={customerName} />
         {phone ? <Row icon={<Phone size={11} color="#667066" />} label="Mobile" value={phone} /> : null}
 
@@ -951,7 +918,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="flex-1 flex-row items-center pr-2">
             <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
             <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
+            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
           </View>
         </View>
 
@@ -964,7 +931,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
             card itself is inert. On the Re-Estimated mount, where it isn't,
             these stay nested Pressables: RN hands the responder to the inner
             one, so a button tap doesn't also fire the card's own destination. */}
-        <View className="flex-row items-center mt-2 pt-2 border-t border-border">
+        <View className="flex-row items-center mt-1.5 pt-1.5 border-t border-border">
           {/* Re-Estimated list only, and deliberately first: there the card tap
               already opens the edit wizard, but nothing on the card SAID so —
               the "View details" chevron is suppressed above for that very
@@ -983,23 +950,40 @@ export default function BookingHistoryScreen({ navigation, route }) {
               onPress={() => goEditFor(item)}
             />
           ) : null}
-          <CardAction
-            icon={<UserCog size={actionGlyph} color={BRAND_GREEN_DARK} />}
-            label="Assign"
-            compact={crowded}
-            onPress={() => openTechPickerFor(item)}
-          />
-          {/* Straight after Assign, on every list. It used to appear only on the
-              Service History mount that the Home shortcut opened; that shortcut
-              is gone, because a booking's history belongs to the booking, not to
-              a whole separate copy of this list you had to find the row in
-              again. Keeps the History glyph and colour that tile used. */}
-          <CardAction
-            icon={<History size={actionGlyph} color={HISTORY_CYAN} />}
-            label="History"
-            compact={crowded}
-            onPress={() => goTimelineFor(item)}
-          />
+          {isInvoiceMenu ? null : (
+            <CardAction
+              icon={<UserCog size={actionGlyph} color={BRAND_GREEN_DARK} />}
+              label="Assign"
+              compact={crowded}
+              onPress={() => openTechPickerFor(item)}
+            />
+          )}
+          {/* Straight after Assign. On the Requote list the slot is Reschedule
+              instead — moving the delivery date & time is part of re-quoting a
+              job; a booking's History stays on the main Bookings list's cards.
+              Everywhere else it is History: it used to appear only on the Service History mount
+              the Home shortcut opened; that shortcut is gone, because a
+              booking's history belongs to the booking, not to a whole separate
+              copy of this list you had to find the row in again. */}
+          {opensEdit ? (
+            <CardAction
+              icon={<CalendarClock size={actionGlyph} color={BRAND_GREEN_DARK} />}
+              label="Reschedule"
+              compact={crowded}
+              // The one long label in a six-button row: a little extra width so
+              // it reads whole instead of "Resched…". The short labels beside it
+              // ("Assign", "Barcode") still fit the even share that's left.
+              flex={1.4}
+              onPress={() => openRescheduleFor(item)}
+            />
+          ) : (
+            <CardAction
+              icon={<History size={actionGlyph} color={HISTORY_CYAN} />}
+              label="History"
+              compact={crowded}
+              onPress={() => goTimelineFor(item)}
+            />
+          )}
           {showReceipt ? (
             <CardAction
               icon={<Share2 size={actionGlyph} color="#16BB05" />}
@@ -1044,18 +1028,19 @@ export default function BookingHistoryScreen({ navigation, route }) {
       {/* ── White header: back + title + Filters button ──────────── */}
       <View
         className="border-b border-border"
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 16, paddingHorizontal: 16 }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14 }}
       >
         <View className="flex-row items-center">
           <Pressable
-            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-            className="h-10 w-10 rounded-full bg-surface-muted items-center justify-center mr-3 active:opacity-70"
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
+            hitSlop={6}
+            className="h-9 w-9 rounded-full bg-surface-muted items-center justify-center mr-2.5 active:opacity-70"
           >
-            <ArrowLeft size={20} color="#172117" />
+            <ArrowLeft size={19} color="#172117" />
           </Pressable>
           <View className="flex-1">
             <Text className="text-text-muted text-[11px] font-bold tracking-widest">{eyebrowText}</Text>
-            <Text className="text-text text-[20px] font-extrabold mt-0.5" numberOfLines={1}>
+            <Text className="text-text text-[17px] font-extrabold mt-0.5" numberOfLines={1}>
               {counts[scope.key] ?? 0}{' '}
               {(counts[scope.key] ?? 0) === 1 ? nounText : `${nounText}s`}
             </Text>
@@ -1082,7 +1067,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
       </View>
 
       {/* ── Full-width search bar ────────────────────────────────── */}
-      <View className="px-4" style={{ marginTop: 12 }}>
+      <View className="px-4" style={{ marginTop: 10 }}>
         <SearchBar
           value={query}
           onChangeText={setQuery}
@@ -1108,7 +1093,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
       <View
         style={{
           paddingHorizontal: 10,
-          paddingTop: 8,
+          paddingTop: 6,
           flexDirection: 'row',
           flexWrap: 'wrap',
         }}
@@ -1117,12 +1102,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
           const Icon = s.icon;
           const active = scope.key === s.key;
           return (
-            <View key={s.key} style={{ width: `${100 / chipCols}%`, padding: 3 }}>
+            <View key={s.key} style={{ width: `${100 / chipCols}%`, padding: 2.5 }}>
               <Pressable
                 onPress={() => selectScope(s.key)}
                 className="flex-row items-center rounded-xl active:opacity-80"
                 style={{
-                  paddingVertical: 5,
+                  paddingVertical: 4,
                   paddingHorizontal: isSmall ? 7 : 8,
                   backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
                   borderWidth: 1,
@@ -1137,7 +1122,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </View>
                 <Text
                   className="font-extrabold text-text mr-1"
-                  style={{ fontSize: isSmall ? 12.5 : 13.5 }}
+                  style={{ fontSize: isSmall ? 12 : 13 }}
                   numberOfLines={1}
                 >
                   {counts[s.key] ?? 0}
@@ -1216,7 +1201,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           >
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[16px] font-extrabold text-text">Filters</Text>
+              <Text className="text-[15px] font-extrabold text-text">Filters</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}
@@ -1338,6 +1323,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onGenerateInvoice={startInvoiceFor}
       />
 
+      {/* ── Reschedule (Requote list) — refetches so the card shows the new time. */}
+      <RescheduleSheet
+        visible={rescheduleOpen}
+        booking={actionBooking}
+        onClose={closeSheets}
+        onUpdated={load}
+      />
+
       {/* ── IMEI gate: only for a booking with no IMEI on file ─────────── */}
       <ImeiGateSheet
         visible={imeiGateOpen}
@@ -1348,13 +1341,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onScanRequest={openImeiScannerFor}
       />
 
-      {/* ── Share Receipt chooser (image vs SMS) ───────────────────────── */}
+      {/* ── Share Image sheet ───────────────────────────────────────────── */}
       <ShareReceiptSheet
         visible={shareOpen}
         preparing={preparing}
+        ticket={receiptTicket || actionBooking}
         onClose={closeSheets}
-        onShareImage={shareImage}
-        onShareSms={shareSms}
       />
 
       {/* ── Pickup sheets (from the pickup card's action row) ──────────────
@@ -1376,24 +1368,6 @@ export default function BookingHistoryScreen({ navigation, route }) {
         onAssigned={loadPickups}
       />
 
-      {/* ── Hidden printable receipt ───────────────────────────────────────
-          Held off-screen at left:-9999 so it lays out at real pixel sizes
-          (ViewShot needs a measured, non-collapsed view) but never shows.
-          openShareFor() populates receiptTicket, then "Send image to WhatsApp"
-          captures this to a PNG. Mounted on the screen rather than inside a
-          sheet because a view inside a closed Modal isn't mounted to capture. */}
-      {receiptTicket ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: -9999, top: 0, width: 360 }}>
-          <ViewShot
-            ref={receiptRef}
-            options={{ format: 'png', quality: 1 }}
-            collapsable={false}
-            style={{ width: 360, backgroundColor: '#FFFFFF' }}
-          >
-            <ReceiptCard ticket={receiptTicket} />
-          </ViewShot>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1406,7 +1380,7 @@ function Row({ icon, label, value, numberOfLines }) {
     <View className="flex-row items-center py-0.5">
       <View className="w-4 items-center mr-1.5">{icon}</View>
       <Text className="text-[10px] text-text-muted w-16">{label}</Text>
-      <Text className="text-[11.5px] text-text flex-1 font-semibold" numberOfLines={numberOfLines || 1}>{value}</Text>
+      <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={numberOfLines || 1}>{value}</Text>
     </View>
   );
 }

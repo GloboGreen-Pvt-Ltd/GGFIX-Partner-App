@@ -10,8 +10,10 @@ import {
   ORDER_BASE,
   USER_BASE,
   SUBSCRIPTION_BASE,
+  VISUAL_SEARCH_BASE,
 } from './config';
 import { getToken, clearSession, notifyAuthExpired } from '../auth/session';
+import { Platform } from 'react-native';
 import { File, UploadType } from 'expo-file-system';
 
 // RN's fetch has NO default timeout. Against this 12-service backend a single
@@ -140,7 +142,7 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
 // only the name its own uri already carries, and every caller ends up
 // server-renamed anyway (S3 keys are generated from the owner/shop, not the
 // upload's filename) — so there's nothing for a caller-supplied name to fix.
-async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fields } = {}) {
+async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fields, headers: extraHeaders } = {}) {
   const base = resolveBase(baseUrlOrNull);
   const urlString = new URL(joinUrl(base, path)).toString();
 
@@ -152,19 +154,40 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fiel
   const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
   let result;
   try {
-    const file = new File(uri);
-    result = await file.upload(urlString, {
-      httpMethod: 'POST',
-      uploadType: UploadType.MULTIPART,
-      fieldName: 'file',
-      // The server validates the file's own magic bytes, not this header —
-      // but an absent/wrong Content-Type still trips its declared-vs-actual
-      // cross-check, so this needs to be the real type, not a guess.
-      mimeType: type || 'image/jpeg',
-      parameters,
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      signal: controller.signal,
-    });
+    if (Platform.OS === 'web') {
+      // expo-file-system's `File`/`.upload()` (below) is native-only — its web
+      // shim doesn't implement `validatePath`, so it throws immediately on
+      // every web upload. The browser's own fetch/Blob/FormData never touches
+      // React Native's bridge at all, so the native pitfalls documented above
+      // (the old FormData part shorthand, RN's own unreliable Blob module)
+      // don't apply here — this is the standard, reliable way to POST a
+      // multipart file from a real browser.
+      const blob = await fetch(uri).then((r) => r.blob());
+      const form = new FormData();
+      form.append('file', blob, _name || 'upload');
+      Object.entries(parameters).forEach(([k, v]) => form.append(k, v));
+      const res = await fetch(urlString, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(extraHeaders || {}) },
+        body: form,
+        signal: controller.signal,
+      });
+      result = { status: res.status, body: await res.text() };
+    } else {
+      const file = new File(uri);
+      result = await file.upload(urlString, {
+        httpMethod: 'POST',
+        uploadType: UploadType.MULTIPART,
+        fieldName: 'file',
+        // The server validates the file's own magic bytes, not this header —
+        // but an absent/wrong Content-Type still trips its declared-vs-actual
+        // cross-check, so this needs to be the real type, not a guess.
+        mimeType: type || 'image/jpeg',
+        parameters,
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(extraHeaders || {}) },
+        signal: controller.signal,
+      });
+    }
   } catch (e) {
     const timedOut = e?.name === 'AbortError';
     const msg = timedOut
@@ -205,6 +228,9 @@ function createClient(baseUrl) {
 
 export const authApi = createClient(AUTH_BASE);
 export const masterApi = createClient(MASTER_BASE);
+// Only meaningfully usable when VISUAL_SEARCH_BASE is actually set — see
+// api/masterData.js's `visualSearch`, which checks that before calling this.
+export const visualSearchApi = createClient(VISUAL_SEARCH_BASE);
 export const ticketApi = createClient(TICKET_BASE);
 export const technicianApi = createClient(TECHNICIAN_BASE);
 export const shopApi = createClient(SHOP_BASE);

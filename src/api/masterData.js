@@ -1,5 +1,5 @@
-import { masterApi } from './client';
-import { MEDIA_UPLOAD_PATH } from './config';
+import { masterApi, visualSearchApi } from './client';
+import { MEDIA_UPLOAD_PATH, VISUAL_SEARCH_BASE, VISUAL_SEARCH_PATH } from './config';
 
 function unwrap(list) {
   return Array.isArray(list) ? list : (list?.content ?? list?.data ?? []);
@@ -65,9 +65,104 @@ export async function uploadMedia(asset, folder = 'sell', { slot } = {}) {
   return res?.url || null;
 }
 
+// Image-to-image device lookup for the Lens/Visual scanner
+// (screens/owner/ScanSearchScreen.js via utils/scanSearch.js's
+// `runVisualSearch`). This is a REAL, running service — see
+// ggfix-visual-search-service/ (sibling repo): a standalone Python/CLIP
+// microservice that indexes the actual GGFIX device catalogue's own product
+// photos and does genuine image-embedding similarity search, not a mock.
+// It is NOT part of the Spring backend/master-data-service — this app has
+// no credentials for that service's real database or AWS account, so this
+// keeps its own local vector index built from the same public catalogue API
+// the app already calls. See that service's README.md to run it and for the
+// production/pgvector migration path.
+//
+// `VISUAL_SEARCH_BASE` is empty when the service isn't configured for this
+// build (no default public deployment exists) — that must surface as a
+// distinct "not configured" state, never a silent request to the wrong
+// service.
+function normalizeMatch(m) {
+  return {
+    id: m.id,
+    displayName: m.displayName || [m.brand, m.model].filter(Boolean).join(' ') || m.model || 'Unknown device',
+    brand: m.brand ?? null,
+    modelName: m.model ?? null,
+    modelCode: m.modelCode ?? (m.modelNumbers || [])[0] ?? null,
+    modelNumbers: m.modelNumbers ?? [],
+    colors: m.colors ?? [],
+    imageUrl: m.imageUrl ?? null,
+    similarity: typeof m.similarity === 'number' ? m.similarity : null,
+    confidence: m.confidence ?? null,
+    matchedBy: m.matchedBy ?? 'visual',
+    categoryName: m.categoryName ?? null,
+  };
+}
+
+/**
+ * Google-Lens-style "what device is this?" — master-data's
+ * POST /master/device-identify sends the photo to Google Cloud Vision
+ * server-side (the key never ships in the app) and ranks GGFIX catalogue
+ * models against what Google recognised, e.g. "samsung galaxy s8+" →
+ * Galaxy S8 Plus, then Galaxy S8.
+ *
+ * Resolves to { configured, confidence, labels, brand, bestMatch, matches, error }.
+ * configured=false means the server has no Google key yet — callers fall back.
+ */
+export async function identifyDevice(asset, { limit = 8 } = {}) {
+  if (!asset?.uri) return { configured: false, confidence: 'low', labels: [], brand: null, bestMatch: null, matches: [] };
+  const name = asset.fileName || asset.name || asset.uri.split('/').pop() || 'scan.jpg';
+  const res = await masterApi.upload('/master/device-identify', {
+    uri: asset.uri,
+    name,
+    type: asset.mimeType || asset.type || mimeFromName(name),
+    fields: { limit },
+  });
+  return {
+    configured: res?.configured !== false,
+    confidence: res?.confidence || 'low',
+    labels: Array.isArray(res?.labels) ? res.labels : [],
+    // The Google label behind the top match ("Samsung Galaxy S8+ 64GB").
+    recognisedAs: res?.recognisedAs || null,
+    brand: res?.brand || null,
+    error: res?.error || null,
+    bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
+    matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
+  };
+}
+
+export async function visualSearch(asset, { limit = 5, ocrText, barcode } = {}) {
+  if (!VISUAL_SEARCH_BASE) {
+    const err = new Error('Visual search service is not configured for this build.');
+    err.notConfigured = true;
+    throw err;
+  }
+  if (!asset?.uri) return { confidence: 'low', bestMatch: null, matches: [] };
+  const name = asset.fileName || asset.name || asset.uri.split('/').pop() || 'scan.jpg';
+  const type = asset.mimeType || asset.type || mimeFromName(name);
+  const res = await visualSearchApi.upload(VISUAL_SEARCH_PATH, {
+    uri: asset.uri,
+    name,
+    type,
+    fields: { limit, ocrText: ocrText || undefined, barcode: barcode || undefined },
+  });
+  return {
+    confidence: res?.confidence || 'low',
+    bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
+    matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
+    // Text the service read from the photo (newer service versions).
+    ocrText: typeof res?.ocrText === 'string' ? res.ocrText : '',
+  };
+}
+
 // Existing
 export async function getBrands() {
   return unwrap(await masterApi.get('/master/brands'));
+}
+/** Catalogue model whose model number matches (e.g. Android Build.MODEL). */
+export async function getModelByNumber(number) {
+  const num = String(number || '').trim();
+  if (!num) return null;
+  return await masterApi.get('/master/models/by-number', { query: { number: num } }).catch(() => null);
 }
 export async function getModelsByBrand(brandId) {
   if (!brandId) return [];
@@ -176,6 +271,42 @@ export async function getDeviceCategories() {
   return unwrap(await masterApi.get('/master/device-categories'));
 }
 
+// Admin-managed Category Menu (Management Portal → Category Menu) — the menu
+// rows shown on the Repair / Sell / Buy entry screens: menuName, imageUrl,
+// description, isActive, sortOrder. Read-only here.
+export async function getCategoryMenu(categoryType) {
+  return unwrap(await masterApi.get(`/master/category-menu?categoryType=${encodeURIComponent(categoryType)}`));
+}
+
+/**
+ * Key that lines a Category Menu row up with a device category by name:
+ * drops the "Buy / Sell / Repair" prefix, punctuation and a plural ending, so
+ * "Buy Smartwatch" meets "Smartwatches" and "Sell Audio Device" meets "Audio Device".
+ */
+export function categoryMenuKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^\s*(buy|sell|repair)\s+/, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(es|s)$/, '');
+}
+
+/**
+ * { categoryMenuKey: imageUrl } for one menu type. Never rejects.
+ * Active rows only, unless `includeInactive` — for screens that use the menu
+ * purely as tile art for categories they list anyway (an active row's image
+ * still wins over an inactive one with the same key).
+ */
+export async function getCategoryMenuImages(categoryType, { includeInactive = false } = {}) {
+  const rows = await getCategoryMenu(categoryType).catch(() => []);
+  const out = {};
+  const usable = (Array.isArray(rows) ? rows : [])
+    .filter((m) => m && (includeInactive || m.isActive === true) && m.imageUrl && String(m.imageUrl).trim())
+    .sort((a, b) => Number(a.isActive === true) - Number(b.isActive === true));
+  usable.forEach((m) => { out[categoryMenuKey(m.menuName)] = String(m.imageUrl).trim(); });
+  return out;
+}
+
 export async function getSeriesByBrand(brandId) {
   if (!brandId) return [];
   return unwrap(await masterApi.get(`/master/brands/${brandId}/series`));
@@ -265,7 +396,14 @@ export async function getModelOptions(modelId) {
     }
   }
 
-  return { colors, specs, modelNumbers, otherNumbers, allColors, allRams, allStorages };
+  return {
+    colors, specs, modelNumbers, otherNumbers, allColors, allRams, allStorages,
+    // For the category-specific forms (utils/deviceSpecs.js): the model's own
+    // category, and its raw RAM/storage strings — a watch or earbuds model whose
+    // ramStorage lists real sizes is what unlocks an optional storage field.
+    categoryId: model?.categoryId || null,
+    ramStorage: rawSpecs,
+  };
 }
 
 // Repair categories

@@ -17,6 +17,14 @@ config.resolver.blockList = [
   /node_modules[\\/].*[\\/]android[\\/].*[\\/]build([\\/]|$)/,
   /node_modules[\\/].*-gradle-plugin[\\/]build([\\/]|$)/,
   /node_modules[\\/].*[\\/]build[\\/]classes[\\/].*/,
+  // No watchman on this machine, so Metro falls back to its own crawler,
+  // which watches the whole project root — including `.expo/`, where the
+  // Expo CLI itself continuously appends to `dev/logs/start.log` while the
+  // dev server runs. Without this exclusion, every one of ITS OWN log
+  // writes reads back as a "source file changed" event, triggering a full
+  // rebuild + reload with no actual code change behind it (root cause of
+  // the app appearing to refresh/reload on its own while sitting idle).
+  /[\\/]\.expo[\\/].*/,
 ];
 
 // `inlineRem: false` is what makes spacing responsive app-wide.

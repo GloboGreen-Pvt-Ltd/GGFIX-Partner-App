@@ -3,70 +3,81 @@
  * NativeWind className strings (e.g. `bg-primary text-white`). The named
  * default exports are kept for screens that still use StyleSheet.
  *
- * GGFix palette, budgeted 60 / 30 / 10:
- *   60%  BACKGROUND + SURFACE — page wash #F7FAF7, cards/inputs #FFFFFF.
- *   30%  GREEN — #16BB05 and #087A0A plus their tints.
- *   10%  ACCENT — lime #7ED957, attention #F59E0B, danger #DC2626.
+ * GGFix palette — brand sheet (Oct 2026). Same key names as before (nothing
+ * renamed, so every existing `tokens.x` / `bg-x` call site across the app
+ * keeps working); only the underlying hex values move. The six brand colours:
  *
- * ── One departure from the brand sheet's labels, on purpose ────────────────
- * The sheet calls #16BB05 "Primary" and #087A0A "Secondary". Here `primary`
- * is #087A0A and #16BB05 is `primaryBright`.
+ *   Green   #09AD2A — primary: buttons, active tabs, progress, success.
+ *   Red     #F84141 — danger / error. Replaces #DC2626 (the earlier "keep the
+ *                     error colour as-is" note is superseded by this sheet).
+ *   Ink     #1E1E1E — main text.
+ *   Page    #F8F8F8 — page background, behind white cards.
+ *   Surface #F3F3F3 — soft fills: inputs, chips, muted surfaces.
+ *   Yellow  #F3BF23 — attention / pending / warning highlights.
  *
- * Why: white on #16BB05 is 2.6:1 — under the 3:1 floor even for large bold
- * text — and #16BB05 on white is also 2.6:1, so it works as neither a button
- * fill nor a foreground. It is for LARGE fills: active tab bars, gradients,
- * progress, icon circles. Anything interactive, and any green text or icon on
- * a white card, uses #087A0A (5.6:1 both ways).
+ * The rest are the tints and shades the redesigned screens already use
+ * alongside those six (Service History, Messages, Dashboard), so token-driven
+ * screens and hand-styled ones land on identical values:
  *
- * `accent` (lime) and `attention` (amber) both take DARK text — white on them
- * is 1.9:1 and 2.1:1 respectively. Use `tokens.text` on top of either.
+ *   #078F23 deep green — green TEXT on light backgrounds (`primaryDark`).
+ *           #09AD2A on white is ~3:1, fine for fills and bold labels but thin
+ *           for small text; the deep shade is what the app uses for green copy.
+ *   #EAF8EC mint / #CDEFD4 mint line — soft green fills and their borders.
+ *   #6B6B6B muted text, #8A8A8A subtle text / placeholders.
+ *   #E6E6E6 border, #D6D6D6 strong border.
+ *   #FFF8E1 / #8A6A00 — yellow soft fill and the dark text that sits on it.
+ *
+ * Contrast rules: `primary`, `success` and `danger` carry white text/icons.
+ * `attention` / `warning` (yellow) take DARK text only — white on #F3BF23 is
+ * under 2:1.
  */
 const tokens = {
   // Primary — the interactive green
-  primary: '#004C40',
-  primaryBright: '#16BB05',
-  primaryLight: '#16BB05',
-  primaryDark: '#004C40',
-  primarySoft: '#E6F7E3',
+  primary: '#09AD2A',
+  primaryBright: '#09AD2A',
+  primaryLight: '#09AD2A',
+  primaryDark: '#078F23',
+  primarySoft: '#EAF8EC',
 
-  // Accent — brand lime. Highlights, badges, success emphasis. DARK text only.
-  accent: '#7ED957',
-  accentLight: '#C8EEBF',
-  accentDark: '#16BB05',
-  accentSoft: '#F0F8EF',
+  // Accent — same brand green. `accentDark` is the deep shade for text;
+  // `accentLight` / `accentSoft` are the mint tints (dark text only).
+  accent: '#09AD2A',
+  accentLight: '#CDEFD4',
+  accentDark: '#078F23',
+  accentSoft: '#EAF8EC',
 
   // Attention — pending / warning states. DARK text only.
-  attention: '#F59E0B',
-  attentionLight: '#FCD34D',
-  attentionDark: '#B45309',
-  attentionSoft: '#FEF3C7',
+  attention: '#F3BF23',
+  attentionLight: '#F8D66B',
+  attentionDark: '#8A6A00',
+  attentionSoft: '#FFF8E1',
 
   // Surfaces
-  // Page wash is WHITE app-wide. Was #F7FAF7.
-  // NOTE: cards are `card: '#FFFFFF'`, so any card WITHOUT a border or shadow
-  // now sits invisible on the page. The shared `rnr/Card` carries
-  // `border border-border` and is fine; bare `bg-card` usages are not.
-  background: '#FFFFFF',
+  // `background` is the page wash behind white cards; `pageBackground` is the
+  // same value under an explicit name for screens that want to be unambiguous
+  // about which surface they mean.
+  background: '#F8F8F8',
+  pageBackground: '#F8F8F8',
   card: '#FFFFFF',
   surface: '#FFFFFF',
-  surfaceMuted: '#F8F8F8',
+  surfaceMuted: '#F3F3F3',
 
   // Text
-  text: '#172117',
-  textMuted: '#667066',
-  textSubtle: '#8FA08F',
+  text: '#1E1E1E',
+  textMuted: '#6B6B6B',
+  textSubtle: '#8A8A8A',
 
   // Lines
-  border: '#E2E8E2',
-  borderStrong: '#CBD5CB',
+  border: '#E6E6E6',
+  borderStrong: '#D6D6D6',
 
   // Status
-  success: '#004C40',
-  warning: '#F59E0B',
-  danger: '#DC2626',
-  error: '#DC2626',
-  // No blue survives the palette; "info" was only ever a neutral notice.
-  info: '#16BB05',
+  success: '#09AD2A',
+  warning: '#F3BF23',
+  danger: '#F84141',
+  error: '#F84141',
+  // No blue in the palette; "info" was only ever a neutral notice.
+  info: '#09AD2A',
 };
 
 export const radii = {
@@ -80,14 +91,14 @@ export const radii = {
 
 export const shadows = {
   card: {
-    shadowColor: '#0B1F14',
+    shadowColor: '#1E1E1E',
     shadowOpacity: 0.06,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
   bar: {
-    shadowColor: '#0B1F14',
+    shadowColor: '#1E1E1E',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: -6 },
@@ -109,9 +120,8 @@ export default {
   ...tokens,
 
   // Legacy aliases used by older screens — keep them mapped to the new palette.
-  // `secondary` used to alias the old orange accent; under this palette the
-  // secondary role is the deep green, which is what its consumers (filled
-  // secondary buttons, selected states) actually want.
+  // `secondary` is the deep green: filled secondary buttons and selected
+  // states, where the brand green alone would read too light.
   secondary: tokens.primaryDark,
   backgroundCard: tokens.card,
   inputBg: tokens.surfaceMuted,
