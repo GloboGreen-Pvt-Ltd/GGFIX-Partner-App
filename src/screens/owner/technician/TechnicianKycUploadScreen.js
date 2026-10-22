@@ -4,7 +4,6 @@ import {
 } from 'react-native';
 import { Upload, Check, X, ShieldCheck, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { CommonActions } from '@react-navigation/native';
 import {
   AppHeader, Card, BottomActionBar, ScreenContainer, useBottomBarInset,
 } from '../../../components/rnr';

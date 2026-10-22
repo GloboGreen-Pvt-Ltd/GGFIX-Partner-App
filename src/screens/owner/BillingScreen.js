@@ -10,7 +10,7 @@ import {
   Image,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -23,19 +23,18 @@ import {
   Wrench,
   FileText,
   Clock,
-  ChevronRight,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { getModelsByBrand } from '../../api/masterData';
 import { resolveDeviceImageSource } from '../../utils/images';
 
 // Swiggy / Zomato green palette — matches AllBooking screens.
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const ACCENT_GREEN = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 10 },
@@ -43,7 +42,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -52,16 +51,16 @@ const softShadow = {
 
 const STATUS_META = {
   CREATED:              { label: 'Service Accepted',     color: '#92400E', tint: '#FEF3C7', hint: 'Booking has been created.' },
-  ASSIGNED:             { label: 'Technician Assigned',  color: '#16BB05', tint: '#E6F7E3', hint: 'Technician assigned.' },
-  IN_DIAGNOSIS:         { label: 'In Diagnosis',         color: '#087A0A', tint: '#F0F8EF', hint: 'Device is being checked.' },
-  IN_REPAIR:            { label: 'In Service',           color: '#087A0A', tint: '#F0F8EF', hint: 'Repair work is in progress.' },
+  ASSIGNED:             { label: 'Technician Assigned',  color: '#035C6C', tint: '#E5F3F5', hint: 'Technician assigned.' },
+  IN_DIAGNOSIS:         { label: 'In Diagnosis',         color: '#035C6C', tint: '#E5F3F5', hint: 'Device is being checked.' },
+  IN_REPAIR:            { label: 'In Service',           color: '#035C6C', tint: '#E5F3F5', hint: 'Repair work is in progress.' },
   QUOTED:               { label: 'Re-Estimated',         color: '#92400E', tint: '#FEF3C7', hint: 'Estimate has been updated.' },
-  APPROVED:             { label: 'Customer Approved',    color: '#16BB05', tint: '#E6F7E3', hint: 'Customer approved the repair.' },
+  APPROVED:             { label: 'Customer Approved',    color: '#035C6C', tint: '#E5F3F5', hint: 'Customer approved the repair.' },
   READY:                { label: 'Ready for Delivery',   color: '#B45309', tint: '#FEF3C7', hint: 'Device is ready for billing & delivery.' },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    color: '#B45309', tint: '#FEF3C7', hint: 'Billing started — invoice created.' },
   INVOICE_READY:        { label: 'Invoice Ready',        color: '#B45309', tint: '#FEF3C7', hint: 'Invoice is finalized for handover.' },
   DELIVERED_PROCESSING: { label: 'Out for Delivery',     color: '#B45309', tint: '#FEF3C7', hint: 'Handover to customer in progress.' },
-  DELIVERED:            { label: 'Delivered',            color: BRAND_GREEN_DARK, tint: '#E6F7E3', hint: 'Device has been delivered.' },
+  DELIVERED:            { label: 'Delivered',            color: BRAND_GREEN_DARK, tint: '#E5F3F5', hint: 'Device has been delivered.' },
   CANCELLED:            { label: 'Cancelled',            color: '#B91C1C', tint: '#FEE2E2', hint: 'Booking was cancelled.' },
   RETURNED:             { label: 'Returned',             color: '#B91C1C', tint: '#FEE2E2', hint: 'Device was returned.' },
 };
@@ -158,7 +157,7 @@ export default function BillingScreen({ navigation }) {
     const deviceName = item._modelName || emptyText;
     const color = item.color || null;
     const statusKey = String(item.status || '').toUpperCase();
-    const statusMeta = STATUS_META[statusKey] || { label: item.status || emptyText, color: '#667066', tint: '#EFF5EE', hint: '' };
+    const statusMeta = STATUS_META[statusKey] || { label: item.status || emptyText, color: '#6B7280', tint: '#E5F3F5', hint: '' };
     const customer = item.customerName || emptyText;
     const phone = item.customerPhone || emptyText;
     const services = item.repairServicesSummary
@@ -177,7 +176,7 @@ export default function BillingScreen({ navigation }) {
         <View className="flex-row items-start">
           <View
             className="w-12 h-12 rounded-2xl items-center justify-center mr-2.5 overflow-hidden"
-            style={{ backgroundColor: '#F0F8EF' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             {item._modelImage ? (
               <Image source={{ uri: item._modelImage }} style={{ width: 48, height: 48 }} />
@@ -237,14 +236,14 @@ export default function BillingScreen({ navigation }) {
         {/* Dashed divider */}
         <View
           className="my-2"
-          style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }}
+          style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' }}
         />
 
         {/* Customer / phone */}
         <View className="flex-row items-center mb-1.5">
           <View
             className="w-6 h-6 rounded-full items-center justify-center mr-2"
-            style={{ backgroundColor: '#F0F8EF' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             <User size={12} color={ACCENT_GREEN} />
           </View>
@@ -253,7 +252,7 @@ export default function BillingScreen({ navigation }) {
           </Text>
           <View
             className="w-6 h-6 rounded-full items-center justify-center mr-2 ml-2"
-            style={{ backgroundColor: '#F0F8EF' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             <Phone size={12} color={ACCENT_GREEN} />
           </View>
@@ -266,7 +265,7 @@ export default function BillingScreen({ navigation }) {
         <View className="flex-row items-start">
           <View
             className="w-6 h-6 rounded-full items-center justify-center mr-2 mt-0.5"
-            style={{ backgroundColor: '#F0F8EF' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             <Wrench size={12} color={ACCENT_GREEN} />
           </View>
@@ -321,7 +320,7 @@ export default function BillingScreen({ navigation }) {
             paddingBottom: 14,
             paddingHorizontal: 16,
             borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
+            borderBottomColor: '#E5E7EB',
           }}
         >
           <Text className="text-text text-[20px] font-extrabold">Invoices</Text>
@@ -343,7 +342,7 @@ export default function BillingScreen({ navigation }) {
           paddingBottom: 14,
           paddingHorizontal: 16,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center">
@@ -358,9 +357,9 @@ export default function BillingScreen({ navigation }) {
           </View>
           <View
             className="w-9 h-9 rounded-full items-center justify-center"
-            style={{ backgroundColor: '#EFF5EE' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
-            <Receipt size={18} color="#172117" />
+            <Receipt size={18} color="#111111" />
           </View>
         </View>
       </View>
@@ -373,14 +372,14 @@ export default function BillingScreen({ navigation }) {
         >
           <View
             className="w-8 h-8 rounded-full items-center justify-center mr-2"
-            style={{ backgroundColor: '#E6F7E3' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             <Search size={14} color={BRAND_GREEN_DARK} />
           </View>
           <TextInput
             className="flex-1 text-[13px] text-gray-900"
             placeholder="Search Tracking ID, name, or mobile"
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => load(true)}
@@ -392,9 +391,9 @@ export default function BillingScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => { setQuery(''); load(true); }}
               className="w-7 h-7 rounded-full items-center justify-center"
-              style={{ backgroundColor: '#EFF5EE' }}
+              style={{ backgroundColor: '#E5F3F5' }}
             >
-              <X size={14} color="#667066" />
+              <X size={14} color="#6B7280" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -430,7 +429,7 @@ export default function BillingScreen({ navigation }) {
           <View className="items-center pt-16 px-8">
             <View
               className="w-20 h-20 rounded-full items-center justify-center mb-4"
-              style={{ backgroundColor: '#E6F7E3' }}
+              style={{ backgroundColor: '#E5F3F5' }}
             >
               <Receipt size={32} color={BRAND_GREEN_DARK} />
             </View>
@@ -480,9 +479,9 @@ function Action({ icon: Icon, label, onPress, primary }) {
       onPress={onPress}
       className="flex-1 mx-0.5 flex-row items-center justify-center py-2.5 rounded-xl"
       style={{
-        backgroundColor: '#F0F8EF',
+        backgroundColor: '#E5F3F5',
         borderWidth: 1,
-        borderColor: '#E6F7E3',
+        borderColor: '#E5F3F5',
       }}
     >
       <Icon size={14} color={ACCENT_GREEN} />

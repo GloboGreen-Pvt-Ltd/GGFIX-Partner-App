@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, Modal, Linking, Platform } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,12 +31,9 @@ import {
   ScanLine,
   Plus,
 } from 'lucide-react-native';
-import {
-  Card,
-  Loader,
-  EmptyState,
-} from '../../../components/rnr';
+import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
+import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand } from '../../../api/masterData';
 // The receipt lives in its own module so the Bookings list can share the same
@@ -47,11 +44,12 @@ import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
 import { ShareReceiptSheet } from './BookingActionSheets';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 import { specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const ACCENT_GREEN = '#035C6C';
 
 // Closing booking steps the owner records by ticking + Submit. Two parallel
 // paths after the repair stage: READY (repair completed, device going back to
@@ -85,9 +83,9 @@ const STATUS_VARIANT = {
 
 const TONE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.12)', fg: '#B45309',        border: 'rgba(245, 158, 11, 0.35)' },
-  blue:   { bg: 'rgba(22, 187, 5, 0.12)', fg: '#16BB05',        border: 'rgba(22, 187, 5, 0.35)' },
-  purple: { bg: 'rgba(126, 217, 87, 0.12)', fg: '#087A0A',        border: 'rgba(126, 217, 87, 0.35)' },
-  green:  { bg: 'rgba(8, 122, 10, 0.12)',  fg: BRAND_GREEN_DARK,  border: 'rgba(8, 122, 10, 0.35)' },
+  blue:   { bg: 'rgba(3, 92, 108, 0.12)', fg: '#035C6C',        border: 'rgba(3, 92, 108, 0.35)' },
+  purple: { bg: 'rgba(53, 125, 137, 0.12)', fg: '#035C6C',        border: 'rgba(53, 125, 137, 0.35)' },
+  green:  { bg: 'rgba(3, 92, 108, 0.12)',  fg: BRAND_GREEN_DARK,  border: 'rgba(3, 92, 108, 0.35)' },
   red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C',        border: 'rgba(220, 38, 38, 0.35)' },
 };
 
@@ -109,8 +107,8 @@ const ACCEPTED_STATUSES = new Set([
 // a way IN to a booking, not something you do from inside one, so it belongs
 // with the other entry points rather than among this screen's per-ticket actions.
 const ACTION_TILES = [
-  { key: 'view',    label: 'View Details',  icon: FileText, tint: 'rgba(22, 187, 5, 0.12)',  fg: BRAND_GREEN_DARK },
-  { key: 'share',   label: 'Share Receipt', icon: Share2,   tint: 'rgba(22, 187, 5, 0.12)',  fg: ACCENT_GREEN },
+  { key: 'view',    label: 'View Details',  icon: FileText, tint: 'rgba(3, 92, 108, 0.12)',  fg: BRAND_GREEN_DARK },
+  { key: 'share',   label: 'Share Receipt', icon: Share2,   tint: 'rgba(3, 92, 108, 0.12)',  fg: ACCENT_GREEN },
   { key: 'barcode', label: 'Barcode',       icon: QrCode,   tint: 'rgba(245, 158, 11, 0.16)', fg: '#B45309' },
 ];
 
@@ -157,9 +155,6 @@ function splitTrackingId(id) {
   return m ? { prefix: m[1], digits: m[2] } : { prefix: s, digits: '' };
 }
 
-const formatINR = (n) =>
-  Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
 export default function TicketDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
@@ -194,12 +189,17 @@ export default function TicketDetailScreen({ route, navigation }) {
   // has been launched, so that coming BACK from it shows the real detail screen
   // instead of a spinner that never resolves.
   const [autoEditLaunched, setAutoEditLaunched] = useState(false);
+  // autoReService (Bookings menu → Re-Service) and autoReEstimate (Bookings
+  // menu → Re-Estimate) use the same one-shot launch.
+  const autoMode = route?.params?.autoEdit ? 'edit'
+    : route?.params?.autoReService ? 'reservice'
+      : route?.params?.autoReEstimate ? 'reestimate' : null;
   useEffect(() => {
-    if (!route?.params?.autoEdit || !ticket || autoEditFired.current) return;
+    if (!autoMode || !ticket || autoEditFired.current) return;
     autoEditFired.current = true;
-    Promise.resolve(onAction('edit')).finally(() => setAutoEditLaunched(true));
+    Promise.resolve(onAction(autoMode)).finally(() => setAutoEditLaunched(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticket, route?.params?.autoEdit]);
+  }, [ticket, autoMode]);
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(null);
 
@@ -251,6 +251,7 @@ export default function TicketDetailScreen({ route, navigation }) {
   const [imeiInput, setImeiInput] = useState('');
   const [imeiSaving, setImeiSaving] = useState(false);
   const pendingReadyRow = useRef(null); // the READY row awaiting IMEI, or null for a plain add
+  const showImei = useImeiApplies(ticket); // mobile phones only
 
   const refreshProgress = useCallback(async () => {
     if (!ticketId) return;
@@ -330,8 +331,9 @@ export default function TicketDetailScreen({ route, navigation }) {
     }
   }, [ticketId, refreshProgress]);
 
-  // "Done" tap on a progress step. Ready for Delivery requires an IMEI — if the
-  // booking has none, open the capture sheet instead of recording immediately.
+  // "Done" tap on a progress step. Ready for Delivery requires an IMEI on a
+  // mobile phone — if the booking has none, open the capture sheet instead of
+  // recording immediately. Other device types have no IMEI to ask for.
   const onProgressDone = useCallback((row) => {
     const blocker = stepBlockedBy(recordedKeys, row.key);
     if (blocker) {
@@ -339,14 +341,14 @@ export default function TicketDetailScreen({ route, navigation }) {
       return;
     }
     const hasImei = !!String(ticket?.imei || '').trim();
-    if (row.key === 'READY' && !hasImei) {
+    if (row.key === 'READY' && showImei && !hasImei) {
       pendingReadyRow.current = row;
       setImeiInput('');
       setImeiModalOpen(true);
       return;
     }
     submitProgress(row);
-  }, [ticket, submitProgress, recordedKeys]);
+  }, [ticket, submitProgress, recordedKeys, showImei]);
 
   // Opens the same sheet from the Service Info card, just to add/fix the IMEI
   // (no progress step to continue afterwards).
@@ -404,7 +406,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               hitSlop={6}
               className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
             >
-              <ArrowLeft size={19} color="#172117" />
+              <ArrowLeft size={19} color="#111111" />
             </Pressable>
             <Text className="flex-1 text-text text-[17px] font-extrabold">Booking Details</Text>
           </View>
@@ -443,6 +445,8 @@ export default function TicketDetailScreen({ route, navigation }) {
   const payment = paymentFromTicket(ticket, estimatedTotal);
 
   const statusKey = String(ticket.status || '').toUpperCase();
+  // Delivered: no Assign / Update Status; the bottom bar offers Re-Service.
+  const isDelivered = statusKey === 'DELIVERED';
   const statusMeta = STATUS_VARIANT[statusKey] || { label: ticket.status || 'Pending', tone: 'amber' };
   const statusTone = TONE[statusMeta.tone] || TONE.amber;
   const StatusIcon = statusKey === 'CANCELLED' ? AlertCircle : CheckCircle2;
@@ -513,7 +517,9 @@ export default function TicketDetailScreen({ route, navigation }) {
 
   const onAction = async (key) => {
     switch (key) {
-      case 'edit': {
+      case 'edit':
+      case 'reestimate':
+      case 'reservice': {
         // Ticket doesn't store device categoryId — look it up from master-data
         // so SelectModel (and SelectBrand) can filter to Mobile only instead of
         // mixing in Laptops/Tablets that share the same brand (e.g. Apple).
@@ -528,24 +534,39 @@ export default function TicketDetailScreen({ route, navigation }) {
           }
         } catch (_) { /* fall through — unfiltered list is still OK */ }
 
-        // Enter the nested booking stack at SelectBrand so the rest of the
-        // wizard (DeviceColorStorage, DeviceServices, ServicePriceEstimate,
-        // ServiceBookingDevicesList) resolves inside RepairServiceBookingShop
-        // instead of erroring on a missing route in the parent stack.
+        // Enter the nested booking stack at Customer Details (pre-filled with
+        // this booking's customer), whose Next opens the one-page Device
+        // Details pre-filled with its brand / model / colour / storage — the
+        // same screens as a new booking — so the rest of the wizard
+        // (DeviceServices, ServicePriceEstimate, ServiceBookingDevicesList)
+        // resolves inside RepairServiceBookingShop.
         // Arriving via autoEdit, this screen was only a staging post — REPLACE it
         // so Back from the wizard returns to the Re-Estimated list rather than
         // to a detail screen the user never chose to open. Opened normally from
         // the tile, it is a real destination and Back should come back here.
-        const enterWizard = route?.params?.autoEdit
+        const enterWizard = autoMode
           ? navigation.replace.bind(navigation)
           : navigation.navigate.bind(navigation);
+        // Re-Service reopens this same ticket: customer and device are already
+        // known, so it skips straight to Services (new issue + estimate).
+        // Re-Estimate does too, but as an EDIT of this booking (its services,
+        // prices and every other saved field prefilled) — a price change there
+        // is what marks the booking re-estimated on save.
         enterWizard('RepairServiceBookingShop', {
-          screen: 'SelectBrand',
+          screen: key === 'reservice' || key === 'reestimate' ? 'DeviceServices' : 'CustomerDetails',
           params: {
-            ...buildEditParams(ticket, { lineItems, estimatedTotal }),
+            ...(key === 'reservice' ? buildReServiceParams(ticket) : buildEditParams(ticket, { lineItems, estimatedTotal })),
             categoryId,
             categoryName,
+            // Device & Service Details asks for the customer's re-estimate approval.
+            reEstimate: key === 'reestimate',
             flow: 'BOOKING',
+            // Customer Details seeds its form from `initial` and reuses
+            // `existing` (this booking's customer row) on Save.
+            initial: { name: ticket.customerName || '', phone: ticket.customerPhone || '', address: ticket.customerAddress || '' },
+            existing: ticket.customerId
+              ? { id: ticket.customerId, name: ticket.customerName, phone: ticket.customerPhone, address: ticket.customerAddress, source: 'shop' }
+              : null,
           },
         });
         break;
@@ -562,12 +583,12 @@ export default function TicketDetailScreen({ route, navigation }) {
   // destination — it exists only to load the ticket the wizard needs. Showing
   // the full booking detail on the way through made it look like the wrong
   // screen had opened, so hold a plain spinner until the wizard takes over.
-  if (route?.params?.autoEdit && !autoEditLaunched) {
+  if (autoMode && !autoEditLaunched) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
-        <Text className="mt-3 text-[13px] text-text-muted">Opening re-estimate…</Text>
+        <Text className="mt-3 text-[13px] text-text-muted">{autoMode === 'reservice' ? 'Opening re-service…' : 'Opening re-estimate…'}</Text>
       </View>
     );
   }
@@ -584,7 +605,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           paddingBottom: 12,
           paddingHorizontal: 14,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center">
@@ -593,17 +614,17 @@ export default function TicketDetailScreen({ route, navigation }) {
             hitSlop={6}
             className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
           >
-            <ArrowLeft size={19} color="#172117" />
+            <ArrowLeft size={19} color="#111111" />
           </Pressable>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Booking Details
           </Text>
           <View
             className="px-2.5 py-1 rounded-full"
-            style={{ maxWidth: 180, backgroundColor: '#E6F7E3' }}
+            style={{ maxWidth: 180, backgroundColor: '#E5F3F5' }}
           >
             <Text className="text-[11px] font-extrabold" numberOfLines={1}>
-              <Text style={{ color: '#172117' }}>#{tid.prefix}</Text>
+              <Text style={{ color: '#111111' }}>#{tid.prefix}</Text>
               <Text style={{ color: BRAND_GREEN_DARK }}>{tid.digits}</Text>
             </Text>
           </View>
@@ -618,12 +639,12 @@ export default function TicketDetailScreen({ route, navigation }) {
             <View className="flex-row items-center">
               <View
                 className="w-[72px] h-[72px] rounded-2xl overflow-hidden items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
                 {ticket.deviceImageUrl ? (
                   <Image source={{ uri: ticket.deviceImageUrl }} style={{ width: 72, height: 72 }} resizeMode="cover" />
                 ) : (
-                  <Smartphone size={30} color="#667066" />
+                  <Smartphone size={30} color="#6B7280" />
                 )}
               </View>
               <View className="ml-3.5 flex-1">
@@ -654,7 +675,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <View className="items-end">
                   <Text className="text-[10px] text-text-muted">Booked on</Text>
                   <View className="flex-row items-center mt-0.5">
-                    <Calendar size={12} color="#667066" />
+                    <Calendar size={12} color="#6B7280" />
                     <Text className="text-[12px] font-bold text-text ml-1">{fmtInstant(ticket.createdAt) || '-'}</Text>
                   </View>
                 </View>
@@ -688,9 +709,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <View
                   key={item.id || idx}
                   className="flex-row items-center py-2"
-                  style={{ borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#EFF5EE' }}
+                  style={{ borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#E5F3F5' }}
                 >
-                  <View className="w-6 h-6 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E6F7E3' }}>
+                  <View className="w-6 h-6 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                     <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{idx + 1}</Text>
                   </View>
                   <Text className="flex-1 text-text text-[13px] font-semibold" numberOfLines={1}>{item.label}</Text>
@@ -698,7 +719,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </View>
               ))
             )}
-            <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2' }}>
+            <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
               <Text className="flex-1 font-extrabold text-text text-[13px]">Estimated Total</Text>
               <Text className="font-extrabold text-[15px]" style={{ color: ACCENT_GREEN }}>
                 ₹{Number(estimatedTotal || 0).toLocaleString('en-IN')}
@@ -716,7 +737,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     − ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </Text>
                 </View>
-                <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
+                <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
                   <Text className="flex-1 font-extrabold text-text text-[13px]">Balance Amount</Text>
                   <Text
                     className="font-extrabold text-[13px]"
@@ -744,9 +765,10 @@ export default function TicketDetailScreen({ route, navigation }) {
             ) : null}
             <DetailRow icon={Clock} label="Est. Time" value={fmtInstant(ticket.estimatedReadyAt) || '-'} />
             <DetailRow icon={Calendar} label="Delivery" value={fmtInstant(ticket.estimatedDeliveryAt) || '-'} />
-            {/* IMEI — shows the number, or a "-" with an Add shortcut when missing. */}
+            {/* IMEI (mobile phones only) — shows the number, or a "-" with an Add shortcut when missing. */}
+            {showImei ? (
             <View className="flex-row items-center py-1.5">
-              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#F0F8EF' }}>
+              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                 <ScanLine size={14} color={ACCENT_GREEN} />
               </View>
               <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>IMEI</Text>
@@ -758,7 +780,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <Pressable
                     onPress={openImeiEntry}
                     className="flex-row items-center rounded-full px-2.5 py-1 active:opacity-80"
-                    style={{ backgroundColor: '#E6F7E3' }}
+                    style={{ backgroundColor: '#E5F3F5' }}
                   >
                     <Plus size={12} color={BRAND_GREEN_DARK} />
                     <Text className="text-[11px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Add</Text>
@@ -766,13 +788,14 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </View>
               )}
             </View>
+            ) : null}
             <View className="flex-row items-center py-1.5">
-              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#F0F8EF' }}>
+              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                 <ShieldCheck size={14} color={ACCENT_GREEN} />
               </View>
               <Text className="flex-1 text-[12px] text-text-muted">Repair Approval</Text>
               {ticket.customerApproval ? (
-                <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E6F7E3' }}>
+                <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
                   <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
                   <Text className="text-[12px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Approved</Text>
                 </View>
@@ -792,8 +815,8 @@ export default function TicketDetailScreen({ route, navigation }) {
           <View
             className="rounded-2xl p-4"
             style={[cardShadow, {
-              backgroundColor: hasTechnician ? '#FFFFFF' : '#F0F8EF',
-              borderColor: hasTechnician ? '#E2E8E2' : '#C8EEBF',
+              backgroundColor: hasTechnician ? '#FFFFFF' : '#E5F3F5',
+              borderColor: hasTechnician ? '#E5E7EB' : '#C7E6EA',
             }]}
           >
             {!hasTechnician ? (
@@ -801,7 +824,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <View className="flex-row items-center mb-3">
                   <View
                     className="w-11 h-11 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: '#E6F7E3' }}
+                    style={{ backgroundColor: '#E5F3F5' }}
                   >
                     <User size={20} color={ACCENT_GREEN} />
                   </View>
@@ -809,6 +832,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     No technician assigned to this booking yet.
                   </Text>
                 </View>
+                {!isDelivered ? (
                 <Pressable
                   onPress={onAssignPress}
                   className="rounded-xl active:opacity-90 overflow-hidden"
@@ -823,6 +847,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <Text className="text-white text-[13px] font-extrabold ml-1.5">Assign Technician</Text>
                   </LinearGradient>
                 </Pressable>
+                ) : null}
               </>
             ) : (
               <View className="flex-row items-center">
@@ -854,11 +879,11 @@ export default function TicketDetailScreen({ route, navigation }) {
                     )}
                   </View>
                 </View>
-                {!techAccepted ? (
+                {!techAccepted && !isDelivered ? (
                   <Pressable
                     onPress={onReassignPress}
                     className="flex-row items-center rounded-full px-3 py-1.5 active:opacity-80"
-                    style={{ backgroundColor: 'rgba(22, 187, 5, 0.12)' }}
+                    style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}
                   >
                     <RefreshCcw size={11} color={ACCENT_GREEN} />
                     <Text className="text-[11px] font-extrabold ml-1" style={{ color: ACCENT_GREEN }}>Re-Assign</Text>
@@ -948,15 +973,15 @@ export default function TicketDetailScreen({ route, navigation }) {
                         className="rounded-full items-center justify-center"
                         style={{
                           width: 30, height: 30,
-                          backgroundColor: done ? '#E6F7E3' : checked ? '#FEF3C7' : '#EFF5EE',
+                          backgroundColor: done ? '#E5F3F5' : checked ? '#FEF3C7' : '#E5F3F5',
                         }}
                       >
                         {done
-                          ? <Check size={14} color="#087A0A" />
+                          ? <Check size={14} color="#035C6C" />
                           : (
                             <Text
                               className="text-[10px] font-extrabold"
-                              style={{ color: checked ? '#B45309' : '#667066' }}
+                              style={{ color: checked ? '#B45309' : '#6B7280' }}
                             >
                               {stepNo}
                             </Text>
@@ -970,7 +995,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                             marginBottom: -13,
                             borderLeftWidth: 1.5,
                             borderStyle: 'dashed',
-                            borderColor: done ? '#7ED957' : '#CBD5CB',
+                            borderColor: done ? '#357D89' : '#D1D5DB',
                           }}
                         />
                       ) : null}
@@ -992,7 +1017,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                           Tap Done to confirm.
                         </Text>
                       ) : done ? (
-                        <Text className="text-[10px] mt-0.5" style={{ color: '#087A0A' }}>
+                        <Text className="text-[10px] mt-0.5" style={{ color: '#035C6C' }}>
                           Recorded{entry?.at ? ` · ${formatProgressTime(entry.at)}` : ''}
                         </Text>
                       ) : blocker ? (
@@ -1005,8 +1030,8 @@ export default function TicketDetailScreen({ route, navigation }) {
                     {/* Right action area: changes by state (vertically centered). */}
                     <View style={{ justifyContent: 'center' }}>
                       {done ? (
-                        <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: '#E6F7E3' }}>
-                          <Text className="text-[10px] font-extrabold" style={{ color: '#087A0A' }}>DONE</Text>
+                        <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
+                          <Text className="text-[10px] font-extrabold" style={{ color: '#035C6C' }}>DONE</Text>
                         </View>
                       ) : checked ? (
                         <View className="flex-row items-center">
@@ -1016,10 +1041,10 @@ export default function TicketDetailScreen({ route, navigation }) {
                             disabled={busy}
                             className="rounded-full flex-row items-center"
                             style={{
-                              backgroundColor: '#16BB05',
+                              backgroundColor: '#035C6C',
                               paddingHorizontal: 14, paddingVertical: 7,
                               opacity: busy ? 0.6 : 1,
-                              shadowColor: '#16BB05', shadowOpacity: 0.3, shadowRadius: 4,
+                              shadowColor: '#035C6C', shadowOpacity: 0.3, shadowRadius: 4,
                               shadowOffset: { width: 0, height: 2 }, elevation: 2,
                             }}
                           >
@@ -1039,16 +1064,16 @@ export default function TicketDetailScreen({ route, navigation }) {
                             className="rounded-full flex-row items-center ml-2"
                             style={{
                               backgroundColor: '#FFFFFF',
-                              borderWidth: 1, borderColor: '#CBD5CB',
+                              borderWidth: 1, borderColor: '#D1D5DB',
                               paddingHorizontal: 12, paddingVertical: 6,
                             }}
                           >
-                            <X size={11} color="#667066" />
-                            <Text className="text-[11px] font-extrabold ml-1" style={{ color: '#667066' }}>Cancel</Text>
+                            <X size={11} color="#6B7280" />
+                            <Text className="text-[11px] font-extrabold ml-1" style={{ color: '#6B7280' }}>Cancel</Text>
                           </TouchableOpacity>
                         </View>
                       ) : blocker ? (
-                        <View className="rounded-full" style={{ backgroundColor: '#F3F3F3', paddingHorizontal: 12, paddingVertical: 7 }}>
+                        <View className="rounded-full" style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 7 }}>
                           <Text className="text-[11px] font-extrabold" style={{ color: '#9AA39A' }}>Locked</Text>
                         </View>
                       ) : (
@@ -1058,13 +1083,13 @@ export default function TicketDetailScreen({ route, navigation }) {
                           onPress={toggleTick}
                           className="rounded-full"
                           style={{
-                            backgroundColor: isNext ? '#E6F7E3' : '#EFF5EE',
+                            backgroundColor: isNext ? '#E5F3F5' : '#E5F3F5',
                             paddingHorizontal: 16, paddingVertical: 7,
                           }}
                         >
                           <Text
                             className="text-[11px] font-extrabold"
-                            style={{ color: isNext ? BRAND_GREEN_DARK : '#667066' }}
+                            style={{ color: isNext ? BRAND_GREEN_DARK : '#6B7280' }}
                           >
                             Mark
                           </Text>
@@ -1088,7 +1113,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           flexDirection: 'row',
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: '#E2E8E2',
+          borderTopColor: '#E5E7EB',
           paddingHorizontal: 16,
           paddingTop: 12,
           paddingBottom: insets.bottom + 12,
@@ -1106,7 +1131,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => setStatusOpen(true)}
+          onPress={() => (isDelivered ? onAction('reservice') : setStatusOpen(true))}
           className="flex-1 rounded-2xl overflow-hidden active:opacity-90"
         >
           <LinearGradient
@@ -1115,8 +1140,8 @@ export default function TicketDetailScreen({ route, navigation }) {
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
           >
-            <ClipboardList size={16} color="#FFFFFF" />
-            <Text className="text-white text-[13px] font-extrabold ml-2">Update Status</Text>
+            {isDelivered ? <RefreshCcw size={16} color="#FFFFFF" /> : <ClipboardList size={16} color="#FFFFFF" />}
+            <Text className="text-white text-[13px] font-extrabold ml-2">{isDelivered ? 'Re-Service' : 'Update Status'}</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -1131,205 +1156,216 @@ export default function TicketDetailScreen({ route, navigation }) {
       />
 
       {/* ── Update Status sheet — jumps the booking to any lifecycle stage ── */}
-      <Modal visible={statusOpen} transparent animationType="fade" onRequestClose={() => setStatusOpen(false)}>
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.5)', justifyContent: 'flex-end' }}
-          onPress={() => (statusBusy ? null : setStatusOpen(false))}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingHorizontal: 16,
-              paddingTop: 12,
-              paddingBottom: insets.bottom + 16,
-            }}
-          >
-            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E2E8E2', marginBottom: 14 }} />
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
-              <Pressable
-                onPress={() => setStatusOpen(false)}
-                hitSlop={8}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
-              >
-                <X size={14} color="#172117" />
-              </Pressable>
-            </View>
-            <Text className="text-[11px] text-text-muted mb-3">
-              Booking #{trackingId} moves forward one stage at a time.
-            </Text>
-
-            {/* Current stage — read-only */}
-            <View
-              className="rounded-2xl border px-3.5 py-3 mb-1"
-              style={{ backgroundColor: '#F7FAF7', borderColor: '#E2E8E2' }}
+      <SafeModal visible={statusOpen} transparent animationType="fade" onRequestClose={() => setStatusOpen(false)}>
+        {/* The modal window's own insets — the screen's don't reach it. */}
+        <ModalInsets>
+          {({ insets }) => (
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.5)', justifyContent: 'flex-end' }}
+              onPress={() => (statusBusy ? null : setStatusOpen(false))}
             >
-              <Text className="text-[10px] uppercase font-extrabold text-gray-400 mb-1.5" style={{ letterSpacing: 0.8 }}>
-                Current Stage
-              </Text>
-              <View className="flex-row items-center">
-                <View className="w-2.5 h-2.5 rounded-full mr-2.5" style={{ backgroundColor: statusTone.fg }} />
-                <Text className="flex-1 text-[13px] font-extrabold text-text">{statusMeta.label}</Text>
-                <View className="flex-row items-center">
-                  <CheckCircle2 size={14} color={BRAND_GREEN_DARK} />
-                  <Text className="text-[10.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Current</Text>
+              <Pressable
+                onPress={(e) => e.stopPropagation()}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  paddingHorizontal: 16,
+                  paddingTop: 12,
+                  paddingBottom: insets.bottom + 16,
+                }}
+              >
+                <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E5E7EB', marginBottom: 14 }} />
+                <View className="flex-row items-center justify-between mb-1">
+                  <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
+                  <Pressable
+                    onPress={() => setStatusOpen(false)}
+                    hitSlop={8}
+                    className="w-8 h-8 rounded-full items-center justify-center"
+                    style={{ backgroundColor: '#E5F3F5' }}
+                  >
+                    <X size={14} color="#111111" />
+                  </Pressable>
                 </View>
-              </View>
-            </View>
+                <Text className="text-[11px] text-text-muted mb-3">
+                  Booking #{trackingId} moves forward one stage at a time.
+                </Text>
 
-            {(() => {
-              const next = nextStage(statusKey);
-              const nextMeta = next ? (STATUS_VARIANT[next] || { label: next, tone: 'green' }) : null;
-              const advancing = statusBusy === next;
-              const advanceBlockedBy = next && ADVANCE_STEP[next]
-                ? stepBlockedBy(recordedKeys, ADVANCE_STEP[next])
-                : null;
-
-              if (!next) {
-                const cancelled = statusKey === 'CANCELLED';
-                return (
-                  <View
-                    className="rounded-2xl px-3.5 py-4 items-center mt-1.5"
-                    style={{
-                      backgroundColor: cancelled ? '#FEF2F2' : '#F0F8EF',
-                      borderWidth: 1,
-                      borderColor: cancelled ? '#FECACA' : '#C8EEBF',
-                    }}
-                  >
-                    {cancelled
-                      ? <AlertCircle size={20} color="#B91C1C" />
-                      : <CheckCircle2 size={20} color={BRAND_GREEN_DARK} />}
-                    <Text className="text-[13px] font-extrabold text-text mt-1.5">
-                      {cancelled ? 'This booking was cancelled.' : 'Final stage reached.'}
-                    </Text>
-                    <Text className="text-[11px] text-text-muted mt-0.5 text-center">
-                      {cancelled ? 'No further status updates.' : 'This booking has been delivered.'}
-                    </Text>
+                {/* Current stage — read-only */}
+                <View
+                  className="rounded-2xl border px-3.5 py-3 mb-1"
+                  style={{ backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' }}
+                >
+                  <Text className="text-[10px] uppercase font-extrabold text-gray-400 mb-1.5" style={{ letterSpacing: 0.8 }}>
+                    Current Stage
+                  </Text>
+                  <View className="flex-row items-center">
+                    <View className="w-2.5 h-2.5 rounded-full mr-2.5" style={{ backgroundColor: statusTone.fg }} />
+                    <Text className="flex-1 text-[13px] font-extrabold text-text">{statusMeta.label}</Text>
+                    <View className="flex-row items-center">
+                      <CheckCircle2 size={14} color={BRAND_GREEN_DARK} />
+                      <Text className="text-[10.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Current</Text>
+                    </View>
                   </View>
-                );
-              }
+                </View>
 
-              return (
-                <>
-                  <View className="items-center my-1.5">
-                    <ArrowDown size={16} color="#8FA08F" />
-                  </View>
-                  {advanceBlockedBy ? (
-                    <Text className="text-[11px] font-bold text-center mb-2" style={{ color: '#B45309' }}>
-                      Record &quot;{advanceBlockedBy}&quot; first — Service History moves one step at a time.
-                    </Text>
-                  ) : null}
-                  <TouchableOpacity
-                    onPress={() => applyStatus(next)}
-                    disabled={statusBusy != null || !!advanceBlockedBy}
-                    activeOpacity={0.9}
-                    className="rounded-2xl overflow-hidden"
-                    style={{ opacity: advanceBlockedBy ? 0.45 : statusBusy != null && !advancing ? 0.6 : 1 }}
-                  >
-                    <LinearGradient
-                      colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
-                    >
-                      <View className="flex-1">
-                        <Text className="text-[10px] uppercase font-extrabold" style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8 }}>
-                          Advance To
+                {(() => {
+                  const next = nextStage(statusKey);
+                  const nextMeta = next ? (STATUS_VARIANT[next] || { label: next, tone: 'green' }) : null;
+                  const advancing = statusBusy === next;
+                  const advanceBlockedBy = next && ADVANCE_STEP[next]
+                    ? stepBlockedBy(recordedKeys, ADVANCE_STEP[next])
+                    : null;
+
+                  if (!next) {
+                    const cancelled = statusKey === 'CANCELLED';
+                    return (
+                      <View
+                        className="rounded-2xl px-3.5 py-4 items-center mt-1.5"
+                        style={{
+                          backgroundColor: cancelled ? '#FEF2F2' : '#E5F3F5',
+                          borderWidth: 1,
+                          borderColor: cancelled ? '#FECACA' : '#C7E6EA',
+                        }}
+                      >
+                        {cancelled
+                          ? <AlertCircle size={20} color="#B91C1C" />
+                          : <CheckCircle2 size={20} color={BRAND_GREEN_DARK} />}
+                        <Text className="text-[13px] font-extrabold text-text mt-1.5">
+                          {cancelled ? 'This booking was cancelled.' : 'Final stage reached.'}
                         </Text>
-                        <Text className="text-white text-[13px] font-extrabold mt-0.5">{nextMeta.label}</Text>
+                        <Text className="text-[11px] text-text-muted mt-0.5 text-center">
+                          {cancelled ? 'No further status updates.' : 'This booking has been delivered.'}
+                        </Text>
                       </View>
-                      {advancing
-                        ? <ActivityIndicator size="small" color="#FFFFFF" />
-                        : <ChevronRight size={20} color="#FFFFFF" />}
-                    </LinearGradient>
-                  </TouchableOpacity>
+                    );
+                  }
 
-                  <TouchableOpacity
-                    onPress={cancelBooking}
-                    disabled={statusBusy != null}
-                    className="rounded-2xl border mt-2.5 py-3 items-center"
-                    style={{ borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}
-                  >
-                    <Text className="text-[12px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
-                  </TouchableOpacity>
-                </>
-              );
-            })()}
-          </Pressable>
-        </Pressable>
-      </Modal>
+                  return (
+                    <>
+                      <View className="items-center my-1.5">
+                        <ArrowDown size={16} color="#9CA3AF" />
+                      </View>
+                      {advanceBlockedBy ? (
+                        <Text className="text-[11px] font-bold text-center mb-2" style={{ color: '#B45309' }}>
+                          Record &quot;{advanceBlockedBy}&quot; first — Service History moves one step at a time.
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity
+                        onPress={() => applyStatus(next)}
+                        disabled={statusBusy != null || !!advanceBlockedBy}
+                        activeOpacity={0.9}
+                        className="rounded-2xl overflow-hidden"
+                        style={{ opacity: advanceBlockedBy ? 0.45 : statusBusy != null && !advancing ? 0.6 : 1 }}
+                      >
+                        <LinearGradient
+                          colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
+                        >
+                          <View className="flex-1">
+                            <Text className="text-[10px] uppercase font-extrabold" style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8 }}>
+                              Advance To
+                            </Text>
+                            <Text className="text-white text-[13px] font-extrabold mt-0.5">{nextMeta.label}</Text>
+                          </View>
+                          {advancing
+                            ? <ActivityIndicator size="small" color="#FFFFFF" />
+                            : <ChevronRight size={20} color="#FFFFFF" />}
+                        </LinearGradient>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={cancelBooking}
+                        disabled={statusBusy != null}
+                        className="rounded-2xl border mt-2.5 py-3 items-center"
+                        style={{ borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}
+                      >
+                        <Text className="text-[12px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
 
       {/* ── IMEI capture sheet — type or scan, then save ─────────────────── */}
-      <Modal
+      <SafeModal
         visible={imeiModalOpen}
         transparent
         animationType="fade"
         onRequestClose={() => (imeiSaving ? null : setImeiModalOpen(false))}
       >
-        <Pressable
-          className="flex-1 bg-black/50 items-center justify-center px-6"
-          onPress={() => (imeiSaving ? null : setImeiModalOpen(false))}
-        >
-          <Pressable className="bg-card rounded-3xl p-5 w-full" style={{ maxWidth: 420 }} onPress={() => {}}>
-            <View className="items-center mb-1">
-              <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E6F7E3' }}>
-                <ScanLine size={20} color={BRAND_GREEN_DARK} />
-              </View>
-              <Text className="text-text text-[15px] font-extrabold">Enter IMEI Number</Text>
-              <Text className="text-text-muted text-[12px] text-center mt-1">
-                Add the device IMEI number for this booking.
-              </Text>
-            </View>
+        {/* Centred in this window's safe area, lifted above the keyboard (autoFocus). */}
+        <ModalInsets>
+          {({ insets, keyboard }) => (
+            <Pressable
+              className="flex-1 bg-black/50 items-center justify-center px-6"
+              style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, keyboard) }}
+              onPress={() => (imeiSaving ? null : setImeiModalOpen(false))}
+            >
+              <Pressable className="bg-card rounded-3xl p-5 w-full" style={{ maxWidth: 420 }} onPress={() => {}}>
+                <View className="items-center mb-1">
+                  <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E5F3F5' }}>
+                    <ScanLine size={20} color={BRAND_GREEN_DARK} />
+                  </View>
+                  <Text className="text-text text-[15px] font-extrabold">Enter IMEI Number</Text>
+                  <Text className="text-text-muted text-[12px] text-center mt-1">
+                    Add the device IMEI number for this booking.
+                  </Text>
+                </View>
 
-            <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
-              <TextInput
-                className="flex-1 py-3 text-text text-[13px] font-bold"
-                placeholder="Enter 15-digit IMEI"
-                placeholderTextColor="#8FA08F"
-                keyboardType="number-pad"
-                maxLength={17}
-                value={imeiInput}
-                onChangeText={setImeiInput}
-                autoFocus
-              />
-              <Pressable
-                onPress={() => {
-                  setImeiModalOpen(false);
-                  navigation.navigate('ScanImei', { onScan: (v) => { setImeiInput(v); setImeiModalOpen(true); } });
-                }}
-                className="flex-row items-center rounded-full px-3 py-1.5 ml-1 active:opacity-80"
-                style={{ backgroundColor: 'rgba(22, 187, 5, 0.14)' }}
-              >
-                <ScanLine size={14} color={BRAND_GREEN} />
-                <Text className="text-[12px] font-extrabold ml-1" style={{ color: BRAND_GREEN }}>SCAN</Text>
-              </Pressable>
-            </View>
-            <Text className="text-text-muted text-[11px] mt-2">Tip: dial *#06# on the device to show its IMEI.</Text>
+                <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
+                  <TextInput
+                    className="flex-1 py-3 text-text text-[13px] font-bold"
+                    placeholder="Enter 15-digit IMEI"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    maxLength={17}
+                    value={imeiInput}
+                    onChangeText={setImeiInput}
+                    autoFocus
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setImeiModalOpen(false);
+                      navigation.navigate('ScanImei', { onScan: (v) => { setImeiInput(v); setImeiModalOpen(true); } });
+                    }}
+                    className="flex-row items-center rounded-full px-3 py-1.5 ml-1 active:opacity-80"
+                    style={{ backgroundColor: 'rgba(3, 92, 108, 0.14)' }}
+                  >
+                    <ScanLine size={14} color={BRAND_GREEN} />
+                    <Text className="text-[12px] font-extrabold ml-1" style={{ color: BRAND_GREEN }}>SCAN</Text>
+                  </Pressable>
+                </View>
+                <Text className="text-text-muted text-[11px] mt-2">Tip: dial *#06# on the device to show its IMEI.</Text>
 
-            <View className="flex-row mt-4">
-              <Pressable
-                onPress={() => setImeiModalOpen(false)}
-                disabled={imeiSaving}
-                className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
-              >
-                <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
+                <View className="flex-row mt-4">
+                  <Pressable
+                    onPress={() => setImeiModalOpen(false)}
+                    disabled={imeiSaving}
+                    className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
+                  >
+                    <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={saveImeiAndContinue}
+                    disabled={imeiSaving}
+                    className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
+                    style={{ backgroundColor: BRAND_GREEN }}
+                  >
+                    {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
+                  </Pressable>
+                </View>
               </Pressable>
-              <Pressable
-                onPress={saveImeiAndContinue}
-                disabled={imeiSaving}
-                className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
-                style={{ backgroundColor: BRAND_GREEN }}
-              >
-                {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
     </View>
   );
 }
@@ -1370,21 +1406,11 @@ function normaliseImei(raw) {
 function DetailRow({ icon: Icon, label, value }) {
   return (
     <View className="flex-row items-center py-1.5">
-      <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#F0F8EF' }}>
+      <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
         <Icon size={14} color={ACCENT_GREEN} />
       </View>
       <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>{label}</Text>
       <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={2}>{value}</Text>
-    </View>
-  );
-}
-
-// Receipt-style row used inside the BookingSuccessfulScreen-matching card.
-function InfoRow({ label, value }) {
-  return (
-    <View className="flex-row mt-1">
-      <Text className="flex-1 text-[11px] text-text-muted">{label}</Text>
-      <Text className="text-[12px] text-text font-semibold">{value}</Text>
     </View>
   );
 }
@@ -1443,6 +1469,8 @@ function buildEditParams(ticket, { lineItems, estimatedTotal }) {
     ramOptionId: ticket.ramOptionId,
     storageOptionId: ticket.storageOptionId,
     color: ticket.color,
+    // Model number lives only inside the saved name "Model · Number (specs)".
+    modelNumber: ticket.modelNumber || String(ticket.deviceDisplayName || '').match(/ · ([^()]+?)(?: \(|$)/)?.[1]?.trim() || undefined,
     modelName,
     imageUrl: ticket.deviceImageUrl,
     ramLabel: ticket.ramLabel,
@@ -1453,6 +1481,8 @@ function buildEditParams(ticket, { lineItems, estimatedTotal }) {
     specs: specsFromRecord(ticket),
     prefillServices: services,
     prefillImei: ticket.imei || '',
+    prefillSerialNumber: ticket.serialNumber || '',
+    prefillAccessories: ticket.accessories || '',
     prefillComplaint: ticket.issueDescription || '',
     prefillIssueAudioUrl: ticket.issueAudioUrl || '',
     prefillEstimatedReadyIso: ticket.estimatedReadyAt || null,
@@ -1473,10 +1503,41 @@ function buildEditParams(ticket, { lineItems, estimatedTotal }) {
   };
 }
 
+// Re-Service: the delivered device is back (same or a different issue), so
+// THIS ticket reopens for a new repair. Device identity carries over; the
+// issue, services, photos, estimate and payment start fresh. editMode makes
+// the wizard PUT onto this ticket; reService makes it POST /reopen first.
+function buildReServiceParams(ticket) {
+  const e = buildEditParams(ticket, { lineItems: [], estimatedTotal: 0 });
+  return {
+    editMode: true,
+    editTicketId: ticket.id,
+    trackingId: ticket.trackingId,
+    customerId: e.customerId,
+    customer: e.customer,
+    brandId: e.brandId,
+    modelId: e.modelId,
+    ramOptionId: e.ramOptionId,
+    storageOptionId: e.storageOptionId,
+    color: e.color,
+    modelNumber: e.modelNumber,
+    modelName: e.modelName,
+    imageUrl: e.imageUrl,
+    ramLabel: e.ramLabel,
+    storageLabel: e.storageLabel,
+    deviceCategory: e.deviceCategory,
+    specs: e.specs,
+    prefillImei: e.prefillImei,
+    prefillSerialNumber: e.prefillSerialNumber,
+    prefillLock: e.prefillLock,
+    reService: true,
+  };
+}
+
 const cardShadow = {
   borderWidth: 1,
-  borderColor: '#E2E8E2',
-  shadowColor: '#172117',
+  borderColor: '#E5E7EB',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 2 },

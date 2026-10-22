@@ -4,7 +4,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { DEFAULT_LABEL_PRESET } from '../../../services/printer/labelPresets';
 import { computeLabelLayout, labelTexts } from '../../../services/printer/tspl';
 
-const INK = '#1E1E1E';
+const INK = '#111111';
 
 /**
  * Presentational mock of the physical sticker for the selected Page Setup
@@ -32,13 +32,13 @@ export default function LabelPreview({
   const k = innerWidth / layout.widthDots;
   const { top, qr, text, bottom } = layout;
 
-  const line = (band, y, value, { align = 'left', weight = '700', x = band.x, width = band.width } = {}) => (
+  const line = (band, y, value, { align = 'left', weight = '700', x = band.x, width = band.width, boost = 0 } = {}) => (
     <View style={{ position: 'absolute', left: x * k, top: y * k, width: width * k, height: band.height * k, justifyContent: 'center' }}>
       <Text
         numberOfLines={1}
         ellipsizeMode="tail"
         style={{
-          fontSize: band.height * k * 0.82,
+          fontSize: band.height * k * 0.82 + boost,
           lineHeight: band.height * k,
           fontWeight: weight,
           color: INK,
@@ -67,13 +67,18 @@ export default function LabelPreview({
         {k > 0 ? (
           <>
             {line(top, top.y, t.serviceNumber || '—', { align: 'center', weight: '800' })}
-            <View style={{ position: 'absolute', left: qr.x * k, top: qr.y * k, width: qr.size * k, height: qr.size * k }}>
-              <QRCode value={String(trackingId || 'NO-ID')} size={Math.max(1, Math.floor(qr.size * k))} color="#000000" backgroundColor="#FFFFFF" />
+            {/* QR drawn 2px smaller than its slot, centred in it. */}
+            <View style={{ position: 'absolute', left: qr.x * k, top: qr.y * k, width: qr.size * k, height: qr.size * k, alignItems: 'center', justifyContent: 'center' }}>
+              <QRCode value={String(trackingId || 'NO-ID')} size={Math.max(1, Math.floor(qr.size * k) - 2)} color="#000000" backgroundColor="#FFFFFF" />
             </View>
-            {line(text, text.ys[0], t.brandModel || '—')}
-            {line(text, text.ys[1], t.customerName || '—')}
-            {line(text, text.ys[2], t.deviceSecurity || '—')}
-            {t.createdLine ? line(bottom, bottom.y, t.createdLine, { align: 'center', weight: '600' }) : null}
+            {/* Same fitted lines the printer gets (smaller font / two lines when long). */}
+            {t.details.map((d, i) => d.lines.map((l, j) => (
+              <React.Fragment key={`d${i}-${j}`}>
+                {line({ ...text, height: d.font.height }, text.ys[i] + l.dy, l.text || '—')}
+              </React.Fragment>
+            )))}
+            {/* BarCode1: date / time 1px larger. */}
+            {t.createdLine ? line(bottom, bottom.y, t.createdLine, { align: 'center', weight: '600', boost: layout.preset.id === 'barcode1' ? 1 : 0 }) : null}
           </>
         ) : null}
       </View>

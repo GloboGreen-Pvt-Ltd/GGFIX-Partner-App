@@ -1,4 +1,5 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, Image, Pressable, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot from 'react-native-view-shot';
@@ -11,6 +12,8 @@ import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 const APP_LINK = 'https://ggfix.app';
 
 export default function BookingSuccessfulScreen({ navigation, route }) {
+  // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
+  const insets = useSafeAreaInsets();
   const { tickets = [], devices = [], customer = {} } = route?.params || {};
 
   // This screen sits in the nested booking stack, so popToTop() alone only
@@ -21,7 +24,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
     navigation.popTo('OwnerTabs', { screen: 'Home' });
   };
   const t0 = tickets[0] || {};
-  const primaryTracking = t0.trackingId || 'CSPEN00000000';
+  const primaryTracking = t0.trackingId || '—';
   const trackingId = primaryTracking; // used for capture/share filenames
   // Render EVERY device booked (a booking can contain more than one), not just
   // the first — the receipt and totals must reflect the whole booking.
@@ -163,10 +166,10 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
           className="w-9 h-9 rounded-full items-center justify-center mr-2 active:opacity-70"
           hitSlop={8}
         >
-          <Ionicons name="chevron-back" size={22} color="#172117" />
+          <Ionicons name="chevron-back" size={22} color="#111111" />
         </Pressable>
         <View className="w-9 h-9 rounded-full bg-success/10 items-center justify-center mr-2">
-          <Ionicons name="checkmark-circle" size={20} color="#16BB05" />
+          <Ionicons name="checkmark-circle" size={20} color="#035C6C" />
         </View>
         <View className="flex-1">
           <Text className="font-extrabold text-text text-[13px]">Booking Successful</Text>
@@ -206,7 +209,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
                       {dev.imageUrl ? (
                         <Image source={{ uri: dev.imageUrl }} style={{ width: 44, height: 48 }} resizeMode="cover" />
                       ) : (
-                        <Ionicons name="phone-portrait-outline" size={20} color="#667066" />
+                        <Ionicons name="phone-portrait-outline" size={20} color="#6B7280" />
                       )}
                     </View>
                     <View className="ml-2.5 flex-1">
@@ -252,7 +255,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
                     <View className="flex-row items-center mt-1">
                       <Text className="flex-1 text-[11px] text-text-muted">Repair Approval</Text>
                       <View className="flex-row items-center">
-                        <Ionicons name="checkmark-circle" size={12} color="#16BB05" />
+                        <Ionicons name="checkmark-circle" size={12} color="#035C6C" />
                         <Text className="text-[12px] font-bold text-success ml-1">Done</Text>
                       </View>
                     </View>
@@ -273,7 +276,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
       </ScrollView>
 
       {/* Share actions */}
-      <View className="absolute left-0 right-0 bottom-0 px-3 py-3 bg-card border-t border-border flex-row" style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+      <View className="absolute left-0 right-0 bottom-0 px-3 pt-3 bg-card border-t border-border flex-row" style={{ paddingBottom: 12 + insets.bottom, shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
         <Pressable
           onPress={shareWhatsApp}
           className="flex-1 mr-2 rounded-xl bg-success py-3 flex-row items-center justify-center active:opacity-80"

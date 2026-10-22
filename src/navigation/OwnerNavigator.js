@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { requireOptionalNativeModule } from 'expo-modules-core';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +10,7 @@ import { ArrowLeft, ClipboardList, House, Settings, ShoppingBag, Tag } from 'luc
 import colors from '../theme/colors';
 import BackButton from '../components/BackButton';
 import { getTabBarContentHeight, isTabletWidth, MIN_SAFE_BOTTOM } from './tabBarMetrics';
+import { rf, rs } from '../utils/responsive';
 
 // White-tinted back arrow for the green-header screens (Shop Info, Pickup
 // Options). The shared BackButton renders a dark arrow which is invisible on
@@ -62,7 +65,7 @@ import InventoryScreen from '../screens/owner/InventoryScreen';
 import MarketplaceSellScreen from '../screens/owner/MarketplaceSellScreen';
 import OwnerSellSparePartsScreen from '../screens/owner/OwnerSellSparePartsScreen';
 import OwnerSellMobileChoiceScreen from '../screens/owner/OwnerSellMobileChoiceScreen';
-import OwnerSellChooseSalesCategoryScreen from '../screens/owner/OwnerSellChooseSalesCategoryScreen';
+import SellDeviceDetailsScreen from '../screens/owner/service-booking-shop/DeviceDetailsScreen';
 import OwnerSellGadgetPriceScreen from '../screens/owner/OwnerSellGadgetPriceScreen';
 import OwnerSellListedScreen from '../screens/owner/OwnerSellListedScreen';
 import OwnerSellHomeScreen from '../screens/owner/OwnerSellHomeScreen';
@@ -109,7 +112,8 @@ import OwnerEmployeeLeaveScreen from '../screens/owner/OwnerEmployeeLeaveScreen'
 import OwnerEmployeeSalaryReportScreen from '../screens/owner/OwnerEmployeeSalaryReportScreen';
 import OwnerEmployeePayslipScreen from '../screens/owner/OwnerEmployeePayslipScreen';
 import OwnerEmployeeShiftDetailsScreen from '../screens/owner/OwnerEmployeeShiftDetailsScreen';
-import OwnerEmployeeWorkingRecordScreen from '../screens/owner/OwnerEmployeeWorkingRecordScreen';
+import OwnerEmployeePermissionScreen from '../screens/owner/OwnerEmployeePermissionScreen';
+import OwnerJobReportScreen from '../screens/owner/OwnerJobReportScreen';
 import OwnerEmployeePickupReportScreen from '../screens/owner/OwnerEmployeePickupReportScreen';
 import OwnerEmployeeAddAdvanceScreen from '../screens/owner/OwnerEmployeeAddAdvanceScreen';
 import OwnerEmployeeApplyLeaveScreen from '../screens/owner/OwnerEmployeeApplyLeaveScreen';
@@ -123,6 +127,8 @@ import OwnerLeaveRequestsScreen from '../screens/owner/OwnerLeaveRequestsScreen'
 import ShopChatInboxScreen from '../screens/owner/chat/ShopChatInboxScreen';
 import ShopChatThreadScreen from '../screens/owner/chat/ShopChatThreadScreen';
 import SubscriptionScreen from '../screens/owner/SubscriptionScreen';
+import LegalDocumentScreen from '../legal/LegalDocumentScreen';
+import HelpSupportScreen from '../screens/owner/HelpSupportScreen';
 import { subscriptionApi } from '../api/client';
 
 const Stack = createNativeStackNavigator();
@@ -141,97 +147,66 @@ const OWNER_TAB_ICONS = {
 // it is now the bookings list with menu 'INVOICE', pushed from Home.
 const HIDDEN_TABS = [];
 
-// ── Bottom bar palette ────────────────────────────────────────────────────
-// Active tab's icon floats in a raised white circle (shadow only) above the
-// bar's top edge, per the uploaded reference — green icon + bold green
-// label. Inactive items are plain black icons/labels, no background.
-const NAV_ACTIVE = '#09AD2A';
-// Soft green circle behind the active icon (was plain white).
-const NAV_BUBBLE_BG = '#E6F7EA';
-const NAV_INACTIVE = '#000000';
+// ── Bottom bar — "liquid glass" (iOS 26 / WhatsApp reference) ─────────────
+// Frosted pill floating over the page: real blur of the content behind it
+// (expo-blur), a white wash + top sheen, a white inner rim and a hairline
+// outline. The active tab is a raised teal circle (white ring + white icon)
+// that glides between tabs; every tab keeps its label (active in teal).
+//
+// expo-blur is native: it only works in a build that includes it (a new
+// dev / EAS build). Older builds get a near-opaque white bar instead of a
+// crash — the JS module isn't even loaded unless the native side exists.
+const HAS_BLUR = !!requireOptionalNativeModule('ExpoBlur');
+const BlurLib = HAS_BLUR ? require('expo-blur') : null;
+// Android blurs a BlurTargetView (wrapped round the tab screens in OwnerTabs).
+const blurTargetRef = React.createRef();
 
-/**
- * One tab: a fixed-size icon slot (so the layout never reflows on
- * selection) holding two absolutely-stacked layers that cross-fade via
- * Reanimated — a plain small icon (inactive) and a raised white circular
- * bubble with a bigger icon (active) — plus a label underneath. `progress`
- * (0 → 1) drives both layers' opacity and the bubble's lift/scale in one
- * 200ms transition.
- */
-const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPress, onLongPress, iconSize, activeIconSize, labelSize, bubbleSize }) {
-  const progress = useSharedValue(isFocused ? 1 : 0);
-  useEffect(() => {
-    progress.value = withTiming(isFocused ? 1 : 0, { duration: 200 });
-  }, [isFocused, progress]);
+const GLASS_WASH = HAS_BLUR ? 'rgba(255,255,255,0.9)' : '#FFFFFF';
+const GLASS_RIM = '#FFFFFF'; // bright white glass edge
+const RIM_W = 3;             // its width — the circle's position accounts for it
+const GLASS_OUTLINE = 'rgba(17,17,17,0.08)';
+// Active tab: raised brand-teal circle, white ring + white icon.
+const NAV_TEAL = '#035C6C';
+const ICON_ON = NAV_TEAL;       // active label
+const ICON_OFF = '#6B7280';     // inactive icon + label
 
-  const inactiveIconStyle = useAnimatedStyle(() => ({ opacity: 1 - progress.value }));
-  const bubbleStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [
-      { translateY: interpolate(progress.value, [0, 1], [0, -10]) },
-      { scale: interpolate(progress.value, [0, 1], [0.85, 1]) },
-    ],
-  }));
-
+/** One tab: icon + label; the active icon is drawn in the floating circle. */
+const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPress, onLongPress, iconSize, activeIconSize, labelSize }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: isFocused }}
       accessibilityLabel={String(label)}
-      onPress={onPress}
+      // Switch on touch-down, not release — the tab opens as the finger lands.
+      onPressIn={onPress}
+      accessibilityActions={[{ name: 'activate' }]}
+      onAccessibilityAction={onPress}
       onLongPress={onLongPress}
       hitSlop={6}
       style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
     >
-      <View style={{ width: bubbleSize, height: bubbleSize, alignItems: 'center', justifyContent: 'center' }}>
-        <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, inactiveIconStyle]}>
-          <Icon size={iconSize} color={NAV_INACTIVE} strokeWidth={1.8} />
-        </Animated.View>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              width: bubbleSize,
-              height: bubbleSize,
-              borderRadius: bubbleSize / 2,
-              backgroundColor: NAV_BUBBLE_BG,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#0B1A16',
-              shadowOpacity: 0.18,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 8,
-            },
-            bubbleStyle,
-          ]}
+      {/* The active icon is drawn in the floating circle; keep its slot. */}
+      {isFocused ? <View style={{ width: iconSize, height: iconSize }} /> : (
+        <Icon size={iconSize} color={ICON_OFF} strokeWidth={2} />
+      )}
+      {/* Label only on the active tab (semi-bold); others are icon-only. */}
+      {isFocused ? (
+        <Text
+          numberOfLines={1}
+          allowFontScaling={false}
+          style={{ fontSize: labelSize, marginTop: rs(3), color: ICON_ON, fontWeight: '800' }}
         >
-          <Icon size={activeIconSize} color={NAV_ACTIVE} strokeWidth={2.3} />
-        </Animated.View>
-      </View>
-      <Text
-        numberOfLines={1}
-        allowFontScaling={false}
-        style={{
-          fontSize: labelSize,
-          marginTop: 4,
-          color: isFocused ? NAV_ACTIVE : NAV_INACTIVE,
-          fontWeight: isFocused ? '700' : '500',
-        }}
-      >
-        {label}
-      </Text>
+          {label}
+        </Text>
+      ) : null}
     </Pressable>
   );
 });
 
 /**
- * Compact, flat, full-width tab bar anchored to the bottom of the screen.
- * Height and icon/bubble/label sizes come from `tabBarMetrics` (phone vs.
- * tablet breakpoint at 600dp) so the navigator and Dashboard's scroll
- * padding read the same numbers. `insets.bottom` is the ONLY bottom
- * padding — no stacked/fixed padding on top of it.
+ * Floating liquid-glass tab bar, absolutely positioned over the page (tab
+ * screens pad their content with useTabBarSpace()). Height comes from
+ * tabBarMetrics so the bar and that padding read the same number.
  */
 function GlassTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
@@ -242,79 +217,194 @@ function GlassTabBar({ state, descriptors, navigation }) {
   const activeKey = state.routes[state.index]?.key;
   const activeIndex = Math.max(0, routes.findIndex((r) => r.key === activeKey));
 
+  // Fast tab access: once startup settles, mount the other tabs in the
+  // background (one by one) so the first tap on each opens instantly.
+  useEffect(() => {
+    if (typeof navigation.preload !== 'function') return undefined;
+    const timers = [];
+    const preloadAll = () => {
+      routes.forEach((r, i) => {
+        if (r.key === activeKey) return;
+        timers.push(setTimeout(() => navigation.preload(r.name), 600 + i * 250));
+      });
+    };
+    // requestIdleCallback replaces the deprecated InteractionManager; a short
+    // timer stands in where it isn't available.
+    const idle = typeof requestIdleCallback === 'function'
+      ? requestIdleCallback(preloadAll, { timeout: 1500 })
+      : null;
+    if (idle == null) timers.push(setTimeout(preloadAll, 500));
+    return () => {
+      if (idle != null && typeof cancelIdleCallback === 'function') cancelIdleCallback(idle);
+      timers.forEach(clearTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const barHeight = getTabBarContentHeight(isTablet);
-  const bubbleSize = isTablet ? 60 : 54;
-  const iconSize = isTablet ? 25 : 23;
-  const activeIconSize = isTablet ? 28 : 26;
-  const labelSize = isTablet ? 12 : 11;
+  const radius = barHeight / 2;
+  const iconSize = rs(isTablet ? 24 : 22);
+  const activeIconSize = rs(isTablet ? 26 : 24);
+  const labelSize = rf(isTablet ? 12 : 11);
+  const padH = rs(6);
+
+  // Capsule geometry from the measured bar width (plain numbers — the
+  // worklets below must not call rs()/rf()).
+  const [barW, setBarW] = useState(0);
+  const itemW = barW > 0 ? (barW - RIM_W * 2 - padH * 2) / Math.max(routes.length, 1) : 0;
+  const circ = rs(isTablet ? 56 : 50);
+  const circTop = -Math.round(circ * 0.38); // rises above the glass
+
+  const pos = useSharedValue(activeIndex);
+  const stretch = useSharedValue(1);
+  useEffect(() => {
+    // Quick ease-out glide (~180ms) — snappy, never overshoots Home / Settings.
+    pos.value = withTiming(activeIndex, { duration: 180, easing: Easing.out(Easing.cubic) });
+    // Liquid feel: the circle swells as it lands on the new tab, then settles.
+    // Quick, small pulse (~180ms total) — no long springy zoom.
+    stretch.value = withSequence(withTiming(1.08, { duration: 70 }), withTiming(1, { duration: 110 }));
+  }, [activeIndex, pos, stretch]);
+  const circleStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: RIM_W + padH + pos.value * itemW + (itemW - circ) / 2 },
+      { scale: stretch.value },
+    ],
+  }), [itemW, circ, padH]);
+  const ActiveIcon = OWNER_TAB_ICONS[routes[activeIndex]?.name] || House;
 
   return (
-    // Background always spans the full device width — on a tablet/iPad this
-    // is what keeps the bar reading as one continuous surface edge-to-edge
-    // instead of a floating card with the screen's own background showing
-    // through the gaps on either side.
     <View
+      pointerEvents="box-none"
       style={{
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: isTablet ? 24 : 22,
-        borderTopRightRadius: isTablet ? 24 : 22,
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'transparent',
+        paddingHorizontal: rs(isTablet ? 20 : 14),
         paddingBottom: Math.max(insets.bottom, MIN_SAFE_BOTTOM),
-        width: '100%',
-        shadowColor: '#0B1A16',
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: -2 },
-        elevation: 10,
       }}
     >
-      {/* Only the row of tabs is width-capped + centered, so on a large
-          landscape iPad/Android tablet the 5 items stay a compact group
-          instead of spreading edge-to-edge with huge gaps between them. */}
+      {/* Outline + soft shadow live on this wrapper; the glass itself clips. */}
       <View
         style={{
-          flexDirection: 'row',
-          height: barHeight,
-          paddingHorizontal: isTablet ? 20 : 6,
           width: '100%',
           maxWidth: isTablet ? 660 : '100%',
           alignSelf: 'center',
+          borderRadius: radius,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: GLASS_OUTLINE,
+          shadowColor: '#111111',
+          shadowOpacity: 0.1,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
         }}
       >
-        {routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const label = options.tabBarLabel ?? options.title ?? route.name;
-          const Icon = OWNER_TAB_ICONS[route.name] || House;
-          const isFocused = index === activeIndex;
-
-          const onPress = () => {
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-          };
-          const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
-
-          return (
-            <TabBarItem
-              key={route.key}
-              Icon={Icon}
-              label={label}
-              isFocused={isFocused}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              iconSize={iconSize}
-              activeIconSize={activeIconSize}
-              labelSize={labelSize}
-              bubbleSize={bubbleSize}
+        <View
+          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+          style={{
+            flexDirection: 'row',
+            height: barHeight,
+            paddingHorizontal: padH,
+            borderRadius: radius,
+            overflow: 'hidden',
+            borderWidth: RIM_W,
+            borderColor: GLASS_RIM,
+          }}
+        >
+          {HAS_BLUR ? (
+            <BlurLib.BlurView
+              pointerEvents="none"
+              intensity={Platform.OS === 'ios' ? 60 : 40}
+              tint={Platform.OS === 'ios' ? 'systemChromeMaterialLight' : 'light'}
+              blurMethod="dimezisBlurView"
+              blurTarget={Platform.OS === 'android' ? blurTargetRef : undefined}
+              style={StyleSheet.absoluteFill}
             />
-          );
-        })}
+          ) : null}
+          {/* White wash + top sheen — the "glass" body and its highlight. */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: GLASS_WASH }]} />
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']}
+            style={{ position: 'absolute', left: 0, right: 0, top: 0, height: barHeight * 0.55 }}
+          />
+
+
+          {routes.map((route, index) => {
+            const { options } = descriptors[route.key];
+            const label = options.tabBarLabel ?? options.title ?? route.name;
+            const Icon = OWNER_TAB_ICONS[route.name] || House;
+            const isFocused = index === activeIndex;
+
+            const onPress = () => {
+              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
+            };
+            const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
+
+            return (
+              <TabBarItem
+                key={route.key}
+                Icon={Icon}
+                label={label}
+                isFocused={isFocused}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                iconSize={iconSize}
+                activeIconSize={activeIconSize}
+                labelSize={labelSize}
+              />
+            );
+          })}
+        </View>
+
+        {/* Active tab: teal circle + white ring, floating above the glass
+            (outside its clip) and gliding between tabs. */}
+        {itemW > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              {
+                position: 'absolute',
+                left: 0,
+                top: circTop,
+                width: circ,
+                height: circ,
+                borderRadius: circ / 2,
+                backgroundColor: NAV_TEAL,
+                borderWidth: rs(4),
+                borderColor: '#FFFFFF',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#111111',
+                shadowOpacity: 0.16,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 3 },
+                elevation: 5,
+              },
+              circleStyle,
+            ]}
+          >
+            <ActiveIcon size={activeIconSize} color="#FFFFFF" strokeWidth={2.3} />
+          </Animated.View>
+        ) : null}
       </View>
     </View>
   );
 }
 
+// Android: the tab screens + bar sit inside the BlurTargetView the glass blurs.
+const glassLayout = HAS_BLUR && Platform.OS === 'android'
+  ? ({ children }) => (
+    <BlurLib.BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>{children}</BlurLib.BlurTargetView>
+  )
+  : undefined;
+
 function OwnerTabs({ onLogout }) {
   return (
     <Tab.Navigator
+      layout={glassLayout}
       tabBar={(props) => <GlassTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
@@ -372,7 +462,7 @@ function useOwnerAccess(session) {
 function GateLoader() {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-      <ActivityIndicator size="large" color="#087A0A" />
+      <ActivityIndicator size="large" color="#035C6C" />
     </View>
   );
 }
@@ -449,7 +539,8 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerSellRequests" component={SellRequestsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellMobile" component={OwnerSellMobileChoiceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellSpareParts" component={OwnerSellSparePartsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OwnerSellChooseSalesCategory" component={OwnerSellChooseSalesCategoryScreen} options={{ headerShown: false }} />
+      {/* Sell: category → the booking flow's one-page Device Details picker. */}
+      <Stack.Screen name="SellDeviceDetails" component={SellDeviceDetailsScreen} options={{ headerShown: false }} />
       {/* Shared device pickers — screens render their own ScreenHeader, so
           hide the native stack header to avoid the "two headers stacked" bug. */}
       <Stack.Screen name="SelectCategory" component={SelectCategoryScreen} options={{ headerShown: false }} />
@@ -492,7 +583,7 @@ export default function OwnerNavigator({ session, onLogout }) {
         component={OwnerPickupSlotsScreen}
         options={({ navigation }) => ({
           title: 'Pickup Service',
-          headerStyle: { backgroundColor: '#087A0A' },
+          headerStyle: { backgroundColor: '#035C6C' },
           headerTintColor: '#FFFFFF',
           headerTitleStyle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
           headerLeft: () => navigation.canGoBack() ? <GreenHeaderBack onPress={() => navigation.goBack()} /> : null,
@@ -509,8 +600,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Employee Details',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerEmployeeCreated" component={OwnerEmployeeCreatedScreen} options={{ title: 'Employee Created', headerShown: false }} />
@@ -520,8 +611,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Attendance',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerStaffReport" component={OwnerStaffReportScreen} options={{ headerShown: false }} />
@@ -531,8 +622,18 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Leave details',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
+        }}
+      />
+      <Stack.Screen
+        name="OwnerEmployeePermission"
+        component={OwnerEmployeePermissionScreen}
+        options={{
+          title: 'Permission Report',
+          headerTitleAlign: 'center',
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -541,8 +642,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Salary Report',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -551,8 +652,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Pay Slip',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen
@@ -561,8 +662,8 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Shift details',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       {/* Both report screens serve two modes. Opened from an employee's detail
@@ -572,13 +673,10 @@ export default function OwnerNavigator({ session, onLogout }) {
           Record" over a list that spans the whole team. */}
       <Stack.Screen
         name="OwnerEmployeeWorkingRecord"
-        component={OwnerEmployeeWorkingRecordScreen}
-        options={({ route }) => ({
-          title: route?.params?.employee ? 'Working Record' : 'Service Report',
-          headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
-        })}
+        component={OwnerJobReportScreen}
+        // Draws its own header (Employee app's Job Report design):
+        // "Job's Report" from the tile, "Working Record" for one employee.
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="OwnerEmployeePickupReport"
@@ -594,16 +692,21 @@ export default function OwnerNavigator({ session, onLogout }) {
         options={{
           title: 'Apply for leave',
           headerTitleAlign: 'center',
-          headerTintColor: '#078F23',
-          headerTitleStyle: { color: '#1E1E1E', fontWeight: '800', fontSize: 17 },
+          headerTintColor: '#035C6C',
+          headerTitleStyle: { color: '#111111', fontWeight: '800', fontSize: 17 },
         }}
       />
       <Stack.Screen name="OwnerLeaveRequests" component={OwnerLeaveRequestsScreen} options={{ headerShown: false }} />
+      {/* Same screen, PERMISSION-type requests only (Dashboard → Permissions). */}
+      <Stack.Screen name="OwnerPermissionRequests" component={OwnerLeaveRequestsScreen} initialParams={{ kind: 'PERMISSION' }} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerQrCode" component={OwnerQrCodeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerModelCompatibility" component={OwnerModelCompatibilityScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopChatInbox" component={ShopChatInboxScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopChatThread" component={ShopChatThreadScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSubscription" component={SubscriptionScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Terms" component={LegalDocumentScreen} initialParams={{ type: 'TERMS' }} options={{ headerShown: false }} />
+      <Stack.Screen name="PrivacyPolicy" component={LegalDocumentScreen} initialParams={{ type: 'PRIVACY' }} options={{ headerShown: false }} />
+      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

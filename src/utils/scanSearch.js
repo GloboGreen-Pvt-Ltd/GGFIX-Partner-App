@@ -162,9 +162,10 @@ const KNOWN_BRANDS = [
 ];
 
 // GGFIX tracking IDs look like a short letter prefix + digits (e.g.
-// CSPEN1014799) — matches how `splitTrackingId` (DeviceDetailScreen.js) and
-// the printed slip (BarcodePrintScreen.js) already treat them.
-const TRACKING_ID_RE = /\b([A-Z]{3,6}\d{6,12})\b/g;
+// CSPEN1014799), or the partner-scoped {letter}TS-{seq} (e.g. GTS-001) — matches
+// how `splitTrackingId` (DeviceDetailScreen.js) and the printed slip
+// (BarcodePrintScreen.js) already treat them.
+const TRACKING_ID_RE = /\b([A-Z]{3,6}\d{6,12}|[A-Z0-9]TS-\d{3,})\b/g;
 const IMEI_RE = /\b(\d{14,17})\b/g;
 // A "model code" here means a compact alphanumeric SKU, not a full sentence:
 // "A2215", "SM-S928B", "GA04123-IN" — letters+digits, 4–12 chars, at least
@@ -417,10 +418,10 @@ export async function searchByIdentifiers(candidates) {
  * unreachable server or a provider error comes back as ok=false so the
  * scanner moves on to its other methods.
  */
-export async function runDeviceIdentify(uri, { limit = 8 } = {}) {
+export async function runDeviceIdentify(uri, { limit = 8, ocrText, codes, categoryCode, source } = {}) {
   if (!uri) return { ok: false, configured: false, matches: [] };
   try {
-    const r = await identifyDeviceRequest({ uri, name: 'scan.jpg', type: 'image/jpeg' }, { limit });
+    const r = await identifyDeviceRequest({ uri, name: 'scan.jpg', type: 'image/jpeg' }, { limit, ocrText, codes, categoryCode, source });
     if (!r.configured || r.error) return { ok: false, configured: r.configured, error: r.error, matches: [] };
     return { ok: true, configured: true, ...r };
   } catch (e) {

@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   FileText,
-  ShieldCheck,
   Calendar,
   CalendarCheck,
   Timer,
@@ -39,25 +38,24 @@ import { FEATURE, coverageLabel, fetchEntitlements, usageLabel } from '../../sub
 import { getSession } from '../../auth/session';
 import { fetchMe } from '../../api/auth';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';
-const BRIGHT = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const BRIGHT = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
-const SUCCESS = '#09AD2A';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const TRIAL_ACCENT = '#F59E0B';
 const TRIAL_TINT = '#FEF3C7';
 const PRO_ACCENT = '#8B5CF6';
 const PRO_TINT = '#F3EEFF';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.07,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 8 },
@@ -65,7 +63,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },
@@ -310,7 +308,7 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
           <View style={capStyle}>
           {gated && !activated ? (
             <Notice tone="warn" icon={AlertCircle} title="Your free trial has ended">
-              Choose a plan below to continue using GGFIX. You can log out anytime from the top-right.
+              Choose a plan below to continue using Near G Fix. You can log out anytime from the top-right.
             </Notice>
           ) : null}
 
@@ -398,13 +396,12 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
   );
 }
 
-
 /* ------------------------------------------------------------------ */
 
 const NOTICE_TONE = {
   warn: { bg: TRIAL_TINT, border: '#FDE68A', ink: '#B45309' },
   error: { bg: '#FEE2E2', border: '#FCA5A5', ink: '#B91C1C' },
-  ok: { bg: MINT, border: '#CDEFD5', ink: PRIMARY },
+  ok: { bg: MINT, border: '#C7E6EA', ink: PRIMARY },
 };
 
 /** One-line status banner (trial ended / error / activated). */
@@ -734,7 +731,7 @@ function UpgradePanel({
       {/* Total */}
       <View
         className="flex-row items-center"
-        style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, backgroundColor: MINT, borderWidth: 1, borderColor: '#CDEFD5' }}
+        style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, backgroundColor: MINT, borderWidth: 1, borderColor: '#C7E6EA' }}
       >
         <Text className="font-bold flex-1" style={{ fontSize: 12, color: TEXT_SECONDARY }}>Total payable</Text>
         {quoteLoading ? (

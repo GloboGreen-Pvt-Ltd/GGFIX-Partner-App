@@ -118,7 +118,9 @@ export default function SellScreeningScreen({ navigation, route }) {
           title="Continue"
           arrow
           disabled={!allAnswered}
-          onPress={() => navigation.navigate('SellScreenCondition', { ...params, device, workingCondition, screeningAnswers: questions.filter((q) => answers[q.id]).map((q) => ({ questionId: q.id, answer: answers[q.id], question: q.question })) })}
+          // A caller can send the flow elsewhere after screening (Partner app:
+          // dead / unverified device → Spare Parts); default is unchanged.
+          onPress={() => navigation.navigate(params.nextAfterScreening || 'SellScreenCondition', { ...params, device, workingCondition, screeningAnswers: questions.filter((q) => answers[q.id]).map((q) => ({ questionId: q.id, answer: answers[q.id], question: q.question })) })}
         />
       </SellFooter>
     </View>

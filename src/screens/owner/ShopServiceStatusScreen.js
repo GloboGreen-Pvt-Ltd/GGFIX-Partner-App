@@ -85,7 +85,7 @@ export default function ShopServiceStatusScreen({ navigation }) {
       <ScreenHeader title="Update Service Status" onBack={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={{ padding: 14, paddingBottom: 28 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#087A0A" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#035C6C" />}
       >
         {serviceBookings.length === 0 ? (
           <EmptyState title="No service bookings" description="Customer repair bookings for your shop will appear here." />

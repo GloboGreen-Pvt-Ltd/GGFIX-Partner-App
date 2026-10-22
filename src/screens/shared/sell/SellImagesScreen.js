@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, ImagePlus, X } from 'lucide-react-native';
@@ -17,6 +18,8 @@ const SLOTS = [
 ];
 
 export default function SellImagesScreen({ navigation, route }) {
+  // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
+  const insets = useSafeAreaInsets();
   const params = route.params || {};
   const { editSellOrderId, editHints } = params;
   const isEditing = !!editSellOrderId;
@@ -87,7 +90,7 @@ export default function SellImagesScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }} keyboardShouldPersistTaps="handled">
         {isEditing ? <EditingBanner text="Your previously uploaded photos are kept — tap to replace any." /> : null}
         <SellIntro title="Device photos" caption="Clear photos help buyers trust the listing. Max 5 MB each." />
         <SellCard>

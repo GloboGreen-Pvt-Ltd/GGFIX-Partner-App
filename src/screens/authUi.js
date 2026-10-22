@@ -15,16 +15,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 // Shared design tokens for the auth screens (Login / CreateAccount / forgot-password),
 // on the GGFIX brand sheet (see theme/colors.js). GREEN is for icons and fills;
 // green TEXT uses GREEN_TEXT, the deeper shade that stays readable at small sizes.
-export const GREEN = '#09AD2A';
-export const GREEN_TEXT = '#078F23';
-export const MUTED = '#6B6B6B';
-export const INK = '#1E1E1E';
-export const SCREEN_BG = '#F8F8F8';
+export const GREEN = '#035C6C';
+export const GREEN_TEXT = '#035C6C';
+export const MUTED = '#6B7280';
+export const INK = '#111111';
+export const SCREEN_BG = '#F3F4F6';
 export const FIELD_BG = '#FFFFFF';
-export const FIELD_BORDER = '#E6E6E6';
+export const FIELD_BORDER = '#E5E7EB';
 // Soft brand-green wash at the top of every auth screen, fading into the page.
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
 // Error box: brand red on its soft tint.
 const DANGER = '#F84141';
 const DANGER_TINT = '#FEECEC';
@@ -46,7 +46,7 @@ export function AuthShell({ onBack, children }) {
     <View style={{ flex: 1, backgroundColor: SCREEN_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor={MINT} />
       <LinearGradient
-        colors={[MINT, '#F3FAF4', SCREEN_BG]}
+        colors={[MINT, '#F3F4F6', SCREEN_BG]}
         locations={[0, 0.45, 1]}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: gradientHeight }}
       />

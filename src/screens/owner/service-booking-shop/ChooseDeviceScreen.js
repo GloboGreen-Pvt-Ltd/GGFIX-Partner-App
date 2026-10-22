@@ -11,17 +11,17 @@ import { resolveDeviceImageSource } from '../../../utils/images';
 import { getDeviceCategories } from '../../../api/masterData';
 
 const CODE_META = {
-  MOBILE:        { icon: Smartphone, color: '#087A0A', bg: 'bg-primary/10', sub: 'Smartphones' },
-  SMARTPHONE:    { icon: Smartphone, color: '#087A0A', bg: 'bg-primary/10', sub: 'Smartphones' },
-  LAPTOP:        { icon: Laptop,     color: '#16BB05', bg: 'bg-primary/10', sub: 'Laptops & Notebooks' },
-  TABLET:        { icon: Tablet,     color: '#087A0A', bg: 'bg-info/10',    sub: 'Tablets' },
+  MOBILE:        { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Smartphones' },
+  SMARTPHONE:    { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Smartphones' },
+  LAPTOP:        { icon: Laptop,     color: '#035C6C', bg: 'bg-primary/10', sub: 'Laptops & Notebooks' },
+  TABLET:        { icon: Tablet,     color: '#035C6C', bg: 'bg-info/10',    sub: 'Tablets' },
   SMARTWATCH:    { icon: Watch,      color: '#B45309', bg: 'bg-warning/10', sub: 'Smart Watches' },
   SMARTWATCHES:  { icon: Watch,      color: '#B45309', bg: 'bg-warning/10', sub: 'Smart Watches' },
-  AUDIO:         { icon: Headphones, color: '#087A0A', bg: 'bg-danger/10',  sub: 'Headphones & Earbuds' },
-  AUDIO_DEVICES: { icon: Headphones, color: '#087A0A', bg: 'bg-danger/10',  sub: 'Headphones & Earbuds' },
-  SPEAKER:       { icon: Volume2,    color: '#087A0A', bg: 'bg-success/10', sub: 'Speakers' },
+  AUDIO:         { icon: Headphones, color: '#035C6C', bg: 'bg-danger/10',  sub: 'Headphones & Earbuds' },
+  AUDIO_DEVICES: { icon: Headphones, color: '#035C6C', bg: 'bg-danger/10',  sub: 'Headphones & Earbuds' },
+  SPEAKER:       { icon: Volume2,    color: '#035C6C', bg: 'bg-success/10', sub: 'Speakers' },
 };
-const DEFAULT_META = { icon: Smartphone, color: '#087A0A', bg: 'bg-primary/10', sub: 'Devices' };
+const DEFAULT_META = { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Devices' };
 
 const CODE_ORDER = [
   'MOBILE', 'SMARTPHONE',
@@ -82,7 +82,7 @@ export default function ChooseDeviceScreen({ navigation, route }) {
 
   // Hand off to the consolidated shared device picker. `flow: 'BOOKING'` is
   // what tells shared/device/SelectModelScreen to route to DeviceColorStorage
-  // (rather than SelectVariant or OwnerSellChooseSalesCategory) at the end.
+  // (rather than SelectVariant) at the end.
   const onPick = (c) => navigation.navigate('SelectBrand', {
     ...params,
     flow: 'BOOKING',
@@ -141,7 +141,7 @@ export default function ChooseDeviceScreen({ navigation, route }) {
                       backgroundColor: CARD_BG,
                       padding: 6,
                       alignItems: 'center',
-                      shadowColor: '#172117',
+                      shadowColor: '#111111',
                       shadowOpacity: 0.04,
                       shadowRadius: 8,
                       shadowOffset: { width: 0, height: 2 },

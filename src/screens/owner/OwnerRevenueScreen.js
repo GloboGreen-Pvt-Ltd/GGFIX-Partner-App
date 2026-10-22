@@ -20,13 +20,13 @@ import { hasInvoice } from './AllBooking/bookingScopes';
 import { dayLabel, formatMoney } from './revenueMath';
 
 // GGFIX brand sheet (theme/colors.js).
-const GREEN = '#09AD2A';
-const GREEN_TEXT = '#078F23';
-const MINT = '#EAF8EC';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const HAIR = '#F3F3F3';
-const LINE = '#E6E6E6';
+const GREEN = '#035C6C';
+const GREEN_TEXT = '#035C6C';
+const MINT = '#E5F3F5';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const HAIR = '#F3F4F6';
+const LINE = '#E5E7EB';
 const RED = '#F84141';
 
 // "12 Months" really is the last twelve months, so the widest chip is labelled
@@ -298,7 +298,7 @@ export default function OwnerRevenueScreen({ navigation }) {
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#F8F8F8' }}>
+    <View className="flex-1" style={{ backgroundColor: '#F3F4F6' }}>
       {/* ── Green revenue hero ─────────────────────────────────── */}
       <LinearGradient
         colors={[GREEN, GREEN_TEXT]}

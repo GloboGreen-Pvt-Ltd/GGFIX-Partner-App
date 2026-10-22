@@ -20,12 +20,6 @@ import { listAddresses } from '../../api/customer';
  *   source: 'override' | 'address' | 'gps' | 'default'
  */
 
-const DEFAULT_LOCATION = {
-  lat: 11.7480,
-  lng: 79.7714,
-  label: 'Cuddalore (default)',
-};
-
 const GPS_MAX_ACCURACY_METERS = 5000;
 
 // On native (iOS/Android), navigator.geolocation isn't reliably polyfilled in

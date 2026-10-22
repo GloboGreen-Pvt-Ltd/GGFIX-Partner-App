@@ -1,11 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import {
-  ClipboardList, Hammer, CheckCircle2, Clock, ChevronRight, Wrench, CalendarDays,
+  ClipboardList,
+  Hammer,
+  CheckCircle2,
+  Clock,
+  Wrench,
+  CalendarDays,
 } from 'lucide-react-native';
 import {
-  AppHeader, Card, SectionTitle, StatusChip, BookingCard, EmptyState, Loader, ErrorState,
-  ScreenContainer, Button, Skeleton,
+  AppHeader,
+  Card,
+  SectionTitle,
+  BookingCard,
+  EmptyState,
+  ErrorState,
+  ScreenContainer,
+  Button,
+  Skeleton,
 } from '../../../components/rnr';
 import { tokens } from '../../../theme/colors';
 import { ticketApi } from '../../../api/client';

@@ -19,17 +19,16 @@ import { rs } from '../../../utils/responsive';
  * the library is the right tool — see `lib/hooks/useKeyboardHeight` for the full why.
  */
 // GGFIX palette.
-const ACCENT = '#09AD2A';       // GGFIX green
-const PRIMARY = '#078F23';      // green text
-const MINT = '#EAF8EC';
+const ACCENT = '#035C6C';       // GGFIX green
+const PRIMARY = '#035C6C';      // green text
+const MINT = '#E5F3F5';
 const WHITE = '#FFFFFF';
-const PAGE_BG = '#F8F8F8';
-const INK = '#1E1E1E';
-const MUTED = '#8A8A8A';
-const SUB = '#6B6B6B';
-const LINE = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const SOFT = '#F3F3F3';
+const PAGE_BG = '#F3F4F6';
+const INK = '#111111';
+const MUTED = '#9CA3AF';
+const SUB = '#6B7280';
+const LINE = '#E5E7EB';
+const HAIR = '#F3F4F6';
 
 // Semantic colours for the flag pills: Missing = yellow, Damaged = red.
 // `*_TEXT` is the readable text shade on the tint.
@@ -180,9 +179,9 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* ── Part checklist — grid of small cards: icon, name and
-            description, then the Missing / Damaged toggles across the
-            bottom. The details field appears only once a part is flagged. ── */}
+        {/* ── Part checklist — grid of small cards: icon + name, then the
+            Missing / Damaged toggles. The details field appears only once a
+            part is flagged. ── */}
         <View className="flex-row flex-wrap" style={{ marginTop: 10, gap: gridGap }}>
           {PARTS.map((p) => {
             const row = state[p.id] || {};
@@ -207,20 +206,18 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                   elevation: anyFlag ? 0 : 1,
                 }}
               >
-                <View
-                  className="items-center justify-center"
-                  style={{ height: 32, width: 32, borderRadius: 10, backgroundColor: anyFlag ? WHITE : MINT }}
-                >
-                  <Icon size={16} color={anyFlag ? flagColor : ACCENT} strokeWidth={2} />
+                <View className="flex-row items-center">
+                  <View
+                    className="items-center justify-center"
+                    style={{ height: 32, width: 32, borderRadius: 10, backgroundColor: anyFlag ? WHITE : MINT }}
+                  >
+                    <Icon size={16} color={anyFlag ? flagColor : ACCENT} strokeWidth={2} />
+                  </View>
+                  <Text style={{ flex: 1, marginLeft: 8, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={2}>
+                    {p.name}
+                  </Text>
                 </View>
-                <Text style={{ marginTop: 8, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>
-                  {p.name}
-                </Text>
-                {/* Fixed two-line slot so every card in a row lines up. */}
-                <Text style={{ fontSize: 11, lineHeight: 15, minHeight: 30, color: SUB, marginTop: 1 }} numberOfLines={2}>
-                  {p.desc}
-                </Text>
-                <View className="flex-row" style={{ marginTop: 8, gap: 6 }}>
+                <View className="flex-row" style={{ marginTop: 10, gap: 6 }}>
                   <FlagPill
                     label="Missing"
                     active={!!row.missing}
@@ -296,7 +293,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                 {flaggedTotal} PART{flaggedTotal === 1 ? '' : 'S'} FLAGGED
               </Text>
               <Text className="text-white" style={{ fontSize: 13, fontWeight: '800', marginTop: 1 }} numberOfLines={1}>
-                Review &amp; Submit
+                Next
               </Text>
             </View>
             <View

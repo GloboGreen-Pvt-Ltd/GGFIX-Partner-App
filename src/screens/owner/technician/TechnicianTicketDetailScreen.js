@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../../api/client';
 
@@ -26,7 +26,7 @@ export default function TechnicianTicketDetailScreen({ route, navigation }) {
   if (loading && !ticket) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ActivityIndicator size="large" color="#16BB05" style={styles.loader} />
+        <ActivityIndicator size="large" color="#035C6C" style={styles.loader} />
       </SafeAreaView>
     );
   }
@@ -60,16 +60,16 @@ export default function TechnicianTicketDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
+  safe: { flex: 1, backgroundColor: '#111111' },
   loader: { flex: 1, justifyContent: 'center' },
   scroll: { flex: 1 },
   content: { padding: 12, paddingBottom: 24 },
-  tracking: { fontSize: 17, fontWeight: '700', color: '#F7FAF7', marginBottom: 6 },
-  status: { fontSize: 15, color: '#16BB05', marginBottom: 10 },
-  field: { fontSize: 13, color: '#8FA08F', marginBottom: 12 },
-  button: { backgroundColor: '#087A0A', padding: 13, borderRadius: 8, alignItems: 'center', marginBottom: 9 },
+  tracking: { fontSize: 17, fontWeight: '700', color: '#F3F4F6', marginBottom: 6 },
+  status: { fontSize: 15, color: '#035C6C', marginBottom: 10 },
+  field: { fontSize: 13, color: '#9CA3AF', marginBottom: 12 },
+  button: { backgroundColor: '#035C6C', padding: 13, borderRadius: 8, alignItems: 'center', marginBottom: 9 },
   buttonText: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  buttonAlt: { backgroundColor: '#172117', padding: 13, borderRadius: 8, alignItems: 'center', marginBottom: 9, borderWidth: 1, borderColor: '#172117' },
-  buttonAltText: { fontSize: 15, fontWeight: '600', color: '#F7FAF7' },
+  buttonAlt: { backgroundColor: '#111111', padding: 13, borderRadius: 8, alignItems: 'center', marginBottom: 9, borderWidth: 1, borderColor: '#111111' },
+  buttonAltText: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
   error: { fontSize: 13, color: '#DC2626', padding: 16 },
 });

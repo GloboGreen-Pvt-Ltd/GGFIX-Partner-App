@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
@@ -35,7 +35,7 @@ export default function UpdateStatusScreen({ route, navigation }) {
           disabled={submitting != null}
         >
           <Text style={styles.optionText}>{status}</Text>
-          {submitting === status ? <ActivityIndicator size="small" color="#16BB05" /> : null}
+          {submitting === status ? <ActivityIndicator size="small" color="#035C6C" /> : null}
         </TouchableOpacity>
       ))}
     </SafeAreaView>
@@ -43,8 +43,8 @@ export default function UpdateStatusScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117', padding: 12 },
-  title: { fontSize: 17, fontWeight: '600', color: '#F7FAF7', marginBottom: 12 },
-  option: { backgroundColor: '#172117', borderRadius: 8, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: '#172117', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  optionText: { fontSize: 15, color: '#F7FAF7' },
+  safe: { flex: 1, backgroundColor: '#111111', padding: 12 },
+  title: { fontSize: 17, fontWeight: '600', color: '#F3F4F6', marginBottom: 12 },
+  option: { backgroundColor: '#111111', borderRadius: 8, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: '#111111', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  optionText: { fontSize: 15, color: '#F3F4F6' },
 });

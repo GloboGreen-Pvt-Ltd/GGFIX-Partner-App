@@ -95,6 +95,17 @@ function normalizeMatch(m) {
     confidence: m.confidence ?? null,
     matchedBy: m.matchedBy ?? 'visual',
     categoryName: m.categoryName ?? null,
+    // Additive fields from the newer /master/device-identify (visual vector
+    // search + calibrated confidence). Older servers simply don't send them.
+    brandId: m.brandId ?? null,
+    categoryId: m.categoryId ?? null,
+    categoryCode: m.categoryCode ?? null,
+    seriesId: m.seriesId ?? null,
+    referenceImageUrl: m.referenceImageUrl ?? null,
+    visualSimilarity: typeof m.visualSimilarity === 'number' ? m.visualSimilarity : null,
+    confidenceScore: typeof m.confidenceScore === 'number' ? m.confidenceScore : null,
+    signals: Array.isArray(m.signals) ? m.signals : [],
+    verified: m.verified === true,
   };
 }
 
@@ -108,18 +119,40 @@ function normalizeMatch(m) {
  * Resolves to { configured, confidence, labels, brand, bestMatch, matches, error }.
  * configured=false means the server has no Google key yet — callers fall back.
  */
-export async function identifyDevice(asset, { limit = 8 } = {}) {
+export async function identifyDevice(asset, { limit = 8, ocrText, codes, categoryCode, source } = {}) {
   if (!asset?.uri) return { configured: false, confidence: 'low', labels: [], brand: null, bestMatch: null, matches: [] };
   const name = asset.fileName || asset.name || asset.uri.split('/').pop() || 'scan.jpg';
+  const codeList = Array.isArray(codes) ? codes.filter(Boolean) : [];
   const res = await masterApi.upload('/master/device-identify', {
     uri: asset.uri,
     name,
     type: asset.mimeType || asset.type || mimeFromName(name),
-    fields: { limit },
+    // Optional hints (on-device OCR text, barcode/QR values, category guess,
+    // CAMERA|GALLERY). undefined fields are not sent, so older callers and
+    // older servers behave exactly as before.
+    fields: {
+      limit,
+      ocrText: ocrText ? String(ocrText).slice(0, 4000) : undefined,
+      codes: codeList.length ? JSON.stringify(codeList.slice(0, 20)) : undefined,
+      categoryCode: categoryCode || undefined,
+      source: source || undefined,
+    },
   });
   return {
     configured: res?.configured !== false,
     confidence: res?.confidence || 'low',
+    // Newer server fields (additive): calibrated P(best match is right), the
+    // scan id for feedback, and which providers answered.
+    scanId: res?.scanId || null,
+    confidenceScore: typeof res?.confidenceScore === 'number' ? res.confidenceScore : null,
+    calibrated: res?.calibrated === true,
+    // EXACT | POSSIBLE | NONE, and the model itself when EXACT (verified).
+    identification: res?.identification || null,
+    exactMatch: res?.exactMatch ? normalizeMatch(res.exactMatch) : null,
+    retryAfterSeconds: res?.retryAfterSeconds ?? null,
+    provider: res?.provider || null,
+    providers: res?.providers || null,
+    aiGuess: res?.aiGuess || null,
     labels: Array.isArray(res?.labels) ? res.labels : [],
     // The Google label behind the top match ("Samsung Galaxy S8+ 64GB").
     recognisedAs: res?.recognisedAs || null,
@@ -128,6 +161,18 @@ export async function identifyDevice(asset, { limit = 8 } = {}) {
     bestMatch: res?.bestMatch ? normalizeMatch(res.bestMatch) : null,
     matches: Array.isArray(res?.matches) ? res.matches.map(normalizeMatch) : [],
   };
+}
+
+/**
+ * Tells master-data which model the user actually picked for a scan
+ * (rank = its index in `matches`, or -1 when picked via manual search).
+ * Fire-and-forget: never throws, never blocks navigation.
+ */
+export function sendDeviceIdentifyFeedback(scanId, { modelId, rank } = {}) {
+  if (!scanId || !modelId) return;
+  masterApi
+    .post(`/master/device-identify/${encodeURIComponent(scanId)}/feedback`, { body: { modelId, rank: Number.isInteger(rank) ? rank : -1 } })
+    .catch(() => {});
 }
 
 export async function visualSearch(asset, { limit = 5, ocrText, barcode } = {}) {

@@ -1,41 +1,148 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { listShopRepairBookings } from '../../api/orders';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Check,
+  ChartColumn,
+  Smartphone,
+  Laptop,
+  User,
+  UserCog,
+  Clock,
+  Inbox,
+  RefreshCw,
+  WifiOff,
+  Wrench,
+  ScanLine,
+} from 'lucide-react-native';
+import { ticketApi } from '../../api/client';
+import { getModelsByBrand } from '../../api/masterData';
+import { notify } from '../../components/confirm';
+import { SearchBar } from '../../components/rnr/SearchBar';
+import TicketCard from '../../components/TicketCard';
+import { resolveDeviceImageSource } from '../../utils/images';
 import { useResponsive } from '../../theme/responsive';
 import { rf, rs } from '../../utils/responsive';
+
+/**
+ * Job's Report — the same screen as the Employee app's Job Report
+ * (GGFIX-Staff-App/src/screens/JobReportScreen.js), over the shop's tickets.
+ *
+ * Two modes. From the dashboard's "Job's Report" tile there is no `employee`
+ * param and it lists every ticket that has a technician on it; from one
+ * employee's "Task Report" button it carries `employee` and lists only that
+ * technician's tickets (ticket.assignedTechnicianId === /technicians id).
+ */
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const FILTERS = ['All', 'Completed', 'In Process', 'Pending'];
-
-// Map raw booking.status / latest-event status into a UI bucket the cards key off.
+// Ticket statuses → display buckets (same split as the Employee app).
 function bucketize(status) {
   const s = (status || '').toUpperCase();
-  if (s.includes('COMPLETE') || s === 'DELIVERED' || s === 'CLOSED') return 'COMPLETED';
-  if (s.includes('PENDING') || s.includes('AWAIT') || s === 'SPARE_ORDERED') return 'PENDING';
-  if (
-    s.includes('IN_SERVICE')
-    || s.includes('IN_PROCESS')
-    || s.includes('STARTED')
-    || s === 'SERVICE_ACCEPTED'
-    || s === 'ASSIGNED'
-    || s === 'CONFIRMED'
-    || s === 'PICKUP_SCHEDULED'
-  ) return 'IN_PROCESS';
+  if (s === 'DELIVERED' || s === 'CANCELLED') return 'COMPLETED';
+  if (s === 'CREATED' || s === 'IN_DIAGNOSIS' || s === 'QUOTED') return 'PENDING';
   return 'IN_PROCESS';
+}
+
+const STATUS_LABEL = {
+  CREATED: 'Booking Created',
+  IN_DIAGNOSIS: 'In Diagnosis',
+  QUOTED: 'Quotation Sent. Awaiting Approval',
+  APPROVED: 'Customer Approved. Work Pending',
+  IN_REPAIR: 'Repair Work In Progress',
+  READY: 'Ready for Delivery',
+  DELIVERED: 'Delivered to Customer',
+  CANCELLED: 'Work Cancelled',
+};
+
+function statusLabel(status) {
+  const s = (status || '').toUpperCase();
+  return STATUS_LABEL[s] || (status ? status.replace(/_/g, ' ') : '—');
+}
+
+// Canonical event order: the highest-index event is the ticket's current
+// phase even when two events share a createdAt (accept + work-started).
+const CANONICAL_EVENT_ORDER = [
+  'BOOKING_CREATED_BY_SHOP',
+  'SERVICE_ACCEPTED',
+  'ASSIGNED_TO_TECHNICIAN',
+  'AWAITING_TECHNICIAN_ACCEPTANCE',
+  'REASSIGNED_TO_TECHNICIAN',
+  'TECHNICIAN_ACCEPTED_SERVICE',
+  'TECHNICIAN_WORK_STARTED',
+  'TECHNICIAN_UPLOADED_DEVICE_IMAGES',
+  'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',
+  'RE_ESTIMATED_CONFIRMED',
+  'CUSTOMER_APPROVED',
+  'CUSTOMER_REJECTED',
+  'IN_REPAIR',
+  'PARTS_REQUIRED',
+  'QUALITY_CHECK_COMPLETED',
+  'REPAIR_COMPLETED',
+  'READY',
+  'DELIVERED',
+  'CANCELLED',
+];
+const EVENT_INDEX = Object.fromEntries(CANONICAL_EVENT_ORDER.map((k, i) => [k, i]));
+
+const EVENT_LABEL = {
+  BOOKING_CREATED_BY_SHOP: 'Booking Created by Shop',
+  SERVICE_ACCEPTED: 'Service Accepted',
+  ASSIGNED_TO_TECHNICIAN: 'Assigned to Technician',
+  AWAITING_TECHNICIAN_ACCEPTANCE: 'Awaiting Technician Acceptance',
+  REASSIGNED_TO_TECHNICIAN: 'Re-Assigned to Technician',
+  TECHNICIAN_ACCEPTED_SERVICE: 'Technician Accepted Service',
+  TECHNICIAN_WORK_STARTED: 'Technician Work Started',
+  TECHNICIAN_UPLOADED_DEVICE_IMAGES: 'Technician Uploaded Device Images',
+  TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED: 'Technician Compliance Issue Verified & Updated',
+  RE_ESTIMATED_CONFIRMED: 'Re-Estimated Confirmed',
+  CUSTOMER_APPROVED: 'Customer Approved',
+  CUSTOMER_REJECTED: 'Customer Rejected',
+  IN_REPAIR: 'Repair Work In Progress',
+  PARTS_REQUIRED: 'Spare Parts Waiting',
+  QUALITY_CHECK_COMPLETED: 'Quality Check Completed',
+  REPAIR_COMPLETED: 'Repair Completed',
+  READY: 'Repair Completed',
+  DELIVERED: 'Repair Completed',
+  CANCELLED: 'Work Cancelled',
+};
+
+function eventLabel(eventKey) {
+  if (!eventKey) return null;
+  const k = String(eventKey).toUpperCase();
+  return EVENT_LABEL[k] || k.replace(/_/g, ' ');
+}
+
+function pickLatestEventKey(events) {
+  if (!Array.isArray(events) || events.length === 0) return null;
+  let bestKey = null;
+  let bestIndex = -1;
+  let bestTime = -Infinity;
+  for (const e of events) {
+    const k = (e?.status || '').toUpperCase();
+    if (!k) continue;
+    const idx = EVENT_INDEX[k];
+    const t = e.createdAt ? new Date(e.createdAt).getTime() : 0;
+    if (idx == null) {
+      if (bestIndex === -1 && t > bestTime) {
+        bestKey = k;
+        bestTime = t;
+      }
+      continue;
+    }
+    if (idx > bestIndex || (idx === bestIndex && t > bestTime)) {
+      bestKey = k;
+      bestIndex = idx;
+      bestTime = t;
+    }
+  }
+  return bestKey;
 }
 
 function formatDate(d) {
@@ -43,94 +150,138 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatDateTime(instant) {
-  if (!instant) return '—';
-  return new Date(instant).toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
+const timeOf = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const h = d.getHours();
+  return `${String(h % 12 || 12).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
+function ticketRef(t) {
+  if (t?.trackingId) return `#${t.trackingId}`;
+  const digits = String(t?.id || '').replace(/[^0-9]/g, '').slice(0, 8);
+  return `#CSPEN${digits || '——'}`;
+}
+
+// ---------------------------------------------------------------------------
+// Visual tokens
+// ---------------------------------------------------------------------------
+const C = {
+  green: '#035C6C',
+  red: '#F32C26',
+  yellow: '#FAA700',
+  blue: '#0788C9',
+  ink: '#111111',
+  bg: '#F3F4F6',
+  white: '#FFFFFF',
+  muted: '#7A7A7A',
+  faint: '#A3A3A3',
+  line: '#EFEFEF',
+};
+
+const TONES = {
+  red: { fg: C.red, bg: '#FEECEC' },
+  yellow: { fg: C.yellow, bg: '#FFF4D6' },
+  green: { fg: C.green, bg: '#E5F3F5' },
+  blue: { fg: C.blue, bg: '#E8F0FE' },
+  ink: { fg: C.ink, bg: '#E5E7EB' },
+};
+
+function statusPill(t) {
+  const s = (t?.status || '').toUpperCase();
+  const bk = bucketize(s);
+  if (s === 'QUOTED') return { label: 'Pending Approval', tone: 'yellow' };
+  if (bk === 'PENDING') return { label: 'Pending', tone: 'red' };
+  if (bk === 'IN_PROCESS') return { label: 'In Process', tone: 'yellow' };
+  if (s === 'CANCELLED') return { label: 'Cancelled', tone: 'ink' };
+  return { label: 'Completed', tone: 'green' };
+}
+
+// Tickets carry no device-category field, so infer phone vs laptop from text.
+const LAPTOP_RE = /(laptop|notebook|macbook|chromebook|thinkpad|ideapad|vivobook|zenbook|xps|inspiron|latitude|vostro|pavilion|elitebook|probook|envy|spectre|omen|aspire|swift|predator|nitro|rog|tuf|legion|yoga|surface\s*(laptop|book)|galaxy\s*book|matebook|gram)/i;
+function isLaptop(t) {
+  return LAPTOP_RE.test([t?.deviceDisplayName, t?.brandName, t?.modelName].filter(Boolean).join(' '));
+}
+
+function deviceName(t) {
+  if (t?.deviceDisplayName) return t.deviceDisplayName;
+  return [t?.brandName, t?.modelName].filter(Boolean).join(' ') || 'Device';
+}
+
+function issueText(t) {
+  return t?.issueDescription || t?.repairServicesSummary || t?.complianceNote || 'Issue not specified';
+}
+
+function filterByChip(list, chip) {
+  return list.filter((b) => {
+    const bk = bucketize(b.status);
+    if (chip === 'All') return true;
+    if (chip === 'Completed') return bk === 'COMPLETED';
+    if (chip === 'In Process') return bk === 'IN_PROCESS';
+    if (chip === 'Pending') return bk === 'PENDING';
+    return false;
   });
 }
 
-// Compose a "device" line out of the brand/model/RAM/storage fields the booking carries.
-function deviceLine(b) {
-  const parts = [];
-  if (b.modelName) parts.push(b.modelName);
-  else if (b.brandName) parts.push(b.brandName);
-  if (b.ramLabel || b.storageLabel) {
-    parts.push(`${b.ramLabel || ''}${b.ramLabel && b.storageLabel ? ' / ' : ''}${b.storageLabel || ''}`.trim());
-  }
-  if (b.issueSummary) parts.push(b.issueSummary);
-  return parts.join(' - ') || 'Repair booking';
-}
+const byRecent = (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
 
-function trackingId(b) {
-  return b.trackingId || b.ticketCode || `CSPEN${String(b.id || '').replace(/[^0-9]/g, '').slice(0, 8) || '——'}`;
-}
-
-export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) {
-
-  // Tablet: cap the column and centre it. A report stretched across a 1024pt
-  // iPad makes the eye track the full line and leaves the tiles floating in
-  // dead space — phones are unaffected (contentW stays undefined).
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
+export default function OwnerJobReportScreen({ route, navigation }) {
+  // Tablet: cap the column and centre it; phones are unaffected.
   const r = useResponsive();
   const contentW = r.isTablet ? Math.min(r.width - rs(32), 700) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
   const employee = route.params?.employee;
-  // No `employee` param = ALL-TECHNICIAN mode. This screen is reachable two
-  // ways now: from one employee's detail page, and from the dashboard's
-  // "Service Report" tile, which wants every technician's assigned tickets.
-  // Everything below keys off this instead of bailing with "Employee not found".
   const allMode = !employee?.id;
+
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [list, setList] = useState([]);
+  const [techNameById, setTechNameById] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
+  const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
+  // Latest event key per ticket id — the card's "Status" line shows the real
+  // current phase; falls back to the macro status until events arrive.
+  const [eventStatusById, setEventStatusById] = useState({});
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const all = await listShopRepairBookings();
-      setList(Array.isArray(all) ? all : []);
+      const [data, techs] = await Promise.all([
+        ticketApi.get('/tickets', { query: { page: 0, size: 500 } }),
+        allMode ? ticketApi.get('/technicians').catch(() => []) : Promise.resolve([]),
+      ]);
+      const content = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
+      setList(content.filter((t) => (allMode ? !!t.assignedTechnicianId : t.assignedTechnicianId === employee.id)));
+      const techArr = Array.isArray(techs) ? techs : techs?.content || [];
+      setTechNameById(Object.fromEntries(techArr.map((x) => [x.id, x.name])));
+      setError(false);
     } catch {
-      setList([]);
+      setError(true);
+      if (isRefresh) notify('Could not refresh', 'Check your connection and pull down to try again.');
+      else { setList([]); setEventStatusById({}); }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [allMode, employee?.id]);
 
-  React.useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  // Keep only bookings actually assigned to this employee. The order-service
-  // currently exposes `assignedPickupPersonId` (UUID) for pickup persons and
-  // a denormalized `technicianName` string for service technicians, so we
-  // match on either path. (Adding a proper `assignedTechnicianId` column on
-  // repair_bookings would let this become a server-side filter.)
-  const mineAll = useMemo(() => {
-    // All-technician mode: every booking that has a technician on it. There is
-    // no `assignedTechnicianId` column on repair_bookings, so "is assigned" can
-    // only be read off the denormalized `technicianName` string — the same
-    // limitation the per-employee branch below works around by name-matching.
-    if (allMode) return list.filter((b) => !!String(b.technicianName || '').trim());
-    if (!employee?.id) return [];
-    return list.filter((b) => {
-      if (b.assignedPickupPersonId === employee.id) return true;
-      if (b.technicianName && employee.name && b.technicianName.trim() === employee.name.trim()) return true;
-      return false;
-    });
-  }, [list, allMode, employee?.id, employee?.name]);
-
-  // Scope to the picked month so the stats only reflect tasks created/updated then.
-  const mine = useMemo(() => {
-    return mineAll.filter((b) => {
-      const t = b.updatedAt || b.createdAt;
-      if (!t) return true;
-      const d = new Date(t);
-      return d.getFullYear() === year && d.getMonth() + 1 === month;
-    });
-  }, [mineAll, year, month]);
+  // Scope to the picked month so the stats only reflect tickets touched then.
+  const mine = useMemo(() => list.filter((b) => {
+    const t = b.updatedAt || b.createdAt;
+    if (!t) return true;
+    const d = new Date(t);
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  }), [list, year, month]);
 
   const counts = useMemo(() => {
     let pending = 0, inProcess = 0, completed = 0;
@@ -143,25 +294,35 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
     return { inProcess, pending, completed, total: mine.length };
   }, [mine]);
 
-  const sortedDesc = useMemo(() => {
-    return [...mine].sort((a, b) => {
-      const at = new Date(a.updatedAt || a.createdAt || 0).getTime();
-      const bt = new Date(b.updatedAt || b.createdAt || 0).getTime();
-      return bt - at;
-    });
-  }, [mine]);
+  // Search looks across every job (not just this month) by ref, device,
+  // customer, phone, issue or technician; the stat filter still applies.
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return filterByChip([...mine].sort(byRecent), filter);
+    return filterByChip([...list].sort(byRecent), filter).filter((t) => [
+      ticketRef(t), deviceName(t), t.customerName, t.customerPhone, issueText(t), techNameById[t.assignedTechnicianId],
+    ].some((v) => v && String(v).toLowerCase().includes(q)));
+  }, [mine, list, filter, query, techNameById]);
 
-  const recentPending = sortedDesc.find((b) => bucketize(b.status) === 'PENDING');
-  const recentInProcess = sortedDesc.find((b) => bucketize(b.status) === 'IN_PROCESS');
-
-  const previousCompleted = sortedDesc.filter((b) => {
-    const bk = bucketize(b.status);
-    if (filter === 'All') return true;
-    if (filter === 'Completed') return bk === 'COMPLETED';
-    if (filter === 'In Process') return bk === 'IN_PROCESS';
-    if (filter === 'Pending') return bk === 'PENDING';
-    return false;
-  });
+  // Events only for the rendered tickets (capped), re-fetched when that set
+  // or the list changes; failures fall back to the macro status.
+  const displayedKey = useMemo(() => shown.slice(0, 30).map((t) => t.id).filter(Boolean).join('|'), [shown]);
+  useEffect(() => {
+    const ids = displayedKey ? displayedKey.split('|') : [];
+    if (ids.length === 0) return undefined;
+    let active = true;
+    (async () => {
+      const updates = {};
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const key = pickLatestEventKey(await ticketApi.get(`/tickets/${id}/events`));
+          if (key) updates[id] = key;
+        } catch { /* macro status fallback */ }
+      }));
+      if (active && Object.keys(updates).length) setEventStatusById((prev) => ({ ...prev, ...updates }));
+    })();
+    return () => { active = false; };
+  }, [displayedKey, list]);
 
   const stepMonth = (delta) => {
     let m = month + delta;
@@ -172,157 +333,109 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
     setYear(y);
   };
 
-  const openBooking = (b) => {
-    navigation.navigate('OwnerPickupServiceDetail', { id: b.id, booking: b });
-  };
+  const openTicket = (t) => navigation.navigate('TicketDetail', { ticketId: t.id });
+  const openHistory = (t) => navigation.navigate('BookingTimeline', { ticketId: t.id });
+  const onStatPress = (key) => setFilter({ process: 'In Process', pending: 'Pending', completed: 'Completed' }[key] || 'All');
+
+  const phaseFor = (t) => eventLabel(eventStatusById[t.id]) || statusLabel(t.status);
+  const showInitialSpinner = loading && list.length === 0;
+  const showError = error && list.length === 0 && !loading;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.content, capStyle]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />}
-      >
-        {/* This Month — stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.statsHeader}>
-            <Text style={styles.statsHeaderTitle}>This Month</Text>
-            <View style={styles.monthPill}>
-              <Text style={styles.monthPillText}>{MONTHS[month - 1]} {year}</Text>
-              <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-back" size={13} color={GREEN_DEEP} />
-              </TouchableOpacity>
-              <View style={styles.monthPillSep} />
-              <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-forward" size={13} color={GREEN_DEEP} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.statTilesRow}>
-            <StatTile
-              value={String(counts.inProcess).padStart(2, '0')}
-              label="In Process"
-              hint="Active"
-              icon="time-outline"
-              tint={MINT}
-              accent={GREEN}
-              accentText={GREEN_DEEP}
-            />
-            <StatTile
-              value={String(counts.pending).padStart(2, '0')}
-              label="Pending"
-              hint="Waiting"
-              icon="alert-circle"
-              tint={AMBER_BG}
-              accent={AMBER}
-              accentText={AMBER_TEXT}
-            />
-            <StatTile
-              value={String(counts.completed).padStart(3, '0')}
-              label="Completed"
-              hint="Finished"
-              icon="checkmark-circle"
-              tint={MINT}
-              accent={GREEN}
-              accentText={GREEN_DEEP}
-            />
-            <StatTile
-              value={String(counts.total).padStart(3, '0')}
-              label="Total"
-              hint="Overall"
-              icon="stats-chart"
-              tint={MINT}
-              accent={GREEN}
-              accentText={GREEN_DEEP}
-            />
-          </View>
-        </View>
-
-        {loading && list.length === 0 && (
-          <ActivityIndicator size="small" color={GREEN} style={{ marginVertical: rs(20) }} />
-        )}
-
-        {/* Recent Pending */}
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHeader}>Recent Pending</Text>
-          <TouchableOpacity onPress={() => setFilter('Pending')}>
-            <Text style={styles.viewAll}>View all</Text>
-          </TouchableOpacity>
-        </View>
-        {recentPending ? (
-          <TaskCard
-            booking={recentPending}
-            bucket="PENDING"
-            onPress={() => openBooking(recentPending)}
-            onRefresh={() => load(true)}
-            refreshing={refreshing}
-            showAssignee={allMode}
-          />
-        ) : (
-          <View style={styles.emptyCard}>
-            <Ionicons name="file-tray-outline" size={22} color={GREEN} />
-            <Text style={styles.emptyTitle}>No pending tasks.</Text>
-            <Text style={styles.emptySub}>You&apos;re all caught up!</Text>
-          </View>
-        )}
-
-        {/* In Process */}
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHeader}>In Process</Text>
-          <TouchableOpacity onPress={() => setFilter('In Process')}>
-            <Text style={styles.viewAll}>View all</Text>
-          </TouchableOpacity>
-        </View>
-        {recentInProcess ? (
-          <TaskCard
-            booking={recentInProcess}
-            bucket="IN_PROCESS"
-            onPress={() => openBooking(recentInProcess)}
-            onRefresh={() => load(true)}
-            refreshing={refreshing}
-            showAssignee={allMode}
-          />
-        ) : (
-          <View style={styles.emptyCard}>
-            <Ionicons name="checkmark-done-outline" size={22} color={GREEN} />
-            <Text style={styles.emptyTitle}>No tasks in progress.</Text>
-            <Text style={styles.emptySub}>Nothing being worked on right now.</Text>
-          </View>
-        )}
-
-        {/* Previous Completed (with filter chips) */}
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHeader}>Previous Completed</Text>
-          <TouchableOpacity onPress={() => setFilter('All')}>
-            <Text style={styles.viewAll}>View all</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterChip, filter === f && styles.filterChipActive]}
-              onPress={() => setFilter(f)}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>
-                {f}
-              </Text>
+      {/* Header: back · centred title */}
+      <View style={styles.headerBar}>
+        <View style={{ width: rs(36) }}>
+          {navigation.canGoBack() ? (
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} accessibilityLabel="Back" activeOpacity={0.7} style={styles.headerBack}>
+              <ChevronLeft size={rs(20)} color="#111111" strokeWidth={2.4} />
             </TouchableOpacity>
-          ))}
+          ) : null}
         </View>
-        {previousCompleted.length === 0 ? (
-          <Text style={styles.empty}>No tasks found.</Text>
-        ) : (
-          previousCompleted.map((b) => (
-            <TaskCard
-              key={b.id}
-              booking={b}
-              bucket={bucketize(b.status)}
-              onPress={() => openBooking(b)}
-              onRefresh={() => load(true)}
-              refreshing={refreshing}
-              showAssignee={allMode}
+        <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{allMode ? "Job's Report" : 'Working Record'}</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>{allMode ? 'Working Jobs' : (employee?.name || 'Technician')}</Text>
+        </View>
+        <View style={{ width: rs(36) }} />
+      </View>
+
+      {/* Search + scan a job QR */}
+      <View style={[styles.searchWrap, capStyle]}>
+        <SearchBar
+          value={query}
+          onChangeText={setQuery}
+          placeholder={allMode ? 'Search job, device, customer, technician' : 'Search job, device, customer'}
+          onClear={() => setQuery('')}
+          rightAccessory={(
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ScanQrCode')}
+              hitSlop={8} accessibilityLabel="Scan job QR code" activeOpacity={0.7}
+              style={styles.scanBtn}
+            >
+              <ScanLine size={rs(18)} color={C.green} strokeWidth={2.2} />
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+
+      <ScrollView
+        style={{ backgroundColor: C.bg }}
+        contentContainerStyle={[styles.content, capStyle]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.green} colors={[C.green]} />}
+      >
+        {/* Month */}
+        <View style={styles.monthRow}>
+          <View style={styles.monthPill}>
+            <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={8} accessibilityLabel="Previous month">
+              <ChevronLeft size={rs(15)} color={C.white} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.monthPillText} numberOfLines={1}>{MONTHS[month - 1].slice(0, 3)} {year}</Text>
+            <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={8} accessibilityLabel="Next month">
+              <ChevronRight size={rs(15)} color={C.white} strokeWidth={2.4} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Stat cards */}
+        <View style={styles.statRow}>
+          <StatCard value={counts.total} label="Total" tone="ink" Icon={ChartColumn} onPress={() => onStatPress('total')} active={filter === 'All'} />
+          <StatCard value={counts.inProcess} label="In Process" tone="yellow" Icon={RefreshCw} onPress={() => onStatPress('process')} active={filter === 'In Process'} />
+          <StatCard value={counts.pending} label="Pending" tone="red" Icon={CircleAlert} onPress={() => onStatPress('pending')} active={filter === 'Pending'} />
+          <StatCard value={counts.completed} label="Completed" tone="green" Icon={Check} onPress={() => onStatPress('completed')} active={filter === 'Completed'} />
+        </View>
+
+        {showInitialSpinner && (
+          <View style={styles.stateBox}>
+            <ActivityIndicator size="small" color={C.green} />
+            <Text style={styles.stateText}>Loading jobs…</Text>
+          </View>
+        )}
+
+        {showError && (
+          <View style={[styles.card, styles.stateBox]}>
+            <View style={[styles.stateIcon, { backgroundColor: TONES.red.bg }]}>
+              <WifiOff size={rs(20)} color={C.red} />
+            </View>
+            <Text style={styles.stateTitle}>Couldn't load jobs</Text>
+            <Text style={styles.stateText}>Check your connection and try again.</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => load()} activeOpacity={0.85}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!showInitialSpinner && !showError && (
+          shown.length === 0 ? (
+            <EmptyRow text={query.trim() ? `No jobs match "${query.trim()}".` : filter === 'All' ? 'No jobs this month.' : `No ${filter.toLowerCase()} jobs this month.`} />
+          ) : shown.map((t) => (
+            <ReportCard
+              key={t.id}
+              ticket={t}
+              phase={phaseFor(t)}
+              technician={allMode ? (techNameById[t.assignedTechnicianId] || 'Technician') : null}
+              onPress={() => openTicket(t)}
+              onHistory={() => openHistory(t)}
             />
           ))
         )}
@@ -331,235 +444,158 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
   );
 }
 
-function StatTile({ value, label, hint, icon, tint, accent, accentText }) {
+// ---------------------------------------------------------------------------
+// Pieces
+// ---------------------------------------------------------------------------
+const STAT_TONE = { yellow: '#FAA700', red: '#F32C26', green: '#609138', ink: '#1C3053' };
+
+// Solid icon disc + count badge + label (the Employee app's BadgeIconTile).
+function StatCard({ value, label, tone, Icon, onPress, active }) {
+  const color = STAT_TONE[tone] || C.green;
+  const size = rs(42);
+  const n = Number(value) || 0;
   return (
-    <View style={[styles.statTileWrap, { backgroundColor: tint }]}>
-      <View style={styles.statTileTop}>
-        <Ionicons name={icon} size={13} color={accent} />
-        {/* One line, shrinking a touch if needed — "Completed" used to wrap
-            to "Complete / d" on narrow phones. */}
-        <Text
-          style={[styles.statTileTopText, { color: accentText || accent }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-        >
-          {label}
-        </Text>
-      </View>
-      <Text style={styles.statTileValue}>{value}</Text>
-      <Text style={styles.statTileHint}>{hint}</Text>
-    </View>
-  );
-}
-
-function TaskCard({ booking, bucket, onPress, onRefresh, refreshing, showAssignee }) {
-  const isPending = bucket === 'PENDING';
-  const isInProcess = bucket === 'IN_PROCESS';
-  const isCompleted = bucket === 'COMPLETED';
-
-  const stepLine =
-    isPending ? 'Spare part has been ordered. Service is Pending'
-      : isInProcess ? 'Technician Work Started'
-        : 'Technician Work Completed';
-  const stepColor =
-    isPending ? RED
-      : isInProcess ? GREEN_DEEP
-        : GREEN_DEEP;
-
-  const footerLine =
-    isPending ? `Pending On ${formatDateTime(booking.updatedAt || booking.createdAt)}`
-      : isInProcess ? `In Service Process On ${formatDateTime(booking.updatedAt || booking.createdAt)}`
-        : `Completed On ${formatDateTime(booking.updatedAt || booking.createdAt)}`;
-
-  return (
-    <TouchableOpacity style={styles.taskCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.taskAccent} />
-      <View style={styles.taskInner}>
-        <View style={styles.taskTopRow}>
-          <View style={styles.taskDateRow}>
-            <Ionicons name="calendar-outline" size={13} color={GREEN} />
-            <Text style={styles.taskDate}>{formatDate(booking.createdAt)}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={`${label}: ${n}`}>
+      <View style={{ alignItems: 'center', minWidth: 0 }}>
+        <View style={{ padding: rs(3), borderRadius: 999, borderWidth: 2, borderColor: active ? color : 'transparent' }}>
+          <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon size={size * 0.44} color="#FFFFFF" strokeWidth={2.2} />
           </View>
-          <Text style={styles.taskTracking}>#{trackingId(booking)}</Text>
-        </View>
-        <View style={styles.taskMiddleRow}>
-          <Text style={styles.taskDevice} numberOfLines={2}>{deviceLine(booking)}</Text>
-          {/* Whose ticket this is. All-technician mode only — on one employee's
-              own record the answer is the page you are already looking at. */}
-          {showAssignee ? (
-            <Text style={styles.taskAssignee} numberOfLines={1}>
-              {String(booking.technicianName || '').trim() || 'Unassigned'}
-            </Text>
-          ) : null}
-        </View>
-        <View style={styles.taskBottomRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.taskStep, { color: stepColor }]}>{stepLine}</Text>
-            <Text style={styles.taskFooter}>{footerLine}</Text>
+          <View style={[styles.countBadge, { borderColor: color }]}>
+            <Text style={{ fontSize: rf(10.5), fontWeight: '800', color }} numberOfLines={1}>{n > 99 ? '99+' : String(n)}</Text>
           </View>
-          <TouchableOpacity
-            onPress={onRefresh}
-            disabled={refreshing}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            activeOpacity={0.7}
-            style={styles.taskStatusIcon}
-          >
-            {isPending && (
-              <View style={[styles.statusBadge, { backgroundColor: RED_BG }]}>
-                {refreshing ? (
-                  <ActivityIndicator size="small" color={RED} />
-                ) : (
-                  <Ionicons name="refresh" size={13} color={RED} />
-                )}
-              </View>
-            )}
-            {isInProcess && (
-              <View style={[styles.statusBadge, { backgroundColor: MINT }]}>
-                {refreshing ? (
-                  <ActivityIndicator size="small" color={GREEN} />
-                ) : (
-                  <Ionicons name="refresh" size={13} color={GREEN} />
-                )}
-              </View>
-            )}
-            {isCompleted && (
-              <View style={[styles.statusBadge, { backgroundColor: MINT }]}>
-                {refreshing ? (
-                  <ActivityIndicator size="small" color={GREEN} />
-                ) : (
-                  <Ionicons name="refresh" size={13} color={GREEN} />
-                )}
-              </View>
-            )}
-          </TouchableOpacity>
         </View>
+        <Text style={[styles.statLabel, { color: active ? color : C.ink }]} numberOfLines={2}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-// GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const SUBTLE = '#8A8A8A';
-const LINE = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const AMBER = '#F3BF23';
-const AMBER_BG = '#FFF8E1';
-const AMBER_TEXT = '#8A6A00';
-const RED = '#F84141';
-const RED_BG = '#FEECEC';
+// brandId → Promise<models[]>, shared by all rows so each brand is fetched once.
+const modelsByBrand = new Map();
+function modelImageFor(ticket) {
+  if (!ticket?.brandId || !ticket?.modelId) return Promise.resolve(null);
+  if (!modelsByBrand.has(ticket.brandId)) {
+    modelsByBrand.set(ticket.brandId, getModelsByBrand(ticket.brandId).catch(() => {
+      modelsByBrand.delete(ticket.brandId);
+      return [];
+    }));
+  }
+  return modelsByBrand.get(ticket.brandId).then((models) => {
+    const m = (Array.isArray(models) ? models : []).find((x) => x.id === ticket.modelId);
+    return resolveDeviceImageSource({ url: m?.imageUrl, base64: m?.imageBase64 });
+  });
+}
 
+// Real device photo (ticket image → catalogue model image); icon fallback.
+function DeviceBadge({ ticket, tone }) {
+  const t = TONES[tone] || TONES.green;
+  const DevIcon = isLaptop(ticket) ? Laptop : Smartphone;
+  const direct = resolveDeviceImageSource({
+    url: ticket.deviceImageUrl || ticket.modelImageUrl,
+    base64: ticket.deviceImageBase64 || ticket.modelImageBase64,
+  });
+  const [src, setSrc] = useState(direct);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (direct) return undefined;
+    let alive = true;
+    modelImageFor(ticket).then((s) => { if (alive) setSrc(s); });
+    return () => { alive = false; };
+  }, [ticket.id, ticket.brandId, ticket.modelId]);
+  const showImg = src && !failed;
+  return (
+    <View style={[styles.devBadge, { backgroundColor: showImg ? C.white : t.bg, overflow: 'hidden' }, showImg && { borderWidth: 1, borderColor: C.line }]}>
+      {showImg
+        ? <Image source={{ uri: src }} style={{ width: rs(26), height: rs(26) }} resizeMode="contain" onError={() => setFailed(true)} />
+        : <DevIcon size={rs(17)} color={t.fg} strokeWidth={2.1} />}
+    </View>
+  );
+}
+
+const TONE_COLOR = { red: '#F32C26', yellow: '#FAA700', green: '#609138', blue: '#0788C9', ink: '#6B7280' };
+
+// "Oppo A5 5G · CPH2753 · 8GB · 128GB" → model name, "CPH2753 - 8GB - 128GB".
+function splitDevice(ticket) {
+  const clean = (x) => String(x).replace(/^[\s ]+|[\s ]+$/g, '');
+  const parts = String(deviceName(ticket)).split(/[·•|]/).map(clean).filter(Boolean);
+  return { model: parts[0] || 'Device', specs: parts.slice(1).join(' - '), color: clean(ticket.color || '') };
+}
+
+// Device (left) · status/date/time (right), then Customer (+ Technician in the
+// all-jobs view), Issue and Status (current phase — tap for the history).
+function ReportCard({ ticket, phase, technician, onPress, onHistory }) {
+  const pill = statusPill(ticket);
+  const d = splitDevice(ticket);
+  const done = pill.tone === 'green' || pill.tone === 'ink';
+  const iconTone = done || pill.tone === 'red' ? pill.tone : (isLaptop(ticket) ? 'blue' : 'green');
+  const when = done ? (ticket.updatedAt || ticket.createdAt) : ticket.createdAt;
+  return (
+    <TicketCard
+      badge={<DeviceBadge ticket={ticket} tone={iconTone} />}
+      refId={ticketRef(ticket)} title={d.model}
+      subtitle={d.specs || null} subtitle2={d.color ? `Colour: ${d.color}` : null}
+      status={pill.label} statusColor={TONE_COLOR[pill.tone]}
+      date={formatDate(when)} time={timeOf(when)}
+      rows={[
+        [{ icon: User, label: 'Customer', value: ticket.customerName }, technician ? { icon: UserCog, label: 'Technician', value: technician } : null],
+        [{ icon: Wrench, label: 'Issue', value: issueText(ticket) }, null],
+        [{ icon: Clock, label: 'Status', value: phase, onPress: onHistory }, null],
+      ]}
+      onPress={onPress}
+    />
+  );
+}
+
+function EmptyRow({ text }) {
+  return (
+    <View style={styles.emptyRow}>
+      <Inbox size={rs(18)} color={C.faint} />
+      <Text style={styles.emptyText}>{text}</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F8F8' },
-  content: { padding: rs(10), paddingBottom: rs(20) },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: 13, color: RED },
+  safe: { flex: 1, backgroundColor: C.white },
 
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: HAIR,
-    shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
-  },
-  statsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: INK },
-  monthPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: MINT,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    gap: 6,
-  },
-  monthPillText: { color: GREEN_DEEP, fontSize: 11, fontWeight: '800' },
-  monthPillSep: { width: 1, height: 11, backgroundColor: MINT_LINE },
+  headerBar: { flexDirection: 'row', alignItems: 'center', gap: rs(10), backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingHorizontal: rs(14), paddingVertical: rs(10) },
+  headerBack: { width: rs(36), height: rs(36), borderRadius: rs(18), backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: rf(17), fontWeight: '800', color: '#1C3053', textAlign: 'center' },
+  headerSub: { fontSize: rf(12), color: '#6B7280', marginTop: 1, textAlign: 'center' },
+  searchWrap: { backgroundColor: C.bg, paddingHorizontal: rs(14), paddingTop: rs(10) },
+  scanBtn: { marginLeft: rs(8), paddingLeft: rs(10), borderLeftWidth: 1, borderLeftColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
 
-  statTilesRow: { flexDirection: 'row', gap: 6 },
-  statTileWrap: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 7,
-    alignItems: 'flex-start',
-  },
-  statTileTop: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'stretch' },
-  statTileTopText: { flexShrink: 1, fontSize: 10, fontWeight: '800' },
-  statTileValue: { fontSize: 15, fontWeight: '800', color: INK, marginTop: 4 },
-  statTileHint: { fontSize: 10, color: MUTED, marginTop: 1, fontWeight: '600' },
+  content: { paddingHorizontal: rs(14), paddingTop: rs(8), paddingBottom: rs(20) },
 
-  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
-  sectionHeader: { fontSize: 13, fontWeight: '800', color: INK },
-  viewAll: { fontSize: 12, fontWeight: '800', color: GREEN_DEEP },
+  card: {
+    backgroundColor: C.white, borderRadius: rs(18),
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  },
 
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  filterChip: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: LINE,
-  },
-  filterChipActive: { backgroundColor: GREEN, borderColor: GREEN },
-  filterChipText: { fontSize: 11, color: MUTED, fontWeight: '700' },
-  filterChipTextActive: { color: '#FFFFFF' },
+  monthRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: rs(8) },
+  monthPill: { flexDirection: 'row', alignItems: 'center', gap: rs(8), backgroundColor: C.green, borderRadius: 999, paddingVertical: rs(6), paddingHorizontal: rs(10) },
+  monthPillText: { fontSize: rf(12.5), fontWeight: '700', color: C.white },
 
-  taskCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    marginBottom: 6,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: HAIR,
-    shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+  statRow: { flexDirection: 'row', gap: rs(4), marginBottom: rs(10), backgroundColor: '#FFFFFF', borderRadius: rs(16), borderWidth: 1, borderColor: '#E5E7EB', paddingVertical: rs(10), paddingHorizontal: rs(6) },
+  countBadge: {
+    position: 'absolute', top: -rs(4), right: -rs(6), minWidth: rs(20), height: rs(20), borderRadius: rs(10), paddingHorizontal: rs(4),
+    backgroundColor: '#FFFFFF', borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
   },
-  taskAccent: { width: 3, backgroundColor: GREEN },
-  taskInner: { flex: 1, paddingHorizontal: 10, paddingVertical: 8 },
-  taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  taskDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  taskDate: { fontSize: 12, fontWeight: '800', color: INK },
-  taskTracking: { fontSize: 11, color: SUBTLE, fontWeight: '700' },
-  taskMiddleRow: { marginTop: 4 },
-  taskDevice: { fontSize: 12, color: INK },
-  taskAssignee: { fontSize: 11, color: GREEN_DEEP, fontWeight: '700', marginTop: 2 },
-  taskBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-  taskStep: { fontSize: 11.5, fontWeight: '800' },
-  taskFooter: { fontSize: 10, color: SUBTLE, marginTop: 2 },
-  taskStatusIcon: { marginLeft: 8 },
-  statusBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statLabel: { fontSize: rf(11), lineHeight: rf(14), fontWeight: '700', marginTop: rs(5), textAlign: 'center', paddingHorizontal: 2 },
 
-  empty: { fontSize: 12, color: MUTED, textAlign: 'center', paddingVertical: 12 },
-  emptyCard: {
-    backgroundColor: MINT,
-    borderWidth: 1,
-    borderColor: MINT_LINE,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  emptyTitle: { fontSize: 13, fontWeight: '800', color: INK, marginTop: 5 },
-  emptySub: { fontSize: 11, color: MUTED, marginTop: 2 },
+  devBadge: { width: rs(32), height: rs(32), borderRadius: rs(16), alignItems: 'center', justifyContent: 'center' },
+
+  emptyRow: { alignItems: 'center', paddingVertical: rs(16), gap: rs(6) },
+  emptyText: { fontSize: rf(12), color: C.muted, textAlign: 'center' },
+
+  stateBox: { alignItems: 'center', paddingVertical: rs(24), paddingHorizontal: rs(16), marginBottom: rs(12), gap: rs(6) },
+  stateIcon: { width: rs(44), height: rs(44), borderRadius: rs(22), alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: rf(14), fontWeight: '800', color: C.ink },
+  stateText: { fontSize: rf(12), color: C.muted, textAlign: 'center' },
+  retryBtn: { marginTop: rs(6), backgroundColor: C.green, borderRadius: 999, paddingHorizontal: rs(22), paddingVertical: rs(8) },
+  retryText: { color: C.white, fontWeight: '700', fontSize: rf(12) },
 });

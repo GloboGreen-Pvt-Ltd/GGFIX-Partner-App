@@ -32,22 +32,22 @@ import { notify } from '../../components/confirm';
 import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';
-const BRIGHT = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const BRIGHT = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 // Rendered QR side — compact, still comfortably scannable for the vCard payload.
 const QR_SIZE = 130;
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.07,
   shadowRadius: 14,
   shadowOffset: { width: 0, height: 6 },
@@ -55,7 +55,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },

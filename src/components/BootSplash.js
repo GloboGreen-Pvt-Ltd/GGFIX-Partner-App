@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 /**
- * GGFIX boot screen (same design as the Customer app's LaunchOverlay), shown
+ * Near G Fix Partner boot screen (same design as the Customer app's LaunchOverlay), shown
  * by RootNavigator while the session loads; RootNavigator owns the fade-out:
  * green wavy top (glowing logo, wordmark, services), the device line-up over
  * the wave edge, then tagline · progress · trust row on a light base.
@@ -19,10 +19,10 @@ const DEVICE_RATIO = 675 / 900; // height / width of boot-device.png
 
 const BASE = '#F4F6F5';
 const INK = '#141414';
-const GREEN = '#0FA046';
-const NEON = '#2BEA7F';
+const GREEN = '#035C6C';
+const NEON = '#357D89';
 const YELLOW = '#F3BF23';
-const MINT = '#E2F4E8';
+const MINT = '#E5F3F5';
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
@@ -124,14 +124,14 @@ export default function BootSplash() {
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel="Loading GGFIX"
+      accessibilityLabel="Loading Near G Fix Partner"
       style={[StyleSheet.absoluteFill, styles.root]}
     >
       <StatusBar style="light" />
       {/* Soft light waves along the bottom edge. */}
       <Svg pointerEvents="none" style={{ position: 'absolute', left: 0, bottom: 0 }} width={W} height={height * 0.22} viewBox={`0 0 ${W} 100`} preserveAspectRatio="none">
         <Path d={`M0 30C${W * 0.25} 10 ${W * 0.45} 70 ${W} 40V100H0Z`} fill="#EAF0EC" />
-        <Path d={`M0 70C${W * 0.35} 45 ${W * 0.6} 95 ${W} 75V100H0Z`} fill="#E3ECE6" />
+        <Path d={`M0 70C${W * 0.35} 45 ${W * 0.6} 95 ${W} 75V100H0Z`} fill="#E5F3F5" />
       </Svg>
 
       <View style={[styles.safe, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
@@ -149,9 +149,9 @@ export default function BootSplash() {
           <Svg pointerEvents="none" style={{ position: 'absolute', left: -ox, top: -EXT }} width={SW} height={yR + D * 0.5}>
             <Defs>
               <LinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor="#0A5E31" />
-                <Stop offset="0.55" stopColor="#0C7F3E" />
-                <Stop offset="1" stopColor="#12A350" />
+                <Stop offset="0" stopColor="#035C6C" />
+                <Stop offset="0.55" stopColor="#035C6C" />
+                <Stop offset="1" stopColor="#035C6C" />
               </LinearGradient>
             </Defs>
             <Path d={mintPath} fill={MINT} />
@@ -165,7 +165,7 @@ export default function BootSplash() {
             <View
               style={{
                 width: logo, height: logo, borderRadius: logo / 2, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: '#0B6A36', borderWidth: 2.5, borderColor: NEON,
+                backgroundColor: '#035C6C', borderWidth: 2.5, borderColor: NEON,
                 shadowColor: NEON, shadowOpacity: 0.9, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 12,
               }}
             >
@@ -174,10 +174,16 @@ export default function BootSplash() {
           </Animated.View>
 
           <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(16) }}>
-            <Text style={[styles.wordmark, { fontSize: word, lineHeight: word * 1.08 }]}>
-              GG<Text style={{ color: NEON }}>FIX</Text>
+            {/* "NEAR G FIX" is twice GGFIX's width — shrink to fit narrow phones. */}
+            <Text
+              style={[styles.wordmark, { fontSize: word, lineHeight: word * 1.08, paddingHorizontal: 16 }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
+              NEAR G <Text style={{ color: NEON }}>FIX</Text>
             </Text>
-            <Text style={[styles.byline, { fontSize: 13 * k, marginTop: gap(6) }]}>BY GLOBO GREEN</Text>
+            <Text style={[styles.byline, { fontSize: 13 * k, marginTop: gap(6) }]}>PARTNER</Text>
             <Text style={[styles.services, { fontSize: 15 * k, marginTop: gap(14) }]}>
               Repair  <Text style={{ color: YELLOW }}>•</Text>  Pickup  <Text style={{ color: YELLOW }}>•</Text>  Buy  <Text style={{ color: YELLOW }}>•</Text>  Sell
             </Text>
@@ -227,6 +233,12 @@ export default function BootSplash() {
             <View style={styles.divider} />
             <TrustItem kind="pin" circle={tier(44, 50, 56) * k} font={11 * k} label={'ACROSS\nINDIA'} />
           </View>
+
+          {/* "Powered by" + company name on ONE line (shrinks to fit narrow phones). */}
+          <Text style={[styles.company, { fontSize: 11 * k, marginTop: gap(18) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            <Text style={{ fontWeight: '500', color: '#6B7280' }}>Powered by: </Text>
+            <Text style={{ fontWeight: '700', color: '#035C6C' }}>Globogreen System & Technology Private Limited</Text>
+          </Text>
         </View>
       </View>
     </View>
@@ -248,6 +260,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 6, backgroundColor: GREEN, overflow: 'hidden' },
   progressShine: { position: 'absolute', left: 0, right: 0, top: 0, height: '45%', backgroundColor: 'rgba(255,255,255,0.22)' },
   loadingLabel: { fontWeight: '600', letterSpacing: 5, color: '#3A3A3A' },
+  company: { fontWeight: '600', letterSpacing: 0.3, color: '#6B7280', textAlign: 'center', paddingHorizontal: 24 },
   trustRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around' },
   trustItem: { flex: 1, alignItems: 'center' },
   trustLabel: { textAlign: 'center', fontWeight: '800', color: INK },

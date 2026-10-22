@@ -17,6 +17,7 @@ import SelectBrandScreen from '../../shared/device/SelectBrandScreen';
 import SelectSeriesScreen from '../../shared/device/SelectSeriesScreen';
 import SelectModelScreen from '../../shared/device/SelectModelScreen';
 import DeviceColorStorageScreen from './DeviceColorStorageScreen';
+import DeviceDetailsScreen from './DeviceDetailsScreen';
 import DeviceServicesScreen from './DeviceServicesScreen';
 import ServicePriceEstimateScreen from './ServicePriceEstimateScreen';
 import DeviceInformationScreen from './DeviceInformationScreen';
@@ -63,6 +64,7 @@ export default function RepairServiceBookingShop() {
       <Stack.Screen name="SelectSeries" component={SelectSeriesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SelectModel" component={SelectModelScreen} options={{ headerShown: false }} />
       <Stack.Screen name="DeviceColorStorage" component={DeviceColorStorageScreen} options={{ title: 'Device Color & Storage' }} />
+      <Stack.Screen name="DeviceDetails" component={DeviceDetailsScreen} options={{ title: 'Device Details' }} />
       <Stack.Screen name="DeviceServices" component={DeviceServicesScreen} options={{ title: 'Device Services' }} />
       <Stack.Screen name="ServiceBookingDevicesList" component={ServiceBookingDevicesListScreen} options={{ title: 'Service Booking' }} />
       <Stack.Screen name="ServicePriceEstimate" component={ServicePriceEstimateScreen} />

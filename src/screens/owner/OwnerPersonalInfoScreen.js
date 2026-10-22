@@ -29,21 +29,21 @@ import { T } from '../../components/dashboard/theme';
 import { useResponsive } from '../../theme/responsive';
 
 // Same green + white palette as My Account, so the two screens read as one.
-const G = '#09AD2A';             // Primary green
-const G_DEEP = '#07921F';        // Pressed / gradient end
+const G = '#035C6C';             // Primary green
+const G_DEEP = '#035C6C';        // Pressed / gradient end
 const ACCENT = G;
 const BRIGHT = G;
-const MINT = '#EAF8EC';          // Very light green (icon tiles, pills)
-const SOFT_MINT = '#F6FBF7';     // Input / note panels
-const PAGE_BG = '#F8F8F8';
+const MINT = '#E5F3F5';          // Very light green (icon tiles, pills)
+const SOFT_MINT = '#F3F4F6';     // Input / note panels
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
 const BORDER = '#ECECEC';
-const TEXT = '#1E1E1E';
-const MUTED = '#6B6B6B';
+const TEXT = '#111111';
+const MUTED = '#6B7280';
 const SUCCESS = G;
 // Header colours — taken from the Buy / Sell / Booking headers.
-const HEADER_BORDER = '#DCE7E2';
-const HEADER_TEXT = '#111827';
+const HEADER_BORDER = '#C7E6EA';
+const HEADER_TEXT = '#111111';
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -516,7 +516,7 @@ function Field({ icon, iconColor, label, last, ...inputProps }) {
         ) : null}
         <TextInput
           style={styles.input}
-          placeholderTextColor="#9A9A9A"
+          placeholderTextColor="#9CA3AF"
           {...inputProps}
         />
       </View>
@@ -541,7 +541,7 @@ function PhoneField({ icon, iconColor, label, last, ...inputProps }) {
         </View>
         <TextInput
           style={styles.input}
-          placeholderTextColor="#9A9A9A"
+          placeholderTextColor="#9CA3AF"
           {...inputProps}
         />
       </View>
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
     borderRadius: rs(18),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F4FBF8',
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: HEADER_BORDER,
   },
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   heroSubtitle: {
-    color: '#667085',
+    color: '#6B7280',
     fontSize: T.caption2,
     marginTop: rs(2),
   },

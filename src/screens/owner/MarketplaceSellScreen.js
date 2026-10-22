@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StatusBar, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StatusBar, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Smartphone,
@@ -16,12 +16,11 @@ import {
 } from 'lucide-react-native';
 
 // Swiggy / Zomato green palette — matches customer SellHomeScreen visual language.
-const GREEN       = '#004C40';
-const GREEN_LIGHT = '#004C40';
-const GREEN_DARK  = '#004C40';
+const GREEN       = '#035C6C';
+const GREEN_DARK  = '#035C6C';
 
 const PROMISES = [
-  { icon: TrendingUp,  label: 'Quick Listing',   tint: '#E6F7E3', color: GREEN_DARK },
+  { icon: TrendingUp,  label: 'Quick Listing',   tint: '#E5F3F5', color: GREEN_DARK },
   { icon: ShieldCheck, label: 'Trusted Buyers',  tint: '#FEF3C7', color: '#B45309' },
   { icon: Sparkles,    label: 'Boost Visibility', tint: '#FEF3C7', color: '#B45309' },
 ];
@@ -39,7 +38,7 @@ const TILES = [
     sub: 'List a phone for sale — condition, photos, price',
     Icon: Smartphone,
     accent: GREEN_DARK,
-    tint: '#E6F7E3',
+    tint: '#E5F3F5',
     emoji: '📱',
     badge: 'POPULAR',
     params: { flow: 'OWNER_LIST' },
@@ -77,7 +76,7 @@ export default function MarketplaceSellScreen({ navigation }) {
             paddingTop: 8,
             paddingBottom: 14,
             borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
+            borderBottomColor: '#E5E7EB',
           }}
         >
           <View style={{ paddingHorizontal: padH }}>
@@ -88,48 +87,48 @@ export default function MarketplaceSellScreen({ navigation }) {
                   hitSlop={8}
                   style={{
                     height: 36, width: 36, borderRadius: 18,
-                    backgroundColor: '#EFF5EE',
+                    backgroundColor: '#E5F3F5',
                     alignItems: 'center', justifyContent: 'center',
                     marginRight: 10,
                   }}
                 >
-                  <ChevronLeft size={20} color="#172117" />
+                  <ChevronLeft size={20} color="#111111" />
                 </Pressable>
               ) : null}
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Store size={14} color="#172117" />
+                  <Store size={14} color="#111111" />
                   <Text
                     style={{
-                      color: '#172117', fontWeight: '800', fontSize: 13,
+                      color: '#111111', fontWeight: '800', fontSize: 13,
                       marginLeft: 4, letterSpacing: 0.5,
                     }}
                   >
-                    SELL ON GGFIX
+                    SELL ON NEAR G FIX
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  <MapPin size={13} color="#667066" />
+                  <MapPin size={13} color="#6B7280" />
                   <Text
                     numberOfLines={1}
                     style={{
-                      color: '#667066', fontWeight: '700', fontSize: 13,
+                      color: '#6B7280', fontWeight: '700', fontSize: 13,
                       maxWidth: width - 160, marginLeft: 4,
                     }}
                   >
                     Listings reach nearby buyers
                   </Text>
-                  <ChevronDown size={15} color="#172117" style={{ marginLeft: 4 }} />
+                  <ChevronDown size={15} color="#111111" style={{ marginLeft: 4 }} />
                 </View>
               </View>
               <View
                 style={{
                   paddingHorizontal: 10, paddingVertical: 4,
                   borderRadius: 999,
-                  backgroundColor: '#EFF5EE',
+                  backgroundColor: '#E5F3F5',
                 }}
               >
-                <Text style={{ color: '#172117', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6 }}>
+                <Text style={{ color: '#111111', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6 }}>
                   OWNER
                 </Text>
               </View>
@@ -137,14 +136,14 @@ export default function MarketplaceSellScreen({ navigation }) {
 
             <Text
               style={{
-                color: '#172117', fontSize: 20, fontWeight: '800',
+                color: '#111111', fontSize: 20, fontWeight: '800',
                 marginTop: 14, letterSpacing: -0.3,
               }}
             >
               List a device for sale
             </Text>
             <Text
-              style={{ color: '#667066', fontSize: 12, marginTop: 3 }}
+              style={{ color: '#6B7280', fontSize: 12, marginTop: 3 }}
             >
               Reach verified buyers — quick listing, instant exposure.
             </Text>
@@ -153,24 +152,24 @@ export default function MarketplaceSellScreen({ navigation }) {
               onPress={() => navigation.navigate('SelectCategory', { flow: 'OWNER_LIST' })}
               style={{
                 flexDirection: 'row', alignItems: 'center',
-                backgroundColor: '#F7FAF7', borderRadius: 16,
-                borderWidth: 1, borderColor: '#E2E8E2',
+                backgroundColor: '#F3F4F6', borderRadius: 16,
+                borderWidth: 1, borderColor: '#E5E7EB',
                 paddingHorizontal: 14, paddingVertical: 10,
                 marginTop: 12,
-                shadowColor: '#172117', shadowOpacity: 0.06,
+                shadowColor: '#111111', shadowOpacity: 0.06,
                 shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
               }}
             >
               <Search size={18} color={GREEN} />
               <Text
                 numberOfLines={1}
-                style={{ flex: 1, marginLeft: 10, color: '#667066', fontSize: 13 }}
+                style={{ flex: 1, marginLeft: 10, color: '#6B7280', fontSize: 13 }}
               >
                 Search a device to list
               </Text>
               <View
                 style={{
-                  backgroundColor: '#E6F7E3', borderRadius: 999,
+                  backgroundColor: '#E5F3F5', borderRadius: 999,
                   paddingHorizontal: 10, paddingVertical: 4,
                 }}
               >
@@ -198,7 +197,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                   backgroundColor: '#fff', borderRadius: 14,
                   paddingVertical: 10, paddingHorizontal: 6,
                   alignItems: 'center',
-                  borderWidth: 1, borderColor: '#EFF5EE',
+                  borderWidth: 1, borderColor: '#E5F3F5',
                 }}
               >
                 <View
@@ -214,7 +213,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                 <Text
                   numberOfLines={1}
                   style={{
-                    fontSize: 10.5, fontWeight: '700', color: '#172117', textAlign: 'center',
+                    fontSize: 10.5, fontWeight: '700', color: '#111111', textAlign: 'center',
                   }}
                 >
                   {p.label}
@@ -236,18 +235,18 @@ export default function MarketplaceSellScreen({ navigation }) {
             <Text
               style={{
                 fontSize: 15, fontWeight: '800',
-                color: '#172117', letterSpacing: -0.2,
+                color: '#111111', letterSpacing: -0.2,
               }}
             >
               Choose sales category
             </Text>
-            <Text style={{ fontSize: 12, color: '#667066', marginTop: 2 }}>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
               What are you listing today?
             </Text>
           </View>
           <View
             style={{
-              backgroundColor: '#E6F7E3', borderRadius: 999,
+              backgroundColor: '#E5F3F5', borderRadius: 999,
               paddingHorizontal: 10, paddingVertical: 4,
             }}
           >
@@ -272,8 +271,8 @@ export default function MarketplaceSellScreen({ navigation }) {
                   backgroundColor: '#fff',
                   borderRadius: 18,
                   padding: 10,
-                  borderWidth: 1, borderColor: '#EFF5EE',
-                  shadowColor: '#172117', shadowOpacity: 0.05,
+                  borderWidth: 1, borderColor: '#E5F3F5',
+                  shadowColor: '#111111', shadowOpacity: 0.05,
                   shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
                 }}
               >
@@ -300,7 +299,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                   <View
                     style={{
                       position: 'absolute', top: 8, left: 8,
-                      backgroundColor: '#E6F7E3', borderRadius: 999,
+                      backgroundColor: '#E5F3F5', borderRadius: 999,
                       paddingHorizontal: 8, paddingVertical: 3,
                       flexDirection: 'row', alignItems: 'center',
                     }}
@@ -313,13 +312,13 @@ export default function MarketplaceSellScreen({ navigation }) {
                 </View>
                 <Text
                   numberOfLines={1}
-                  style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}
+                  style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}
                 >
                   {t.title}
                 </Text>
                 <Text
                   numberOfLines={2}
-                  style={{ fontSize: 11, color: '#667066', marginTop: 2 }}
+                  style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}
                 >
                   {t.sub}
                 </Text>
@@ -333,12 +332,12 @@ export default function MarketplaceSellScreen({ navigation }) {
           <Text
             style={{
               fontSize: 15, fontWeight: '800',
-              color: '#172117', letterSpacing: -0.2,
+              color: '#111111', letterSpacing: -0.2,
             }}
           >
             How it works
           </Text>
-          <Text style={{ fontSize: 12, color: '#667066', marginTop: 2 }}>
+          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
             Three steps from device to live listing
           </Text>
         </View>
@@ -362,13 +361,13 @@ export default function MarketplaceSellScreen({ navigation }) {
                 style={{
                   flex: 1, backgroundColor: '#fff', borderRadius: 12,
                   paddingHorizontal: 12, paddingVertical: 10,
-                  borderWidth: 1, borderColor: '#EFF5EE',
+                  borderWidth: 1, borderColor: '#E5F3F5',
                 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
                   {s.title}
                 </Text>
-                <Text style={{ fontSize: 11, color: '#667066', marginTop: 2 }}>
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
                   {s.sub}
                 </Text>
               </View>
@@ -382,8 +381,8 @@ export default function MarketplaceSellScreen({ navigation }) {
             onPress={() => navigation.navigate('MarketplaceOrders')}
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-              backgroundColor: '#F0F8EF', borderRadius: 16,
-              borderWidth: 1, borderColor: '#C8EEBF',
+              backgroundColor: '#E5F3F5', borderRadius: 16,
+              borderWidth: 1, borderColor: '#C7E6EA',
               paddingHorizontal: 14, paddingVertical: 10,
             }}
           >
@@ -391,7 +390,7 @@ export default function MarketplaceSellScreen({ navigation }) {
               <View
                 style={{
                   height: 32, width: 32, borderRadius: 16,
-                  backgroundColor: '#E6F7E3',
+                  backgroundColor: '#E5F3F5',
                   alignItems: 'center', justifyContent: 'center',
                   marginRight: 10,
                 }}
@@ -399,10 +398,10 @@ export default function MarketplaceSellScreen({ navigation }) {
                 <Store size={18} color={GREEN_DARK} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
                   My Listings
                 </Text>
-                <Text style={{ fontSize: 11, color: '#667066', marginTop: 1 }}>
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }}>
                   Manage devices you've already published
                 </Text>
               </View>

@@ -19,43 +19,42 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Loader, Select } from '../../../components/rnr';
 import { getModelOptions, parseModelNumbers } from '../../../api/masterData';
 import useDeviceSpecForm from '../../../lib/hooks/useDeviceSpecForm';
-import { SPEC_ATTRIBUTE_KEYS, specDisplayParts } from '../../../utils/deviceSpecs';
+import { SPEC_ATTRIBUTE_KEYS, specDetailRows, specDisplayParts } from '../../../utils/deviceSpecs';
 
 // GGFIX palette.
-const GREEN = '#09AD2A';        // fills, icons, selected
-const GREEN_DEEP = '#078F23';   // green TEXT, gradient partner
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const PLACEHOLDER = '#8A8A8A';
-const LINE = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const GREEN = '#035C6C';        // fills, icons, selected
+const GREEN_DEEP = '#035C6C';   // green TEXT, gradient partner
+const MINT = '#E5F3F5';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const PLACEHOLDER = '#9CA3AF';
+const LINE = '#E5E7EB';
+const HAIR = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 
 // Fallback swatch when a catalogue colour has no hexCode — a best guess at
 // the real device colour from its name (these are product colours, not UI).
 const COLOR_SWATCHES = {
-  black: '#1E1E1E',
-  white: '#F8F8F8',
+  black: '#111111',
+  white: '#F3F4F6',
   silver: '#D6D9DE',
   gold: '#F2D58A',
   rose: '#F4C6CC',
   blue: '#3B82F6',
   red: '#E53935',
-  green: '#3FAE6A',
+  green: '#357D89',
   purple: '#8B5CF6',
   pink: '#F48FB1',
   graphite: '#4B4B4B',
   midnight: '#1E2A44',
   starlight: '#F5EBD8',
   sierra: '#9DB4CF',
-  alpine: '#4F7A5A',
+  alpine: '#035C6C',
   sky: '#9CC8EE',
   orange: '#F59E3B',
   yellow: '#F3BF23',
-  grey: '#9A9A9A',
-  gray: '#9A9A9A',
+  grey: '#9CA3AF',
+  gray: '#9CA3AF',
 };
 
 function swatchFor(name) {
@@ -63,7 +62,7 @@ function swatchFor(name) {
   for (const key of Object.keys(COLOR_SWATCHES)) {
     if (n.includes(key)) return COLOR_SWATCHES[key];
   }
-  return '#D6D6D6';
+  return '#D1D5DB';
 }
 
 /**
@@ -97,7 +96,14 @@ const SPEC_ICONS = {
 const TILE_LINE = LINE;
 const TILE_LINE_ACTIVE = GREEN;
 const TILE_TEXT = INK;
-const TILE_TEXT_ACTIVE = GREEN_DEEP;
+
+// Spec fields typed in manual mode; the rest are short fixed lists (chips).
+const TYPED_SPEC_PLACEHOLDER = {
+  color: 'e.g. Sea Green',
+  ram: 'e.g. 8 GB',
+  storageCapacity: 'e.g. 512 GB',
+  caseSize: 'e.g. 44 mm',
+};
 
 export default function DeviceColorStorageScreen({ navigation, route }) {
   const params = route?.params || {};
@@ -134,6 +140,15 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
   const isCustomModel = !!params.customModel || !params.modelId;
   const [ramText, setRamText] = useState(params.ramLabel || '');
   const [storageText, setStorageText] = useState(params.storageLabel || '');
+  // A catalogue model whose listed colours / variants don't include the device
+  // in hand can switch to the same typed fields ("Enter manually").
+  const [manual, setManual] = useState(false);
+  const typed = isCustomModel || manual;
+  const enterManually = () => {
+    setRamText(rams.find((x) => x.id === ram)?.label || '');
+    setStorageText(storages.find((x) => x.id === storage)?.label || '');
+    setManual(true);
+  };
 
   // Storage-only models ("128 GB", no "+") don't require a RAM pick.
   const specsStorageOnly = specs.length > 0 && specs.every((sp) => sp.storageOnly);
@@ -180,6 +195,11 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
 
   useEffect(() => {
     (async () => {
+      if (isCustomModel) {
+        setModelOptions({});
+        setLoading(false);
+        return;
+      }
       try {
         const opts = await getModelOptions(params.modelId);
         setModelOptions(opts);
@@ -211,7 +231,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
       navigation.navigate('DeviceServices', { ...params, ...specParams() });
       return;
     }
-    if (isCustomModel) {
+    if (typed) {
       if (!color.trim() || !storageText.trim()) return;
       navigation.navigate('DeviceServices', {
         ...params,
@@ -252,10 +272,10 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
     navigation.navigate('DeviceServices', {
       ...params,
       color: color.trim() || undefined,
-      ramOptionId: isCustomModel ? undefined : (ram || undefined),
-      storageOptionId: isCustomModel ? undefined : (storage || undefined),
-      ramLabel: isCustomModel ? (ramText.trim() || undefined) : rams.find((x) => x.id === ram)?.label,
-      storageLabel: isCustomModel
+      ramOptionId: typed ? undefined : (ram || undefined),
+      storageOptionId: typed ? undefined : (storage || undefined),
+      ramLabel: typed ? (ramText.trim() || undefined) : rams.find((x) => x.id === ram)?.label,
+      storageLabel: typed
         ? (storageText.trim() || undefined)
         : storages.find((x) => x.id === storage)?.label,
       modelNumber: modelNumber || undefined,
@@ -267,7 +287,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
   // without one and the shop should not be blocked guessing it.
   const ready = spec.usesSpecs
     ? spec.ready
-    : isCustomModel
+    : typed
       ? (!!color.trim() && !!storageText.trim())
       : (!!color && !!storage && (specsStorageOnly || !!ram));
 
@@ -330,36 +350,71 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={col}>
-          {/* ── Device summary card ─────────────────────────────── */}
-          <View
-            style={{
-              backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: HAIR,
-              paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center',
-              shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
-            }}
+          {/* ── Device hero — same as Sell's "Your Device" ─────────────── */}
+          <LinearGradient
+            colors={[MINT, '#FFFFFF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 20, padding: 14, borderWidth: 1, borderColor: TILE_LINE_ACTIVE }}
           >
-            <View className="items-center justify-center" style={{ width: 120, height: 120 }}>
-              {params.imageUrl ? (
-                <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-              ) : (
-                <Smartphone size={44} color={GREEN} />
-              )}
-            </View>
-            <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '800', color: INK, textAlign: 'center' }} numberOfLines={2}>
-              {params.modelName || 'Device'}
-            </Text>
-            {params.brandName ? (
-              <Text style={{ marginTop: 1, fontSize: 12, color: MUTED, textAlign: 'center' }} numberOfLines={1}>
-                {params.brandName}
-              </Text>
-            ) : null}
-            {modelNumber ? (
-              <View className="flex-row items-center rounded-full" style={{ marginTop: 6, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
-                <Hash size={10} color={GREEN} />
-                <Text style={{ fontSize: 11, fontWeight: '800', color: GREEN_DEEP, marginLeft: 3 }} numberOfLines={1}>
-                  {modelNumber}
-                </Text>
+            <View className="flex-row items-center">
+              <View
+                className="items-center justify-center overflow-hidden"
+                style={{ height: 80, width: 80, borderRadius: 16, marginRight: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: TILE_LINE_ACTIVE }}
+              >
+                {params.imageUrl ? (
+                  <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                ) : (
+                  <Smartphone size={30} color={GREEN} />
+                )}
               </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 11, color: MUTED, letterSpacing: 1.5 }}>YOUR DEVICE</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: INK, marginTop: 2 }} numberOfLines={2}>
+                  {params.modelName || 'Device'}
+                </Text>
+                {params.brandName ? (
+                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }} numberOfLines={1}>{params.brandName}</Text>
+                ) : null}
+                {modelNumber ? (
+                  <View className="flex-row items-center self-start rounded-full" style={{ marginTop: 6, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: TILE_LINE_ACTIVE }}>
+                    <Hash size={10} color={GREEN} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: GREEN_DEEP, marginLeft: 3 }} numberOfLines={1}>{modelNumber}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {ready ? (
+                <View style={{ alignSelf: 'flex-start', backgroundColor: GREEN, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>READY</Text>
+                </View>
+              ) : null}
+            </View>
+          </LinearGradient>
+
+          {/* ── DEVICE DETAILS — a summary of what this screen collects ── */}
+          <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: HAIR, overflow: 'hidden' }}>
+            <Text style={{ fontSize: 10.5, fontWeight: '800', color: MUTED, letterSpacing: 1.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 }}>DEVICE DETAILS</Text>
+            {params.brandName ? <DetailRow label="Brand" value={params.brandName} /> : null}
+            <DetailRow label="Model" value={params.modelName || 'Device'} />
+            {spec.usesSpecs
+              ? specDetailRows({ deviceCategory: spec.category, specs: spec.values }).map((r) => (
+                <DetailRow key={r.key} label={r.label} value={r.value} />
+              ))
+              : (() => {
+                const ramL = typed ? ramText.trim() : rams.find((x) => x.id === ram)?.label;
+                const stoL = typed ? storageText.trim() : storages.find((x) => x.id === storage)?.label;
+                return stoL || ramL
+                  ? <DetailRow label={specsStorageOnly ? 'Storage' : 'RAM · Storage'} value={[ramL, stoL].filter(Boolean).join(' · ')} />
+                  : null;
+              })()}
+            {/* Model number right after storage. */}
+            {modelNumber ? <DetailRow label="Model Number" value={modelNumber} /> : null}
+            {(spec.usesSpecs ? spec.values.color : color) ? (
+              <DetailRow
+                label="Color"
+                value={spec.usesSpecs ? spec.values.color : color}
+                leading={<View style={{ height: 14, width: 14, borderRadius: 7, borderWidth: 1, borderColor: HAIR, backgroundColor: swatchFor(spec.usesSpecs ? spec.values.color : color) }} />}
+              />
             ) : null}
           </View>
 
@@ -386,7 +441,16 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                   label={f.key === 'color' ? 'Model Color' : f.label}
                   subtitle={f.key === 'color' ? undefined : (f.required ? f.hint : `${f.hint} (optional)`)}
                 />
-                {f.key === 'color' ? (
+                {typed && TYPED_SPEC_PLACEHOLDER[f.key] ? (
+                  <TextInput
+                    value={spec.values[f.key] || ''}
+                    onChangeText={(v) => spec.setValue(f.key, v)}
+                    placeholder={TYPED_SPEC_PLACEHOLDER[f.key]}
+                    placeholderTextColor={PLACEHOLDER}
+                    autoCapitalize={f.key === 'color' ? 'words' : 'characters'}
+                    style={inputStyle}
+                  />
+                ) : f.key === 'color' ? (
                   <ColorGrid
                     colors={f.options.map((o) => ({ id: o.value, name: o.value, hexCode: o.hex }))}
                     value={spec.values.color || ''}
@@ -404,8 +468,18 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                   />
                 )}
               </Card>
-            ))
-          ) : isCustomModel ? (
+            )).concat(isCustomModel ? [] : [
+              <Pressable key="__manual" onPress={() => setManual((m) => !m)} hitSlop={8} style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 6 }}>
+                {manual ? (
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: GREEN_DEEP }}>Choose from the list instead</Text>
+                ) : (
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                    Details not listed? <Text style={{ fontWeight: '700', color: GREEN_DEEP }}>Enter manually</Text>
+                  </Text>
+                )}
+              </Pressable>,
+            ])
+          ) : typed ? (
             <Card>
               <SectionHeader icon={Palette} label="Model Color" subtitle="Type the colour" />
               <TextInput
@@ -435,6 +509,11 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                 autoCapitalize="characters"
                 style={inputStyle}
               />
+              {!isCustomModel ? (
+                <Pressable onPress={() => setManual(false)} hitSlop={8} style={{ marginTop: 12, alignSelf: 'flex-start' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: GREEN_DEEP }}>Choose from the list instead</Text>
+                </Pressable>
+              ) : null}
             </Card>
           ) : (
             <>
@@ -499,6 +578,13 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
                   </Card>
                 </>
               )}
+
+              {/* Listed options incomplete (e.g. a new model) → type them. */}
+              <Pressable onPress={enterManually} hitSlop={8} style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 6 }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                  Color, RAM or storage not listed? <Text style={{ fontWeight: '700', color: GREEN_DEEP }}>Enter manually</Text>
+                </Text>
+              </Pressable>
             </>
           )}
         </View>
@@ -555,7 +641,7 @@ function Card({ children }) {
     <View
       style={{
         marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: HAIR,
-        padding: 12, shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+        padding: 12,
       }}
     >
       {children}
@@ -563,15 +649,26 @@ function Card({ children }) {
   );
 }
 
+// Same header as Sell's "Your Device": round icon, title, caption on the right.
 function SectionHeader({ icon: Icon, label, subtitle }) {
   return (
-    <View className="flex-row items-center" style={{ marginBottom: 9 }}>
-      <View className="items-center justify-center" style={{ height: 26, width: 26, borderRadius: 9, backgroundColor: MINT, marginRight: 8 }}>
-        <Icon size={13} color={GREEN} />
+    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+      <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT, marginRight: 8 }}>
+        <Icon size={14} color={GREEN} />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>{label}</Text>
-        {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
+      <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>{label}</Text>
+      {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginLeft: 8, maxWidth: '50%' }} numberOfLines={1}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+function DetailRow({ label, value, leading }) {
+  return (
+    <View className="flex-row items-center" style={{ paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+      <Text style={{ width: 92, fontSize: 12, color: MUTED }}>{label}</Text>
+      <View className="flex-1 flex-row items-center" style={{ gap: 6 }}>
+        {leading}
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: INK }} numberOfLines={1}>{value}</Text>
       </View>
     </View>
   );
@@ -593,20 +690,20 @@ function ColorGrid({ colors, value, onChange, columns }) {
                 minHeight: 40,
                 borderRadius: 12,
                 borderWidth: active ? 1.5 : 1,
-                borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
-                backgroundColor: active ? MINT : '#FFFFFF',
+                borderColor: active ? GREEN : TILE_LINE,
+                backgroundColor: active ? GREEN : '#FFFFFF',
                 paddingVertical: active ? 6.5 : 7,
                 paddingHorizontal: active ? 7.5 : 8,
               }}
             >
               <View
                 className="items-center justify-center"
-                style={{ height: 18, width: 18, borderRadius: 9, backgroundColor: sw, borderWidth: 1, borderColor: 'rgba(30,30,30,0.15)' }}
+                style={{ height: 18, width: 18, borderRadius: 9, backgroundColor: sw, borderWidth: 1, borderColor: 'rgba(17, 17, 17,0.15)' }}
               >
-                {active ? <Check size={10} color={sw === '#F8F8F8' || sw === '#FFFFFF' ? INK : '#FFFFFF'} strokeWidth={3} /> : null}
+                {active ? <Check size={10} color={sw === '#F3F4F6' || sw === '#FFFFFF' ? INK : '#FFFFFF'} strokeWidth={3} /> : null}
               </View>
               <Text
-                style={{ flex: 1, marginLeft: 7, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? TILE_TEXT_ACTIVE : TILE_TEXT }}
+                style={{ flex: 1, marginLeft: 7, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : TILE_TEXT }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.85}
@@ -636,8 +733,8 @@ function VariantGrid({ options, selected, onSelect, getLabel, keyOf, columns = 3
                 minHeight: 40,
                 borderRadius: 12,
                 borderWidth: active ? 1.5 : 1,
-                borderColor: active ? TILE_LINE_ACTIVE : TILE_LINE,
-                backgroundColor: active ? MINT : '#FFFFFF',
+                borderColor: active ? GREEN : TILE_LINE,
+                backgroundColor: active ? GREEN : '#FFFFFF',
                 // Padding absorbs the thicker border so the label never shifts.
                 paddingVertical: active ? 7.5 : 8,
                 paddingHorizontal: active ? 7.5 : 8,
@@ -647,15 +744,15 @@ function VariantGrid({ options, selected, onSelect, getLabel, keyOf, columns = 3
                 <View
                   style={{
                     height: 18, width: 18, borderRadius: 9, borderWidth: 1.5,
-                    borderColor: active ? GREEN : '#D6D6D6', backgroundColor: active ? GREEN : '#FFFFFF',
+                    borderColor: active ? '#FFFFFF' : '#D1D5DB', backgroundColor: '#FFFFFF',
                     alignItems: 'center', justifyContent: 'center', marginRight: 7,
                   }}
                 >
-                  {active ? <Check size={11} color="#FFFFFF" strokeWidth={3} /> : null}
+                  {active ? <Check size={11} color={GREEN} strokeWidth={3} /> : null}
                 </View>
               ) : null}
               <Text
-                style={{ flexShrink: 1, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? TILE_TEXT_ACTIVE : TILE_TEXT, textAlign: 'center' }}
+                style={{ flexShrink: 1, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : TILE_TEXT, textAlign: 'center' }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.85}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,16 +11,16 @@ import { listShopChats, pingShopPresence } from '../../../api/chat';
 // manual refresh — matches the existing 10s polling pattern used elsewhere.
 
 // GGFIX palette.
-const GREEN = '#09AD2A';        // fills, icons, unread badge
-const GREEN_DEEP = '#078F23';   // green TEXT
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const PLACEHOLDER = '#8A8A8A';
-const LINE = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const GREEN = '#035C6C';        // fills, icons, unread badge
+const GREEN_DEEP = '#035C6C';   // green TEXT
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const PLACEHOLDER = '#9CA3AF';
+const LINE = '#E5E7EB';
+const HAIR = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 
 function shortTime(iso) {
   if (!iso) return '';

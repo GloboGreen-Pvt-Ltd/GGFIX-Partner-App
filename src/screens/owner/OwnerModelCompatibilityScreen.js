@@ -7,6 +7,7 @@ import {
   ScrollView,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Barcode,
@@ -19,6 +20,8 @@ import {
 } from 'lucide-react-native';
 import { ErrorState, Loader, ScreenHeader, SearchBar } from '../../components/rnr';
 import DeviceImage from '../../components/DeviceImage';
+import ImageViewerModal from '../../components/ImageViewerModal';
+import { resolveDeviceImageSource } from '../../utils/images';
 import {
   getAllModels,
   getBrands,
@@ -59,17 +62,17 @@ import {
 // GGFIX palette — explicit values; the shared theme tokens/classes still
 // resolve to the old teal.
 const C = {
-  green: '#09AD2A',       // fills, icons, selected
-  greenDeep: '#078F23',   // green TEXT on white / mint
-  mint: '#EAF8EC',
-  mintLine: '#CDEFD4',
-  ink: '#1E1E1E',
-  muted: '#6B6B6B',
-  subtle: '#8A8A8A',
-  line: '#E6E6E6',
-  hair: '#F3F3F3',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  green: '#035C6C',       // fills, icons, selected
+  greenDeep: '#035C6C',   // green TEXT on white / mint
+  mint: '#E5F3F5',
+  mintLine: '#C7E6EA',
+  ink: '#111111',
+  muted: '#6B7280',
+  subtle: '#9CA3AF',
+  line: '#E5E7EB',
+  hair: '#F3F4F6',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   white: '#FFFFFF',
   amberBg: '#FFF8E1',
   amberLine: '#F6DE8C',
@@ -178,6 +181,9 @@ function boxMatches(box, needle) {
 }
 
 export default function OwnerModelCompatibilityScreen({ navigation }) {
+  const { width: winW } = useWindowDimensions();
+  // Model whose photo is open in the full-screen popup.
+  const [viewerModel, setViewerModel] = useState(null);
   const [rows, setRows] = useState(null);
   const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -345,6 +351,9 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
 
   const list = trimmed ? results : suggestions;
   const visibleBoxes = boxes.filter((b) => boxMatches(b, trimmed));
+  // Model grid: 3 cards a row on every phone, more on tablets.
+  const gridCols = winW >= 1000 ? 6 : winW >= 840 ? 5 : winW >= 600 ? 4 : 3;
+  const gridCardW = Math.floor((winW - GRID_PAD * 2 - GRID_GAP * (gridCols - 1)) / gridCols);
 
   return (
     <Screen>
@@ -417,13 +426,17 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         />
       ) : (
       <FlatList
+        // numColumns can't change on a mounted list — remount on rotate / resize.
+        key={`grid-${gridCols}`}
+        numColumns={gridCols}
+        columnWrapperStyle={{ gap: GRID_GAP }}
         data={list}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.green} colors={[C.green]} />
         }
-        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: GRID_PAD, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
         ListHeaderComponent={
           <View>
             {/* A refresh that fails still leaves the previously-loaded catalogue
@@ -456,7 +469,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <ModelRow model={item} onPress={() => openModel(item)} />
+          <ModelCard model={item} width={gridCardW} onPress={() => openModel(item)} onImagePress={() => setViewerModel(item)} />
         )}
         ListEmptyComponent={
           <View className="items-center px-8 py-16">
@@ -475,6 +488,19 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         }
       />
       )}
+
+      {/* Photo popup: tap a card's image to view it full screen. */}
+      <ImageViewerModal
+        visible={!!viewerModel}
+        images={viewerModel ? [{
+          uri: resolveDeviceImageSource({ url: viewerModel.imageUrl }),
+          label: [viewerModel.brandName, viewerModel.name].filter(Boolean).join(' · '),
+        }] : []}
+        index={0}
+        onClose={() => setViewerModel(null)}
+        actionLabel="View Compatibility"
+        onAction={() => { const m = viewerModel; setViewerModel(null); if (m) openModel(m); }}
+      />
     </Screen>
   );
 }
@@ -850,6 +876,44 @@ function CodeBanner({ code, hits, onOpenModel }) {
 
 // `muted` went with the Same-series list — it was the only caller that dimmed a
 // row, so the remaining rows are all confirmed matches and styled one way.
+const GRID_PAD = 14;
+const GRID_GAP = 8;
+
+// Grid card for the model list: photo, name (2 lines), brand, first part number.
+function ModelCard({ model, width, onPress, onImagePress }) {
+  const thumb = Math.max(40, Math.min(76, width - 24));
+  return (
+    <Pressable
+      onPress={onPress}
+      className="items-center active:opacity-70"
+      style={[CARD, { width, paddingHorizontal: 6, paddingVertical: 8, marginBottom: GRID_GAP }]}
+      accessibilityRole="button"
+      accessibilityLabel={`${model.name}${model.brandName ? `, ${model.brandName}` : ''}`}
+    >
+      {/* The photo opens the full-screen viewer; the rest of the card opens the model. */}
+      {model.imageUrl && onImagePress ? (
+        <Pressable onPress={onImagePress} hitSlop={4} accessibilityRole="imagebutton" accessibilityLabel={`View photo of ${model.name}`}>
+          <Thumb model={model} size={thumb} />
+        </Pressable>
+      ) : (
+        <Thumb model={model} size={thumb} />
+      )}
+      <Text
+        style={{ height: 30, marginTop: 6, fontSize: 11.5, lineHeight: 15, fontWeight: '800', color: C.ink, textAlign: 'center' }}
+        numberOfLines={2}
+      >
+        {model.name}
+      </Text>
+      <Text style={{ fontSize: 10, color: C.muted, marginTop: 1 }} numberOfLines={1}>{model.brandName || '—'}</Text>
+      {model.codes?.[0] ? (
+        <View style={{ marginTop: 4, maxWidth: '100%', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: C.soft }}>
+          <Text style={{ fontSize: 9.5, fontWeight: '700', color: C.ink, letterSpacing: 0.2 }} numberOfLines={1}>{model.codes[0]}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 function ModelRow({ model, badge, onPress }) {
   return (
     <Pressable

@@ -62,7 +62,7 @@ export default function TicketListScreen({ navigation }) {
             <Text style={styles.device}>Device : {deviceName}</Text>
             <Text style={styles.device}>Color : {color}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#667066" />
+          <Ionicons name="chevron-forward" size={18} color="#6B7280" />
         </View>
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Status :</Text>
@@ -87,7 +87,7 @@ export default function TicketListScreen({ navigation }) {
   if (loading && list.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ActivityIndicator size="large" color="#16BB05" style={styles.loader} />
+        <ActivityIndicator size="large" color="#035C6C" style={styles.loader} />
       </SafeAreaView>
     );
   }
@@ -99,11 +99,11 @@ export default function TicketListScreen({ navigation }) {
       </View>
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color="#8FA08F" />
+          <Ionicons name="search-outline" size={18} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by Tracking ID, Customer Name, or Mobile Number"
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => load(true)}
@@ -115,7 +115,7 @@ export default function TicketListScreen({ navigation }) {
         data={list}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#16BB05']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>No tickets</Text>}
       />
@@ -124,13 +124,13 @@ export default function TicketListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   loader: { flex: 1, justifyContent: 'center' },
   headerBar: {
     paddingVertical: 12,
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#172117' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#111111' },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -141,12 +141,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FAF7',
+    backgroundColor: '#F3F4F6',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  searchInput: { marginLeft: 6, flex: 1, fontSize: 13, color: '#172117' },
+  searchInput: { marginLeft: 6, flex: 1, fontSize: 13, color: '#111111' },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   card: {
     backgroundColor: '#FFFFFF',
@@ -155,16 +155,16 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   rowTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  thumb: { width: 48, height: 48, borderRadius: 8, marginRight: 10, backgroundColor: '#E2E8E2' },
+  thumb: { width: 48, height: 48, borderRadius: 8, marginRight: 10, backgroundColor: '#E5E7EB' },
   topTextWrap: { flex: 1 },
-  tracking: { fontSize: 13, fontWeight: '600', color: '#172117' },
-  device: { fontSize: 12, color: '#667066', marginTop: 2 },
+  tracking: { fontSize: 13, fontWeight: '600', color: '#111111' },
+  device: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   statusRow: { flexDirection: 'row', marginTop: 4 },
-  statusLabel: { fontSize: 12, color: '#667066' },
+  statusLabel: { fontSize: 12, color: '#6B7280' },
   statusValue: { fontSize: 12, color: '#DC2626', marginLeft: 4, fontWeight: '600' },
   fieldRow: { flexDirection: 'row', marginTop: 4 },
-  fieldLabel: { flex: 0.7, fontSize: 12, color: '#667066' },
-  fieldValue: { flex: 1, fontSize: 12, color: '#172117' },
+  fieldLabel: { flex: 0.7, fontSize: 12, color: '#6B7280' },
+  fieldValue: { flex: 1, fontSize: 12, color: '#111111' },
   error: { fontSize: 13, color: '#DC2626', paddingHorizontal: 16, paddingBottom: 4 },
-  empty: { fontSize: 13, color: '#667066', textAlign: 'center', marginTop: 24 },
+  empty: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginTop: 24 },
 });

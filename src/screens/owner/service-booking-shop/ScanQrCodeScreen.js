@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
@@ -21,37 +22,38 @@ import {
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
 
 // Ticket lifecycle → human label + colour chip. Mirrors the backend status set
 // (TicketService): CREATED, IN_DIAGNOSIS, QUOTED, APPROVED, IN_REPAIR, READY,
 // DELIVERED_PROCESSING, DELIVERED, CANCELLED.
 const STATUS_META = {
-  CREATED:              { label: 'Created',       color: '#667066', bg: '#EFF5EE' },
-  IN_DIAGNOSIS:         { label: 'In Diagnosis',  color: '#16BB05', bg: '#F0F8EF' },
+  CREATED:              { label: 'Created',       color: '#6B7280', bg: '#E5F3F5' },
+  IN_DIAGNOSIS:         { label: 'In Diagnosis',  color: '#035C6C', bg: '#E5F3F5' },
   QUOTED:               { label: 'Quoted',        color: '#B45309', bg: '#FEF3C7' },
-  APPROVED:             { label: 'Approved',      color: '#087A0A', bg: '#F0F8EF' },
+  APPROVED:             { label: 'Approved',      color: '#035C6C', bg: '#E5F3F5' },
   IN_REPAIR:            { label: 'In Repair',     color: '#B45309', bg: '#FEF3C7' },
-  READY:                { label: 'Ready',         color: BRAND_GREEN_DARK, bg: '#E6F7E3' },
-  DELIVERED_PROCESSING: { label: 'Delivering',    color: '#087A0A', bg: '#F0F8EF' },
-  DELIVERED:            { label: 'Delivered',     color: BRAND_GREEN_DARK, bg: '#E6F7E3' },
+  READY:                { label: 'Ready',         color: BRAND_GREEN_DARK, bg: '#E5F3F5' },
+  DELIVERED_PROCESSING: { label: 'Delivering',    color: '#035C6C', bg: '#E5F3F5' },
+  DELIVERED:            { label: 'Delivered',     color: BRAND_GREEN_DARK, bg: '#E5F3F5' },
   CANCELLED:            { label: 'Cancelled',     color: '#B91C1C', bg: '#FEE2E2' },
 };
 
 function statusMeta(status) {
   const key = String(status || '').toUpperCase();
-  return STATUS_META[key] || { label: key ? key.replace(/_/g, ' ') : 'Unknown', color: '#667066', bg: '#EFF5EE' };
+  return STATUS_META[key] || { label: key ? key.replace(/_/g, ' ') : 'Unknown', color: '#6B7280', bg: '#E5F3F5' };
 }
 
 // Same rendering rule the print slip uses: PIN/Password show the value inline,
-// Pattern keeps its "1,2,3" dot sequence, None stays plain.
+// Pattern shows its dot order as "1>2>3", None stays plain.
 function formatSecurity(type, value) {
   const t = String(type || 'NONE').toUpperCase();
   if (t === 'NONE' || !t) return 'None';
   const label = t === 'PIN' ? 'PIN' : t === 'PASSWORD' ? 'Password' : t === 'PATTERN' ? 'Pattern'
     : t.charAt(0) + t.slice(1).toLowerCase();
-  const v = value == null ? '' : String(value).trim();
+  let v = value == null ? '' : String(value).trim();
+  if (t === 'PATTERN') v = v.split(',').filter(Boolean).join('>'); // 1,2,3,5 → 1>2>3>5
   return v ? `${label} · ${v}` : label;
 }
 
@@ -104,7 +106,7 @@ async function resolveTicket(raw) {
 function DetailRow({ icon: Icon, label, value }) {
   return (
     <View className="flex-row items-start py-2.5 border-b border-gray-100">
-      <View className="w-8 h-8 rounded-lg items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
+      <View className="w-8 h-8 rounded-lg items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
         <Icon size={15} color={BRAND_GREEN_DARK} />
       </View>
       <View className="flex-1">
@@ -116,6 +118,8 @@ function DetailRow({ icon: Icon, label, value }) {
 }
 
 export default function ScanQrCodeScreen({ navigation }) {
+  // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -243,7 +247,7 @@ export default function ScanQrCodeScreen({ navigation }) {
 
       {/* Result / loading / not-found bottom sheet */}
       {showSheet ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 28, maxHeight: '78%' }}>
+        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 16 + insets.bottom, maxHeight: '78%' }}>
           {loading ? (
             <View className="items-center justify-center py-10">
               <ActivityIndicator size="large" color={BRAND_GREEN} />
@@ -253,7 +257,7 @@ export default function ScanQrCodeScreen({ navigation }) {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 18 }}>
               {/* Found header + status chip */}
               <View className="flex-row items-center mb-1">
-                <View className="w-9 h-9 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: '#E6F7E3' }}>
+                <View className="w-9 h-9 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                   <BadgeCheck size={18} color={BRAND_GREEN_DARK} />
                 </View>
                 <View className="flex-1">
@@ -272,7 +276,7 @@ export default function ScanQrCodeScreen({ navigation }) {
                 })()}
               </View>
 
-              <View className="mt-2 rounded-2xl px-3" style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#EFF5EE' }}>
+              <View className="mt-2 rounded-2xl px-3" style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5F3F5' }}>
                 <DetailRow icon={Hash} label="Service No." value={ticket.trackingId || ticket.id} />
                 <DetailRow icon={User} label="Customer Name" value={ticket.customerName} />
                 {ticket.customerPhone ? <DetailRow icon={Phone} label="Customer Phone" value={ticket.customerPhone} /> : null}
@@ -286,7 +290,7 @@ export default function ScanQrCodeScreen({ navigation }) {
                 {ticket.issueDescription ? <DetailRow icon={MessageSquareText} label="Issue" value={ticket.issueDescription} /> : null}
                 {/* Ticket status also spelled out as a row for the print/handoff record */}
                 <View className="flex-row items-start py-2.5">
-                  <View className="w-8 h-8 rounded-lg items-center justify-center mr-3" style={{ backgroundColor: '#E6F7E3' }}>
+                  <View className="w-8 h-8 rounded-lg items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
                     <BadgeCheck size={15} color={BRAND_GREEN_DARK} />
                   </View>
                   <View className="flex-1">
@@ -310,7 +314,7 @@ export default function ScanQrCodeScreen({ navigation }) {
               </View>
               <Text className="text-gray-900 font-extrabold text-[13px] text-center">No ticket found</Text>
               <Text className="text-gray-500 text-[12px] text-center mt-1.5 leading-5">
-                Couldn't match <Text className="font-extrabold text-gray-700">{notFound}</Text> to a ticket in this shop. Make sure it's a GGFix QR slip.
+                Couldn't match <Text className="font-extrabold text-gray-700">{notFound}</Text> to a ticket in this shop. Make sure it's a Near G Fix QR slip.
               </Text>
               <Pressable onPress={reset} className="mt-5 rounded-2xl py-3.5 px-8 flex-row items-center justify-center active:opacity-90" style={{ backgroundColor: BRAND_GREEN }}>
                 <RotateCcw size={16} color="#fff" />
@@ -328,7 +332,7 @@ function SlimHeader({ onBack }) {
   return (
     <View className="pt-12 px-4 pb-3 flex-row items-center bg-card border-b border-border">
       <Pressable onPress={onBack} className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted mr-3">
-        <ChevronLeft size={22} color="#172117" />
+        <ChevronLeft size={22} color="#111111" />
       </Pressable>
       <Text className="text-text text-[17px] font-extrabold">Scan QR Slip</Text>
     </View>

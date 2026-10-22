@@ -1,7 +1,7 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useResponsive, SPACING, TOUCH_MIN } from '../../theme/responsive';
-import useKeyboardHeight from '../../lib/hooks/useKeyboardHeight';
+import SafeModal, { useSheetBottomInset } from '../SafeModal';
 
 /**
  * Responsive layout primitives. All of them read `useResponsive()`, so they
@@ -101,58 +101,59 @@ export function ResponsiveForm({ gap = SPACING.md, style, children, ...rest }) {
 /**
  * Bottom sheet on a phone, centred dialog on a tablet — §14.
  *
- * Two things worth knowing:
+ * Insets (Android gesture bar, 3-button bar, iOS home indicator):
+ * · The modal window is edge-to-edge (RN forces it with edge-to-edge on), so
+ *   the sheet pads the bottom inset of ITS OWN window — measured by the
+ *   SafeAreaProvider inside SafeModal — exactly once. No fixed heights, no
+ *   double padding, nothing hidden behind the nav buttons.
+ * · With the keyboard up the sheet lifts by the keyboard (plus the bar under
+ *   it on Android — see useSheetBottomInset) instead of the inset.
+ * · Dialog mode (tablet) centres inside the safe area; no bottom inset needed.
  *
- * · The bottom inset is applied ONLY in sheet mode. In dialog mode the panel
- *   floats clear of the home indicator already, and adding the inset there just
- *   pads dead space inside the card.
+ * Every Pressable here takes a plain object style. NativeWind's JSX interop
+ * silently DROPS a function style (`style={({pressed}) => …}`) in its
+ * entirety, which collapses the layout.
  *
- * · Every Pressable here takes a plain object style. NativeWind's JSX interop
- *   silently DROPS a function style (`style={({pressed}) => …}`) in its
- *   entirety, which collapses the layout — use `components/ios`'s `Touchable`
- *   if you need pressed feedback.
- *
- * · It lifts itself clear of the keyboard. Under edge-to-edge Android does NOT
- *   resize the window, so a bottom-anchored sheet with a TextInput in it just
- *   sits behind the keys — the sheet is live but invisible, which reads as "the
- *   keyboard doesn't respond". See `hooks/useKeyboardHeight` for why neither
- *   KeyboardAvoidingView nor react-native-keyboard-controller solves it here.
+ * `edgeToEdge` is accepted for backward compatibility and has no effect —
+ * every ResponsiveModal is edge-to-edge and inset-correct now.
  */
-export function ResponsiveModal({
-  visible,
-  onClose,
-  maxWidth = 560,
-  scrollable = false,
-  contentStyle,
-  children,
-}) {
+// eslint-disable-next-line no-unused-vars
+export function ResponsiveModal({ visible, onClose, maxWidth = 560, scrollable = false, contentStyle, edgeToEdge, children }) {
   const r = useResponsive();
-  const kb = useKeyboardHeight();
   const asDialog = r.isTablet;
+  return (
+    <SafeModal visible={!!visible} transparent animationType={asDialog ? 'fade' : 'slide'} onRequestClose={onClose}>
+      <ModalPanel asDialog={asDialog} onClose={onClose} maxWidth={maxWidth} scrollable={scrollable} contentStyle={contentStyle}>
+        {children}
+      </ModalPanel>
+    </SafeModal>
+  );
+}
+
+// Rendered inside SafeModal, so the insets and window size are this window's own.
+function ModalPanel({ asDialog, onClose, maxWidth, scrollable, contentStyle, children }) {
+  const { width, height } = useWindowDimensions();
+  const { bottom, keyboard, insets } = useSheetBottomInset();
 
   const panel = (
     <View
       style={[
         {
           width: '100%',
-          maxWidth: asDialog ? Math.min(maxWidth, r.width - SPACING.xl * 2) : undefined,
+          maxWidth: asDialog ? Math.min(maxWidth, width - SPACING.xl * 2) : undefined,
           backgroundColor: '#FFFFFF',
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           borderBottomLeftRadius: asDialog ? 24 : 0,
           borderBottomRightRadius: asDialog ? 24 : 0,
           paddingTop: SPACING.md,
-          // With the keyboard up the gesture bar is behind it, so the safe-area
-          // inset would be padding on top of padding. It is one or the other.
-          paddingBottom: asDialog
-            ? SPACING.lg
-            : (kb > 0 ? SPACING.md : r.insets.bottom + SPACING.lg),
+          // Sheet: the window's bottom inset (or nothing while the keyboard,
+          // which already covers it, is up). Dialog: plain padding.
+          paddingBottom: asDialog ? SPACING.lg : SPACING.lg + (keyboard > 0 ? 0 : insets.bottom),
           paddingHorizontal: SPACING.lg,
-          // Never taller than the window minus its insets, or a long sheet in
-          // landscape runs off both ends with no way to reach the buttons. The
-          // keyboard's share comes off too, or a tall sheet just overflows past
-          // the TOP instead of fitting in what's left.
-          maxHeight: Math.max(220, r.height - kb) - r.insets.top - (asDialog ? SPACING.xl * 2 : 0),
+          // Never taller than what's left between the status bar and the
+          // keyboard / nav bar, so the buttons at the bottom stay reachable.
+          maxHeight: Math.max(220, height - insets.top - (keyboard > 0 ? keyboard : 0) - (asDialog ? SPACING.xl * 2 + insets.bottom : 0)),
         },
         contentStyle,
       ]}
@@ -162,27 +163,26 @@ export function ResponsiveModal({
   );
 
   return (
-    <Modal visible={!!visible} transparent animationType={asDialog ? 'fade' : 'slide'} onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        style={{
-          flex: 1,
-          backgroundColor: 'rgba(23,33,23,0.45)',
-          justifyContent: asDialog ? 'center' : 'flex-end',
-          alignItems: 'center',
-          paddingHorizontal: asDialog ? SPACING.xl : 0,
-          // What actually lifts the panel clear of the keys.
-          paddingBottom: kb,
-        }}
-      >
-        {/* Swallows the press so a tap inside never falls through to the scrim. */}
-        <Pressable onPress={() => {}} style={{ width: '100%', alignItems: 'center' }}>
-          {scrollable
-            ? <ScrollView keyboardShouldPersistTaps="handled" style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center' }}>{panel}</ScrollView>
-            : panel}
-        </Pressable>
+    <Pressable
+      onPress={onClose}
+      style={{
+        flex: 1,
+        backgroundColor: 'rgba(17, 17, 17,0.45)',
+        justifyContent: asDialog ? 'center' : 'flex-end',
+        alignItems: 'center',
+        paddingHorizontal: asDialog ? SPACING.xl : 0,
+        // Dialog: stay inside the safe area. Sheet: lift above the keyboard.
+        paddingTop: asDialog ? insets.top : 0,
+        paddingBottom: asDialog ? Math.max(insets.bottom, keyboard) : keyboard,
+      }}
+    >
+      {/* Swallows the press so a tap inside never falls through to the scrim. */}
+      <Pressable onPress={() => {}} style={{ width: '100%', alignItems: 'center' }}>
+        {scrollable
+          ? <ScrollView keyboardShouldPersistTaps="handled" style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center' }}>{panel}</ScrollView>
+          : panel}
       </Pressable>
-    </Modal>
+    </Pressable>
   );
 }
 

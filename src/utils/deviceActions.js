@@ -6,7 +6,7 @@ import { buildDeviceParams } from './deviceSearch';
  * in the same flows:
  *   BOOK → DeviceColorStorage, nested inside the RepairServiceBookingShop
  *          navigator, so it goes through that route with `screen`/`params`.
- *   SELL → OwnerSellChooseSalesCategory (the OWNER_LIST flow).
+ *   SELL → SelectVariant (the OWNER_LIST flow: colour / storage, then the listing).
  *   BUY  → the Buy listing (OwnerBuyListing), which takes a `q`; there is no
  *          per-model product route, so it lands pre-filtered on the model name.
  * Returns false (and does nothing) when the row has no catalogue model id.
@@ -18,7 +18,7 @@ export function navigateDeviceAction(navigation, key, device) {
     return true;
   }
   if (key === 'SELL') {
-    navigation.navigate('OwnerSellChooseSalesCategory', buildDeviceParams(device, 'OWNER_LIST'));
+    navigation.navigate('SelectVariant', buildDeviceParams(device, 'OWNER_LIST'));
     return true;
   }
   navigation.navigate('OwnerBuyListing', {

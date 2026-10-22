@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  View,
   Text,
   StyleSheet,
   TextInput,
@@ -74,7 +73,7 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
           value={startDate}
           onChangeText={setStartDate}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
         />
         <Text style={styles.label}>End date</Text>
         <TextInput
@@ -82,7 +81,7 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
           value={endDate}
           onChangeText={setEndDate}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
         />
         <Text style={styles.label}>Reason (optional)</Text>
         <TextInput
@@ -90,7 +89,7 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
           value={reason}
           onChangeText={setReason}
           placeholder="Reason for leave"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
           multiline
         />
         <TouchableOpacity
@@ -106,12 +105,12 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
+  safe: { flex: 1, backgroundColor: '#111111' },
   content: { padding: 12, paddingBottom: 24 },
-  label: { fontSize: 13, color: '#8FA08F', marginBottom: 5 },
-  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 11, fontSize: 13, color: '#F7FAF7', marginBottom: 12 },
+  label: { fontSize: 13, color: '#9CA3AF', marginBottom: 5 },
+  input: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#111111', borderRadius: 8, padding: 11, fontSize: 13, color: '#F3F4F6', marginBottom: 12 },
   textArea: { minHeight: 70, textAlignVertical: 'top' },
-  submitBtn: { backgroundColor: '#087A0A', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 6 },
+  submitBtn: { backgroundColor: '#035C6C', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 6 },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 });

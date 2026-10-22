@@ -1,26 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, Image, ActivityIndicator, Alert, Platform,
+  View,
+  Text,
+  TextInput,
+  ScrollView,
+  Pressable,
+  Image,
+  Alert,
+  Platform,
+  StatusBar,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { T } from '../../../components/dashboard/theme';
 import {
-  ArrowLeft,
   Smartphone,
-  Hash,
   ReceiptText,
+  IndianRupee,
+  UserCheck,
   MessageSquareText,
   Timer,
   Calendar,
   Clock,
-  ShieldCheck,
   CircleCheck,
-  Camera,
   Video,
   Image as ImageIcon,
-  X,
-  Plus,
   ChevronRight,
-  Mic,
   Play,
   Pause,
   Info,
@@ -36,19 +42,19 @@ import { lockTypesFor, resolveSpecCategory, specDisplayParts } from '../../../ut
 
 // GGFIX palette — explicit values, not `text-primary` / `text-text` classes: the
 // shared Tailwind tokens still resolve to the old teal theme.
-const ACCENT = '#09AD2A';       // GGFIX green — fills, icons, selected
-const PRIMARY = '#078F23';      // deeper green — green TEXT on white / mint
-const MINT = '#EAF8EC';         // light green tint
-const MINT_LINE = '#CDEFD4';    // its border
-const SOFT = '#F8F8F8';         // soft inner panels
-const PAGE_BG = '#F8F8F8';
+const ACCENT = '#035C6C';       // GGFIX green — fills, icons, selected
+const PRIMARY = '#035C6C';      // deeper green — green TEXT on white / mint
+const MINT = '#E5F3F5';         // light green tint
+const MINT_LINE = '#C7E6EA';    // its border
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const HAIR = '#F3F3F3';         // card hairline on the grey page
-const INK = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
-const WARNING = '#F84141';
+const BORDER = '#E5E7EB';
+const HAIR = '#F3F4F6';         // card hairline on the grey page
+const INK = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const AMBER_TEXT = '#8A6A00';
+const AMBER_BG = '#FFF8E1';      // pending pill
+const AMBER_LINE = '#F5E3A3';
 
 // Front and Back are REQUIRED — without them the technician can't prove the
 // device's pre-repair state. The coverage video is optional but encouraged.
@@ -57,6 +63,13 @@ const SLOTS = [
   { key: 'back',  label: 'Back Side',  isVideo: false, icon: ImageIcon, required: true },
   { key: 'video', label: 'Full Coverage', isVideo: true, icon: Video, required: false },
 ];
+
+// master-data /media/upload limit (spring multipart max-file-size: 10MB).
+const MAX_UPLOAD_MB = 10;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const tooLargeMsg = (slot, bytes) =>
+  `${bytes ? `This file is ${(bytes / 1048576).toFixed(1)} MB. ` : ''}The limit is ${MAX_UPLOAD_MB} MB. `
+  + (slot.isVideo ? 'Record a shorter clip (about 5–8 seconds) and try again.' : 'Choose a smaller photo and try again.');
 
 /** Long enough for ResponsiveModal's slide-out to finish before the next present. */
 const HANDOFF_MS = 320;
@@ -67,17 +80,33 @@ const formatINR = (n) =>
 export default function DeviceInformationScreen({ navigation, route }) {
   const params = route?.params || {};
   const insets = useSafeAreaInsets();
-  const services = params.services || [];
+  const baseServices = params.services || [];
+  // Each service's estimate is typed here (master prices are often 0): kept as
+  // text while editing, handed on as `services[].price` — the same field the
+  // devices list sums into the booking's estimatedPrice and line amounts.
+  const [prices, setPrices] = useState(() => baseServices.map((s) => {
+    const n = Math.round(Number(s.price) || 0);
+    return n > 0 ? String(n) : '';
+  }));
+  const services = baseServices.map((s, i) => ({ ...s, price: Number(prices[i]) || 0 }));
   const total = services.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+  const setPrice = (i, text) => setPrices((p) => {
+    const next = [...p];
+    next[i] = String(text || '').replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+    return next;
+  });
 
   const [photos, setPhotos] = useState(() => {
-    const p = params.prefillDevicePhotos;
+    // Taken on Device & Service Details now; this screen just passes them on.
+    const p = params.devicePhotos || params.prefillDevicePhotos;
     return p && typeof p === 'object' ? { ...p } : {};
   }); // { front: url, back: url, video: url }
   const [uploading, setUploading] = useState(null);
+  // Device Security Lock is a popup on this screen; the lock it returns is
+  // held here and handed on to Missing Parts.
   const [lockOpen, setLockOpen] = useState(false);
-  // Held between the two sheets: the lock is picked first, then missing parts,
-  // and only the second one navigates — so the lock has to survive the handoff.
+  // Price Summary "View Details" — shows each service's warranty.
+  const [showPriceDetails, setShowPriceDetails] = useState(false);
   const [lock, setLock] = useState(null);
   const handoffRef = useRef(null);
   // Never leave a pending handoff to fire into an unmounted screen.
@@ -123,10 +152,18 @@ export default function DeviceInformationScreen({ navigation, route }) {
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      notify(
-        'Permission needed',
-        `Allow ${fromCamera ? 'camera' : 'media library'} access to attach ${slot.isVideo ? 'a video' : 'photos'}.`,
-      );
+      const what = fromCamera ? 'Camera' : slot.isVideo ? 'Videos' : 'Photos';
+      const attach = slot.isVideo ? 'record or attach the coverage video' : 'attach photos';
+      if (perm.canAskAgain === false && Platform.OS !== 'web') {
+        // After "Don't allow" Android stops showing the Allow / Don't allow
+        // dialog, so the only way back is this app's Settings page.
+        Alert.alert(`${what} access is off`, `Turn on ${what.toLowerCase()} access for this app in Settings to ${attach}.`, [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+      } else {
+        notify('Permission needed', `Allow ${what.toLowerCase()} access to ${attach}.`);
+      }
       return;
     }
     try {
@@ -137,20 +174,31 @@ export default function DeviceInformationScreen({ navigation, route }) {
         allowsEditing: false,
         aspect: !slot.isVideo ? [3, 4] : undefined,
         quality: 0.7,
-        videoMaxDuration: 30,
+        // Shorter + medium quality keeps a coverage clip under the server's
+        // upload limit (Android honours only the duration).
+        videoMaxDuration: 15,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       };
       const result = fromCamera
         ? await ImagePicker.launchCameraAsync(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      // Check before uploading: an over-limit file used to fail mid-upload
+      // with a raw server error.
+      if (asset.fileSize && asset.fileSize > MAX_UPLOAD_BYTES) {
+        notify(slot.isVideo ? 'Video too large' : 'Photo too large', tooLargeMsg(slot, asset.fileSize));
+        return;
+      }
       setUploading(slot.key);
       // 'repair' routes the file to S3 under media.ggfix.in/Devicefiles/, and the
       // slot becomes the filename stem (front-…, back-…, video-…).
-      const url = await uploadMedia(result.assets[0], 'repair', { slot: slot.key });
+      const url = await uploadMedia(asset, 'repair', { slot: slot.key });
       if (!url) throw new Error('Upload returned no URL');
       setPhotos((m) => ({ ...m, [slot.key]: url }));
     } catch (e) {
-      notify('Upload failed', e?.message || 'Try again');
+      const tooBig = e?.status === 413 || /too large|maximum upload size|exceed/i.test(e?.message || '');
+      notify('Upload failed', tooBig ? tooLargeMsg(slot) : (e?.message || 'Try again'));
     } finally {
       setUploading(null);
     }
@@ -173,41 +221,47 @@ export default function DeviceInformationScreen({ navigation, route }) {
 
   // Which lock types this device can have: Mobile / Tablet all four, Laptop
   // PIN + Password, Smartwatch / Audio Device none (no lock step).
-  const lockTypes = lockTypesFor(resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName));
+  const specCategory = resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName);
+  const lockTypes = lockTypesFor(specCategory);
+  // Missing / damaged parts is a Mobile-only step (unknown category keeps it);
+  // every other category goes straight to the devices list with none flagged.
+  const needsMissingParts = !specCategory || specCategory === 'MOBILE';
+  const goNext = (extra) => navigation.navigate(
+    needsMissingParts ? 'DeviceMissingParts' : 'ServiceBookingDevicesList',
+    { ...params, services, devicePhotos: photos, ...extra, ...(needsMissingParts ? null : { missingParts: [] }) },
+  );
 
-  // Device Security Lock is a popup on this screen now, not a screen of its own.
-  // Continue opens it; the sheet's own Continue is what advances the flow.
+  // Next opens the Device Security Lock popup; its Continue advances the flow.
   // Without a lock step the booking goes straight on, recorded as no lock.
   const onContinue = () => {
     if (lockTypes.length === 0) {
-      navigation.navigate('DeviceMissingParts', { ...params, devicePhotos: photos, lock: { type: 'NONE', value: '' } });
+      goNext({ lock: { type: 'NONE', value: '' } });
+      return;
+    }
+    // Lock already captured on Device & Service Details — don't ask again.
+    if (params.lock?.type) {
+      goNext();
       return;
     }
     setLockOpen(true);
   };
 
-  /**
-   * Lock -> Missing Parts -> onward. Both are popups on this screen now, so the
-   * second opens where the third screen used to be.
-   *
-   * The delay is not cosmetic. Closing one RN Modal and opening another in the
-   * SAME tick is unreliable on iOS — UIKit refuses to present while another modal
-   * is still dismissing, and the second sheet then silently never appears, which
-   * reads as "Continue does nothing". Waiting out the slide-out sidesteps it.
-   */
+  // Closing one RN Modal and navigating in the same tick is unreliable on iOS,
+  // so wait out the sheet's slide-out before moving on.
   const onLockConfirm = (nextLock) => {
     setLock(nextLock);
     setLockOpen(false);
     if (handoffRef.current) clearTimeout(handoffRef.current);
     handoffRef.current = setTimeout(() => {
-      navigation.navigate('DeviceMissingParts', { ...params, devicePhotos: photos, lock: nextLock });
+      goNext({ lock: nextLock });
     }, HANDOFF_MS);
   };
 
   // Continue is allowed only when ALL required slots have a photo AND no
   // upload is in flight. The coverage video remains optional.
   const requiredKeys = SLOTS.filter((s) => s.required).map((s) => s.key);
-  const requiredMissing = requiredKeys.filter((k) => !photos[k]);
+  // Photos moved to Device & Service Details and are optional — nothing required here.
+  const requiredMissing = [];
   const isReady = !uploading && requiredMissing.length === 0;
   const photoCount = Object.keys(photos).length;
 
@@ -215,27 +269,38 @@ export default function DeviceInformationScreen({ navigation, route }) {
   // Tablet / large-screen: cap the column and centre it, same convention as
   // the other booking-flow screens.
   const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 720), alignSelf: 'center' } : null;
-  const specLine = specDisplayParts(params, { withColor: true }).join(' · ');
+  // Colour · storage · model number on one line.
+  const specLine = [...specDisplayParts(params, { withColor: true }), params.modelNumber].filter(Boolean).join(' · ');
 
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      {/* ── Header ─────────────────────────────────────────────── */}
+      {/* ── Header — same design as Personal Information ─────────── */}
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(12), paddingHorizontal: rs(14), borderBottomWidth: 1, borderBottomColor: BORDER }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(12), paddingHorizontal: rs(16), borderBottomWidth: 1, borderBottomColor: '#C7E6EA' }}
       >
-        <View className="relative flex-row items-center justify-center" style={colStyle}>
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, colStyle]}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="absolute left-0 items-center justify-center active:opacity-70"
-            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT, borderWidth: 1, borderColor: BORDER }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({ pressed }) => [{
+              width: rs(36), height: rs(36), borderRadius: rs(18), alignItems: 'center', justifyContent: 'center',
+              backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#C7E6EA',
+            }, pressed && { opacity: 0.7 }]}
           >
-            <ArrowLeft size={18} color={INK} />
+            <Ionicons name="chevron-back" size={19} color="#111111" />
           </Pressable>
-          <View className="items-center px-12">
-            <Text className="font-extrabold text-center" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
+          <View style={{ flex: 1, alignItems: 'center', marginHorizontal: rs(8) }}>
+            <Text style={{ color: '#111111', fontSize: T.headline, fontWeight: '800' }} numberOfLines={1}>
               Device Information
             </Text>
+            <Text style={{ color: '#6B7280', fontSize: T.caption2, marginTop: rs(2) }} numberOfLines={1}>
+              Review the booking before repair
+            </Text>
           </View>
+          <View style={{ width: rs(36) }} />
         </View>
       </View>
 
@@ -277,242 +342,127 @@ export default function DeviceInformationScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* Chips — model number / service count / total (real data). */}
-            <View className="flex-row items-center flex-wrap" style={{ gap: 6, marginTop: 10 }}>
-              {params.modelNumber ? (
-                <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
-                  <Hash size={10} color={PRIMARY} />
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 3 }}>{params.modelNumber}</Text>
-                </View>
-              ) : null}
-              <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
-                <ReceiptText size={10} color={PRIMARY} />
-                <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY, marginLeft: 3 }}>
-                  {services.length} service{services.length === 1 ? '' : 's'}
-                </Text>
-              </View>
-              <View className="rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ACCENT }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>₹{formatINR(total)}</Text>
-              </View>
-            </View>
-
-            {/* Trust strip — static/presentational only. */}
-            <View className="flex-row items-center" style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: MINT_LINE }}>
-              <ShieldCheck size={13} color={ACCENT} />
-              <Text style={{ flex: 1, marginLeft: 6, fontSize: 10, fontWeight: '600', color: TEXT_SECONDARY }} numberOfLines={1}>
-                In Safe Hands · Genuine Parts · Trusted Service
-              </Text>
-            </View>
           </View>
 
-          {/* ── Price summary ───────────────────────────────────── */}
+          {/* ── Booking summary — price, complaint and repair timeline in ONE
+              card, split by thin dividers (was three separate cards). ── */}
           <Card>
-            <SectionHeader icon={ReceiptText} label="Price Summary" subtitle="Service details and estimated cost" />
+            <SectionHeader icon={ReceiptText} label="Booking Summary" subtitle="Price, complaint and repair timeline" />
+
+            <View style={{ ...DIVIDER, marginTop: 2 }} />
+
+            {/* Price — label · amount rows on dashed lines, then the total. */}
+            <SubHead
+              icon={IndianRupee}
+              label="Price Summary"
+              right={services.some((s) => warrantyLabel(s.warranty)) ? (
+                // View Details reveals each service's warranty — only when one has it.
+                <Pressable
+                  onPress={() => setShowPriceDetails((v) => !v)}
+                  hitSlop={6}
+                  className="active:opacity-80"
+                  style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: MINT }}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: PRIMARY }}>{showPriceDetails ? 'Hide Details' : 'View Details'}</Text>
+                </Pressable>
+              ) : null}
+            />
+            <View style={{ marginLeft: SUB_INDENT }}>
             {services.map((s, i) => (
-              <View key={i} className="flex-row items-center" style={{ paddingVertical: 5 }}>
-                <View className="items-center justify-center" style={{ height: 20, width: 20, borderRadius: 7, marginRight: 9, backgroundColor: MINT }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{i + 1}</Text>
-                </View>
-                <Text style={{ flex: 1, fontSize: 12, color: INK }} numberOfLines={2}>{s.serviceName}</Text>
-                <Text className="font-extrabold" style={{ fontSize: 12, color: INK, marginLeft: 8 }}>₹{formatINR(s.price)}</Text>
+              <View key={i}>
+                <PriceInputRow
+                  label={s.serviceName}
+                  value={prices[i] ?? ''}
+                  onChangeText={(t) => setPrice(i, t)}
+                />
+                {showPriceDetails && warrantyLabel(s.warranty) ? (
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: -4, marginBottom: 6 }}>{warrantyLabel(s.warranty)} warranty</Text>
+                ) : null}
+                <DashedLine />
               </View>
             ))}
-            <View
-              className="flex-row items-center"
-              style={{ marginTop: 6, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: MINT }}
-            >
-              <Text className="font-extrabold" style={{ flex: 1, fontSize: 12, color: INK }}>Estimated Repair Amount</Text>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: PRIMARY }}>₹{formatINR(total)}</Text>
-            </View>
-          </Card>
-
-          {/* ── Complaint summary + voice-note playback ───────────── */}
-          <Card>
-            <SectionHeader icon={MessageSquareText} label="Complaint Issue" subtitle="What seems to be the problem?" />
-            <View style={{ borderRadius: 12, backgroundColor: SOFT, paddingHorizontal: 12, paddingVertical: 10 }}>
-              <Text style={{ fontSize: 12, lineHeight: 17, color: INK }}>
-                {params.complaint || (issueAudioUrl ? 'See voice note below.' : 'No issue described.')}
-              </Text>
+            <PriceRow label="Estimated Repair Price" value={`₹${formatINR(total)}`} total />
             </View>
 
+            <View style={DIVIDER} />
+
+            {/* Complaint issue + voice-note playback */}
+            <SubHead icon={MessageSquareText} label="Complaint Issue" />
+            <View style={{ marginLeft: SUB_INDENT }}>
+            <Text style={{ fontSize: 13, lineHeight: 18, color: INK, paddingVertical: 4 }}>
+              {params.complaint || (issueAudioUrl ? 'See voice note below.' : 'No issue described.')}
+            </Text>
             {issueAudioUrl ? (
-              <View
-                className="flex-row items-center"
-                style={{ marginTop: 8, borderRadius: 12, padding: 8, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}
+              <Pressable
+                onPress={toggleIssuePlayback}
+                className="flex-row items-center active:opacity-80"
+                style={{ marginTop: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={isPlayingIssue ? 'Pause voice note' : 'Play voice note'}
               >
-                <Pressable
-                  onPress={toggleIssuePlayback}
-                  className="items-center justify-center active:opacity-80"
-                  style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: ACCENT }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isPlayingIssue ? 'Pause voice note' : 'Play voice note'}
-                >
+                <View className="items-center justify-center" style={{ height: rs(28), width: rs(28), borderRadius: rs(14), backgroundColor: ACCENT }}>
                   {isPlayingIssue ? (
-                    <Pause size={14} color="#fff" fill="#fff" />
+                    <Pause size={rs(12)} color="#fff" fill="#fff" />
                   ) : (
-                    <Play size={14} color="#fff" fill="#fff" />
+                    <Play size={rs(12)} color="#fff" fill="#fff" />
                   )}
-                </Pressable>
-                <View style={{ flex: 1, marginLeft: 9 }}>
-                  <View className="flex-row items-center">
-                    <Mic size={11} color={PRIMARY} />
-                    <Text className="font-extrabold" style={{ fontSize: 12, marginLeft: 5, color: INK }}>Customer's voice note</Text>
-                  </View>
-                  <Text style={{ fontSize: 10, marginTop: 1, color: TEXT_SECONDARY }}>
-                    {isPlayingIssue ? 'Playing…' : 'Tap to play'}
-                  </Text>
                 </View>
-              </View>
+                <Text className="font-extrabold" style={{ fontSize: 12, marginLeft: 8, color: INK }}>Customer's voice note</Text>
+                <Text style={{ fontSize: 11, marginLeft: 6, color: TEXT_SECONDARY }}>
+                  {isPlayingIssue ? 'Playing…' : 'Tap to play'}
+                </Text>
+              </Pressable>
             ) : null}
-          </Card>
+            </View>
 
-          {/* ── Repair timeline — Received / Duration / Ready By. The
-              Duration node only renders when `durationHours` is on params. ── */}
-          <Card>
-            <SectionHeader icon={Timer} label="Repair Timeline" subtitle="Track your device repair progress" />
-            <View className="flex-row items-stretch" style={{ gap: 6 }}>
-              <View style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: HAIR, backgroundColor: SOFT, padding: 8 }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: 3 }}>RECEIVED</Text>
-                <View className="flex-row items-start">
-                  <Calendar size={12} color={ACCENT} style={{ marginTop: 1 }} />
-                  <Text style={{ fontSize: 11, marginLeft: 4, flex: 1, color: INK }}>{params.estimatedAt || '—'}</Text>
-                </View>
-              </View>
+            <View style={DIVIDER} />
 
-              {params.durationHours ? (
-                <View className="items-center justify-center" style={{ borderRadius: 12, backgroundColor: ACCENT, paddingHorizontal: 10, paddingVertical: 8 }}>
-                  <Timer size={13} color="#fff" />
-                  <Text className="text-white font-extrabold" style={{ fontSize: 12, marginTop: 2 }} numberOfLines={1}>
-                    {params.durationHours} Hr
-                  </Text>
-                  <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', marginTop: 1 }} numberOfLines={1}>Duration</Text>
-                </View>
-              ) : null}
-
-              <View style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: HAIR, backgroundColor: SOFT, padding: 8 }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: TEXT_SECONDARY, marginBottom: 3 }}>READY BY</Text>
-                <View className="flex-row items-start">
-                  <Clock size={12} color={ACCENT} style={{ marginTop: 1 }} />
-                  <Text style={{ fontSize: 11, marginLeft: 4, flex: 1, color: INK }}>{params.estimatedDelivery || '—'}</Text>
-                </View>
-              </View>
+            {/* Repair timeline — Estimated Duration only when `durationHours` is on params. */}
+            <SubHead icon={Timer} label="Repair Timeline" />
+            <View style={{ marginLeft: SUB_INDENT }}>
+            <TimelineRow label="Received" icon={Calendar} value={formatStamp(params.estimatedReadyIso) || params.estimatedAt || '—'} />
+            {params.durationHours ? (
+              <TimelineRow
+                label="Est. Time"
+                icon={Clock}
+                value={`${params.durationHours} Hour${Number(params.durationHours) === 1 ? '' : 's'}`}
+              />
+            ) : null}
+            <TimelineRow label="Ready By" icon={Calendar} value={formatStamp(params.estimatedDeliveryIso) || params.estimatedDelivery || '—'} />
             </View>
           </Card>
 
           {/* ── Customer approval — same `params.customerApproved` condition. ── */}
-          {params.customerApproved ? (
-            <View
-              className="flex-row items-center"
-              style={{ marginTop: 10, borderRadius: 16, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE, padding: 12 }}
-            >
-              <View className="items-center justify-center" style={{ height: 34, width: 34, borderRadius: 17, marginRight: 10, backgroundColor: ACCENT }}>
-                <CircleCheck size={17} color="#fff" />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text className="font-extrabold" style={{ fontSize: 13, color: INK }}>Customer Approval</Text>
-                <Text style={{ fontSize: 11, color: PRIMARY, marginTop: 1 }}>You have approved the repair estimate.</Text>
-              </View>
-              <View className="rounded-full" style={{ paddingHorizontal: 9, paddingVertical: 4, backgroundColor: ACCENT }}>
-                <Text className="text-white font-extrabold" style={{ fontSize: 10 }}>Approved</Text>
-              </View>
-            </View>
-          ) : (
-            <View
-              className="flex-row items-center"
-              style={{ marginTop: 10, borderRadius: 16, backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR, padding: 12 }}
-            >
-              <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 16, marginRight: 10, backgroundColor: SOFT }}>
-                <ShieldCheck size={16} color={TEXT_SECONDARY} />
-              </View>
-              <Text className="font-extrabold" style={{ flex: 1, fontSize: 12, color: INK }}>Customer Approval</Text>
-              <View className="rounded-full" style={{ paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#FFF8E1' }}>
-                <Text style={{ fontSize: 10, color: AMBER_TEXT, fontWeight: '800' }}>Pending</Text>
-              </View>
-            </View>
-          )}
-
-          {/* ── Device photos — 3-slot grid ───────────────────────── */}
           <Card>
-            <SectionHeader
-              icon={Camera}
-              label="Device Files"
-              subtitle={`Front + Back required · Coverage video optional${photoCount ? ` · ${photoCount}/3 added` : ''}`}
-            />
-            <View className="flex-row" style={{ gap: 8 }}>
-              {SLOTS.map((slot) => {
-                const url = photos[slot.key];
-                const busy = uploading === slot.key;
-                const SlotIcon = slot.icon;
-                return (
-                  <View key={slot.key} className="flex-1 items-center">
-                    <Pressable
-                      onPress={() => promptPick(slot)}
-                      disabled={busy}
-                      className="w-full items-center justify-center overflow-hidden"
-                      style={{
-                        height: rs(80),
-                        borderRadius: 12,
-                        borderWidth: 1.5,
-                        borderStyle: 'dashed',
-                        borderColor: url ? ACCENT : '#D6D6D6',
-                        backgroundColor: url ? MINT : SOFT,
-                      }}
-                    >
-                      {busy ? (
-                        <ActivityIndicator color={ACCENT} />
-                      ) : url ? (
-                        <>
-                          {slot.isVideo ? (
-                            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(30,30,30,0.9)' }}>
-                              <Video size={20} color="#fff" />
-                              <Text className="text-white font-extrabold" style={{ fontSize: 9, marginTop: 3, letterSpacing: 1 }}>VIDEO</Text>
-                            </View>
-                          ) : (
-                            <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                          )}
-                          <Pressable
-                            onPress={() => remove(slot.key)}
-                            className="absolute items-center justify-center"
-                            style={{ right: 5, top: 5, height: 22, width: 22, borderRadius: 11, backgroundColor: 'rgba(30,30,30,0.75)' }}
-                          >
-                            <X size={12} color="#fff" />
-                          </Pressable>
-                          <View
-                            className="absolute flex-row items-center"
-                            style={{ left: 5, bottom: 5, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: ACCENT }}
-                          >
-                            <CircleCheck size={9} color="#fff" />
-                            <Text className="text-white font-extrabold" style={{ fontSize: 8, marginLeft: 2 }}>ADDED</Text>
-                          </View>
-                        </>
-                      ) : (
-                        <>
-                          <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 11, backgroundColor: MINT }}>
-                            <SlotIcon size={16} color={ACCENT} />
-                          </View>
-                          <View className="flex-row items-center" style={{ marginTop: 5 }}>
-                            <Plus size={10} color={PRIMARY} />
-                            <Text className="font-extrabold" style={{ fontSize: 10, marginLeft: 2, color: PRIMARY }}>Add</Text>
-                          </View>
-                        </>
-                      )}
-                    </Pressable>
-                    <Text className="font-bold text-center" style={{ fontSize: 11, marginTop: 5, color: INK }} numberOfLines={2}>
-                      {slot.label}
-                      {slot.required ? <Text style={{ color: WARNING }}> *</Text> : null}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-
-            <View className="flex-row items-start" style={{ marginTop: 10, borderRadius: 10, padding: 8, backgroundColor: SOFT }}>
-              <Info size={12} color={ACCENT} style={{ marginTop: 1 }} />
-              <Text style={{ flex: 1, fontSize: 10, marginLeft: 6, lineHeight: 14, color: TEXT_SECONDARY }}>
-                Photos help the customer verify the device's condition before and after repair.
+            <IconBlock
+              icon={UserCheck}
+              title="Customer Booking Approval"
+              center
+              right={(
+                // Status as an icon only — the line under the title says it in words.
+                <View
+                  className="items-center justify-center"
+                  accessible
+                  accessibilityLabel={params.customerApproved ? 'Approved' : 'Pending'}
+                  style={{
+                    marginLeft: 8, height: rs(32), width: rs(32), borderRadius: rs(16), borderWidth: 1,
+                    backgroundColor: params.customerApproved ? MINT : AMBER_BG,
+                    borderColor: params.customerApproved ? MINT_LINE : AMBER_LINE,
+                  }}
+                >
+                  {params.customerApproved
+                    ? <CircleCheck size={rs(18)} color="#FFFFFF" fill={ACCENT} />
+                    : <Clock size={rs(16)} color={AMBER_TEXT} />}
+                </View>
+              )}
+            >
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }}>
+                {params.customerApproved ? 'Customer approves repair, cost & time.' : 'Waiting for the customer to approve.'}
               </Text>
-            </View>
+            </IconBlock>
           </Card>
+
         </View>
       </ScrollView>
 
@@ -566,20 +516,9 @@ export default function DeviceInformationScreen({ navigation, route }) {
         visible={lockOpen}
         types={lockTypes}
         initialLock={lock || params.prefillLock}
-        device={{
-          imageUrl: params.imageUrl,
-          modelName: params.modelName,
-          ramLabel: params.ramLabel,
-          storageLabel: params.storageLabel,
-          deviceCategory: params.deviceCategory,
-          specs: params.specs,
-          color: params.color,
-          modelNumber: params.modelNumber,
-        }}
         onConfirm={onLockConfirm}
         onClose={() => setLockOpen(false)}
       />
-
     </View>
   );
 }
@@ -609,14 +548,136 @@ function Card({ children }) {
   );
 }
 
+// One badge size for every summary card's icon, so they line up.
+const BADGE = rs(36);
+const BADGE_ICON = rs(17);
+
+// "3" / "3 Months" → "3 Months"; null when the service has no warranty.
+function warrantyLabel(w) {
+  const n = parseInt(String(w ?? '').match(/(\d+)/)?.[1], 10);
+  return n > 0 ? `${n} Month${n === 1 ? '' : 's'}` : null;
+}
+
+// Thin divider between the sections of the Booking Summary card.
+const DIVIDER = { height: 1, backgroundColor: BORDER, marginVertical: 14 };
+
+// A service's price line with the amount typed in: label left, a small ₹ box
+// right (whole rupees). The total below re-adds as it is typed.
+function PriceInputRow({ label, value, onChangeText }) {
+  return (
+    <View className="flex-row items-center" style={{ paddingVertical: 6 }}>
+      <Text style={{ flex: 1, fontSize: 13, color: INK }}>{label}</Text>
+      <View
+        className="flex-row items-center"
+        style={{ marginLeft: 8, minWidth: 104, height: 36, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: MINT_LINE, backgroundColor: '#FFFFFF' }}
+      >
+        <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>₹</Text>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder="0"
+          placeholderTextColor="#9CA3AF"
+          keyboardType="number-pad"
+          inputMode="numeric"
+          maxLength={7}
+          returnKeyType="done"
+          selectTextOnFocus
+          accessibilityLabel={`${label} estimate amount`}
+          style={{ flex: 1, marginLeft: 4, paddingVertical: 0, fontSize: 13, fontWeight: '600', color: INK, textAlign: 'right' }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// Price list line (reference design): label left, amount right; the total
+// row is bold and a size up.
+function PriceRow({ label, value, total }) {
+  return (
+    <View className="flex-row items-center" style={{ paddingVertical: total ? 10 : 9 }}>
+      <Text style={{ flex: 1, fontSize: total ? 15 : 13, fontWeight: total ? '800' : '400', color: INK }}>{label}</Text>
+      <Text style={{ fontSize: total ? 16 : 13, fontWeight: total ? '800' : '500', color: INK, marginLeft: 8, textAlign: 'right', flexShrink: 1 }}>{value}</Text>
+    </View>
+  );
+}
+
+// Dashed rule between price rows. A zero-height dashed box clipped to its top
+// edge — a one-sided dashed border doesn't render reliably on Android.
+function DashedLine() {
+  return (
+    <View style={{ height: 1, overflow: 'hidden' }}>
+      <View style={{ height: 2, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed', borderRadius: 1 }} />
+    </View>
+  );
+}
+
+// One icon size for EVERY Booking Summary heading (card header + sections).
+const SUB_BADGE = rs(25);
+const SUB_ICON = rs(13);
+// Section content starts where the heading TEXT starts (badge + its 8pt gap).
+const SUB_INDENT = SUB_BADGE + 8;
+
+// Section heading inside the Booking Summary card: small mint icon + title,
+// optional `right` action.
+function SubHead({ icon: Icon, label, right }) {
+  return (
+    <View className="flex-row items-center" style={{ marginBottom: 6 }}>
+      <View className="items-center justify-center" style={{ height: SUB_BADGE, width: SUB_BADGE, borderRadius: SUB_BADGE / 2, backgroundColor: MINT }}>
+        <Icon size={SUB_ICON} color={ACCENT} />
+      </View>
+      <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: INK, marginLeft: 8 }}>{label}</Text>
+      {right}
+    </View>
+  );
+}
+
+// "Thu, 15 Oct 2025 3:02 PM" — the Repair Timeline date format.
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatStamp(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const h = d.getHours();
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+// Repair Timeline line: grey label, then an icon + value in a second column.
+function TimelineRow({ label, icon: Icon, value }) {
+  return (
+    <View className="flex-row items-center" style={{ paddingVertical: 5 }}>
+      <Text style={{ width: '42%', fontSize: 13, color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
+      <Icon size={rs(14)} color={TEXT_SECONDARY} style={{ marginLeft: -7 }} />
+      <Text style={{ flex: 1, marginLeft: 6, fontSize: 13, fontWeight: '500', color: INK }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{value}</Text>
+    </View>
+  );
+}
+
+// Summary card heading: mint circle icon, bold title, body under the title,
+// optional `right` element (e.g. the approval pill).
+function IconBlock({ icon: Icon, title, right, center, children }) {
+  return (
+    <View className={center ? 'flex-row items-center' : 'flex-row items-start'}>
+      <View className="items-center justify-center" style={{ height: BADGE, width: BADGE, borderRadius: BADGE / 2, backgroundColor: MINT }}>
+        <Icon size={BADGE_ICON} color={ACCENT} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+        <Text className="font-extrabold" style={{ fontSize: 12, color: INK }}>{title}</Text>
+        {children}
+      </View>
+      {right}
+    </View>
+  );
+}
+
 function SectionHeader({ icon: Icon, label, subtitle }) {
   return (
     <View className="flex-row items-center" style={{ marginBottom: 10 }}>
-      <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, marginRight: 9, backgroundColor: MINT }}>
-        <Icon size={14} color={ACCENT} />
+      <View className="items-center justify-center" style={{ height: SUB_BADGE, width: SUB_BADGE, borderRadius: SUB_BADGE / 2, marginRight: 8, backgroundColor: MINT }}>
+        <Icon size={SUB_ICON} color={ACCENT} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text className="font-extrabold" style={{ fontSize: 13, color: INK }}>{label}</Text>
+        <Text className="font-extrabold" style={{ fontSize: 14, color: INK }}>{label}</Text>
         {subtitle ? (
           <Text style={{ fontSize: 11, marginTop: 1, color: TEXT_SECONDARY }} numberOfLines={2}>{subtitle}</Text>
         ) : null}

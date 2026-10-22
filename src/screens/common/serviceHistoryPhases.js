@@ -87,6 +87,11 @@ const ONLY_IF_HAPPENED = new Set(['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED', '
 // approved, a cancelled job is never delivered.
 const RULED_OUT_BY = { CUSTOMER_APPROVED: 'CUSTOMER_REJECTED', DELIVERED: 'CANCELLED' };
 
+// The customer's verdict on an estimate. A re-estimate re-opens it: the backend
+// clears the prior approval and asks again, so a verdict recorded BEFORE the
+// latest "Service Re-estimated" no longer stands — see withoutSupersededVerdicts.
+const VERDICT_KEYS = ['CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'];
+
 // Canonical 31-row status list. The pickup-phase rows only light up for
 // serviceMode=PICKUP bookings; walk-in bookings carry no PICKUP_* events
 // and the renderer hides the whole pickup group. The optional `phaseFilter`
@@ -178,6 +183,30 @@ const LABEL_BY_KEY = Object.fromEntries(
  * screen's lifecycle card) word each step exactly as the timeline does, instead
  * of keeping a second, shorter map that quietly hides whatever it is missing.
  */
+/**
+ * The booking's events with any Customer Approved / Customer Rejected that
+ * predates the latest "Service Re-estimated" dropped. The latest record leads:
+ * rejected → re-estimated reads as waiting on the customer again (Customer
+ * Approved next, back on the repaired path), and approved → re-estimated lets
+ * the shop record Approved or Rejected for the new price.
+ */
+export function withoutSupersededVerdicts(events) {
+  const list = Array.isArray(events) ? events : [];
+  const at = (e) => { const t = Date.parse(e?.createdAt || ''); return Number.isNaN(t) ? null : t; };
+  let reEstimatedAt = null;
+  list.forEach((e) => {
+    if (String(e?.status || '').toUpperCase() !== 'RE_ESTIMATED_CONFIRMED') return;
+    const t = at(e);
+    if (t != null && (reEstimatedAt == null || t > reEstimatedAt)) reEstimatedAt = t;
+  });
+  if (reEstimatedAt == null) return list;
+  return list.filter((e) => {
+    if (!VERDICT_KEYS.includes(String(e?.status || '').toUpperCase())) return true;
+    const t = at(e);
+    return t == null || t >= reEstimatedAt;
+  });
+}
+
 export function labelForStatus(statusKey) {
   return LABEL_BY_KEY[String(statusKey || '').toUpperCase()] || null;
 }
@@ -201,21 +230,21 @@ export function stepBlockedBy(recorded, statusKey) {
 }
 
 // GGFIX palette — same values used across the rest of the booking flow.
-const ACCENT = '#078F23';       // deep GGFIX green (text)
-const PRIMARY = '#09AD2A';      // GGFIX green
-const MINT = '#EAF8EC';
-const BORDER = '#E6E6E6';
-const DIVIDER = '#F3F3F3';      // hairline between list rows
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const SUCCESS = '#09AD2A';      // dot / tint for completed steps
+const ACCENT = '#035C6C';       // deep GGFIX green (text)
+const PRIMARY = '#035C6C';      // GGFIX green
+const MINT = '#E5F3F5';
+const BORDER = '#E5E7EB';
+const DIVIDER = '#F3F4F6';      // hairline between list rows
+const INK = '#111111';
+const MUTED = '#6B7280';
+const SUCCESS = '#035C6C';      // dot / tint for completed steps
 const BRAND_GREEN_DARK = ACCENT; // kept as an alias — same constant name used throughout this file's JSX below
-const DOT_BORDER = '#D6D6D6';   // ring around upcoming steps
+const DOT_BORDER = '#D1D5DB';   // ring around upcoming steps
 const DANGER = '#F84141';       // Return Device path — dots and title
 const DANGER_TINT = '#FEECEC';
 const PENDING_TINT = '#FFF8E1';
 const PENDING_FG = '#8A6A00';
-const UPCOMING_BG = '#F3F3F3';  // neutral "Upcoming" badge
+const UPCOMING_BG = '#F3F4F6';  // neutral "Upcoming" badge
 const UPCOMING_FG = MUTED;
 
 // Per-stage chrome for the five SERVICE groups. `hint` names which ending a
@@ -367,7 +396,7 @@ function StepRow({ opt, ev, completed, isCurrent, isLast, doneColor }) {
   );
 }
 
-const PLAYER_GREEN = '#09AD2A';
+const PLAYER_GREEN = '#035C6C';
 const fmtClock = (seconds) => {
   const s = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -379,7 +408,7 @@ const fmtClock = (seconds) => {
 // hook order stays stable when an event gains media on a later poll — the old
 // code returned null before the hooks, which crashed ("Rendered more hooks than
 // during the previous render") right when the media arrived, hiding it.
-function EventMedia({ audioUrl, imageUrls }) {
+export function EventMedia({ audioUrl, imageUrls }) {
   const soundRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
@@ -459,7 +488,7 @@ function EventMedia({ audioUrl, imageUrls }) {
       {hasAudio ? (
         <View
           className="rounded-xl px-3 py-2.5 flex-row items-center"
-          style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: '#F8F8F8' }}
+          style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: '#F3F4F6' }}
         >
           <TouchableOpacity
             onPress={togglePlay}
@@ -520,7 +549,8 @@ function fmt(v) {
 // Shared by ServiceHistoryTimeline and getServiceProgress below — one place
 // that decides which rows apply and which of them are completed, so the rail
 // and the "Step X / Y" summary can never disagree.
-function computeRowCompletion(events, phaseFilter) {
+function computeRowCompletion(allEvents, phaseFilter) {
+  const events = withoutSupersededVerdicts(allEvents);
   // Index events by status key. Keep the FIRST occurrence so the displayed
   // timestamp is when that state was entered, not when it was re-emitted.
   const eventByStatus = {};
@@ -608,7 +638,7 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter, visibleSta
   // the tied rows happened to come back in.
   const stepRank = (e) =>
     SHOP_BOOKING_STATUS_OPTIONS.findIndex((o) => o.value === (e.status || '').toUpperCase());
-  const sortedByTime = (events || []).slice().sort((a, b) => {
+  const sortedByTime = withoutSupersededVerdicts(events).slice().sort((a, b) => {
     const byTime = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     return byTime !== 0 ? byTime : stepRank(b) - stepRank(a);
   });

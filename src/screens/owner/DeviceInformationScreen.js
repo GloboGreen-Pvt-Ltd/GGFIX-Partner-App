@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { Camera, Video } from 'lucide-react-native';
 import {
   AppHeader, Card, BottomActionBar, Loader, ErrorState, ScreenContainer, useBottomBarInset,

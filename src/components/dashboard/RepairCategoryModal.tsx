@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -11,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Headphones,
   Laptop,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { categoryMenuKey, getCategoryMenu, getDeviceCategories } from '../../api/masterData';
 import { notify } from '../confirm';
+import SafeModal from '../SafeModal';
 
 // Plain style objects only: NativeWind's JSX interop silently drops a
 // `style={({ pressed }) => …}` function (see components/ios/index.js), which
@@ -65,6 +66,9 @@ interface DeviceCategoryRow {
 // the Repair/Buy/Sell prefix, spacing, punctuation and plural so they meet.
 const keyOf = (v?: string | null) => categoryMenuKey(v);
 
+// Menu rows this popup never shows.
+const HIDDEN_KEYS = ['mobile', 'smartphone'];
+
 // Display order only; anything else the API returns follows these.
 const ORDER = ['mobile', 'tablet', 'laptop', 'smartwatch', 'audiodevice'];
 
@@ -78,12 +82,12 @@ const FALLBACK_SUBTITLE: Record<string, string> = {
 };
 
 // GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const LINE = '#E6E6E6';
+const GREEN = '#035C6C';
+const GREEN_DEEP = '#035C6C';
+const MINT = '#E5F3F5';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const LINE = '#E5E7EB';
 
 // Fallback glyph per category, used only when the admin image is missing/broken.
 const ICONS: Record<string, LucideIcon> = {
@@ -206,6 +210,9 @@ export function RepairCategoryModal({
     () =>
       (menu || [])
         .filter((m) => m && m.isActive === true)
+        // Mobile is not offered from this popup (partner app only — the admin's
+        // "Repair Mobile" row stays active for the other apps).
+        .filter((m) => !HIDDEN_KEYS.includes(keyOf(m.menuName)))
         .map((m, i) => ({ m, i }))
         .sort((a, b) => orderIndex(a.m.menuName) - orderIndex(b.m.menuName) || (a.m.sortOrder ?? 0) - (b.m.sortOrder ?? 0) || a.i - b.i)
         .map(({ m }) => m),
@@ -247,71 +254,75 @@ export function RepairCategoryModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable
         onPress={onClose}
-        style={{ flex: 1, backgroundColor: 'rgba(30,30,30,0.5)', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        style={{ flex: 1, backgroundColor: 'rgba(30,30,30,0.5)' }}
         accessibilityLabel="Close"
       >
-        {/* Swallows presses so tapping inside the sheet can't close it. */}
-        <Animated.View
-          style={{
-            width: sheetW,
-            maxHeight: winH - 24,
-            borderRadius: 22,
-            backgroundColor: '#FFFFFF',
-            overflow: 'hidden',
-            opacity: anim,
-            transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
-          }}
-        >
-          <Pressable onPress={() => {}} style={{ flexShrink: 1 }}>
-            <ScrollView contentContainerStyle={{ padding: pad, paddingTop: pad + 2 }} showsVerticalScrollIndicator={false} bounces={false}>
-              <TouchableOpacity
-                onPress={onClose}
-                hitSlop={10}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                style={{
-                  position: 'absolute', top: 10, right: 10, zIndex: 2,
-                  width: 32, height: 32, borderRadius: 16,
-                  backgroundColor: '#F3F3F3',
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                <X size={16} color={INK} strokeWidth={2.4} />
-              </TouchableOpacity>
+        {/* The modal window draws under both system bars: centre inside its safe area. */}
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          {/* Swallows presses so tapping inside the sheet can't close it. */}
+          <Animated.View
+            style={{
+              width: sheetW,
+              maxHeight: winH - 24,
+              flexShrink: 1,
+              borderRadius: 22,
+              backgroundColor: '#FFFFFF',
+              overflow: 'hidden',
+              opacity: anim,
+              transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+            }}
+          >
+            <Pressable onPress={() => {}} style={{ flexShrink: 1 }}>
+              <ScrollView contentContainerStyle={{ padding: pad, paddingTop: pad + 2 }} showsVerticalScrollIndicator={false} bounces={false}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  hitSlop={10}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  style={{
+                    position: 'absolute', top: 10, right: 10, zIndex: 2,
+                    width: 32, height: 32, borderRadius: 16,
+                    backgroundColor: '#F3F4F6',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <X size={16} color={INK} strokeWidth={2.4} />
+                </TouchableOpacity>
 
-              <Text style={{ textAlign: 'center', fontSize: 17, fontWeight: '800', color: INK, paddingHorizontal: 34, lineHeight: 22 }}>
-                {splitTitle ? 'Select your device\n' : 'Select your device '}
-                <Text style={{ color: GREEN_DEEP }}>category to repair</Text>
-              </Text>
-              <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center', marginTop: 3, marginBottom: 14, paddingHorizontal: 20 }}>
-                Choose the device type you need service for
-              </Text>
-
-              {menu === null ? (
-                <View style={{ paddingVertical: 48, alignItems: 'center' }}>
-                  <ActivityIndicator color={GREEN} />
-                </View>
-              ) : items.length === 0 ? (
-                <Text style={{ textAlign: 'center', color: MUTED, fontSize: 13, paddingVertical: 32 }}>
-                  {failed
-                    ? 'We couldn’t load device categories right now. Please try again.'
-                    : 'No device categories are available right now.'}
+                <Text style={{ textAlign: 'center', fontSize: 17, fontWeight: '800', color: INK, paddingHorizontal: 34, lineHeight: 22 }}>
+                  {splitTitle ? 'Select your device\n' : 'Select your device '}
+                  <Text style={{ color: GREEN_DEEP }}>category to repair</Text>
                 </Text>
-              ) : (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap }}>
-                  {items.map((row) => (
-                    <CategoryTile key={row.id} row={row} width={cardW} onPress={() => choose(row)} />
-                  ))}
-                </View>
-              )}
-            </ScrollView>
-          </Pressable>
-        </Animated.View>
+                <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center', marginTop: 3, marginBottom: 14, paddingHorizontal: 20 }}>
+                  Choose the device type you need service for
+                </Text>
+
+                {menu === null ? (
+                  <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+                    <ActivityIndicator color={GREEN} />
+                  </View>
+                ) : items.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: MUTED, fontSize: 13, paddingVertical: 32 }}>
+                    {failed
+                      ? 'We couldn’t load device categories right now. Please try again.'
+                      : 'No device categories are available right now.'}
+                  </Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap }}>
+                    {items.map((row) => (
+                      <CategoryTile key={row.id} row={row} width={cardW} onPress={() => choose(row)} />
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </Pressable>
+          </Animated.View>
+        </SafeAreaView>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }

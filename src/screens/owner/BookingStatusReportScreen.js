@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import {
   ChevronLeft,
   Calendar,
@@ -35,17 +35,17 @@ import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const PAGE_BG = '#F8F8F8';
+const GREEN = '#035C6C';
+const GREEN_DEEP = '#035C6C';
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const HAIR = '#F3F3F3';
-const BORDER = '#E6E6E6';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const SUBTLE = '#8A8A8A';
+const HAIR = '#F3F4F6';
+const BORDER = '#E5E7EB';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const SUBTLE = '#9CA3AF';
 const RED = '#F84141';
 const RED_TINT = '#FEECEC';
 const RED_LINE = '#FBD0D0';
@@ -401,73 +401,78 @@ export default function BookingStatusReportScreen({ navigation, route }) {
       </ScrollView>
 
       {/* Filters bottom sheet */}
-      <Modal
+      <SafeModal
         transparent
         visible={showFilters}
         animationType="fade"
         onRequestClose={() => setShowFilters(false)}
       >
-        <Pressable
-          onPress={() => setShowFilters(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.5)', justifyContent: 'flex-end' }}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: CARD_BG,
-              borderTopLeftRadius: 22,
-              borderTopRightRadius: 22,
-              paddingHorizontal: 14,
-              paddingTop: 10,
-              paddingBottom: insets.bottom + 18,
-            }}
-          >
-            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Text className="font-extrabold" style={{ flex: 1, fontSize: 15, color: INK }}>Filter by period</Text>
+        {/* The modal window's own insets — the screen's don't reach it. */}
+        <ModalInsets>
+          {({ insets }) => (
+            <Pressable
+              onPress={() => setShowFilters(false)}
+              style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.5)', justifyContent: 'flex-end' }}
+            >
               <Pressable
-                onPress={() => setShowFilters(false)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: HAIR }}
+                onPress={(e) => e.stopPropagation()}
+                style={{
+                  backgroundColor: CARD_BG,
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 22,
+                  paddingHorizontal: 14,
+                  paddingTop: 10,
+                  paddingBottom: insets.bottom + 18,
+                }}
               >
-                <X size={14} color={INK} />
-              </Pressable>
-            </View>
-            {PERIODS.map((p) => {
-              const active = p.value === period;
-              return (
-                <Pressable
-                  key={p.value}
-                  onPress={() => { setPeriod(p.value); setShowFilters(false); }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1,
-                    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6,
-                    backgroundColor: active ? MINT : CARD_BG,
-                    borderColor: active ? GREEN : BORDER,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 30, height: 30, borderRadius: 9, marginRight: 10, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: active ? GREEN : MINT,
-                    }}
+                <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                  <Text className="font-extrabold" style={{ flex: 1, fontSize: 15, color: INK }}>Filter by period</Text>
+                  <Pressable
+                    onPress={() => setShowFilters(false)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close"
+                    style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: HAIR }}
                   >
-                    <Calendar size={14} color={active ? '#FFFFFF' : GREEN} />
-                  </View>
-                  <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: active ? GREEN_DEEP : INK }}>
-                    {p.label}
-                  </Text>
-                  {active ? <CheckCircle2 size={17} color={GREEN} /> : null}
-                </Pressable>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
+                    <X size={14} color={INK} />
+                  </Pressable>
+                </View>
+                {PERIODS.map((p) => {
+                  const active = p.value === period;
+                  return (
+                    <Pressable
+                      key={p.value}
+                      onPress={() => { setPeriod(p.value); setShowFilters(false); }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1,
+                        paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6,
+                        backgroundColor: active ? MINT : CARD_BG,
+                        borderColor: active ? GREEN : BORDER,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 30, height: 30, borderRadius: 9, marginRight: 10, alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: active ? GREEN : MINT,
+                        }}
+                      >
+                        <Calendar size={14} color={active ? '#FFFFFF' : GREEN} />
+                      </View>
+                      <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: active ? GREEN_DEEP : INK }}>
+                        {p.label}
+                      </Text>
+                      {active ? <CheckCircle2 size={17} color={GREEN} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
     </View>
   );
 }

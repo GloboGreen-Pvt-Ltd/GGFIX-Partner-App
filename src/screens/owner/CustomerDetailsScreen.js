@@ -214,7 +214,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#172117" />
+          <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
         <Text style={styles.title}>Customer Details</Text>
         <View style={{ width: 36 }} />
@@ -240,7 +240,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
         ]}
       >
         <View style={styles.sectionTitleRow}>
-          <Ionicons name="person" size={16} color="#087A0A" />
+          <Ionicons name="person" size={16} color="#035C6C" />
           <Text style={styles.sectionTitle}>Customer Details</Text>
         </View>
 
@@ -248,7 +248,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
         <TextInput
           style={styles.input}
           placeholder="Enter Customer Name"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
           value={form.name}
           onChangeText={(v) => set('name', v)}
         />
@@ -257,12 +257,12 @@ export default function CustomerDetailsScreen({ route, navigation }) {
         <View style={styles.phoneRow}>
           <View style={styles.countryCode}>
             <Text style={styles.countryText}>+91</Text>
-            <Ionicons name="chevron-down" size={14} color="#667066" />
+            <Ionicons name="chevron-down" size={14} color="#6B7280" />
           </View>
           <TextInput
             style={[styles.input, { flex: 1, marginBottom: 0 }]}
             placeholder="Enter your mobile number"
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             keyboardType="phone-pad"
             value={form.phone}
             onChangeText={(v) => {
@@ -294,7 +294,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="State"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               value={form.state}
               onChangeText={(v) => set('state', v)}
             />
@@ -304,7 +304,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="Select district"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               value={form.district}
               onChangeText={(v) => set('district', v)}
             />
@@ -317,7 +317,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="Select Taluk"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               value={form.taluk}
               onChangeText={(v) => set('taluk', v)}
             />
@@ -327,7 +327,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="Area"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               value={form.area}
               onChangeText={(v) => set('area', v)}
             />
@@ -340,7 +340,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="Door no. / Street"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               value={form.doorStreet}
               onChangeText={(v) => set('doorStreet', v)}
             />
@@ -350,7 +350,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
             <TextInput
               style={styles.input}
               placeholder="pincode"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               keyboardType="number-pad"
               value={form.pincode}
               onChangeText={(v) => set('pincode', v)}
@@ -362,7 +362,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
         <TextInput
           style={styles.input}
           placeholder="email address"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
           keyboardType="email-address"
           value={form.email}
           onChangeText={(v) => set('email', v)}
@@ -370,7 +370,7 @@ export default function CustomerDetailsScreen({ route, navigation }) {
 
         <Label label="ID Proof (Optional)" />
         <View style={styles.uploadBox}>
-          <Ionicons name="cloud-upload-outline" size={20} color="#16BB05" />
+          <Ionicons name="cloud-upload-outline" size={20} color="#035C6C" />
           <Text style={styles.uploadText}>upload</Text>
           <Text style={styles.uploadHint}>Max size: 1MB</Text>
         </View>
@@ -401,7 +401,7 @@ function Label2({ label }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
     height: 48,
     flexDirection: 'row',
@@ -410,22 +410,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
   content: { padding: 12, paddingBottom: 24 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  sectionTitle: { marginLeft: 6, fontSize: 13, fontWeight: '700', color: '#172117' },
-  label: { fontSize: 12, fontWeight: '600', color: '#172117', marginBottom: 6, marginTop: 10 },
-  label2: { fontSize: 11, color: '#667066', marginBottom: 4 },
+  sectionTitle: { marginLeft: 6, fontSize: 13, fontWeight: '700', color: '#111111' },
+  label: { fontSize: 12, fontWeight: '600', color: '#111111', marginBottom: 6, marginTop: 10 },
+  label2: { fontSize: 11, color: '#6B7280', marginBottom: 4 },
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 12,
     paddingVertical: 0,
     height: 42,
     fontSize: 13,
-    color: '#172117',
+    color: '#111111',
     marginBottom: 10,
   },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -435,37 +435,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 10,
     height: 42,
   },
-  countryText: { fontSize: 13, color: '#172117', marginRight: 6 },
+  countryText: { fontSize: 13, color: '#111111', marginRight: 6 },
   lookupBtn: {
     width: 42,
     height: 42,
     borderRadius: 10,
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  lookupHint: { fontSize: 11, color: '#16BB05', marginTop: -4, marginBottom: 10 },
+  lookupHint: { fontSize: 11, color: '#035C6C', marginTop: -4, marginBottom: 10 },
   // Direction is set at the call site from `twoUp` — see the note there.
   grid2: { gap: 10 },
   uploadBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#C8EEBF',
+    borderColor: '#C7E6EA',
     borderStyle: 'dashed',
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
   },
-  uploadText: { marginTop: 4, fontSize: 13, color: '#16BB05', fontWeight: '700' },
-  uploadHint: { marginTop: 4, fontSize: 11, color: '#667066' },
+  uploadText: { marginTop: 4, fontSize: 13, color: '#035C6C', fontWeight: '700' },
+  uploadHint: { marginTop: 4, fontSize: 11, color: '#6B7280' },
   saveBtn: {
     marginTop: 14,
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     borderRadius: 999,
     paddingVertical: 12,
     alignItems: 'center',

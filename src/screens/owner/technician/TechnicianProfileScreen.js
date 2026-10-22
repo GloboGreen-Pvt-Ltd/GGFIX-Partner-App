@@ -22,6 +22,14 @@ function formatTime(val) {
   return String(val);
 }
 
+function time12(val) {
+  if (val == null || val === '') return '—';
+  const [hh, mm] = String(val).split(':');
+  const h = Number(hh);
+  if (Number.isNaN(h)) return String(val);
+  return `${String(((h + 11) % 12) + 1).padStart(2, '0')}:${String(mm || '00').slice(0, 2)} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
 export default function TechnicianProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +123,7 @@ export default function TechnicianProfileScreen({ navigation }) {
   if (loading && !profile) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ActivityIndicator size="large" color="#16BB05" style={styles.loader} />
+        <ActivityIndicator size="large" color="#035C6C" style={styles.loader} />
       </SafeAreaView>
     );
   }
@@ -129,9 +137,9 @@ export default function TechnicianProfileScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.avatarRow}>
             <View style={styles.avatarLarge}>
               {profile.photoUrl ? (
@@ -141,7 +149,7 @@ export default function TechnicianProfileScreen({ navigation }) {
                   resizeMode="cover"
                 />
               ) : (
-                <Ionicons name="person" size={40} color="#8FA08F" />
+                <Ionicons name="person" size={40} color="#9CA3AF" />
               )}
             </View>
             <Text style={styles.name}>{profile.name || 'Technician'}</Text>
@@ -210,11 +218,11 @@ export default function TechnicianProfileScreen({ navigation }) {
               <View style={styles.row}>
                 <Text style={styles.metaLabel}>Check-in / Check-out</Text>
                 <Text style={styles.metaValue}>
-                  {profile.defaultCheckIn ?? '09:30'} / {profile.defaultCheckOut ?? '18:30'}
+                  {time12(profile.defaultCheckIn ?? '09:30')} / {time12(profile.defaultCheckOut ?? '18:30')}
                 </Text>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
-                <Ionicons name="pencil" size={20} color="#16BB05" />
+                <Ionicons name="pencil" size={20} color="#035C6C" />
                 <Text style={styles.editBtnText}>Edit profile</Text>
               </TouchableOpacity>
             </View>
@@ -223,27 +231,27 @@ export default function TechnicianProfileScreen({ navigation }) {
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>Today&apos;s attendance</Text>
             {attendanceLoading ? (
-              <ActivityIndicator size="small" color="#16BB05" style={{ marginVertical: 8 }} />
+              <ActivityIndicator size="small" color="#035C6C" style={{ marginVertical: 8 }} />
             ) : (
               <>
                 <View style={styles.row}>
                   <Text style={styles.metaLabel}>Check-in</Text>
-                  <Text style={styles.metaValue}>{todayAttendance?.checkInTime != null ? formatTime(todayAttendance.checkInTime) : '—'}</Text>
+                  <Text style={styles.metaValue}>{time12(todayAttendance?.checkInTime)}</Text>
                 </View>
-                <View style={styles.row}>
+                <View style={[styles.row, styles.rowLast]}>
                   <Text style={styles.metaLabel}>Check-out</Text>
-                  <Text style={styles.metaValue}>{todayAttendance?.checkOutTime != null ? formatTime(todayAttendance.checkOutTime) : '—'}</Text>
+                  <Text style={styles.metaValue}>{time12(todayAttendance?.checkOutTime)}</Text>
                 </View>
                 <View style={styles.checkInOutRow}>
                   <TouchableOpacity
-                    style={[styles.checkInBtn, checkInOutLoading && styles.checkInBtnDisabled]}
+                    style={[styles.checkInBtn, (checkInOutLoading || todayAttendance?.checkInTime != null) && styles.checkInBtnDisabled]}
                     onPress={handleCheckIn}
                     disabled={checkInOutLoading || todayAttendance?.checkInTime != null}
                   >
                     <Text style={styles.checkInBtnText}>Check in</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.checkOutBtn, checkInOutLoading && styles.checkInBtnDisabled]}
+                    style={[styles.checkOutBtn, (checkInOutLoading || !todayAttendance?.checkInTime || todayAttendance?.checkOutTime != null) && styles.checkInBtnDisabled]}
                     onPress={handleCheckOut}
                     disabled={checkInOutLoading || !todayAttendance?.checkInTime || todayAttendance?.checkOutTime != null}
                   >
@@ -255,19 +263,29 @@ export default function TechnicianProfileScreen({ navigation }) {
           </View>
 
           <TouchableOpacity style={styles.navCard} onPress={() => navigation.navigate('TechnicianDashboard')}>
-            <Ionicons name="grid-outline" size={24} color="#16BB05" />
+            <Ionicons name="grid-outline" size={24} color="#035C6C" />
             <Text style={styles.navCardText}>Dashboard</Text>
-            <Ionicons name="chevron-forward" size={20} color="#8FA08F" />
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.navCard} onPress={() => navigation.navigate('AssignedTickets')}>
-            <Ionicons name="document-text-outline" size={24} color="#16BB05" />
+            <Ionicons name="document-text-outline" size={24} color="#035C6C" />
             <Text style={styles.navCardText}>My Assigned Tickets</Text>
-            <Ionicons name="chevron-forward" size={20} color="#8FA08F" />
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.navCard} onPress={() => navigation.navigate('TechnicianApplyLeave')}>
-            <Ionicons name="calendar-outline" size={24} color="#16BB05" />
+            <Ionicons name="calendar-outline" size={24} color="#035C6C" />
             <Text style={styles.navCardText}>Apply for leave</Text>
-            <Ionicons name="chevron-forward" size={20} color="#8FA08F" />
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navCard} onPress={() => navigation.navigate('Terms')}>
+            <Ionicons name="reader-outline" size={24} color="#035C6C" />
+            <Text style={styles.navCardText}>Terms & Conditions</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navCard} onPress={() => navigation.navigate('PrivacyPolicy')}>
+            <Ionicons name="shield-checkmark-outline" size={24} color="#035C6C" />
+            <Text style={styles.navCardText}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -276,46 +294,48 @@ export default function TechnicianProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
+  safe: { flex: 1, backgroundColor: '#F3F4F6' },
   loader: { flex: 1, justifyContent: 'center' },
-  content: { padding: 12, paddingBottom: 24 },
+  content: { padding: 12, paddingBottom: 32, width: '100%', maxWidth: 640, alignSelf: 'center' },
   error: { fontSize: 13, color: '#DC2626', textAlign: 'center', marginTop: 24 },
-  avatarRow: { alignItems: 'center', marginBottom: 14 },
+  avatarRow: { alignItems: 'center', marginBottom: 14, marginTop: 6 },
   avatarLarge: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#172117',
+    backgroundColor: '#E5F3F5',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#172117',
+    borderColor: '#C7E6EA',
+    overflow: 'hidden',
   },
-  avatarPlaceholder: { fontSize: 12, color: '#8FA08F' },
-  name: { fontSize: 17, fontWeight: '700', color: '#F7FAF7', marginTop: 10 },
-  email: { fontSize: 13, color: '#8FA08F', marginTop: 4 },
-  role: { fontSize: 12, color: '#16BB05', marginTop: 4 },
-  card: { backgroundColor: '#172117', borderRadius: 12, padding: 12, marginBottom: 9, borderWidth: 1, borderColor: '#172117' },
-  label: { fontSize: 12, color: '#8FA08F', marginBottom: 4 },
-  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 12, fontSize: 15, color: '#F7FAF7', marginBottom: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#172117' },
-  metaLabel: { fontSize: 13, color: '#8FA08F' },
-  metaValue: { fontSize: 13, color: '#F7FAF7', fontWeight: '500' },
-  editBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 8 },
-  editBtnText: { fontSize: 15, color: '#16BB05', fontWeight: '600' },
+  avatarPlaceholder: { fontSize: 12, color: '#6B7280' },
+  name: { fontSize: 17, fontWeight: '800', color: '#111111', marginTop: 10 },
+  email: { fontSize: 13, color: '#6B7280', marginTop: 4 },
+  role: { fontSize: 12, color: '#035C6C', fontWeight: '700', marginTop: 4 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  label: { fontSize: 12, color: '#6B7280', marginBottom: 4 },
+  input: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, fontSize: 15, color: '#111111', marginBottom: 12 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F1F1', gap: 12 },
+  rowLast: { borderBottomWidth: 0 },
+  metaLabel: { fontSize: 13, color: '#6B7280', flexShrink: 1 },
+  metaValue: { fontSize: 13, color: '#111111', fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8, alignSelf: 'flex-start', paddingVertical: 4 },
+  editBtnText: { fontSize: 14, color: '#035C6C', fontWeight: '700' },
   editRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#172117', alignItems: 'center' },
-  cancelBtnText: { fontSize: 15, color: '#F7FAF7' },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#087A0A', alignItems: 'center' },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' },
+  cancelBtnText: { fontSize: 15, color: '#111111', fontWeight: '600' },
+  saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#035C6C', alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { fontSize: 15, color: '#fff', fontWeight: '600' },
-  navCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#172117', borderRadius: 12, padding: 12, marginBottom: 9, borderWidth: 1, borderColor: '#172117', gap: 12 },
-  navCardText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#F7FAF7' },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: '#8FA08F', marginBottom: 8 },
+  saveBtnText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+  navCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E5E7EB', gap: 12 },
+  navCardText: { flex: 1, fontSize: 15, fontWeight: '700', color: '#111111' },
+  sectionLabel: { fontSize: 13, fontWeight: '800', color: '#111111', marginBottom: 4 },
   checkInOutRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  checkInBtn: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#087A0A', alignItems: 'center' },
-  checkOutBtn: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#087A0A', alignItems: 'center' },
-  checkInBtnDisabled: { opacity: 0.6 },
+  checkInBtn: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#035C6C', alignItems: 'center' },
+  checkOutBtn: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#F84141', alignItems: 'center' },
+  checkInBtnDisabled: { opacity: 0.45 },
   checkInBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
   checkOutBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 });

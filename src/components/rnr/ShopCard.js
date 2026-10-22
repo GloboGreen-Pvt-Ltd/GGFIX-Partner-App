@@ -5,7 +5,7 @@ import { cn } from './cn';
 import { Badge } from './Badge';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 4 },
@@ -55,14 +55,14 @@ export function ShopCard({
           </View>
           {address ? (
             <View className="flex-row items-center mt-0.5">
-              <MapPin size={12} color="#667066" />
+              <MapPin size={12} color="#6B7280" />
               <Text className="text-[12px] text-text-muted ml-1 flex-1" numberOfLines={1}>{address}</Text>
             </View>
           ) : null}
           <View className="flex-row items-center mt-2">
             {rating ? (
               <View className="flex-row items-center bg-success/10 rounded-full px-2 py-0.5 mr-2">
-                <Star size={11} color="#16BB05" fill="#16BB05" />
+                <Star size={11} color="#035C6C" fill="#035C6C" />
                 <Text className="text-[11px] font-bold text-success ml-1">
                   {Number(rating).toFixed(1)}
                 </Text>
@@ -74,7 +74,7 @@ export function ShopCard({
             ) : null}
             {!travelTimes?.length && (etaText || eta) ? (
               <View className="flex-row items-center">
-                <Clock size={11} color="#667066" />
+                <Clock size={11} color="#6B7280" />
                 <Text className="text-[11px] text-text-muted ml-1">{etaText || `${eta} min`}</Text>
               </View>
             ) : null}
@@ -87,7 +87,7 @@ export function ShopCard({
                 const TIcon = t.Icon;
                 return (
                   <View key={t.key} className="flex-row items-center mr-4">
-                    {TIcon ? <TIcon size={13} color="#667066" /> : null}
+                    {TIcon ? <TIcon size={13} color="#6B7280" /> : null}
                     <Text className="text-[11px] font-bold text-text ml-1">{t.text}</Text>
                   </View>
                 );
@@ -100,13 +100,13 @@ export function ShopCard({
         <View className="flex-row mt-3 border-t border-border pt-2 -mx-1">
           {onCall ? (
             <Pressable onPress={onCall} className="flex-1 flex-row items-center justify-center py-2 active:opacity-70">
-              <Phone size={15} color="#16BB05" />
+              <Phone size={15} color="#035C6C" />
               <Text className="ml-2 text-[13px] font-bold text-success">Call</Text>
             </Pressable>
           ) : null}
           {onDirections ? (
             <Pressable onPress={onDirections} className="flex-1 flex-row items-center justify-center py-2 active:opacity-70 border-l border-border">
-              <Navigation size={15} color="#16BB05" />
+              <Navigation size={15} color="#035C6C" />
               <Text className="ml-2 text-[13px] font-bold text-secondary">Directions</Text>
             </Pressable>
           ) : null}
