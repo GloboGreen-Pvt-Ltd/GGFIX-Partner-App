@@ -77,6 +77,23 @@ export function normalize(text) {
 const tokens = (text) => normalize(text).split(' ').filter(Boolean);
 const hasDigit = (t) => /\d/.test(t);
 
+// Units and network generations stay one word when letters and digits are
+// split apart ("5g", "150w", "64gb").
+const UNIT = /^\d+(g|gb|tb|mb|w|mah|hz|mp|k)$/;
+/**
+ * Name words with letters and digits split: "realme GT Neo3 150W" →
+ * [realme, gt, neo, 3, 150w]. The catalogue and a photo space the same model
+ * differently ("GT Neo3" / "GT NEO 3T" in the catalogue, "GT Neo 3" on a box
+ * or from Google / Groq), so names are compared in this form.
+ */
+function seq(text) {
+  return tokens(text).flatMap((t) => (UNIT.test(t) ? [t]
+    : t.replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2').split(' ').filter(Boolean)));
+}
+// A word right after a matched name that makes it a LONGER model's name:
+// "GT Neo 3" + "T" / "150W" / "Pro" / "2".
+const extendsName = (t) => !!t && ((t.length === 1 && /[a-z]/.test(t)) || /^\d+$/.test(t) || VARIANTS.has(t) || UNIT.test(t));
+
 /** A model-number key: "(Type 81M8)" → "81M8", "SM-S911B/DS" → ["SMS911BDS", "SMS911B"]. */
 function codeKeys(raw) {
   const s = String(raw ?? '').toUpperCase().replace(/[()]/g, ' ').replace(/\bTYPE\b/g, ' ');
@@ -104,7 +121,9 @@ export function buildIndex(rows) {
     if (nb) brands.set(nb, nb.split(' '));
     const brandToks = new Set(nb.split(' '));
     // "(Lightning)", "(Bluetooth, 4.4 cm)" qualify a model; they're optional evidence.
-    const nameToks = tokens(String(r.name).replace(/\([^)]*\)?/g, ' ')).filter((t) => !brandToks.has(t) && !STOP.has(t));
+    const bare = String(r.name).replace(/\([^)]*\)?/g, ' ');
+    const nameToks = tokens(bare).filter((t) => !brandToks.has(t) && !STOP.has(t));
+    const nameSeq = seq(bare).filter((t) => !brandToks.has(t) && !STOP.has(t) && !SOFT_VARIANTS.has(t));
     const row = {
       id: r.id,
       brand: r.brand || '',
@@ -114,9 +133,15 @@ export function buildIndex(rows) {
       ref: r.ref,
       nb,
       core: nameToks.filter((t) => !VARIANTS.has(t)),
-      variants: nameToks.filter((t) => VARIANTS.has(t)),
+      // From the split form, so "GT Neo3" carries "neo" like "GT Neo 3" does.
+      variants: nameSeq.filter((t) => VARIANTS.has(t)),
       // Model identifiers only ("f31", "s23") — not variant words like "5g".
       digits: nameToks.filter((t) => hasDigit(t) && !VARIANTS.has(t)),
+      // The name as a phrase (see seq / phraseScore), and its brand's words.
+      seq: nameSeq,
+      brandToks,
+      // "Realme 3": a bare number is only that model next to its brand.
+      numOnly: nameSeq.length > 0 && nameSeq.every((t) => /^\d+$/.test(t)),
     };
     if (nb) {
       if (!modelTokens.has(nb)) modelTokens.set(nb, new Set());
@@ -162,20 +187,38 @@ function brandsIn(ev, index) {
   return found;
 }
 
-/** 0..1 — how completely the evidence names this model (0 when a model digit is missing). */
-function nameScore(row, ev) {
-  if (ev.empty || !row.core.length) return 0;
-  // Joined-text fallback only for long codes ("a2633"): a short one like "s25"
-  // would match inside unrelated text ("ds256gb").
-  const seen = (t) => ev.set.has(t) || (t.length >= 5 && hasDigit(t) && ev.compact.includes(t));
-  if (row.digits.length && !row.digits.every(seen)) return 0;
-  const matched = row.core.filter(seen).length;
-  // No model digit: every name word must match, and one generic word ("Galaxy") isn't enough.
-  if (!row.digits.length && (row.core.length < 2 || matched < row.core.length)) return 0;
-  let s = matched / row.core.length;
-  row.variants.forEach((v) => { if (!ev.set.has(v)) s -= SOFT_VARIANTS.has(v) ? 0.1 : 0.3; });
-  return Math.max(0, Math.min(1, s));
+/** Each line of the evidence as name words (seq form). */
+const linesOf = (texts) => texts.flatMap((t) => String(t ?? '').split(/\r?\n/)).map(seq).filter((l) => l.length);
+
+/**
+ * 0..1 — the evidence NAMES this model: its whole name appears as a phrase
+ * in one line, not followed by a word that makes it a longer model's name,
+ * and covering most of that line (≥ 0.7; 1 = the line is exactly the name).
+ * So "realme GT Neo 3" is the GT Neo3 (1.0) — and not "Realme 3" or
+ * "Realme GT", whose words merely sit inside it. A bare-number name
+ * ("Realme 3") needs its brand on the same line.
+ */
+function phraseScore(row, lines) {
+  const n = row.seq.length;
+  if (!n) return 0;
+  let best = 0;
+  lines.forEach((line) => {
+    const core = line.filter((t) => !row.brandToks.has(t) && !STOP.has(t) && !SOFT_VARIANTS.has(t));
+    if (!core.length) return;
+    const withBrand = row.nb && line.length > core.length && line.some((t) => row.brandToks.has(t));
+    for (let i = 0; i + n <= core.length; i += 1) {
+      let hit = true;
+      for (let j = 0; j < n && hit; j += 1) hit = core[i + j] === row.seq[j];
+      if (!hit || extendsName(core[i + n])) continue;
+      const cover = n / core.length;
+      if (cover < 0.999 && (cover < 0.7 || row.numOnly)) continue;
+      if (row.numOnly && !withBrand) continue;
+      best = Math.max(best, cover);
+    }
+  });
+  return best;
 }
+
 
 const RANK_BASE = { high: 70, medium: 55, low: 35 };
 
@@ -214,28 +257,33 @@ export function detectProduct(index, { ocrText = '', identify = null, visual = n
     }
   });
 
-  // 3. Brand + model name in the photo's text or the recognised label.
+  // 3. Brand + model name in the photo's text or the recognised label — as a
+  // whole phrase (phraseScore), so a label's stray number or brand word
+  // never picks an unrelated model.
+  const ocrLines = linesOf([ocrText]);
+  const labelLines = identify?.ok ? linesOf([identify.label, ...(identify.labels || []).slice(0, 3)]) : [];
   const nameCandidates = brandSet.size ? index.rows.filter((r) => brandSet.has(r.nb)) : index.rows;
+  // Models the photo's own text (or a non-AI label) names exactly: any other
+  // model is contradicted (a server guess "A02" for a box reading "OPPO F31").
+  const named = new Set();
   nameCandidates.forEach((r) => {
-    const o = nameScore(r, ocr);
-    if (o >= 0.6) vote(r, 'ocr-name', Math.round(o * 88));
-    const l = nameScore(r, label);
-    if (l >= 0.6) vote(r, 'label-name', Math.round(l * 82));
+    const o = phraseScore(r, ocrLines);
+    if (o > 0) vote(r, 'ocr-name', Math.round(o * 88));
+    const l = phraseScore(r, labelLines);
+    if (l > 0) vote(r, 'label-name', Math.round(l * 82));
+    // An AI guess's label doesn't get to contradict its alternatives.
+    if (o >= 0.999 || (!identify?.ai && l >= 0.999)) named.add(r.id);
   });
 
-  // Model identifiers the photo / label actually names ("f31"): real model
-  // tokens of a recognised brand. A candidate naming none of them is
-  // contradicted (e.g. a server guess "A02" for a photo labelled "OPPO F31").
-  const named = new Set();
-  brandSet.forEach((nb) => (index.modelTokens.get(nb) || new Set()).forEach((t) => {
-    if (ocr.set.has(t) || label.set.has(t)) named.add(t);
-  }));
-
-  // 4. Server (Google Vision → catalogue) and visual-similarity rankings.
+  // 4. Server (Google Vision / Groq / visual vector → catalogue) and the
+  // visual-similarity service. Only genuine server matches vote: brand
+  // fill-ins, name-alike siblings and partial names are what used to show as
+  // "unrelated" models, and a server verdict of NONE means nothing matched.
+  const genuine = (m) => !['brand', 'similar', 'partial'].includes(String(m?.matchedBy || '').toLowerCase());
   const ranked = (src, reason) => {
-    if (!src?.ok) return;
+    if (!src?.ok || src.identification === 'NONE') return;
     const base = RANK_BASE[src.confidence] || RANK_BASE.low;
-    (src.matches || []).slice(0, 8).forEach((m, i) => {
+    (src.matches || []).filter(genuine).slice(0, 8).forEach((m, i) => {
       const sim = Number(m?.similarity);
       const s = Number.isFinite(sim) && sim > 0 ? Math.max(base - i * 6, Math.round(sim * base)) : base - i * 6;
       vote(byId.get(m?.id), reason, s);
@@ -243,6 +291,9 @@ export function detectProduct(index, { ocrText = '', identify = null, visual = n
   };
   ranked(identify, 'server-rank');
   ranked(visual, 'visual');
+  // The server's EXACT verdict (a printed model number it read, or look and
+  // AI agreeing at a calibrated ≥ 85 %) — strong, still below our own OCR read.
+  if (identify?.ok && identify.exactId) vote(byId.get(identify.exactId), 'server-exact', 92);
 
   // Combine: the strongest signal leads, agreeing signals add a little (≤8).
   // Only a printed model number can reach 100; name / ranking evidence is
@@ -255,7 +306,7 @@ export function detectProduct(index, { ocrText = '', identify = null, visual = n
     if (brandSet.size && !brandSet.has(row.nb)) score *= 0.4; // contradicts the brand we read
     if (!byNumber) {
       if (numberHit) score *= 0.8; // the photo printed a different model's number
-      if (named.size && !row.digits.some((t) => named.has(t))) score *= 0.5; // names a different model
+      if (named.size && !named.has(row.id)) score *= 0.5; // the photo names a different model
       if (kinds.size && row.kind && !kinds.has(row.kind)) score *= 0.6; // e.g. AirPods for a "smartphone" photo
       // Similar models: a variant word in the evidence the model doesn't have.
       const extra = [...VARIANTS].filter((v) => !SOFT_VARIANTS.has(v) && (ocr.set.has(v) || label.set.has(v)) && !row.variants.includes(v) && row.core.length);
@@ -268,13 +319,18 @@ export function detectProduct(index, { ocrText = '', identify = null, visual = n
   const top = list[0];
   const second = list[1];
   const shown = list.filter((c) => c.confidence >= MIN_SHOW).slice(0, 3);
-  const auto = !!top && top.confidence >= AUTO_SELECT && (!second || top.confidence - second.confidence >= MARGIN);
+  // 'exact' = the model is VERIFIED: its model number was read off the
+  // device / box, or the server says EXACT. A name, an AI guess or a look
+  // alone is never exact — those are offered for the user to confirm. Even
+  // 'exact' is a card the user taps; nothing navigates on its own.
+  const verifiedTop = !!top && ['ocr-model-number', 'ocr-model-prefix', 'server-exact'].some((k) => top.signals[k]);
+  const auto = verifiedTop && top.confidence >= AUTO_SELECT && (!second || top.confidence - second.confidence >= MARGIN);
   // Search text for a caller with no candidate: something specific only.
   const specific = [identify?.label, identify?.brand, ...brandSet].find((t) => t && (hasDigit(t) || index.brands.has(normalize(t))));
   const debug = {
     codes,
     brands: [...brandSet],
-    named: [...named],
+    named: [...named].map((id) => byId.get(id)?.name),
     kinds: [...kinds],
     ocrChars: String(ocrText || '').length,
     server: identify?.ok ? { confidence: identify.confidence, label: identify.label, brand: identify.brand || null, labels: (identify.labels || []).slice(0, 5), matches: (identify.matches || []).length } : null,
@@ -283,17 +339,15 @@ export function detectProduct(index, { ocrText = '', identify = null, visual = n
   };
   if (auto) return { status: 'exact', best: top, candidates: shown, confidence: top.confidence, reason: top.reason, label: specific || null, debug };
   if (shown.length) return { status: 'choose', best: shown[0], candidates: shown, confidence: shown[0].confidence, reason: shown[0].reason, label: specific || null, debug };
-  // Not confident: no match, but the closest few are returned as suggestions so
-  // the caller can offer a "pick your device" list (never auto-selected).
-  // A low-confidence server list is just that brand's models in catalogue
-  // order (AirPods first for any Apple photo): not suggestions. Offer only
-  // candidates with real evidence, of the device type the photo shows; with
-  // none, the caller opens the brand's full model list in search instead.
+  // Not confident: no match. The closest few with the photo's OWN evidence (a
+  // name it reads, or an image that looks like it) come back as suggestions,
+  // of the device type the photo shows — never a server ranking alone, never
+  // a brand's model list. With none, the caller says "Exact model not
+  // identified" and offers manual search.
   const typed = (c) => !kinds.size || (index.rows.find((r) => r.id === c.id)?.kind && kinds.has(index.rows.find((r) => r.id === c.id).kind));
-  // Image similarity is evidence; the server's catalogue-order list is not.
   const evidenced = (c) => Object.keys(c.signals).some((k) => k !== 'server-rank');
   const suggestions = list
-    .filter((c) => c.confidence >= MIN_SUGGEST && typed(c) && (evidenced(c) || (identify?.ok && identify.confidence !== 'low')))
+    .filter((c) => c.confidence >= MIN_SUGGEST && typed(c) && evidenced(c))
     .slice(0, 3);
   return { status: 'none', best: null, candidates: [], suggestions, confidence: top ? top.confidence : 0, reason: top ? top.reason : 'no-evidence', label: specific || null, debug };
 }

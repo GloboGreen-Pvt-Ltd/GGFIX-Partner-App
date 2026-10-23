@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,17 +17,18 @@ import { listingConditionLabel, listingCustomerName, listingPriceLabel } from '.
 import { getBrands, getDeviceCategories } from '../../api/masterData';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { notify } from '../../components/confirm';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
 const PALETTE = {
-  primary: '#09AD2A',
-  primaryDark: '#078F23',
-  mint: '#EAF8EC',
-  text: '#1E1E1E',
-  muted: '#6B6B6B',
-  border: '#E6E6E6',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  primary: '#035C6C',
+  primaryDark: '#035C6C',
+  mint: '#E5F3F5',
+  text: '#111111',
+  muted: '#6B7280',
+  border: '#E5E7EB',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   card: '#FFFFFF',
   danger: '#DC2626',
   amberDark: '#B45309',
@@ -184,7 +184,7 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
           {listing.productImage ? (
             <Image source={{ uri: normalizeDeviceImageUrl(listing.productImage) }} style={styles.heroImage} resizeMode="contain" />
           ) : (
-            <Ionicons name="phone-portrait-outline" size={80} color="#D6D6D6" />
+            <Ionicons name="phone-portrait-outline" size={80} color="#D1D5DB" />
           )}
           {isAwaitingQuote ? (
             <View style={[styles.priceBar, { backgroundColor: PALETTE.amberLight }]}>
@@ -286,7 +286,7 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
         )}
       </View>
 
-      <BlockedSheet info={blocked} onClose={() => setBlocked(null)} bottomInset={insets.bottom} />
+      <BlockedSheet info={blocked} onClose={() => setBlocked(null)} />
     </SafeAreaView>
   );
 }
@@ -311,22 +311,27 @@ function SpecRow({ icon, label, value, valueColor, onPress, actionLabel, last })
 }
 
 /** Bottom sheet that says why an action can't complete, with one OK. */
-function BlockedSheet({ info, onClose, bottomInset }) {
+function BlockedSheet({ info, onClose }) {
   return (
-    <Modal visible={!!info} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 12) + 12 }]} onPress={() => {}}>
-          <View style={styles.sheetIcon}>
-            <Ionicons name={info?.icon || 'information-circle-outline'} size={22} color={PALETTE.amberDark} />
-          </View>
-          <Text style={styles.sheetTitle}>{info?.title}</Text>
-          <Text style={styles.sheetMessage}>{info?.message}</Text>
-          <TouchableOpacity style={[styles.primaryBtn, { flex: 0, marginTop: 16 }]} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.primaryText}>OK</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <SafeModal visible={!!info} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      {/* The modal window's own insets — the screen's don't reach it. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+            <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]} onPress={() => {}}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name={info?.icon || 'information-circle-outline'} size={22} color={PALETTE.amberDark} />
+              </View>
+              <Text style={styles.sheetTitle}>{info?.title}</Text>
+              <Text style={styles.sheetMessage}>{info?.message}</Text>
+              <TouchableOpacity style={[styles.primaryBtn, { flex: 0, marginTop: 16 }]} onPress={onClose} activeOpacity={0.85}>
+                <Text style={styles.primaryText}>OK</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }
 
@@ -453,7 +458,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   primaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(30,30,30,0.45)', justifyContent: 'flex-end' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(17, 17, 17,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: PALETTE.card,
     borderTopLeftRadius: 22,

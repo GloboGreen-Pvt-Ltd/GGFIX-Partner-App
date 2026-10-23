@@ -31,15 +31,15 @@ import { notify } from '../../components/confirm';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
 
-// GGFIX palette — green #09AD2A (fills, rings, dots) with #078F23 for green
-// text/icons; ink #1E1E1E; neutrals #F8F8F8 / #F3F3F3; yellow #F3BF23.
-const BRAND_GREEN      = '#09AD2A';
-const BRAND_GREEN_DARK = '#078F23';
-const MINT             = '#EAF8EC';
-const PAGE_BG          = '#F8F8F8';
+// GGFIX palette — green #035C6C (fills, rings, dots) with #035C6C for green
+// text/icons; ink #111111; neutrals #F3F4F6 / #F3F4F6; yellow #F3BF23.
+const BRAND_GREEN      = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const MINT             = '#E5F3F5';
+const PAGE_BG          = '#F3F4F6';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
@@ -248,7 +248,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             paddingBottom: 11,
             paddingHorizontal: 16,
             borderBottomWidth: 1,
-            borderBottomColor: '#E6E6E6',
+            borderBottomColor: '#E5E7EB',
           }}
         >
           <View className="flex-row items-center" style={capStyle}>
@@ -257,7 +257,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
               activeOpacity={0.7}
               className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
             >
-              <ChevronLeft size={20} color="#1E1E1E" />
+              <ChevronLeft size={20} color="#111111" />
             </TouchableOpacity>
             <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
               {isPickupPicker ? 'Select Pickup Person' : 'Employees'}
@@ -312,7 +312,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             {/* Summary card with active / total progress ring */}
             <View
               className="rounded-2xl p-3 mb-2.5 flex-row items-center"
-              style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F3F3', ...cardShadow }}
+              style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', ...cardShadow }}
             >
               <View style={{ position: 'relative' }}>
                 <View
@@ -426,20 +426,20 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                   activeOpacity={0.85}
                   disabled={isPickupPicker && (assigning !== null || !isActive)}
                   className="bg-white rounded-2xl p-3 mb-2.5 flex-row items-center"
-                  style={[cardShadow, { borderWidth: 1, borderColor: '#F3F3F3', opacity: isActive ? 1 : 0.72 }]}
+                  style={[cardShadow, { borderWidth: 1, borderColor: '#F3F4F6', opacity: isActive ? 1 : 0.72 }]}
                 >
                   {/* Avatar */}
                   <View style={{ position: 'relative' }}>
                     <View
                       style={{
                         width: 46, height: 46, borderRadius: 23,
-                        backgroundColor: isActive ? MINT : '#F3F3F3',
+                        backgroundColor: isActive ? MINT : '#F3F4F6',
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >
                       <Text
                         className="text-[17px] font-extrabold"
-                        style={{ color: isActive ? BRAND_GREEN_DARK : '#8E8E8E' }}
+                        style={{ color: isActive ? BRAND_GREEN_DARK : '#9CA3AF' }}
                       >
                         {initial}
                       </Text>
@@ -449,7 +449,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                         position: 'absolute',
                         right: 0, bottom: 1,
                         width: 12, height: 12, borderRadius: 6,
-                        backgroundColor: isActive ? BRAND_GREEN : '#8E8E8E',
+                        backgroundColor: isActive ? BRAND_GREEN : '#9CA3AF',
                         borderWidth: 2, borderColor: '#FFFFFF',
                       }}
                     />
@@ -493,7 +493,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                       <View className="items-center mr-1">
                         <Text
                           className="text-[10px] font-extrabold mb-0.5"
-                          style={{ color: isActive ? BRAND_GREEN_DARK : '#8E8E8E' }}
+                          style={{ color: isActive ? BRAND_GREEN_DARK : '#9CA3AF' }}
                         >
                           {isActive ? 'Active' : 'Inactive'}
                         </Text>
@@ -504,8 +504,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                             style={{ transform: [{ scale: 0.85 }] }}
                             value={isActive}
                             onValueChange={(v) => onToggleActive(e, v)}
-                            trackColor={{ false: '#D6D6D6', true: '#A8E3B4' }}
-                            thumbColor={isActive ? BRAND_GREEN : '#8E8E8E'}
+                            trackColor={{ false: '#D1D5DB', true: '#C7E6EA' }}
+                            thumbColor={isActive ? BRAND_GREEN : '#9CA3AF'}
                           />
                         )}
                       </View>
@@ -514,7 +514,7 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                         hitSlop={8}
                         className="ml-0.5"
                       >
-                        <ChevronRight size={18} color="#8E8E8E" />
+                        <ChevronRight size={18} color="#9CA3AF" />
                       </Pressable>
                     </View>
                   )}

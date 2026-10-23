@@ -142,7 +142,7 @@ export function DashboardShortcutCards({ items, pad, gap = 10, height = 150 }: P
                   backgroundColor: '#FFFFFF',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: '#101828',
+                  shadowColor: '#111111',
                   shadowOpacity: 0.08,
                   shadowRadius: 4,
                   shadowOffset: { width: 0, height: 2 },
@@ -153,10 +153,10 @@ export function DashboardShortcutCards({ items, pad, gap = 10, height = 150 }: P
               </View>
             </View>
 
-            <Text style={{ marginTop: 8, fontSize: 17, fontWeight: '800', color: '#111827' }} numberOfLines={1}>
+            <Text style={{ marginTop: 8, fontSize: 17, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
               {it.label}
             </Text>
-            <Text style={{ marginTop: 1, fontSize: 11.5, color: '#64748B', fontWeight: '500' }} numberOfLines={1}>
+            <Text style={{ marginTop: 1, fontSize: 11.5, color: '#6B7280', fontWeight: '500' }} numberOfLines={1}>
               {it.sub}
             </Text>
           </Touchable>

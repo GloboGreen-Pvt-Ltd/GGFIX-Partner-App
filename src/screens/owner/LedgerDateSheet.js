@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react-native';
 import { rs } from '../../theme/metrics';
 import { C, S, SIZE, T } from './ledgerUi';
+import SafeModal from '../../components/SafeModal';
 
 /* ── date sheet ───────────────────────────────────────────────────────────
    A hand-rolled month grid rather than @react-native-community/datetimepicker:
@@ -70,11 +71,11 @@ export default function LedgerDateSheet({
   const navBtn = { height: SIZE.tile, width: SIZE.tile, backgroundColor: C.field };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
         className="flex-1 items-center justify-center"
-        style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)', paddingHorizontal: S.xl }}
+        style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)', paddingHorizontal: S.xl }}
       >
         {/* Swallows the backdrop press so tapping inside the card can't close it. */}
         <Pressable
@@ -235,6 +236,6 @@ export default function LedgerDateSheet({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }

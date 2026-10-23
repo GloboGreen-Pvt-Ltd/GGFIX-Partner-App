@@ -57,13 +57,13 @@ export default function OwnerEmployeeAddAdvanceScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   content: { padding: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  label: { fontSize: 13, fontWeight: '600', color: '#172117', marginBottom: 5 },
-  input: { borderWidth: 1, borderColor: '#E2E8E2', borderRadius: 10, padding: 11, fontSize: 13, backgroundColor: '#FFF' },
+  label: { fontSize: 13, fontWeight: '600', color: '#111111', marginBottom: 5 },
+  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, fontSize: 13, backgroundColor: '#FFF' },
   notesInput: { minHeight: 70, textAlignVertical: 'top' },
-  btn: { marginTop: 14, backgroundColor: '#087A0A', borderRadius: 12, padding: 12, alignItems: 'center' },
+  btn: { marginTop: 14, backgroundColor: '#035C6C', borderRadius: 12, padding: 12, alignItems: 'center' },
   btnDisabled: { opacity: 0.7 },
   btnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   error: { fontSize: 13, color: '#DC2626' },

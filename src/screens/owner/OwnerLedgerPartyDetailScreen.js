@@ -3,7 +3,6 @@ import {
   FlatList,
   Image,
   Linking,
-  Modal,
   NativeModules,
   Pressable,
   RefreshControl,
@@ -37,6 +36,7 @@ import { Loader } from '../../components/rnr';
 import WhatsAppIcon from '../../components/WhatsAppIcon';
 import VoiceNotePlayer from '../../components/VoiceNotePlayer';
 import { confirm, notify } from '../../components/confirm';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import LedgerDateSheet from './LedgerDateSheet';
 import ReminderCard, { REMINDER_CARD_WIDTH } from './ReminderCard';
 import { formatMoney } from './revenueMath';
@@ -1019,56 +1019,61 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
           a recurring dunning message needs a server-side job and a consent
           record, neither of which exists yet, and a button that quietly does
           nothing is worse than an absent one. ── */}
-      <Modal visible={more} transparent animationType="slide" onRequestClose={() => setMore(false)}>
-        <Pressable
-          onPress={() => setMore(false)}
-          className="flex-1 justify-end"
-          style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="bg-card"
-            style={{
-              borderTopLeftRadius: SIZE.radius,
-              borderTopRightRadius: SIZE.radius,
-              paddingTop: S.lg,
-              paddingBottom: bottomInset(insets.bottom, S.lg),
-              paddingHorizontal: S.lg,
-            }}
-          >
-            <View className="flex-row flex-wrap" style={{ rowGap: S.lg }}>
-              <MoreAction
-                icon={Trash2}
-                label="Delete"
-                tint={C.red}
-                bg={C.redSoft}
-                onPress={removeParty}
-              />
-              <MoreAction
-                icon={FileText}
-                label="Statement"
-                tint={C.green}
-                bg={C.greenSoft}
-                onPress={() => { setMore(false); goStatement(); }}
-              />
-              <MoreAction
-                icon={Percent}
-                label={'Give\nDiscount'}
-                tint={C.green}
-                bg={C.greenSoft}
-                onPress={giveDiscount}
-              />
-              <MoreAction
-                icon={Phone}
-                label="Call"
-                tint={C.green}
-                bg={C.greenSoft}
-                onPress={() => { setMore(false); dial('tel'); }}
-              />
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <SafeModal visible={more} transparent animationType="slide" onRequestClose={() => setMore(false)}>
+        {/* The modal window's own insets — the screen's don't reach it. */}
+        <ModalInsets>
+          {({ insets }) => (
+            <Pressable
+              onPress={() => setMore(false)}
+              className="flex-1 justify-end"
+              style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)' }}
+            >
+              <Pressable
+                onPress={() => {}}
+                className="bg-card"
+                style={{
+                  borderTopLeftRadius: SIZE.radius,
+                  borderTopRightRadius: SIZE.radius,
+                  paddingTop: S.lg,
+                  paddingBottom: bottomInset(insets.bottom, S.lg),
+                  paddingHorizontal: S.lg,
+                }}
+              >
+                <View className="flex-row flex-wrap" style={{ rowGap: S.lg }}>
+                  <MoreAction
+                    icon={Trash2}
+                    label="Delete"
+                    tint={C.red}
+                    bg={C.redSoft}
+                    onPress={removeParty}
+                  />
+                  <MoreAction
+                    icon={FileText}
+                    label="Statement"
+                    tint={C.green}
+                    bg={C.greenSoft}
+                    onPress={() => { setMore(false); goStatement(); }}
+                  />
+                  <MoreAction
+                    icon={Percent}
+                    label={'Give\nDiscount'}
+                    tint={C.green}
+                    bg={C.greenSoft}
+                    onPress={giveDiscount}
+                  />
+                  <MoreAction
+                    icon={Phone}
+                    label="Call"
+                    tint={C.green}
+                    bg={C.greenSoft}
+                    onPress={() => { setMore(false); dial('tel'); }}
+                  />
+                </View>
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
 
       {/* Off-screen, never visible: view-shot needs a laid-out, non-collapsed
           view to photograph, and a card inside a Modal would not be mounted
@@ -1092,79 +1097,84 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
       ) : null}
 
       {/* ── one entry's actions ──────────────────────────────────────── */}
-      <Modal
+      <SafeModal
         visible={!!entryAction}
         transparent
         animationType="slide"
         onRequestClose={() => setEntryAction(null)}
       >
-        <Pressable
-          onPress={() => setEntryAction(null)}
-          className="flex-1 justify-end"
-          style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="bg-card"
-            style={{
-              borderTopLeftRadius: SIZE.radius,
-              borderTopRightRadius: SIZE.radius,
-              paddingTop: S.lg,
-              paddingBottom: bottomInset(insets.bottom, S.lg),
-              paddingHorizontal: S.lg,
-            }}
-          >
-            {entryAction ? (
-              <>
-                {/* Names the row being acted on. Two entries of the same amount
-                    on one day are common, and a bare "Edit / Delete" pair gives
-                    no way to tell which one the sheet belongs to. */}
-                <Text className="font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }}>
-                  {entryAction.direction === RECEIVED ? 'Received' : 'Given'} {money(entryAction.amount)}
-                </Text>
-                <Text style={{ fontSize: T.rowSub, color: C.muted, marginTop: rs(2), marginBottom: S.lg }}>
-                  {niceDay(parseApiDate(entryAction.entryDate))}
-                  {entryAction.note ? ` · ${entryAction.note}` : ''}
-                </Text>
-                {/* Centred: MoreAction is a fixed quarter-width grid cell, so
-                    two of them left-aligned would hang off one side. */}
-                <View className="flex-row flex-wrap justify-center" style={{ rowGap: S.lg }}>
-                  <MoreAction
-                    icon={Pencil}
-                    label="Edit"
-                    tint={C.green}
-                    bg={C.greenSoft}
-                    onPress={() => {
-                      const entry = entryAction;
-                      setEntryAction(null);
-                      navigation.navigate('OwnerLedgerEntryAdd', {
-                        partyId, party, direction: entry.direction, entry,
-                      });
-                    }}
-                  />
-                  <MoreAction
-                    icon={Trash2}
-                    label="Delete"
-                    tint={C.red}
-                    bg={C.redSoft}
-                    onPress={() => {
-                      const entry = entryAction;
-                      setEntryAction(null);
-                      removeEntry(entry);
-                    }}
-                  />
-                </View>
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        {/* The modal window's own insets — the screen's don't reach it. */}
+        <ModalInsets>
+          {({ insets }) => (
+            <Pressable
+              onPress={() => setEntryAction(null)}
+              className="flex-1 justify-end"
+              style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)' }}
+            >
+              <Pressable
+                onPress={() => {}}
+                className="bg-card"
+                style={{
+                  borderTopLeftRadius: SIZE.radius,
+                  borderTopRightRadius: SIZE.radius,
+                  paddingTop: S.lg,
+                  paddingBottom: bottomInset(insets.bottom, S.lg),
+                  paddingHorizontal: S.lg,
+                }}
+              >
+                {entryAction ? (
+                  <>
+                    {/* Names the row being acted on. Two entries of the same amount
+                        on one day are common, and a bare "Edit / Delete" pair gives
+                        no way to tell which one the sheet belongs to. */}
+                    <Text className="font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }}>
+                      {entryAction.direction === RECEIVED ? 'Received' : 'Given'} {money(entryAction.amount)}
+                    </Text>
+                    <Text style={{ fontSize: T.rowSub, color: C.muted, marginTop: rs(2), marginBottom: S.lg }}>
+                      {niceDay(parseApiDate(entryAction.entryDate))}
+                      {entryAction.note ? ` · ${entryAction.note}` : ''}
+                    </Text>
+                    {/* Centred: MoreAction is a fixed quarter-width grid cell, so
+                        two of them left-aligned would hang off one side. */}
+                    <View className="flex-row flex-wrap justify-center" style={{ rowGap: S.lg }}>
+                      <MoreAction
+                        icon={Pencil}
+                        label="Edit"
+                        tint={C.green}
+                        bg={C.greenSoft}
+                        onPress={() => {
+                          const entry = entryAction;
+                          setEntryAction(null);
+                          navigation.navigate('OwnerLedgerEntryAdd', {
+                            partyId, party, direction: entry.direction, entry,
+                          });
+                        }}
+                      />
+                      <MoreAction
+                        icon={Trash2}
+                        label="Delete"
+                        tint={C.red}
+                        bg={C.redSoft}
+                        onPress={() => {
+                          const entry = entryAction;
+                          setEntryAction(null);
+                          removeEntry(entry);
+                        }}
+                      />
+                    </View>
+                  </>
+                ) : null}
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
 
-      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+      <SafeModal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable
           onPress={() => setPreview(null)}
           className="flex-1 items-center justify-center"
-          style={{ backgroundColor: 'rgba(23, 33, 23, 0.92)' }}
+          style={{ backgroundColor: 'rgba(17, 17, 17, 0.92)' }}
         >
           {preview ? (
             <Image source={{ uri: preview }} style={{ width: '92%', height: '76%' }} resizeMode="contain" />
@@ -1173,7 +1183,7 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
             Tap anywhere to close
           </Text>
         </Pressable>
-      </Modal>
+      </SafeModal>
 
       {/* allowFuture + minDate=today: a promise to pay is always ahead, which is
           the opposite of every other date this sheet picks. */}

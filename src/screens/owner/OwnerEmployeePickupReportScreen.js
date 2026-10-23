@@ -173,7 +173,7 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#09AD2A']} tintColor="#09AD2A" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} tintColor="#035C6C" />}
       >
         {/* This Month — stats */}
         <View style={styles.statsCard}>
@@ -182,11 +182,11 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
             <View style={styles.monthPill}>
               <Text style={styles.monthPillText}>{MONTHS[month - 1]} {year}</Text>
               <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-back" size={14} color="#078F23" />
+                <Ionicons name="chevron-back" size={14} color="#035C6C" />
               </TouchableOpacity>
               <View style={styles.monthPillSep} />
               <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-forward" size={14} color="#078F23" />
+                <Ionicons name="chevron-forward" size={14} color="#035C6C" />
               </TouchableOpacity>
             </View>
           </View>
@@ -197,7 +197,7 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
               label="Assigned"
               hint="Scheduled"
               icon="bookmark"
-              bg="#09AD2A"
+              bg="#035C6C"
             />
             <StatTile
               value={String(counts.inProgress).padStart(2, '0')}
@@ -205,27 +205,27 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
               hint="On route"
               icon="car"
               bg="#F3BF23"
-              fg="#1E1E1E"
+              fg="#111111"
             />
             <StatTile
               value={String(counts.completed).padStart(3, '0')}
               label="Completed"
               hint="Delivered"
               icon="checkmark-done"
-              bg="#09AD2A"
+              bg="#035C6C"
             />
             <StatTile
               value={String(counts.total).padStart(3, '0')}
               label="Total"
               hint="Overall"
               icon="stats-chart"
-              bg="#09AD2A"
+              bg="#035C6C"
             />
           </View>
         </View>
 
         {loading && list.length === 0 && (
-          <ActivityIndicator size="small" color="#09AD2A" style={{ marginVertical: 20 }} />
+          <ActivityIndicator size="small" color="#035C6C" style={{ marginVertical: 20 }} />
         )}
 
         {/* Recent Assigned */}
@@ -317,9 +317,9 @@ function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssig
       : isInProgress ? 'In Transit — heading to shop'
         : 'Pickup Completed — delivered to shop';
   const stepColor =
-    isAssigned ? '#09AD2A'
+    isAssigned ? '#035C6C'
       : isInProgress ? '#8A6A00'
-        : '#078F23';
+        : '#035C6C';
 
   const slot =
     booking.pickupSlotStart && booking.pickupSlotEnd
@@ -341,20 +341,20 @@ function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssig
         </View>
 
         <View style={styles.pickupMetaRow}>
-          <Ionicons name="person-outline" size={11} color="#6B6B6B" />
+          <Ionicons name="person-outline" size={11} color="#6B7280" />
           <Text style={styles.pickupMetaText} numberOfLines={1}>{customerLine(booking)}</Text>
         </View>
         {/* Which pickup person is carrying it. All-person mode only. */}
         {showAssignee ? (
           <View style={styles.pickupMetaRow}>
-            <Ionicons name="bicycle-outline" size={11} color="#078F23" />
+            <Ionicons name="bicycle-outline" size={11} color="#035C6C" />
             <Text style={styles.pickupAssignee} numberOfLines={1}>
               {String(booking.pickupPersonName || '').trim() || 'Unassigned'}
             </Text>
           </View>
         ) : null}
         <View style={styles.pickupMetaRow}>
-          <Ionicons name="location-outline" size={11} color="#6B6B6B" />
+          <Ionicons name="location-outline" size={11} color="#6B7280" />
           <Text style={styles.pickupMetaText} numberOfLines={1}>{addressLine(booking)}</Text>
         </View>
 
@@ -372,9 +372,9 @@ function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssig
           >
             <View style={[
               styles.statusBadge,
-              isAssigned && { backgroundColor: '#EAF8EC' },
+              isAssigned && { backgroundColor: '#E5F3F5' },
               isInProgress && { backgroundColor: '#FFF8E1' },
-              isCompleted && { backgroundColor: '#EAF8EC' },
+              isCompleted && { backgroundColor: '#E5F3F5' },
             ]}>
               {refreshing ? (
                 <ActivityIndicator size="small" color={stepColor} />
@@ -390,35 +390,35 @@ function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssig
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F8F8' },
+  safe: { flex: 1, backgroundColor: '#F3F4F6' },
   content: { padding: 10, paddingBottom: 20 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { fontSize: 13, color: '#F84141' },
 
-  statsCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#F3F3F3' },
+  statsCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#F3F4F6' },
   statsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     gap: 6,
   },
-  monthPillText: { color: '#078F23', fontSize: 11, fontWeight: '800' },
-  monthPillSep: { width: 1, height: 12, backgroundColor: '#CDEFD4' },
+  monthPillText: { color: '#035C6C', fontSize: 11, fontWeight: '800' },
+  monthPillSep: { width: 1, height: 12, backgroundColor: '#C7E6EA' },
 
   statTilesRow: { flexDirection: 'row', gap: 6 },
   statTileWrap: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: '#F3F4F6',
     borderRadius: 10,
     overflow: 'hidden',
     paddingBottom: 6,
@@ -433,10 +433,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   statTileTopText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-  statTileValue: { fontSize: 15, fontWeight: '800', color: '#1E1E1E', marginTop: 4 },
-  statTileHint: { fontSize: 9, color: '#8A8A8A', marginTop: 1, fontWeight: '600' },
+  statTileValue: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: 4 },
+  statTileHint: { fontSize: 9, color: '#9CA3AF', marginTop: 1, fontWeight: '600' },
 
-  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#1E1E1E', marginTop: 12, marginBottom: 6 },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 12, marginBottom: 6 },
 
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   filterChip: {
@@ -445,10 +445,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
   },
-  filterChipActive: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
-  filterChipText: { fontSize: 11, color: '#6B6B6B', fontWeight: '600' },
+  filterChipActive: { backgroundColor: '#035C6C', borderColor: '#035C6C' },
+  filterChipText: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
   filterChipTextActive: { color: '#FFFFFF' },
 
   pickupCard: {
@@ -458,19 +458,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
-  pickupAccent: { width: 3, backgroundColor: '#09AD2A' },
+  pickupAccent: { width: 3, backgroundColor: '#035C6C' },
   pickupInner: { flex: 1, paddingHorizontal: 10, paddingVertical: 8 },
   pickupTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pickupDate: { fontSize: 12, fontWeight: '700', color: '#1E1E1E' },
-  pickupTracking: { fontSize: 11, color: '#6B6B6B', fontWeight: '600' },
-  pickupAssignee: { fontSize: 11, color: '#078F23', fontWeight: '700', marginLeft: 4 },
+  pickupDate: { fontSize: 12, fontWeight: '700', color: '#111111' },
+  pickupTracking: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
+  pickupAssignee: { fontSize: 11, color: '#035C6C', fontWeight: '700', marginLeft: 4 },
   pickupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  pickupMetaText: { fontSize: 11, color: '#1E1E1E', flex: 1 },
+  pickupMetaText: { fontSize: 11, color: '#111111', flex: 1 },
   pickupBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
   pickupStep: { fontSize: 11, fontWeight: '700' },
-  pickupFooter: { fontSize: 10, color: '#8A8A8A', marginTop: 2 },
+  pickupFooter: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
   pickupStatusIcon: { marginLeft: 8 },
   statusBadge: {
     width: 24,
@@ -480,5 +480,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  empty: { fontSize: 12, color: '#6B6B6B', textAlign: 'center', paddingVertical: 14 },
+  empty: { fontSize: 12, color: '#6B7280', textAlign: 'center', paddingVertical: 14 },
 });

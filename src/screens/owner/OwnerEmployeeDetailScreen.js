@@ -5,7 +5,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Switch,
   TextInput,
   TouchableOpacity,
   ScrollView,
@@ -14,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  Modal,
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,10 +22,11 @@ import { authApi, ticketApi } from '../../api/client';
 import { uploadMedia } from '../../api/masterData';
 import { selectShopId } from '../../store/authSlice';
 import { confirm, notify } from '../../components/confirm';
+import SafeModal from '../../components/SafeModal';
 import { FEATURE } from '../../subscription/entitlements';
 import { showLimitPopup } from '../../subscription/limitPopup';
 import { useResponsive } from '../../theme/responsive';
-import { rf, rlh, rs } from '../../utils/responsive';
+import { rlh, rs } from '../../utils/responsive';
 import LedgerDateSheet from './LedgerDateSheet';
 import { normalizeIndianMobile } from '../../utils/mobile';
 
@@ -47,7 +46,6 @@ function shiftLabelFor(checkIn, checkOut) {
   const hit = SHIFT_PRESETS.find((p) => p.checkIn === hhmm(checkIn) && p.checkOut === hhmm(checkOut));
   return hit ? hit.label : 'Custom Shift';
 }
-const SALARY_PERIODS = ['Monthly', 'Weekly'];
 
 const pad2 = (n) => String(n).padStart(2, '0');
 // Local-calendar YYYY-MM-DD — toISOString() would shift the day across UTC midnight.
@@ -130,13 +128,13 @@ function MonthPickerModal({ visible, value, onClose, onPick }) {
   const curYear = now.getFullYear();
   const curMonth = now.getMonth() + 1;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.mpBackdrop} onPress={onClose}>
         {/* Swallows the backdrop press so tapping inside the card can't close it. */}
         <Pressable style={styles.mpCard} onPress={() => {}}>
           <View style={styles.mpHeader}>
             <TouchableOpacity style={styles.mpNav} onPress={() => setYear((y) => y - 1)} hitSlop={rs(8)}>
-              <Ionicons name="chevron-back" size={rs(16)} color="#1E1E1E" />
+              <Ionicons name="chevron-back" size={rs(16)} color="#111111" />
             </TouchableOpacity>
             <Text style={styles.mpYear}>{year}</Text>
             <TouchableOpacity
@@ -145,7 +143,7 @@ function MonthPickerModal({ visible, value, onClose, onPick }) {
               disabled={year >= curYear}
               hitSlop={rs(8)}
             >
-              <Ionicons name="chevron-forward" size={rs(16)} color="#1E1E1E" />
+              <Ionicons name="chevron-forward" size={rs(16)} color="#111111" />
             </TouchableOpacity>
           </View>
           <View style={styles.mpGrid}>
@@ -168,18 +166,18 @@ function MonthPickerModal({ visible, value, onClose, onPick }) {
           </View>
           <View style={styles.mpFooter}>
             <TouchableOpacity
-              style={[styles.mpBtn, { backgroundColor: '#EAF8EC' }]}
+              style={[styles.mpBtn, { backgroundColor: '#E5F3F5' }]}
               onPress={() => onPick({ month: curMonth, year: curYear })}
             >
-              <Text style={[styles.mpBtnText, { color: '#09AD2A' }]}>This Month</Text>
+              <Text style={[styles.mpBtnText, { color: '#035C6C' }]}>This Month</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.mpBtn, { backgroundColor: '#F3F3F3' }]} onPress={onClose}>
-              <Text style={[styles.mpBtnText, { color: '#6B6B6B' }]}>Cancel</Text>
+            <TouchableOpacity style={[styles.mpBtn, { backgroundColor: '#F3F4F6' }]} onPress={onClose}>
+              <Text style={[styles.mpBtnText, { color: '#6B7280' }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 
@@ -188,7 +186,7 @@ function FooterItem({ icon, label, value }) {
   return (
     <View style={styles.footerItem}>
       <View style={styles.footerIconWrap}>
-        <Ionicons name={icon} size={rs(16)} color="#09AD2A" />
+        <Ionicons name={icon} size={rs(16)} color="#035C6C" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.footerItemLabel}>{label}</Text>
@@ -223,7 +221,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={{ paddingHorizontal: rs(6) }}
           >
-            <Ionicons name="ellipsis-vertical" size={rs(20)} color="#09AD2A" />
+            <Ionicons name="ellipsis-vertical" size={rs(20)} color="#035C6C" />
           </TouchableOpacity>
         ),
       });
@@ -559,7 +557,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       }
 
       const message = (withLogin
-        ? `Employee added. They can log in to the GGFIX Staff App with mobile ${phone} and an OTP.`
+        ? `Employee added. They can log in to the Near G Fix Staff App with mobile ${phone} and an OTP.`
         : 'Employee added.') + shopWarning;
       requestAnimationFrame(() => {
         navigation.navigate('OwnerEmployeeCreated', {
@@ -764,7 +762,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   <Image source={{ uri: form.photoUrl }} style={styles.editHeroAvatar} />
                 ) : (
                   <View style={[styles.editHeroAvatar, styles.editHeroAvatarFallback]}>
-                    <Ionicons name="person" size={rs(34)} color="#8A8A8A" />
+                    <Ionicons name="person" size={rs(34)} color="#9CA3AF" />
                   </View>
                 )}
                 <View style={styles.editHeroCam}>
@@ -779,8 +777,8 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                 <Text style={styles.editHeroName} numberOfLines={1}>{form.name || 'New Employee'}</Text>
                 {isEdit ? (
                   <View style={styles.editHeroPill}>
-                    <View style={[styles.editHeroDot, { backgroundColor: active ? '#09AD2A' : '#8A8A8A' }]} />
-                    <Text style={[styles.editHeroPillText, { color: active ? '#09AD2A' : '#6B6B6B' }]}>
+                    <View style={[styles.editHeroDot, { backgroundColor: active ? '#035C6C' : '#9CA3AF' }]} />
+                    <Text style={[styles.editHeroPillText, { color: active ? '#035C6C' : '#6B7280' }]}>
                       {active ? 'Active' : 'Inactive'}
                     </Text>
                   </View>
@@ -793,7 +791,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <View style={styles.addCard}>
               <View style={styles.addSectionHeader}>
                 <View style={styles.secIconWrap}>
-                  <Ionicons name="person-outline" size={rs(16)} color="#09AD2A" />
+                  <Ionicons name="person-outline" size={rs(16)} color="#035C6C" />
                 </View>
                 <Text style={styles.addSectionTitle}>Basic Information</Text>
               </View>
@@ -804,7 +802,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   <TextInput
                     style={styles.addInput}
                     placeholder="Enter name"
-                    placeholderTextColor="#8A8A8A"
+                    placeholderTextColor="#9CA3AF"
                     value={form.name}
                     onChangeText={(v) => set('name', v)}
                   />
@@ -814,7 +812,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   <TextInput
                     style={styles.addInput}
                     placeholder="name@example.com"
-                    placeholderTextColor="#8A8A8A"
+                    placeholderTextColor="#9CA3AF"
                     value={form.email}
                     onChangeText={(v) => set('email', v)}
                     keyboardType="email-address"
@@ -829,7 +827,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   <TextInput
                     style={styles.addInput}
                     placeholder="Enter mobile number"
-                    placeholderTextColor="#8A8A8A"
+                    placeholderTextColor="#9CA3AF"
                     value={form.phone}
                     onChangeText={(v) => set('phone', v)}
                     keyboardType="phone-pad"
@@ -843,7 +841,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     activeOpacity={0.7}
                   >
                     <Text style={styles.addInputRowText}>{form.roleLabel || 'Select role'}</Text>
-                    <Ionicons name={roleOpen ? 'chevron-up' : 'chevron-down'} size={rs(14)} color="#6B6B6B" />
+                    <Ionicons name={roleOpen ? 'chevron-up' : 'chevron-down'} size={rs(14)} color="#6B7280" />
                   </TouchableOpacity>
                   {roleOpen && (
                     <View style={styles.roleDropdown}>
@@ -866,7 +864,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                             <Text style={[styles.roleOptionText, selected && styles.roleOptionTextSelected]}>
                               {r}
                             </Text>
-                            {selected && <Ionicons name="checkmark" size={rs(16)} color="#09AD2A" />}
+                            {selected && <Ionicons name="checkmark" size={rs(16)} color="#035C6C" />}
                           </TouchableOpacity>
                         );
                       })}
@@ -880,7 +878,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <View style={styles.addCard}>
               <View style={styles.addSectionHeader}>
                 <View style={styles.secIconWrap}>
-                  <Ionicons name="briefcase-outline" size={rs(16)} color="#09AD2A" />
+                  <Ionicons name="briefcase-outline" size={rs(16)} color="#035C6C" />
                 </View>
                 <Text style={styles.addSectionTitle}>Work Information</Text>
               </View>
@@ -894,10 +892,10 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     activeOpacity={0.8}
                   >
                     <View style={styles.dateIcon}>
-                      <Ionicons name="calendar-outline" size={rs(14)} color="#09AD2A" />
+                      <Ionicons name="calendar-outline" size={rs(14)} color="#035C6C" />
                     </View>
                     <Text
-                      style={[styles.dateText, !form.dateOfJoin && { color: '#8A8A8A' }]}
+                      style={[styles.dateText, !form.dateOfJoin && { color: '#9CA3AF' }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.6}
@@ -905,7 +903,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                       {formatDisplayDate(form.dateOfJoin)}
                     </Text>
                     <View style={styles.dateChevron}>
-                      <Ionicons name="chevron-down" size={rs(14)} color="#8A8A8A" />
+                      <Ionicons name="chevron-down" size={rs(14)} color="#9CA3AF" />
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -917,10 +915,10 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     activeOpacity={0.8}
                   >
                     <View style={styles.dateIcon}>
-                      <Ionicons name="calendar-outline" size={rs(14)} color="#09AD2A" />
+                      <Ionicons name="calendar-outline" size={rs(14)} color="#035C6C" />
                     </View>
                     <Text
-                      style={[styles.dateText, !form.dateOfBirth && { color: '#8A8A8A' }]}
+                      style={[styles.dateText, !form.dateOfBirth && { color: '#9CA3AF' }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.6}
@@ -928,7 +926,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                       {formatDisplayDate(form.dateOfBirth)}
                     </Text>
                     <View style={styles.dateChevron}>
-                      <Ionicons name="chevron-down" size={rs(14)} color="#8A8A8A" />
+                      <Ionicons name="chevron-down" size={rs(14)} color="#9CA3AF" />
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -940,12 +938,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                 onPress={() => { setRoleOpen(false); setShiftOpen((o) => !o); }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="time-outline" size={rs(14)} color="#09AD2A" />
+                <Ionicons name="time-outline" size={rs(14)} color="#035C6C" />
                 <Text style={styles.addInputRowText}>{currentShift}</Text>
                 <Text style={styles.shiftTimes}>
                   {hhmm(form.defaultCheckIn) || '--:--'} – {hhmm(form.defaultCheckOut) || '--:--'}
                 </Text>
-                <Ionicons name={shiftOpen ? 'chevron-up' : 'chevron-down'} size={rs(14)} color="#6B6B6B" />
+                <Ionicons name={shiftOpen ? 'chevron-up' : 'chevron-down'} size={rs(14)} color="#6B7280" />
               </TouchableOpacity>
               {shiftOpen && (
                 <View style={styles.roleDropdown}>
@@ -969,7 +967,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                           <Text style={[styles.roleOptionText, selected && styles.roleOptionTextSelected]}>{sh.label}</Text>
                           <Text style={styles.shiftOptionTimes}>{sh.checkIn} – {sh.checkOut}</Text>
                         </View>
-                        {selected && <Ionicons name="checkmark" size={rs(16)} color="#09AD2A" />}
+                        {selected && <Ionicons name="checkmark" size={rs(16)} color="#035C6C" />}
                       </TouchableOpacity>
                     );
                   })}
@@ -977,14 +975,14 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               )}
 
               <View style={[styles.fieldRow, { marginTop: rs(10) }]}>
-                <View style={[styles.checkCardEdit, { backgroundColor: '#EAF8EC', borderColor: '#CDEFD4' }]}>
-                  <Ionicons name="time-outline" size={rs(18)} color="#09AD2A" />
+                <View style={[styles.checkCardEdit, { backgroundColor: '#E5F3F5', borderColor: '#C7E6EA' }]}>
+                  <Ionicons name="time-outline" size={rs(18)} color="#035C6C" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.checkCardLabel}>Check In</Text>
                     <TextInput
-                      style={[styles.checkCardInput, { color: '#078F23' }]}
+                      style={[styles.checkCardInput, { color: '#035C6C' }]}
                       placeholder="09:30"
-                      placeholderTextColor="#8A8A8A"
+                      placeholderTextColor="#9CA3AF"
                       value={form.defaultCheckIn}
                       onChangeText={(v) => set('defaultCheckIn', v)}
                     />
@@ -997,7 +995,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     <TextInput
                       style={[styles.checkCardInput, { color: '#F84141' }]}
                       placeholder="18:30"
-                      placeholderTextColor="#8A8A8A"
+                      placeholderTextColor="#9CA3AF"
                       value={form.defaultCheckOut}
                       onChangeText={(v) => set('defaultCheckOut', v)}
                     />
@@ -1010,7 +1008,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <View style={styles.addCard}>
               <View style={styles.addSectionHeader}>
                 <View style={styles.secIconWrap}>
-                  <Ionicons name="shield-checkmark-outline" size={rs(16)} color="#09AD2A" />
+                  <Ionicons name="shield-checkmark-outline" size={rs(16)} color="#035C6C" />
                 </View>
                 <Text style={styles.addSectionTitle}>Identity Verification</Text>
               </View>
@@ -1051,12 +1049,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                             style={styles.idUploadPreview}
                           />
                           <View style={styles.idUploadBadge}>
-                            <Ionicons name="checkmark-circle" size={rs(14)} color="#09AD2A" />
+                            <Ionicons name="checkmark-circle" size={rs(14)} color="#035C6C" />
                           </View>
                         </>
                       ) : (
                         <>
-                          <Ionicons name="cloud-upload-outline" size={rs(22)} color="#09AD2A" />
+                          <Ionicons name="cloud-upload-outline" size={rs(22)} color="#035C6C" />
                           <Text style={styles.idUploadText}>Upload Front</Text>
                           <Text style={styles.idUploadSub}>JPG, PNG (Max 2MB)</Text>
                         </>
@@ -1081,12 +1079,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                             style={styles.idUploadPreview}
                           />
                           <View style={styles.idUploadBadge}>
-                            <Ionicons name="checkmark-circle" size={rs(14)} color="#09AD2A" />
+                            <Ionicons name="checkmark-circle" size={rs(14)} color="#035C6C" />
                           </View>
                         </>
                       ) : (
                         <>
-                          <Ionicons name="cloud-upload-outline" size={rs(22)} color="#09AD2A" />
+                          <Ionicons name="cloud-upload-outline" size={rs(22)} color="#035C6C" />
                           <Text style={styles.idUploadText}>Upload Back</Text>
                           <Text style={styles.idUploadSub}>JPG, PNG (Max 2MB)</Text>
                         </>
@@ -1103,7 +1101,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                       would render as a stray text node inside the View. */}
                   {!!(form[doc.frontField] || form[doc.backField]) && (
                     <View style={styles.idUploadedRow}>
-                      <Ionicons name="checkmark-circle" size={rs(14)} color="#09AD2A" />
+                      <Ionicons name="checkmark-circle" size={rs(14)} color="#035C6C" />
                       <Text style={styles.idUploadedText}>
                         {doc.label} uploaded successfully
                       </Text>
@@ -1121,7 +1119,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   <TextInput
                     style={[styles.addInput, { marginTop: rs(4) }]}
                     placeholder={doc.placeholder}
-                    placeholderTextColor="#8A8A8A"
+                    placeholderTextColor="#9CA3AF"
                     value={form[doc.numberField]}
                     onChangeText={(v) => set(doc.numberField, v)}
                     keyboardType={doc.keyboardType}
@@ -1136,7 +1134,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <View style={styles.addCard}>
               <View style={styles.addSectionHeader}>
                 <View style={styles.secIconWrap}>
-                  <Ionicons name="cash-outline" size={rs(16)} color="#09AD2A" />
+                  <Ionicons name="cash-outline" size={rs(16)} color="#035C6C" />
                 </View>
                 <Text style={styles.addSectionTitle}>Salary Package</Text>
               </View>
@@ -1149,7 +1147,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     <TextInput
                       style={styles.addInputInline}
                       placeholder="Enter amount"
-                      placeholderTextColor="#8A8A8A"
+                      placeholderTextColor="#9CA3AF"
                       value={form.salaryAmount}
                       onChangeText={(v) => { set('salaryAmount', v); set('salaryPeriod', 'Monthly'); }}
                       keyboardType="numeric"
@@ -1163,7 +1161,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                     <TextInput
                       style={styles.addInputInline}
                       placeholder="Enter amount"
-                      placeholderTextColor="#8A8A8A"
+                      placeholderTextColor="#9CA3AF"
                       value={form.dailyWage}
                       onChangeText={(v) => set('dailyWage', v)}
                       keyboardType="numeric"
@@ -1177,7 +1175,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <View style={styles.addCard}>
               <View style={styles.addSectionHeader}>
                 <View style={styles.secIconWrap}>
-                  <Ionicons name="lock-closed-outline" size={rs(16)} color="#09AD2A" />
+                  <Ionicons name="lock-closed-outline" size={rs(16)} color="#035C6C" />
                 </View>
                 <Text style={styles.addSectionTitle}>App Login (optional)</Text>
               </View>
@@ -1186,7 +1184,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                 <TextInput
                   style={styles.addInputInline}
                   placeholder="Min 4 characters"
-                  placeholderTextColor="#8A8A8A"
+                  placeholderTextColor="#9CA3AF"
                   value={form.password}
                   onChangeText={(v) => set('password', v)}
                   secureTextEntry={!showPassword}
@@ -1195,7 +1193,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   onPress={() => setShowPassword((s) => !s)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={rs(18)} color="#6B6B6B" />
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={rs(18)} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
@@ -1211,9 +1209,9 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               </TouchableOpacity>
 
               <View style={styles.otpHint}>
-                <Ionicons name="information-circle-outline" size={rs(13)} color="#09AD2A" />
+                <Ionicons name="information-circle-outline" size={rs(13)} color="#035C6C" />
                 <Text style={styles.otpHintText}>
-                  Employee signs in to the GGFIX Staff App with this mobile number + OTP.
+                  Employee signs in to the Near G Fix Staff App with this mobile number + OTP.
                 </Text>
               </View>
             </View>
@@ -1245,7 +1243,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               parseYmd(dateField && form[dateField])
               || (dateField === 'dateOfBirth' ? defaultBirthDate() : new Date())
             }
-            tint="#09AD2A"
+            tint="#035C6C"
             title={dateField === 'dateOfBirth' ? 'Date of Birth' : 'Date of Join'}
             // A joining date can be set ahead for a new hire; a birth date cannot.
             allowFuture={dateField === 'dateOfJoin'}
@@ -1321,6 +1319,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
     { key: 'shift',    icon: 'time-outline',      label: 'Daily Shift\nSchedule', route: 'OwnerEmployeeShiftDetails' },
     { key: 'monthly',  icon: 'calendar-outline',  label: 'Monthly\nSummary',      route: 'OwnerEmployeeAttendance' },
     { key: 'leave',    icon: 'briefcase-outline', label: 'Leave\nReport',         route: 'OwnerEmployeeLeave' },
+    { key: 'permission', icon: 'hourglass-outline', label: 'Permission\nReport',  route: 'OwnerEmployeePermission' },
     ...(showTaskReport
       ? [{ key: 'task',   icon: 'laptop-outline', label: 'Task\nReport',          route: 'OwnerEmployeeWorkingRecord' }]
       : []),
@@ -1364,7 +1363,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               <Image source={{ uri: employee.photoUrl }} style={styles.heroAvatar} />
             ) : (
               <View style={[styles.heroAvatar, styles.heroAvatarFallback]}>
-                <Ionicons name="person" size={rs(30)} color="#09AD2A" />
+                <Ionicons name="person" size={rs(30)} color="#035C6C" />
               </View>
             )}
             <View style={[styles.heroAvatarDot, active ? styles.dotOn : styles.dotOff]} />
@@ -1372,13 +1371,13 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
           <View style={styles.heroInfo}>
             <Text style={styles.heroName} numberOfLines={1}>{employee.name}</Text>
             <View style={styles.heroRolePill}>
-              <Ionicons name="construct-outline" size={rs(13)} color="#09AD2A" />
+              <Ionicons name="construct-outline" size={rs(13)} color="#035C6C" />
               <Text style={styles.heroRolePillText}>{employee.roleLabel || 'Technician'}</Text>
             </View>
             <Text style={styles.heroId}>ID: {empId}</Text>
           </View>
           <TouchableOpacity
-            style={[styles.heroStatus, { backgroundColor: active ? '#EAF8EC' : '#F3F3F3' }]}
+            style={[styles.heroStatus, { backgroundColor: active ? '#E5F3F5' : '#F3F4F6' }]}
             onPress={confirmToggleActive}
             activeOpacity={0.7}
           >
@@ -1392,12 +1391,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
         {/* Check-in / Check-out */}
         <View style={styles.viewCheckRow}>
           <View style={styles.viewCheckCard}>
-            <View style={[styles.viewCheckIcon, { backgroundColor: '#EAF8EC' }]}>
-              <Ionicons name="partly-sunny" size={rs(18)} color="#09AD2A" />
+            <View style={[styles.viewCheckIcon, { backgroundColor: '#E5F3F5' }]}>
+              <Ionicons name="partly-sunny" size={rs(18)} color="#035C6C" />
             </View>
             <View style={styles.viewCheckTextWrap}>
               <Text style={styles.viewCheckLabel}>CHECK IN</Text>
-              <Text style={[styles.viewCheckTime, { color: '#078F23' }]}>
+              <Text style={[styles.viewCheckTime, { color: '#035C6C' }]}>
                 {formatTime(employee.defaultCheckIn) || '—'}
               </Text>
             </View>
@@ -1426,7 +1425,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                 activeOpacity={0.8}
               >
                 <View style={styles.catIconWrap}>
-                  <Ionicons name={c.icon} size={rs(18)} color="#09AD2A" />
+                  <Ionicons name={c.icon} size={rs(18)} color="#035C6C" />
                 </View>
                 <Text style={styles.catLabel}>{c.label}</Text>
               </TouchableOpacity>
@@ -1444,9 +1443,9 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               activeOpacity={0.8}
               hitSlop={rs(6)}
             >
-              <Ionicons name="calendar-outline" size={rs(13)} color="#09AD2A" />
+              <Ionicons name="calendar-outline" size={rs(13)} color="#035C6C" />
               <Text style={styles.monthPillText}>{monthLabel}</Text>
-              <Ionicons name="chevron-down" size={rs(12)} color="#09AD2A" />
+              <Ionicons name="chevron-down" size={rs(12)} color="#035C6C" />
             </TouchableOpacity>
           </View>
           <MonthPickerModal
@@ -1471,8 +1470,8 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
           </View>
 
           <View style={styles.statTilesRow}>
-            <View style={[styles.statTile, { backgroundColor: '#EAF8EC' }]}>
-              <Ionicons name="calendar-outline" size={rs(16)} color="#09AD2A" />
+            <View style={[styles.statTile, { backgroundColor: '#E5F3F5' }]}>
+              <Ionicons name="calendar-outline" size={rs(16)} color="#035C6C" />
               <Text style={styles.statTileValue}>{presentDays}</Text>
               <Text style={styles.statTileLabel}>Present</Text>
             </View>
@@ -1481,13 +1480,13 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               <Text style={styles.statTileValue}>{String(attendanceSummary?.leaveDays ?? 0).padStart(2, '0')}</Text>
               <Text style={styles.statTileLabel}>Leave</Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: '#EAF8EC' }]}>
-              <Ionicons name="calendar-outline" size={rs(16)} color="#09AD2A" />
+            <View style={[styles.statTile, { backgroundColor: '#E5F3F5' }]}>
+              <Ionicons name="calendar-outline" size={rs(16)} color="#035C6C" />
               <Text style={styles.statTileValue}>{String(attendanceSummary?.permissionCount ?? 0).padStart(2, '0')}</Text>
               <Text style={styles.statTileLabel}>Permission</Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: '#EAF8EC' }]}>
-              <Ionicons name="time-outline" size={rs(16)} color="#09AD2A" />
+            <View style={[styles.statTile, { backgroundColor: '#E5F3F5' }]}>
+              <Ionicons name="time-outline" size={rs(16)} color="#035C6C" />
               <Text style={styles.statTileValue}>{attendanceSummary?.lateHours ?? '0'}</Text>
               <Text style={styles.statTileLabel}>Late Hrs</Text>
             </View>
@@ -1541,7 +1540,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
         ) : (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="wallet-outline" size={rs(20)} color="#09AD2A" />
+              <Ionicons name="wallet-outline" size={rs(20)} color="#035C6C" />
             </View>
             <View style={styles.emptyTextWrap}>
               <Text style={styles.emptyTitle}>No advances</Text>
@@ -1596,7 +1595,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
         ) : (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="file-tray-outline" size={rs(20)} color="#09AD2A" />
+              <Ionicons name="file-tray-outline" size={rs(20)} color="#035C6C" />
             </View>
             <View style={styles.emptyTextWrap}>
               <Text style={styles.emptyTitle}>No leave requests</Text>
@@ -1630,28 +1629,28 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // White page wash. Cards are flat — no shadows — so a 1px #E6E6E6 hairline is
+  // White page wash. Cards are flat — no shadows — so a 1px #E5E7EB hairline is
   // the only thing separating a white card from the white page. Every card needs
   // one; a bare `backgroundColor: '#FFFFFF'` card would be invisible here.
-  safe: { flex: 1, backgroundColor: '#F8F8F8' },
+  safe: { flex: 1, backgroundColor: '#F3F4F6' },
   content: { padding: rs(16), paddingBottom: rs(32) },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1E1E1E', marginBottom: rs(12) },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111111', marginBottom: rs(12) },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(8) },
-  addLinkText: { fontSize: 13, color: '#078F23', fontWeight: '600' },
+  addLinkText: { fontSize: 13, color: '#035C6C', fontWeight: '600' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: rs(16),
     padding: rs(16),
   },
-  label: { fontSize: 12, fontWeight: '600', color: '#1E1E1E', marginBottom: rs(6), marginTop: rs(10) },
+  label: { fontSize: 12, fontWeight: '600', color: '#111111', marginBottom: rs(6), marginTop: rs(10) },
   input: {
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
     borderRadius: rs(10),
     paddingHorizontal: rs(12),
     paddingVertical: rs(10),
     fontSize: 13,
-    color: '#1E1E1E',
+    color: '#111111',
   },
   roleRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: rs(8), gap: rs(8) },
   roleChip: {
@@ -1659,51 +1658,51 @@ const styles = StyleSheet.create({
     paddingVertical: rs(8),
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D6D6D6',
+    borderColor: '#D1D5DB',
   },
-  roleChipActive: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
-  roleChipText: { fontSize: 12, color: '#6B6B6B' },
+  roleChipActive: { backgroundColor: '#035C6C', borderColor: '#035C6C' },
+  roleChipText: { fontSize: 12, color: '#6B7280' },
   roleChipTextActive: { color: '#FFFFFF', fontWeight: '600' },
   saveBtn: {
     marginTop: rs(20),
-    backgroundColor: '#09AD2A',
+    backgroundColor: '#035C6C',
     borderRadius: 999,
     paddingVertical: rs(14),
     alignItems: 'center',
   },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  name: { fontSize: 15, fontWeight: '700', color: '#1E1E1E' },
-  meta: { fontSize: 13, color: '#6B6B6B', marginTop: rs(4) },
+  name: { fontSize: 15, fontWeight: '700', color: '#111111' },
+  meta: { fontSize: 13, color: '#6B7280', marginTop: rs(4) },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: rs(12) },
-  linkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: rs(12), borderBottomWidth: 1, borderBottomColor: '#F3F3F3', gap: rs(12) },
-  linkText: { fontSize: 13, color: '#1E1E1E', flex: 1 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: rs(12), borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: rs(12) },
+  linkText: { fontSize: 13, color: '#111111', flex: 1 },
   profileCard: { backgroundColor: '#FFFFFF', borderRadius: rs(16), padding: rs(16), alignItems: 'center' },
-  avatarLarge: { width: rs(80), height: rs(80), borderRadius: rs(40), backgroundColor: '#E6E6E6', marginBottom: rs(8) },
-  profileName: { fontSize: 17, fontWeight: '700', color: '#1E1E1E' },
-  profileId: { fontSize: 12, color: '#6B6B6B', marginTop: rs(2) },
+  avatarLarge: { width: rs(80), height: rs(80), borderRadius: rs(40), backgroundColor: '#E5E7EB', marginBottom: rs(8) },
+  profileName: { fontSize: 17, fontWeight: '700', color: '#111111' },
+  profileId: { fontSize: 12, color: '#6B7280', marginTop: rs(2) },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: rs(6), marginTop: rs(8) },
-  statusDot: { width: rs(8), height: rs(8), borderRadius: rs(4), backgroundColor: '#8A8A8A' },
-  statusDotActive: { backgroundColor: '#09AD2A' },
-  statusBadgeText: { fontSize: 13, color: '#6B6B6B' },
-  statusBadgeTextActive: { color: '#09AD2A', fontWeight: '600' },
+  statusDot: { width: rs(8), height: rs(8), borderRadius: rs(4), backgroundColor: '#9CA3AF' },
+  statusDotActive: { backgroundColor: '#035C6C' },
+  statusBadgeText: { fontSize: 13, color: '#6B7280' },
+  statusBadgeTextActive: { color: '#035C6C', fontWeight: '600' },
   checkInOutRow: { flexDirection: 'row', gap: rs(12), marginTop: rs(8) },
-  checkCard: { flex: 1, backgroundColor: '#F8F8F8', borderRadius: rs(12), padding: rs(12), alignItems: 'center' },
-  checkLabel: { fontSize: 11, color: '#6B6B6B', marginTop: rs(4) },
-  checkTime: { fontSize: 15, fontWeight: '700', color: '#09AD2A' },
+  checkCard: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: rs(12), padding: rs(12), alignItems: 'center' },
+  checkLabel: { fontSize: 11, color: '#6B7280', marginTop: rs(4) },
+  checkTime: { fontSize: 15, fontWeight: '700', color: '#035C6C' },
   statsRow: { flexDirection: 'row', gap: rs(12), marginTop: rs(8) },
-  miniStat: { flex: 1, backgroundColor: '#F3F3F3', borderRadius: rs(10), padding: rs(10), alignItems: 'center' },
-  miniStatValue: { fontSize: 15, fontWeight: '700', color: '#1E1E1E' },
-  miniStatLabel: { fontSize: 11, color: '#6B6B6B', marginTop: rs(2) },
+  miniStat: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: rs(10), padding: rs(10), alignItems: 'center' },
+  miniStatValue: { fontSize: 15, fontWeight: '700', color: '#111111' },
+  miniStatLabel: { fontSize: 11, color: '#6B7280', marginTop: rs(2) },
   recentCard: { marginTop: rs(8) },
-  recentMeta: { fontSize: 13, color: '#1E1E1E', marginTop: rs(4) },
+  recentMeta: { fontSize: 13, color: '#111111', marginTop: rs(4) },
   tagRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(8) },
   tag: { paddingHorizontal: rs(8), paddingVertical: rs(4), borderRadius: rs(6), backgroundColor: '#FEECEC' },
-  tagPaid: { backgroundColor: '#EAF8EC' },
+  tagPaid: { backgroundColor: '#E5F3F5' },
   tagRejected: { backgroundColor: '#FEECEC' },
-  tagText: { fontSize: 12, fontWeight: '600', color: '#1E1E1E' },
-  photoPlaceholder: { alignItems: 'center', paddingVertical: rs(12), backgroundColor: '#F8F8F8', borderRadius: rs(12), marginBottom: rs(8) },
-  takePhotoBtn: { marginTop: rs(8), backgroundColor: '#09AD2A', paddingHorizontal: rs(16), paddingVertical: rs(8), borderRadius: rs(8) },
+  tagText: { fontSize: 12, fontWeight: '600', color: '#111111' },
+  photoPlaceholder: { alignItems: 'center', paddingVertical: rs(12), backgroundColor: '#F3F4F6', borderRadius: rs(12), marginBottom: rs(8) },
+  takePhotoBtn: { marginTop: rs(8), backgroundColor: '#035C6C', paddingHorizontal: rs(16), paddingVertical: rs(8), borderRadius: rs(8) },
   takePhotoText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   error: { fontSize: 13, color: '#F84141' },
 
@@ -1715,7 +1714,7 @@ const styles = StyleSheet.create({
     padding: rs(10),
     marginBottom: rs(8),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   addSectionHeader: {
     flexDirection: 'row',
@@ -1723,20 +1722,20 @@ const styles = StyleSheet.create({
     gap: rs(8),
     marginBottom: rs(4),
   },
-  secIconWrap: { width: rs(26), height: rs(26), borderRadius: rs(13), backgroundColor: '#EAF8EC', alignItems: 'center', justifyContent: 'center' },
-  addSectionTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  secIconWrap: { width: rs(26), height: rs(26), borderRadius: rs(13), backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' },
+  addSectionTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
   fieldRow: { flexDirection: 'row', gap: rs(10), alignItems: 'flex-start' },
   fieldCol: { flex: 1 },
-  addLabel: { fontSize: 11, fontWeight: '600', color: '#6B6B6B', marginTop: rs(7), marginBottom: rs(3) },
+  addLabel: { fontSize: 11, fontWeight: '600', color: '#6B7280', marginTop: rs(7), marginBottom: rs(3) },
   req: { color: '#F84141' },
   addInput: {
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
     borderRadius: rs(9),
     paddingHorizontal: rs(10),
     paddingVertical: rs(8),
     fontSize: 13,
-    color: '#1E1E1E',
+    color: '#111111',
     backgroundColor: '#FFFFFF',
   },
   addInputRow: {
@@ -1744,14 +1743,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: rs(8),
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
     borderRadius: rs(9),
     paddingHorizontal: rs(10),
     paddingVertical: rs(8),
     backgroundColor: '#FFFFFF',
   },
-  addInputRowText: { flex: 1, fontSize: 13, color: '#1E1E1E' },
-  addInputInline: { flex: 1, fontSize: 13, color: '#1E1E1E', padding: 0 },
+  addInputRowText: { flex: 1, fontSize: 13, color: '#111111' },
+  addInputInline: { flex: 1, fontSize: 13, color: '#111111', padding: 0 },
   // Date of Join / Date of Birth: icon | DD - MM - YYYY | chevron, all centred.
   dateRow: { paddingHorizontal: rs(10), gap: rs(6) },
   dateIcon: { width: rs(16), alignItems: 'center', justifyContent: 'center' },
@@ -1761,19 +1760,19 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     includeFontPadding: false,
     fontSize: 13,
-    color: '#1E1E1E',
+    color: '#111111',
     padding: 0,
   },
   dateChevron: { width: rs(16), alignItems: 'center', justifyContent: 'center' },
   addInputRowOpen: {
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
   roleDropdown: {
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     borderBottomLeftRadius: rs(8),
     borderBottomRightRadius: rs(8),
     backgroundColor: '#FFFFFF',
@@ -1789,19 +1788,19 @@ const styles = StyleSheet.create({
   },
   roleOptionDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F3F3',
+    borderBottomColor: '#F3F4F6',
   },
-  roleOptionSelected: { backgroundColor: '#EAF8EC' },
-  roleOptionText: { fontSize: 13, color: '#1E1E1E' },
-  shiftTimes: { fontSize: 11, color: '#6B6B6B', fontWeight: '600' },
-  shiftOptionTimes: { fontSize: 11, color: '#6B6B6B', marginTop: rs(1) },
-  roleOptionTextSelected: { color: '#078F23', fontWeight: '700' },
+  roleOptionSelected: { backgroundColor: '#E5F3F5' },
+  roleOptionText: { fontSize: 13, color: '#111111' },
+  shiftTimes: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
+  shiftOptionTimes: { fontSize: 11, color: '#6B7280', marginTop: rs(1) },
+  roleOptionTextSelected: { color: '#035C6C', fontWeight: '700' },
 
   addTwoCol: { flexDirection: 'row', gap: rs(10), alignItems: 'flex-start' },
   addColMain: { flex: 1 },
   addColPhoto: { width: rs(108) },
   photoBox: {
-    backgroundColor: '#F3F3F3',
+    backgroundColor: '#F3F4F6',
     borderRadius: rs(10),
     padding: rs(8),
     alignItems: 'center',
@@ -1815,7 +1814,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoPreview: { width: rs(60), height: rs(60), borderRadius: rs(30), backgroundColor: '#E6E6E6' },
+  photoPreview: { width: rs(60), height: rs(60), borderRadius: rs(30), backgroundColor: '#E5E7EB' },
   photoUploadingOverlay: {
     position: 'absolute',
     top: rs(8),
@@ -1832,7 +1831,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(3),
-    backgroundColor: '#09AD2A',
+    backgroundColor: '#035C6C',
     paddingHorizontal: rs(8),
     paddingVertical: rs(4),
     borderRadius: 999,
@@ -1846,12 +1845,12 @@ const styles = StyleSheet.create({
     marginTop: rs(8),
     paddingTop: rs(8),
     borderTopWidth: 1,
-    borderTopColor: '#F3F3F3',
+    borderTopColor: '#F3F4F6',
   },
   idDocLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: '#111111',
     marginBottom: rs(4),
   },
   idUploadRow: { flexDirection: 'row', gap: rs(10), marginTop: rs(6) },
@@ -1860,15 +1859,15 @@ const styles = StyleSheet.create({
     height: rs(64),
     borderRadius: rs(12),
     borderWidth: 1.2,
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     borderStyle: 'dashed',
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     alignItems: 'center',
     justifyContent: 'center',
     gap: rs(3),
   },
-  idUploadText: { fontSize: 11, color: '#078F23', fontWeight: '700' },
-  idUploadSub: { fontSize: 10, color: '#8A8A8A', fontWeight: '500' },
+  idUploadText: { fontSize: 11, color: '#035C6C', fontWeight: '700' },
+  idUploadSub: { fontSize: 10, color: '#9CA3AF', fontWeight: '500' },
   idUploadPreview: { ...StyleSheet.absoluteFill, borderRadius: rs(8) },
   idUploadBadge: {
     position: 'absolute',
@@ -1890,24 +1889,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(6),
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     borderRadius: rs(8),
     paddingHorizontal: rs(10),
     paddingVertical: rs(7),
     marginTop: rs(8),
   },
-  idUploadedText: { flex: 1, fontSize: 11, color: '#078F23', fontWeight: '600' },
+  idUploadedText: { flex: 1, fontSize: 11, color: '#035C6C', fontWeight: '600' },
 
   otpHint: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: rs(6),
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     borderRadius: rs(8),
     padding: rs(8),
     marginTop: rs(10),
   },
-  otpHintText: { flex: 1, fontSize: 11, color: '#078F23', lineHeight: rlh(15) },
+  otpHintText: { flex: 1, fontSize: 11, color: '#035C6C', lineHeight: rlh(15) },
 
   salaryRow: {
     flexDirection: 'row',
@@ -1915,20 +1914,20 @@ const styles = StyleSheet.create({
     paddingVertical: rs(6),
     gap: rs(8),
   },
-  salaryLabel: { fontSize: 12, color: '#1E1E1E', fontWeight: '500', flexShrink: 0 },
+  salaryLabel: { fontSize: 12, color: '#111111', fontWeight: '500', flexShrink: 0 },
   salaryInputWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
     borderRadius: rs(8),
     paddingHorizontal: rs(8),
     paddingVertical: rs(7),
     minWidth: 0,
   },
-  salaryCurrency: { fontSize: 13, color: '#6B6B6B', marginRight: rs(4) },
-  salaryInput: { flex: 1, fontSize: 13, color: '#1E1E1E', padding: 0, minWidth: 0 },
+  salaryCurrency: { fontSize: 13, color: '#6B7280', marginRight: rs(4) },
+  salaryInput: { flex: 1, fontSize: 13, color: '#111111', padding: 0, minWidth: 0 },
 
   footerBar: {
     position: 'absolute',
@@ -1939,7 +1938,7 @@ const styles = StyleSheet.create({
     paddingVertical: rs(10),
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E6E6E6',
+    borderTopColor: '#E5E7EB',
   },
   footerInner: { flexDirection: 'row', gap: rs(10) },
   footerCancel: {
@@ -1947,11 +1946,11 @@ const styles = StyleSheet.create({
     paddingVertical: rs(11),
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
   },
-  footerCancelText: { fontSize: 13, fontWeight: '800', color: '#078F23' },
+  footerCancelText: { fontSize: 13, fontWeight: '800', color: '#035C6C' },
   footerCreate: {
     flex: 1.4,
     flexDirection: 'row',
@@ -1960,7 +1959,7 @@ const styles = StyleSheet.create({
     gap: rs(8),
     paddingVertical: rs(11),
     borderRadius: 999,
-    backgroundColor: '#09AD2A',
+    backgroundColor: '#035C6C',
   },
   footerCreateText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 
@@ -1973,24 +1972,24 @@ const styles = StyleSheet.create({
     padding: rs(11),
     marginBottom: rs(10),
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
   },
   editHeroAvatarWrap: { position: 'relative', marginRight: rs(12) },
-  editHeroAvatar: { width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#E6E6E6' },
+  editHeroAvatar: { width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#E5E7EB' },
   editHeroAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
   editHeroCam: {
     position: 'absolute', right: rs(2), bottom: rs(2),
     width: rs(24), height: rs(24), borderRadius: rs(12),
-    backgroundColor: '#09AD2A',
+    backgroundColor: '#035C6C',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: '#FFFFFF',
   },
   editHeroInfo: { flex: 1 },
-  editHeroName: { fontSize: 15, fontWeight: '800', color: '#1E1E1E' },
-  editHeroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: rs(5), backgroundColor: '#EAF8EC', paddingHorizontal: rs(10), paddingVertical: rs(4), borderRadius: 999, marginTop: rs(6) },
+  editHeroName: { fontSize: 15, fontWeight: '800', color: '#111111' },
+  editHeroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: rs(5), backgroundColor: '#E5F3F5', paddingHorizontal: rs(10), paddingVertical: rs(4), borderRadius: 999, marginTop: rs(6) },
   editHeroDot: { width: rs(7), height: rs(7), borderRadius: rs(4) },
   editHeroPillText: { fontSize: 12, fontWeight: '700' },
-  editHeroId: { fontSize: 11, color: '#8A8A8A', marginTop: rs(6) },
+  editHeroId: { fontSize: 11, color: '#9CA3AF', marginTop: rs(6) },
 
   checkCardEdit: {
     flex: 1,
@@ -2002,18 +2001,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(11),
     paddingVertical: rs(9),
   },
-  checkCardLabel: { fontSize: 11, color: '#6B6B6B', fontWeight: '600' },
+  checkCardLabel: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
   checkCardInput: { fontSize: 15, fontWeight: '800', padding: 0, marginTop: rs(1) },
 
   loginCheckRow: { flexDirection: 'row', alignItems: 'center', gap: rs(10), marginTop: rs(12) },
   loginCheckbox: {
     width: rs(22), height: rs(22), borderRadius: rs(6),
-    borderWidth: 1.5, borderColor: '#D6D6D6',
+    borderWidth: 1.5, borderColor: '#D1D5DB',
     backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
   },
-  loginCheckboxOn: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
-  loginCheckLabel: { fontSize: 13, color: '#1E1E1E', fontWeight: '600' },
+  loginCheckboxOn: { backgroundColor: '#035C6C', borderColor: '#035C6C' },
+  loginCheckLabel: { fontSize: 13, color: '#111111', fontWeight: '600' },
 
   deleteCard: {
     flexDirection: 'row',
@@ -2029,7 +2028,7 @@ const styles = StyleSheet.create({
   },
   deleteIconWrap: { width: rs(40), height: rs(40), borderRadius: rs(20), backgroundColor: '#FEECEC', alignItems: 'center', justifyContent: 'center' },
   deleteTitle: { fontSize: 13, fontWeight: '800', color: '#F84141' },
-  deleteSub: { fontSize: 11, color: '#8A8A8A', marginTop: rs(2), lineHeight: rlh(15) },
+  deleteSub: { fontSize: 11, color: '#9CA3AF', marginTop: rs(2), lineHeight: rlh(15) },
 
   // ===== View-mode (mockup-matching) =====
   viewContent: { padding: rs(12), paddingBottom: rs(24) },
@@ -2042,7 +2041,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   heroStatus: {
     position: 'absolute',
@@ -2057,19 +2056,19 @@ const styles = StyleSheet.create({
   },
   heroStatusDot: { width: rs(8), height: rs(8), borderRadius: rs(4) },
   heroStatusValue: { fontSize: 11, fontWeight: '800' },
-  statusOk: { color: '#078F23' },
-  statusOff: { color: '#8A8A8A' },
-  dotOn: { backgroundColor: '#09AD2A' },
-  dotOff: { backgroundColor: '#8A8A8A' },
+  statusOk: { color: '#035C6C' },
+  statusOff: { color: '#9CA3AF' },
+  dotOn: { backgroundColor: '#035C6C' },
+  dotOff: { backgroundColor: '#9CA3AF' },
   heroAvatarWrap: { position: 'relative', marginRight: rs(12) },
-  heroAvatar: { width: rs(60), height: rs(60), borderRadius: rs(30), backgroundColor: '#EAF8EC' },
+  heroAvatar: { width: rs(60), height: rs(60), borderRadius: rs(30), backgroundColor: '#E5F3F5' },
   heroAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
   heroAvatarDot: { position: 'absolute', right: rs(2), bottom: rs(2), width: rs(13), height: rs(13), borderRadius: rs(7), borderWidth: 2, borderColor: '#FFFFFF' },
   heroInfo: { flex: 1 },
-  heroName: { fontSize: 17, fontWeight: '800', color: '#1E1E1E' },
-  heroRolePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: rs(5), backgroundColor: '#EAF8EC', paddingHorizontal: rs(9), paddingVertical: rs(3), borderRadius: 999, marginTop: rs(5) },
-  heroRolePillText: { fontSize: 11, fontWeight: '700', color: '#078F23' },
-  heroId: { fontSize: 11, color: '#8A8A8A', marginTop: rs(5), letterSpacing: 0.4 },
+  heroName: { fontSize: 17, fontWeight: '800', color: '#111111' },
+  heroRolePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: rs(5), backgroundColor: '#E5F3F5', paddingHorizontal: rs(9), paddingVertical: rs(3), borderRadius: 999, marginTop: rs(5) },
+  heroRolePillText: { fontSize: 11, fontWeight: '700', color: '#035C6C' },
+  heroId: { fontSize: 11, color: '#9CA3AF', marginTop: rs(5), letterSpacing: 0.4 },
 
   viewCheckRow: { flexDirection: 'row', gap: rs(10), marginTop: rs(10) },
   viewCheckCard: {
@@ -2082,14 +2081,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(11),
     gap: rs(10),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   viewCheckIcon: { width: rs(36), height: rs(36), borderRadius: rs(11), alignItems: 'center', justifyContent: 'center' },
   viewCheckTextWrap: { flex: 1 },
-  viewCheckLabel: { fontSize: 10, color: '#8A8A8A', fontWeight: '700', letterSpacing: 0.5 },
+  viewCheckLabel: { fontSize: 10, color: '#9CA3AF', fontWeight: '700', letterSpacing: 0.5 },
   viewCheckTime: { fontSize: 15, fontWeight: '800', marginTop: rs(2) },
 
-  viewSectionHeader: { fontSize: 13, fontWeight: '800', color: '#1E1E1E', marginTop: rs(14), marginBottom: rs(8) },
+  viewSectionHeader: { fontSize: 13, fontWeight: '800', color: '#111111', marginTop: rs(14), marginBottom: rs(8) },
 
   catGrid: {
     flexDirection: 'row',
@@ -2105,18 +2104,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(2),
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   catIconWrap: {
     width: rs(38),
     height: rs(38),
     borderRadius: rs(19),
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: rs(6),
   },
-  catLabel: { fontSize: 10, fontWeight: '700', color: '#1E1E1E', textAlign: 'center', lineHeight: rlh(13) },
+  catLabel: { fontSize: 10, fontWeight: '700', color: '#111111', textAlign: 'center', lineHeight: rlh(13) },
 
   monthCard: {
     backgroundColor: '#FFFFFF',
@@ -2124,7 +2123,7 @@ const styles = StyleSheet.create({
     padding: rs(12),
     marginTop: rs(12),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   monthHeader: {
     flexDirection: 'row',
@@ -2132,23 +2131,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: rs(10),
   },
-  monthTitle: { fontSize: 13, fontWeight: '700', color: '#1E1E1E' },
+  monthTitle: { fontSize: 13, fontWeight: '700', color: '#111111' },
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(5),
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     paddingHorizontal: rs(10),
     paddingVertical: rs(6),
     borderRadius: 999,
   },
-  monthPillText: { fontSize: 12, fontWeight: '800', color: '#078F23' },
+  monthPillText: { fontSize: 12, fontWeight: '800', color: '#035C6C' },
 
   mpBackdrop: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(30, 30, 30, 0.45)',
+    backgroundColor: 'rgba(17, 17, 17, 0.45)',
     paddingHorizontal: rs(24),
   },
   mpCard: { width: '100%', maxWidth: rs(360), backgroundColor: '#FFFFFF', borderRadius: rs(16), padding: rs(16) },
@@ -2159,13 +2158,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F3F3',
+    backgroundColor: '#F3F4F6',
   },
-  mpYear: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  mpYear: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '800', color: '#111111' },
   mpGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: rs(8) },
   mpCell: { width: '33.33%', alignItems: 'center', justifyContent: 'center', paddingVertical: rs(10), borderRadius: rs(10) },
-  mpCellSelected: { backgroundColor: '#09AD2A' },
-  mpCellText: { fontSize: 13, fontWeight: '700', color: '#1E1E1E' },
+  mpCellSelected: { backgroundColor: '#035C6C' },
+  mpCellText: { fontSize: 13, fontWeight: '700', color: '#111111' },
   mpCellTextSelected: { color: '#FFFFFF' },
   mpFooter: { flexDirection: 'row', gap: rs(8), marginTop: rs(14) },
   mpBtn: { flex: 1, alignItems: 'center', paddingVertical: rs(10), borderRadius: rs(10) },
@@ -2174,17 +2173,17 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: rs(6),
     borderRadius: rs(3),
-    backgroundColor: '#E6E6E6',
+    backgroundColor: '#E5E7EB',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', backgroundColor: '#09AD2A' },
+  progressFill: { height: '100%', backgroundColor: '#035C6C' },
   progressLegend: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: rs(6),
   },
-  progressLegendOn: { fontSize: 12, color: '#078F23', fontWeight: '700' },
-  progressLegendOff: { fontSize: 12, color: '#6B6B6B', fontWeight: '600' },
+  progressLegendOn: { fontSize: 12, color: '#035C6C', fontWeight: '700' },
+  progressLegendOff: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
 
   statTilesRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(12) },
   statTile: {
@@ -2194,11 +2193,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(6),
     alignItems: 'flex-start',
   },
-  statTileValue: { fontSize: 15, fontWeight: '800', color: '#1E1E1E', marginTop: rs(4) },
-  statTileLabel: { fontSize: 10, color: '#6B6B6B', fontWeight: '600', marginTop: rs(1) },
+  statTileValue: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: rs(4) },
+  statTileLabel: { fontSize: 10, color: '#6B7280', fontWeight: '600', marginTop: rs(1) },
 
   recentHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  recentAddLink: { fontSize: 13, color: '#078F23', fontWeight: '800', marginTop: rs(16) },
+  recentAddLink: { fontSize: 13, color: '#035C6C', fontWeight: '800', marginTop: rs(16) },
 
   recentItemCard: {
     flexDirection: 'row',
@@ -2208,32 +2207,32 @@ const styles = StyleSheet.create({
     // Same hairline as the emptyCard it alternates with — without it, this card
     // is white on a white page and loses its edge entirely.
     borderWidth: 1,
-    borderColor: '#E6E6E6',
+    borderColor: '#E5E7EB',
   },
-  recentAccent: { width: rs(3), backgroundColor: '#09AD2A' },
+  recentAccent: { width: rs(3), backgroundColor: '#035C6C' },
   recentInner: { flex: 1, padding: rs(10) },
   recentTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  recentDate: { fontSize: 12, fontWeight: '700', color: '#1E1E1E' },
+  recentDate: { fontSize: 12, fontWeight: '700', color: '#111111' },
   statusPillRow: { flexDirection: 'row', gap: rs(6) },
   statusPill: {
     paddingHorizontal: rs(9),
     paddingVertical: rs(3),
     borderRadius: 999,
   },
-  statusPillOn: { backgroundColor: '#09AD2A' },
+  statusPillOn: { backgroundColor: '#035C6C' },
   statusPillOnRed: { backgroundColor: '#F84141' },
-  statusPillDimGreen: { backgroundColor: '#EAF8EC' },
+  statusPillDimGreen: { backgroundColor: '#E5F3F5' },
   statusPillDimRed: { backgroundColor: '#FEECEC' },
   statusPillText: { fontSize: 10, fontWeight: '700' },
   statusPillTextOn: { color: '#FFFFFF' },
-  statusPillTextDim: { color: '#8A8A8A' },
+  statusPillTextDim: { color: '#9CA3AF' },
 
   recentBottomRow: { flexDirection: 'row', marginTop: rs(10), gap: rs(10) },
   recentBottomCol: { flex: 1 },
-  recentBigValue: { fontSize: 12, fontWeight: '700', color: '#1E1E1E' },
-  recentSubLabel: { fontSize: 10, color: '#8A8A8A', marginTop: rs(2) },
+  recentBigValue: { fontSize: 12, fontWeight: '700', color: '#111111' },
+  recentSubLabel: { fontSize: 10, color: '#9CA3AF', marginTop: rs(2) },
 
-  emptyText: { fontSize: 12, color: '#6B6B6B', textAlign: 'center', paddingVertical: rs(16) },
+  emptyText: { fontSize: 12, color: '#6B7280', textAlign: 'center', paddingVertical: rs(16) },
 
   emptyCard: {
     flexDirection: 'row',
@@ -2245,12 +2244,12 @@ const styles = StyleSheet.create({
     marginTop: rs(2),
     gap: rs(12),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
-  emptyIconWrap: { width: rs(38), height: rs(38), borderRadius: rs(19), backgroundColor: '#EAF8EC', alignItems: 'center', justifyContent: 'center' },
+  emptyIconWrap: { width: rs(38), height: rs(38), borderRadius: rs(19), backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' },
   emptyTextWrap: { flex: 1, alignItems: 'center' },
-  emptyTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
-  emptySub: { fontSize: 11, color: '#8A8A8A', marginTop: rs(2), textAlign: 'center' },
+  emptyTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
+  emptySub: { fontSize: 11, color: '#9CA3AF', marginTop: rs(2), textAlign: 'center' },
 
   viewFooterCard: {
     backgroundColor: '#FFFFFF',
@@ -2259,11 +2258,11 @@ const styles = StyleSheet.create({
     marginTop: rs(14),
     gap: rs(12),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   footerGridRow: { flexDirection: 'row', gap: rs(12) },
   footerItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: rs(10) },
-  footerIconWrap: { width: rs(32), height: rs(32), borderRadius: rs(10), backgroundColor: '#EAF8EC', alignItems: 'center', justifyContent: 'center' },
-  footerItemLabel: { fontSize: 11, color: '#8A8A8A', fontWeight: '600' },
-  footerItemValue: { fontSize: 13, color: '#1E1E1E', fontWeight: '700', marginTop: rs(1) },
+  footerIconWrap: { width: rs(32), height: rs(32), borderRadius: rs(10), backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' },
+  footerItemLabel: { fontSize: 11, color: '#9CA3AF', fontWeight: '600' },
+  footerItemValue: { fontSize: 13, color: '#111111', fontWeight: '700', marginTop: rs(1) },
 });

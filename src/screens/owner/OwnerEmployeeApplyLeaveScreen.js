@@ -123,11 +123,11 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
         {/* Note */}
         <View
           className="flex-row items-start mt-4 rounded-2xl p-3.5"
-          style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#E6F7E3' }}
+          style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#E5F3F5' }}
         >
           <Info size={18} color={tokens.primary} style={{ marginTop: 1 }} />
           <View className="flex-1 ml-2.5">
-            <Text className="text-[13px] font-extrabold" style={{ color: '#087A0A' }}>Note</Text>
+            <Text className="text-[13px] font-extrabold" style={{ color: '#035C6C' }}>Note</Text>
             <Text className="text-[12px] text-text-muted mt-0.5 leading-4">
               Leave request will be sent to your manager for approval.
             </Text>
@@ -141,7 +141,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
           disabled={!canSubmit}
           activeOpacity={0.9}
           className="flex-row items-center justify-center rounded-2xl py-4"
-          style={{ backgroundColor: canSubmit ? '#087A0A' : '#8FA08F' }}
+          style={{ backgroundColor: canSubmit ? '#035C6C' : '#9CA3AF' }}
         >
           {saving ? (
             <ActivityIndicator color="#FFFFFF" />

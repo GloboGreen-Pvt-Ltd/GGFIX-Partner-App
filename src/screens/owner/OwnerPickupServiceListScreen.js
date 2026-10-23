@@ -83,11 +83,11 @@ function PickupRow({ item, onPress }) {
     <Pressable
       onPress={onPress}
       className="bg-card border border-border rounded-2xl p-3 mb-3 active:opacity-90"
-      style={{ shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+      style={{ shadowColor: '#111111', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
     >
       <View className="flex-row items-center mb-2">
         <View className="h-10 w-10 rounded-xl bg-success/10 items-center justify-center mr-2.5">
-          <Truck size={18} color="#087A0A" />
+          <Truck size={18} color="#035C6C" />
         </View>
         <View className="flex-1">
           <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{item.bookingNumber || shortId(item.id)}</Text>
@@ -113,7 +113,7 @@ function PickupRow({ item, onPress }) {
 
       {item.pickupAddressText ? (
         <View className="flex-row items-start mt-1.5 px-1">
-          <MapPin size={12} color="#667066" style={{ marginTop: 2 }} />
+          <MapPin size={12} color="#6B7280" style={{ marginTop: 2 }} />
           <View className="flex-1 ml-1">
             <Text className="text-[10px] text-text-muted">Pickup Address{item.pickupAddressLabel ? ` · ${item.pickupAddressLabel}` : ''}</Text>
             <Text className="text-[12px] font-bold text-text" numberOfLines={2}>{item.pickupAddressText}</Text>
@@ -123,7 +123,7 @@ function PickupRow({ item, onPress }) {
 
       {serviceText ? (
         <View className="flex-row items-start mt-2 px-1">
-          <FileText size={12} color="#667066" style={{ marginTop: 2 }} />
+          <FileText size={12} color="#6B7280" style={{ marginTop: 2 }} />
           <View className="flex-1 ml-1">
             <Text className="text-[10px] text-text-muted">Repair Service</Text>
             <Text className="text-[12px] font-bold text-text" numberOfLines={2}>{serviceText}</Text>
@@ -133,7 +133,7 @@ function PickupRow({ item, onPress }) {
 
       <View className="flex-row items-center justify-end mt-1">
         <Text className="text-[10px] text-primary font-bold mr-1">View details</Text>
-        <ChevronRight size={14} color="#087A0A" />
+        <ChevronRight size={14} color="#035C6C" />
       </View>
     </Pressable>
   );
@@ -143,7 +143,7 @@ function Detail({ icon: Icon, label, value }) {
   return (
     <View className="px-1 mb-1" style={{ width: '50%' }}>
       <View className="flex-row items-center">
-        <Icon size={12} color="#667066" />
+        <Icon size={12} color="#6B7280" />
         <Text className="text-[10px] text-text-muted ml-1">{label}</Text>
       </View>
       <Text className="text-[12px] font-bold text-text" numberOfLines={1}>{value}</Text>
@@ -235,7 +235,7 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
           data={items}
           keyExtractor={(it) => String(it.id)}
           contentContainerStyle={{ padding: 12, paddingBottom: 48 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#087A0A']} tintColor="#087A0A" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} tintColor="#035C6C" />}
           renderItem={({ item }) => (
             <PickupRow
               item={item}
@@ -244,7 +244,7 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
           )}
           ListEmptyComponent={
             <EmptyState
-              icon={<Truck size={28} color="#667066" />}
+              icon={<Truck size={28} color="#6B7280" />}
               title={error ? 'Could not load pickups' : 'No pickup requests yet'}
               description={error || 'Customer pickup requests for this shop will appear here.'}
             />

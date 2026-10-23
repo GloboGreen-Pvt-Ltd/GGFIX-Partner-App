@@ -48,25 +48,24 @@ import { useResponsive } from '../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../utils/deviceSpecs';
 import { loadChatBuyOrders, notifyNewBuyOrders, ordersForListing } from '../../utils/buyOrders';
 
-// GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
-// neutrals #F8F8F8 / #F3F3F3.
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';
-const BRIGHT = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+// GGFIX palette — green #035C6C, red #F84141, yellow #F3BF23, ink #111111,
+// neutrals #F3F4F6 / #F3F4F6.
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const PENDING_FG = '#B7860B'; // yellow #F3BF23 family, dark enough to read as text
 const PENDING_BG = '#FFF8E1';
 const CANCELLED_FG = '#F84141';
 const CANCELLED_BG = '#FEECEC';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -136,7 +135,7 @@ function SellProgressTracker({ statusKey, hasOrder, dateLabel }) {
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                <StepIcon size={11} color={done ? '#FFFFFF' : '#9E9E9E'} strokeWidth={2.4} />
+                <StepIcon size={11} color={done ? '#FFFFFF' : '#9CA3AF'} strokeWidth={2.4} />
               </View>
               <Text
                 numberOfLines={2}
@@ -419,9 +418,9 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
         return true;
       });
       const filtered = tab === 'Sell'
+        // By the active shop first — one owner runs several shops.
         ? list.filter((p) =>
-            (userId && p.sellerUserId === userId) ||
-            (shopId && p.shopId === shopId) ||
+            (shopId ? p.shopId === shopId : (userId && p.sellerUserId === userId)) ||
             (!p.sellerUserId && !p.shopId))
         : list;
 
@@ -553,7 +552,7 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
               onChangeText={setQuery}
               autoFocus
               placeholder="Search by device, colour or order id"
-              placeholderTextColor="#8E8E8E"
+              placeholderTextColor="#9CA3AF"
               returnKeyType="search"
               className="flex-1"
               style={{ fontSize: 12, paddingVertical: rs(9), marginLeft: rs(8), color: TEXT_PRIMARY }}

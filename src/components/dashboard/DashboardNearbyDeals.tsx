@@ -6,11 +6,11 @@ import { Touchable } from './theme';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { listingPriceLabel, listingSellerLabel, listingSpecLine } from '../../api/nearbyListings';
 
-const G = '#09AD2A';
-const G_LIGHT = '#EAF8EC';
-const DARK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const LIGHT = '#F3F3F3';
+const G = '#035C6C';
+const G_LIGHT = '#E5F3F5';
+const DARK = '#111111';
+const MUTED = '#6B7280';
+const LIGHT = '#F3F4F6';
 
 export interface NearbyDeal {
   _key: string;
@@ -77,7 +77,7 @@ export function DashboardNearbyDeals({ deals, pad, cardWidth, gap, onOpen, onVie
                 borderWidth: 1,
                 borderColor: LIGHT,
                 padding: 7,
-                shadowColor: '#000000',
+                shadowColor: '#111111',
                 shadowOpacity: 0.04,
                 shadowRadius: 6,
                 shadowOffset: { width: 0, height: 2 },

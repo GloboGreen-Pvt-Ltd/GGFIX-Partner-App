@@ -88,7 +88,7 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
               <View key={doc.key} style={styles.cardOuter}>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderIcon}>
-                    <Ionicons name="person-circle-outline" size={16} color="#172117" />
+                    <Ionicons name="person-circle-outline" size={16} color="#111111" />
                   </View>
                   <Text style={styles.cardHeaderTitle} numberOfLines={1}>{doc.title}</Text>
                   {doc.required && <Text style={styles.requiredStar}>*</Text>}
@@ -137,7 +137,7 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           activeOpacity={0.85}
         >
-          <Ionicons name="create-outline" size={14} color="#16BB05" />
+          <Ionicons name="create-outline" size={14} color="#035C6C" />
           <Text style={styles.editBtnText}>Edit documents</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -146,13 +146,13 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
   content: { padding: 12, paddingBottom: 24 },
 
   statusCard: {
     flexDirection: 'row',
-    backgroundColor: '#16BB05',
+    backgroundColor: '#035C6C',
     borderRadius: 14,
     padding: 11,
     alignItems: 'center',
@@ -187,20 +187,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EFF5EE',
+    backgroundColor: '#E5F3F5',
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 6,
     marginBottom: 8,
   },
   cardHeaderIcon: { width: 18, alignItems: 'center' },
-  cardHeaderTitle: { flex: 1, fontSize: 11, fontWeight: '700', color: '#172117' },
+  cardHeaderTitle: { flex: 1, fontSize: 11, fontWeight: '700', color: '#111111' },
   requiredStar: { color: '#DC2626', fontWeight: '800', fontSize: 12 },
 
   preview: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#16BB05',
+    borderColor: '#035C6C',
     borderRadius: 8,
     overflow: 'hidden',
     position: 'relative',
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#16BB05',
+    backgroundColor: '#035C6C',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -233,9 +233,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626',
   },
   pdfBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  pdfName: { flex: 1, fontSize: 11, color: '#172117', fontWeight: '600' },
+  pdfName: { flex: 1, fontSize: 11, color: '#111111', fontWeight: '600' },
 
-  empty: { fontSize: 12, color: '#667066', textAlign: 'center', paddingVertical: 20 },
+  empty: { fontSize: 12, color: '#6B7280', textAlign: 'center', paddingVertical: 20 },
 
   actionBtn: {
     marginTop: 14,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  actionBtnSubmit: { backgroundColor: '#087A0A' },
+  actionBtnSubmit: { backgroundColor: '#035C6C' },
   actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   editBtn: {
@@ -256,5 +256,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
   },
-  editBtnText: { color: '#16BB05', fontSize: 12, fontWeight: '700' },
+  editBtnText: { color: '#035C6C', fontSize: 12, fontWeight: '700' },
 });

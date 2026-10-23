@@ -10,7 +10,7 @@ export default function OwnerEmployeeCreatedScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.content}>
         <View style={styles.iconWrap}>
-          <Ionicons name="checkmark-circle" size={56} color="#16BB05" />
+          <Ionicons name="checkmark-circle" size={56} color="#035C6C" />
         </View>
         <Text style={styles.title}>Employee created</Text>
         <Text style={styles.subtitle}>
@@ -54,11 +54,11 @@ export default function OwnerEmployeeCreatedScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   content: { flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center' },
   iconWrap: { marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: '700', color: '#172117', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#667066', textAlign: 'center', marginBottom: 18, paddingHorizontal: 16 },
+  title: { fontSize: 20, fontWeight: '700', color: '#111111', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 18, paddingHorizontal: 16 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -67,11 +67,11 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     marginBottom: 22,
   },
-  name: { fontSize: 15, fontWeight: '700', color: '#172117' },
-  meta: { fontSize: 13, color: '#667066', marginTop: 4 },
+  name: { fontSize: 15, fontWeight: '700', color: '#111111' },
+  meta: { fontSize: 13, color: '#6B7280', marginTop: 4 },
   buttons: { width: '100%', maxWidth: 320, gap: 10 },
   primaryBtn: {
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#CBD5CB',
+    borderColor: '#D1D5DB',
   },
-  secondaryBtnText: { color: '#172117', fontSize: 15, fontWeight: '600' },
+  secondaryBtnText: { color: '#111111', fontSize: 15, fontWeight: '600' },
 });

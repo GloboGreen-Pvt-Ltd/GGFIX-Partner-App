@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRepairServices } from '../../api/hooks/useMasterData';
 import { getMasterImageSource } from '../../api/masterDataImages';
+import { useImeiApplies } from '../../utils/imeiPolicy';
 
 const DEFAULT_SERVICES = [
   { id: 'dead', name: 'Dead Phone', icon: 'phone-portrait-outline' },
@@ -50,6 +51,7 @@ export default function DeviceServicesScreen({ route, navigation }) {
   const [warranty, setWarranty] = useState({});
   const [imei, setImei] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
+  const showImei = useImeiApplies({ ...route.params, modelId: route.params?.modelId || model?.id }); // mobile phones only
 
   const deviceDisplayName = model?.name ? `${model.name} (${ramLabel || '16GB'} ${storageLabel || '512GB'})` : 'Galaxy Z Fold7 (16GB 512GB)';
   const priceItems = useMemo(() => {
@@ -83,7 +85,7 @@ export default function DeviceServicesScreen({ route, navigation }) {
       priceItems,
       total,
       repairServicesSummary: priceItems.map((i) => i.label).join(', '),
-      imei: imei.trim() || undefined,
+      imei: (showImei && imei.trim()) || undefined,
       issueDescription: issueDescription.trim() || undefined,
     };
     navigation.navigate('ServiceBookingDevicesList', {
@@ -96,7 +98,7 @@ export default function DeviceServicesScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#172117" />
+          <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
         <Text style={styles.title}>Device Services</Text>
         <View style={{ width: 36 }} />
@@ -115,19 +117,19 @@ export default function DeviceServicesScreen({ route, navigation }) {
         </View>
 
         {loading ? (
-          <ActivityIndicator size="small" color="#087A0A" style={{ marginVertical: 20 }} />
+          <ActivityIndicator size="small" color="#035C6C" style={{ marginVertical: 20 }} />
         ) : (
           serviceOptions.map((s) => {
             const isAdded = selected[s.id];
             const amount = prices[s.id] || 0;
             return (
               <View key={s.id} style={styles.serviceRow}>
-                <Ionicons name={s.icon || 'construct-outline'} size={20} color="#667066" style={styles.serviceIcon} />
+                <Ionicons name={s.icon || 'construct-outline'} size={20} color="#6B7280" style={styles.serviceIcon} />
                 <Text style={styles.serviceName}>{s.name}</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="₹0.00"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#9CA3AF"
                   value={amount ? String(amount) : ''}
                   onChangeText={(t) => {
                     const num = parseInt(t.replace(/[^0-9]/g, ''), 10) || 0;
@@ -158,20 +160,24 @@ export default function DeviceServicesScreen({ route, navigation }) {
           })
         )}
 
-        <Text style={styles.optionalLabel}>IMEI (optional)</Text>
-        <TextInput
-          style={styles.optionalInput}
-          placeholder="Enter IMEI or scan"
-          placeholderTextColor="#8FA08F"
-          value={imei}
-          onChangeText={setImei}
-        />
+        {showImei ? (
+          <>
+            <Text style={styles.optionalLabel}>IMEI (optional)</Text>
+            <TextInput
+              style={styles.optionalInput}
+              placeholder="Enter IMEI or scan"
+              placeholderTextColor="#9CA3AF"
+              value={imei}
+              onChangeText={setImei}
+            />
+          </>
+        ) : null}
 
         <Text style={styles.optionalLabel}>Complaint / Issue (optional)</Text>
         <TextInput
           style={[styles.optionalInput, { minHeight: 60, textAlignVertical: 'top' }]}
           placeholder="Enter issue description"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
           value={issueDescription}
           onChangeText={setIssueDescription}
           multiline
@@ -187,7 +193,7 @@ export default function DeviceServicesScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
     height: 48,
     flexDirection: 'row',
@@ -196,7 +202,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
   content: { padding: 12, paddingBottom: 24 },
   deviceCard: {
     flexDirection: 'row',
@@ -206,31 +212,31 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12,
   },
-  deviceImg: { width: 56, height: 56, borderRadius: 12, backgroundColor: '#E2E8E2' },
+  deviceImg: { width: 56, height: 56, borderRadius: 12, backgroundColor: '#E5E7EB' },
   deviceMeta: { marginLeft: 12, flex: 1 },
-  deviceLabel: { fontSize: 13, color: '#172117', marginTop: 2 },
+  deviceLabel: { fontSize: 13, color: '#111111', marginTop: 2 },
   serviceRow: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
   },
   serviceIcon: { marginBottom: 6 },
-  serviceName: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 6 },
+  serviceName: { fontSize: 13, fontWeight: '700', color: '#111111', marginBottom: 6 },
   priceInput: {
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 12,
-    color: '#172117',
+    color: '#111111',
     marginBottom: 4,
   },
-  lastPrices: { fontSize: 12, color: '#16BB05', marginBottom: 8 },
-  addRemoveBtn: { alignSelf: 'flex-start', backgroundColor: '#087A0A', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  lastPrices: { fontSize: 12, color: '#035C6C', marginBottom: 8 },
+  addRemoveBtn: { alignSelf: 'flex-start', backgroundColor: '#035C6C', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   removeBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#DC2626' },
   addRemoveText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   removeText: { color: '#DC2626' },
@@ -240,26 +246,26 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#CBD5CB',
+    borderColor: '#D1D5DB',
   },
-  warrantyChipActive: { backgroundColor: '#E6F7E3', borderColor: '#16BB05' },
-  warrantyText: { fontSize: 11, color: '#667066' },
-  optionalLabel: { fontSize: 12, fontWeight: '600', color: '#172117', marginTop: 14, marginBottom: 6 },
+  warrantyChipActive: { backgroundColor: '#E5F3F5', borderColor: '#035C6C' },
+  warrantyText: { fontSize: 11, color: '#6B7280' },
+  optionalLabel: { fontSize: 12, fontWeight: '600', color: '#111111', marginTop: 14, marginBottom: 6 },
   optionalInput: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
-    color: '#172117',
+    color: '#111111',
   },
   continueBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     borderRadius: 999,
     paddingVertical: 12,
     marginTop: 16,

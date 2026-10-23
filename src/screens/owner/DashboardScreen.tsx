@@ -25,6 +25,8 @@ import {
   MessageCircle,
   Package,
   PackageOpen,
+  Undo2,
+  XCircle,
   Pencil,
   Puzzle,
   ShieldCheck,
@@ -105,30 +107,30 @@ const SELL_IMAGES: Record<string, string> = {
 // Marketplace tile tints — light, low-saturation pastels (varied per
 // category), matching the same key convention as SELL_IMAGES above.
 const MARKETPLACE_TILE_COLORS: Record<string, string> = {
-  MOBILE: '#EAF6FF',
-  SMARTPHONE: '#EAF6FF',
-  LAPTOP: '#F3ECFF',
-  TABLET: '#EAF3FF',
-  AUDIO: '#FFF0F2',
-  AUDIO_DEVICE: '#FFF0F2',
-  AUDIO_DEVICES: '#FFF0F2',
-  SMARTWATCH: '#EAF7F2',
-  SMARTWATCHES: '#EAF7F2',
+  MOBILE: '#E5F3F5',
+  SMARTPHONE: '#E5F3F5',
+  LAPTOP: '#E5F3F5',
+  TABLET: '#E5F3F5',
+  AUDIO: '#E5F3F5',
+  AUDIO_DEVICE: '#E5F3F5',
+  AUDIO_DEVICES: '#E5F3F5',
+  SMARTWATCH: '#E5F3F5',
+  SMARTWATCHES: '#E5F3F5',
 };
 
 // Sell a Device tile tints — the same light-pastel treatment, kept within
 // a green/mint family so Sell still reads as its own identity next to
 // Marketplace's more varied palette above.
 const SELL_TILE_COLORS: Record<string, string> = {
-  MOBILE: '#ECFAF3',
-  SMARTPHONE: '#ECFAF3',
-  LAPTOP: '#EEF8F5',
-  TABLET: '#EAF7F1',
-  AUDIO: '#EEF9F5',
-  AUDIO_DEVICE: '#EEF9F5',
-  AUDIO_DEVICES: '#EEF9F5',
-  SMARTWATCH: '#EAF7F2',
-  SMARTWATCHES: '#EAF7F2',
+  MOBILE: '#E5F3F5',
+  SMARTPHONE: '#E5F3F5',
+  LAPTOP: '#E5F3F5',
+  TABLET: '#E5F3F5',
+  AUDIO: '#E5F3F5',
+  AUDIO_DEVICE: '#E5F3F5',
+  AUDIO_DEVICES: '#E5F3F5',
+  SMARTWATCH: '#E5F3F5',
+  SMARTWATCHES: '#E5F3F5',
 };
 
 function useBookingCounts() {
@@ -171,6 +173,7 @@ function useBookingCounts() {
         readyForDelivery: (READY_BAND as string[]).reduce((n: number, k: string) => n + Number(counts[k] ?? 0), 0),
         delivered: Number(counts.DELIVERED ?? 0),
         cancelled: Number(counts.CANCELLED ?? 0),
+        returned: Number(counts.RETURNED ?? 0),
         workPending: Number(counts.QUOTED ?? 0) + Number(counts.APPROVED ?? 0),
         total: Number(counts.total ?? 0),
         revenue: Number(counts.revenue ?? counts.totalRevenue ?? counts.monthlyRevenue ?? 0),
@@ -185,42 +188,44 @@ function useBookingCounts() {
 // cards and the Marketplace/Sell category tiles also cycle through) rather
 // than inventing new hues, so the whole screen draws from one palette.
 const TOOL_TONES = ACCENT_TONES;
+// Tool tiles: white glyph on a medium teal / green / blue / gray circle
+// (Dashboard reference colours, darkened enough for a white icon).
 
 // Our Services grid — the iOS-Shortcuts-style entry points into a booking.
 // No "Book Service" tile: a new booking starts from the Repair shortcut card
 // above (category picker → Customer Details), the home banner, or Search.
 export const QUICK_ACTIONS: DashboardTool[] = [
   // Solid glyphs on pastel circles, per the Home design reference.
-  { key: 'BookingList', label: 'Requote', icon: ion('create-outline'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { menu: 'RE_ESTIMATED', rowTarget: 'EDIT' } },
-  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#111827', iconBg: '#FFF0D2', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
-  { key: 'Bookings', label: 'Bookings', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#DC2626', iconBg: '#FDE3E3' },
+  // Order: Booking · Pickups · Invoice · Customer · Enquiry · Model Compatibility · Sell Requests.
+  { key: 'Bookings', label: 'Booking', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#3B82F6' },
+  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
   // The bookings list again, narrowed to the bookings whose invoice is generated
-  // (scopeListFor 'INVOICE') — same cards and layout as Bookings / Requote.
-  { key: 'BookingList', label: 'Invoice', icon: mci('receipt-text'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { menu: 'INVOICE' } },
-  { key: 'OwnerSearch', label: 'Customers', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#EFE2FF', via: 'parent' },
-  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#111827', iconBg: '#FFE8D6', via: 'parent' },
-  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#111827', iconBg: '#F2E1FA', via: 'parent' },
+  // (scopeListFor 'INVOICE') — same cards and layout as Bookings.
+  { key: 'BookingList', label: 'Invoice', icon: mci('receipt-text'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent', params: { menu: 'INVOICE' } },
+  { key: 'OwnerSearch', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
+  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
+  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent' },
   // Customer sell listings near the shop (marketplace /buy/nearby, sellerType CUSTOMER).
-  { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
+  { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
 ];
 
 // Five tiles — one full row at the 5-column breakpoint. All are siblings of
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
-  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent', params: { mode: 'attendance' } },
-  { key: 'OwnerEmployeeWorkingRecord', label: 'Service Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#111827', iconBg: '#FFF0D2', via: 'parent' },
-  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#EFE2FF', via: 'parent' },
-  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#111827', iconBg: '#FDE3E3', via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#111827', iconBg: '#F2E1FA', via: 'parent', params: { mode: 'permission' } },
+  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
+  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent', params: { mode: 'attendance' } },
+  { key: 'OwnerEmployeeWorkingRecord', label: "Job's Report", icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
+  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent' },
+  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
+  { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
-  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#111827', iconBg: '#E3F6EC', via: 'parent' },
-  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#111827', iconBg: '#E4EEFF', via: 'parent' },
-  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#111827', iconBg: '#FFE8D6', via: 'parent' },
+  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
+  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
+  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
 ];
 
 function greetingFor(date: Date = new Date()): string {
@@ -755,26 +760,30 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // rather than summing individual statuses: assignedCount is orthogonal to
   // status ("has a technician"), so the old sum double-counted assigned
   // in-repair tickets and silently dropped intermediate statuses.
-  const activeCount = Math.max(0, total - (summary?.delivered || 0) - (summary?.cancelled || 0));
+  // Same exclusion the Active scope uses (DELIVERED / CANCELLED / RETURNED).
+  const activeCount = Math.max(0, total - (summary?.delivered || 0) - (summary?.cancelled || 0) - (summary?.returned || 0));
   const deliveredCount = summary?.delivered || 0;
+  const cancelledCount = summary?.cancelled || 0;
+  const returnedCount = summary?.returned || 0;
   const readyForDelivery = summary?.readyForDelivery || 0;
 
   // Repair / Buy / Sell shortcut cards above Overview. Repair is the booking
   // entry point; Buy / Sell match Marketplace "See All" and Sell a Device "Sell" below.
   const shortcuts: DashboardShortcut[] = [
     {
-      key: 'repair', label: 'Repair', sub: 'Fix Your Device', icon: ion('build'), iconColor: '#111827', iconBg: '#D6F2E2',
-      tone: '#16A34A', bg: '#EAF8EE', accent: '#16A34A', image: SHORTCUT_IMAGES.repair, decoration: Smartphone,
-      onPress: () => setRepairPickerOpen(true),
+      key: 'repair', label: 'Repair', sub: 'Fix Your Device', icon: ion('build'), iconColor: '#FFFFFF', iconBg: '#357D89',
+      tone: '#035C6C', bg: '#E5F3F5', accent: '#035C6C', image: SHORTCUT_IMAGES.repair, decoration: Smartphone,
+      // Straight to Customer Details; its Next opens the category sheet.
+      onPress: () => gotoParent('RepairServiceBookingShop', { screen: 'CustomerDetails' }),
     },
     {
-      key: 'buy', label: 'Buy', sub: 'New & Used', icon: ion('cart'), iconColor: '#1D4ED8', iconBg: '#DCE7FF',
-      tone: '#2563EB', bg: '#EAF2FF', accent: '#2563EB', image: SHORTCUT_IMAGES.buy, decoration: Smartphone,
+      key: 'buy', label: 'Buy', sub: 'New & Used', icon: ion('cart'), iconColor: '#FFFFFF', iconBg: '#3B82F6',
+      tone: '#2563EB', bg: '#E8F1FE', accent: '#035C6C', image: SHORTCUT_IMAGES.buy, decoration: Smartphone,
       onPress: () => navigation.navigate('Buy', { categoryId: null }),
     },
     {
-      key: 'sell', label: 'Sell', sub: 'Get Best Price', icon: ion('pricetag'), iconColor: '#F59E0B', iconBg: '#FFE7BD',
-      tone: '#F59E0B', bg: '#FFF4E5', accent: '#D97706', image: SHORTCUT_IMAGES.sell, decoration: Smartphone,
+      key: 'sell', label: 'Sell', sub: 'Get Best Price', icon: ion('pricetag'), iconColor: '#FFFFFF', iconBg: '#5E9440',
+      tone: '#4A7029', bg: '#EBF6E7', accent: '#035C6C', image: SHORTCUT_IMAGES.sell, decoration: Smartphone,
       onPress: () => navigation.navigate('Sell'),
     },
   ];
@@ -790,6 +799,8 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     { label: 'Pickup Confirmed', caption: 'Accepted', value: pickupCounts.accepted, icon: ClipboardCheck, color: OV_TONE.accepted, onPress: () => gotoParent('BookingList', { menu: 'PICKUP', preset: 'PICKUP_ACCEPTED' }) },
     { label: 'Delivery Ready', caption: 'Ready to hand over', value: readyForDelivery, icon: CheckCircle2, color: OV_TONE.ready, onPress: () => gotoParent('BookingList', { preset: 'READY_FOR_DELIVERY' }) },
     { label: 'Delivered', caption: 'Completed orders', value: deliveredCount, icon: PackageOpen, color: OV_TONE.delivered, onPress: () => gotoParent('BookingList', { preset: 'DELIVERED' }) },
+    { label: 'Cancelled Orders', caption: 'Called off', value: cancelledCount, icon: XCircle, color: OV_TONE.cancelled, onPress: () => gotoParent('BookingList', { preset: 'CANCELLED' }) },
+    { label: 'Return Orders', caption: 'Returned', value: returnedCount, icon: Undo2, color: OV_TONE.returned, onPress: () => gotoParent('BookingList', { preset: 'RETURNED' }) },
   ];
  const CAT_GAP = 12;
   // Phone tile now scales with width too (was a flat 72) — still clamped to
@@ -824,9 +835,9 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     backgroundColor: C.card,
     borderRadius: toolPanelRadius,
     borderWidth: 1,
-    borderColor: '#E8ECEF',
+    borderColor: '#E5E7EB',
     paddingVertical: 12,
-    shadowColor: '#0B1F14',
+    shadowColor: '#111111',
     shadowOpacity: 0.05,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -926,7 +937,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
                 {heroBanners.map((b, i) => (
                   <View
                     key={b.id}
-                    style={{ height: 6, width: i === heroIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === heroIndex ? '#09AD2A' : '#D6D6D6' }}
+                    style={{ height: 6, width: i === heroIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === heroIndex ? '#035C6C' : '#E5E7EB' }}
                   />
                 ))}
               </View>

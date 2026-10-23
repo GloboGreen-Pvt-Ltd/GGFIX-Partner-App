@@ -34,24 +34,20 @@ import { tintFor } from '../shared/categoryTints';
 import { selectShopId, selectUserId } from '../../store/authSlice';
 import { hasCategorySpecs, specDisplayParts } from '../../utils/deviceSpecs';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6
 // (same as the rest of the Sell flow: screens/shared/sell/sellTheme.js).
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';
-const BRIGHT = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const BRIGHT = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const ACTIVE_FG = '#B45309';
 const ACTIVE_BG = '#FFF3CD';
-// Kept for the parts of this file untouched by the redesign (device-category
-// meta/emoji lookups) — no behavioural meaning, just a legacy name.
-const GREEN       = ACCENT;
-const GREEN_DARK  = ACCENT;
 
 const CODE_META = {
   MOBILE:        { emoji: '📱', sub: 'Smartphones' },
@@ -104,7 +100,7 @@ function bannerImage(b) {
 }
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -170,8 +166,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
           // Same ownership test the My Listings screen uses: a row with neither
           // seller nor shop is legacy data and is treated as ours.
           const mine = rows.filter((p) =>
-            (userId && p.sellerUserId === userId) ||
-            (shopId && p.shopId === shopId) ||
+            (shopId ? p.shopId === shopId : (userId && p.sellerUserId === userId)) ||
             (!p.sellerUserId && !p.shopId));
           const ts = (p) => {
             const t = p?.createdAt ? Date.parse(p.createdAt) : NaN;
@@ -254,7 +249,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const filtered = cats;
 
   const goPickCategory = (c) =>
-    navigation.navigate('SelectBrand', {
+    navigation.navigate(flow === 'OWNER_LIST' ? 'SellDeviceDetails' : 'SelectBrand', {
       flow,
       categoryId: c.id,
       categoryCode: (c.code || '').toUpperCase(),
@@ -296,7 +291,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   <ChevronLeft size={19} color={TEXT_PRIMARY} />
                 </Pressable>
                 <View className="flex-1 items-center">
-                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on GGFIX</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on Near G Fix</Text>
                   <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
                 <Pressable
@@ -432,7 +427,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                       <Text className="text-white font-extrabold" style={{ fontSize: 13 }}>G</Text>
                     </View>
                     <View>
-                      <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT, letterSpacing: 1 }}>GGFIX</Text>
+                      <Text className="font-extrabold" style={{ fontSize: 13, color: ACCENT, letterSpacing: 1 }}>NEAR G FIX</Text>
                       <Text style={{ fontSize: 7, color: TEXT_SECONDARY, letterSpacing: 0.5 }}>SMART DEVICES. SMARTER CHOICE.</Text>
                     </View>
                   </View>

@@ -127,7 +127,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <View style={styles.newStaffIconWrap}>
-            <Ionicons name="people" size={24} color="#16BB05" />
+            <Ionicons name="people" size={24} color="#035C6C" />
           </View>
           <Text style={styles.newStaffTitle}>New Staff</Text>
           <Text style={styles.newStaffSubtitle}>Add a new employee to your shop</Text>
@@ -140,17 +140,17 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
         </View>
 
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color="#8FA08F" />
+          <Ionicons name="search" size={16} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by name or phone number"
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             value={query}
             onChangeText={onChangeQuery}
             returnKeyType="search"
             autoCapitalize="none"
           />
-          {searching ? <ActivityIndicator size="small" color="#16BB05" /> : null}
+          {searching ? <ActivityIndicator size="small" color="#035C6C" /> : null}
           {!searching && query.length > 0 ? (
             <TouchableOpacity
               onPress={() => {
@@ -160,7 +160,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={16} color="#8FA08F" />
+              <Ionicons name="close-circle" size={16} color="#9CA3AF" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -251,7 +251,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
 
         {searched && !searching && results.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Ionicons name="search" size={28} color="#CBD5CB" />
+            <Ionicons name="search" size={28} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No employees found</Text>
             <Text style={styles.emptySub}>
               No matching staff from other shops. Try a different name or phone.
@@ -264,7 +264,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
   content: { padding: 12, paddingBottom: 24 },
 
@@ -279,17 +279,17 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#E5F3F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
   },
-  newStaffTitle: { fontSize: 13, fontWeight: '700', color: '#172117' },
-  newStaffSubtitle: { fontSize: 12, color: '#667066', marginTop: 2 },
+  newStaffTitle: { fontSize: 13, fontWeight: '700', color: '#111111' },
+  newStaffSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
 
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 10 },
-  line: { flex: 1, height: 1, backgroundColor: '#CBD5CB' },
-  dividerText: { marginHorizontal: 10, fontSize: 11, color: '#667066', fontWeight: '500' },
+  line: { flex: 1, height: 1, backgroundColor: '#D1D5DB' },
+  dividerText: { marginHorizontal: 10, fontSize: 11, color: '#6B7280', fontWeight: '500' },
 
   searchBar: {
     flexDirection: 'row',
@@ -300,10 +300,10 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
   },
-  searchInput: { flex: 1, fontSize: 13, color: '#172117', padding: 0 },
-  helpText: { fontSize: 11, color: '#667066', marginTop: 6, marginLeft: 4 },
+  searchInput: { flex: 1, fontSize: 13, color: '#111111', padding: 0 },
+  helpText: { fontSize: 11, color: '#6B7280', marginTop: 6, marginLeft: 4 },
 
   resultCard: {
     backgroundColor: '#FFFFFF',
@@ -316,17 +316,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#E5F3F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
-  resultAvatarText: { fontSize: 15, fontWeight: '700', color: '#16BB05' },
+  resultAvatarText: { fontSize: 15, fontWeight: '700', color: '#035C6C' },
   resultInfo: { flex: 1, minWidth: 0 },
-  resultName: { fontSize: 13, fontWeight: '700', color: '#172117' },
-  resultMeta: { fontSize: 11, color: '#667066', marginTop: 1 },
+  resultName: { fontSize: 13, fontWeight: '700', color: '#111111' },
+  resultMeta: { fontSize: 11, color: '#6B7280', marginTop: 1 },
   resultStatus: { fontSize: 11, fontWeight: '600', marginTop: 4 },
-  statusOk: { color: '#087A0A' },
+  statusOk: { color: '#035C6C' },
   statusBad: { color: '#DC2626' },
 
   actions: {
@@ -346,11 +346,11 @@ const styles = StyleSheet.create({
     minWidth: 76,
   },
   actionBtnText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  addBtn: { backgroundColor: '#087A0A' },
+  addBtn: { backgroundColor: '#035C6C' },
   blockBtn: { backgroundColor: '#DC2626' },
-  workBtn: { backgroundColor: '#087A0A' },
+  workBtn: { backgroundColor: '#035C6C' },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 28 },
-  emptyTitle: { marginTop: 10, fontSize: 13, fontWeight: '700', color: '#172117' },
-  emptySub: { marginTop: 4, fontSize: 11, color: '#667066', textAlign: 'center', paddingHorizontal: 24 },
+  emptyTitle: { marginTop: 10, fontSize: 13, fontWeight: '700', color: '#111111' },
+  emptySub: { marginTop: 4, fontSize: 11, color: '#6B7280', textAlign: 'center', paddingHorizontal: 24 },
 });

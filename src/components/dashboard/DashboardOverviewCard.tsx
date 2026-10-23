@@ -53,12 +53,12 @@ export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverv
               width: circle,
               height: circle,
               borderRadius: circle / 2,
-              backgroundColor: withAlpha(item.color, 0.16),
+              backgroundColor: item.color,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Icon size={iconSize} color={item.color} strokeWidth={2.2} />
+            <Icon size={iconSize} color="#FFFFFF" strokeWidth={2.2} />
           </View>
           <Text
             style={{
@@ -82,7 +82,7 @@ export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverv
         {/* Label along the bottom, centred, max 2 lines. */}
         <View style={{ flex: 1, justifyContent: 'center', marginTop: 2 }}>
           <Text
-            style={{ fontSize: labelSize, lineHeight: labelSize + 3, fontWeight: '600', color: '#1E1E1E', textAlign: 'center' }}
+            style={{ fontSize: labelSize, lineHeight: labelSize + 3, fontWeight: '600', color: '#111111', textAlign: 'center' }}
             numberOfLines={2}
             // Shrinks a long word slightly rather than breaking it mid-word.
             adjustsFontSizeToFit

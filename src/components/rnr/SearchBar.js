@@ -5,7 +5,7 @@ import { cn } from './cn';
 import { tokens } from '../../theme/colors';
 
 const shadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 4 },

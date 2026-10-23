@@ -34,7 +34,7 @@ export function ListRow({
         ) : null}
       </View>
       {right}
-      {showChevron && onPress ? <ChevronRight size={16} color="#8FA08F" /> : null}
+      {showChevron && onPress ? <ChevronRight size={16} color="#9CA3AF" /> : null}
     </Wrapper>
   );
 }

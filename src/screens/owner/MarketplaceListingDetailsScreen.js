@@ -8,25 +8,26 @@ import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { getModelsByBrand } from '../../api/masterData';
 import { useResponsive } from '../../theme/responsive';
-import { hasCategorySpecs, specDetailRows } from '../../utils/deviceSpecs';
+import { hasCategorySpecs, resolveSpecCategory, specDetailRows } from '../../utils/deviceSpecs';
+import { imeiApplies } from '../../utils/imeiPolicy';
 import { loadChatBuyOrders, ordersForListing, sendOrderOutcome } from '../../utils/buyOrders';
 
-// GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
-// neutrals #F8F8F8 / #F3F3F3.
+// GGFIX palette — green #035C6C, red #F84141, yellow #F3BF23, ink #111111,
+// neutrals #F3F4F6 / #F3F4F6.
 const C = {
-  green: '#09AD2A',
-  greenDark: '#078F23',
-  mint: '#EAF8EC',
+  green: '#035C6C',
+  greenDark: '#035C6C',
+  mint: '#E5F3F5',
   red: '#F84141',
   redTint: '#FEECEC',
   yellow: '#F3BF23',
   yellowInk: '#8A6A00',
   yellowTint: '#FFF8E1',
-  ink: '#1E1E1E',
-  muted: '#6B6B6B',
-  line: '#E6E6E6',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  ink: '#111111',
+  muted: '#6B7280',
+  line: '#E5E7EB',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   card: '#FFFFFF',
 };
 
@@ -219,11 +220,22 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
   // excluded from the gallery. Older listings without extraImageUrls fall back
   // to imageUrl as a single-entry gallery.
   const extras = (item.extraImageUrls || []).filter(Boolean);
-  const allPhotos = extras.length > 0 ? extras : (item.imageUrl ? [item.imageUrl] : []);
+  // Spare parts: imageUrl is the part's own first photo, so it leads the gallery.
+  const isParts = item.descriptionType === 'SPARE_PARTS';
+  const allPhotos = isParts ? [item.imageUrl, ...extras].filter(Boolean)
+    : extras.length > 0 ? extras : (item.imageUrl ? [item.imageUrl] : []);
+  const photoLabel = (i) => (isParts ? `Photo ${i + 1}` : PHOTO_LABELS[i] || `Photo ${i + 1}`);
+  // Spare part saved with its group, source device and the seller's note
+  // (older listings only carry the note in "group · part — note").
+  const part = (assessment.spareParts || [])[0] || {};
+  const partNote = String(part.note || (isParts ? String(item.description || '').split(' — ').slice(1).join(' — ') : '')).trim();
+  const fromDevice = [assessment.device?.brandName, assessment.device?.modelName].filter(Boolean).join(' ');
   const orderId = item.id ? `GGFIX${String(item.id).slice(0, 12).toUpperCase().replace(/-/g, '')}` : '';
   const created = item.createdAt ? new Date(item.createdAt) : null;
   const dateLabel = created ? created.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-  const conditionText = item.workingCondition === 'DEAD' ? 'Dead / Unknown' : (item.conditionLabel || 'Good');
+  const conditionText = isParts
+    ? (assessment.workingCondition === 'DEAD' ? 'Spare Part · Dead / Unverified device' : 'Spare Part')
+    : item.workingCondition === 'DEAD' ? 'Dead / Unknown' : (item.conditionLabel || 'Good');
   const meta = statusMeta(item.status);
   const s = String(item.status || '').toUpperCase();
   const isLive = s !== 'SOLD' && s !== 'COMPLETED' && s !== 'CANCELLED' && s !== 'CANCELED';
@@ -270,13 +282,15 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 {item.imageUrl ? (
                   <Image source={{ uri: item.imageUrl }} style={{ width: 78, height: 90 }} resizeMode="contain" />
                 ) : (
-                  <Ionicons name="phone-portrait-outline" size={28} color="#9E9E9E" />
+                  <Ionicons name={isParts ? 'construct-outline' : 'phone-portrait-outline'} size={28} color="#9CA3AF" />
                 )}
               </View>
               <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
                 <Text className="font-extrabold" style={{ fontSize: 15, color: C.ink, lineHeight: 19 }} numberOfLines={2}>
                   {item.title || 'Device'}
                 </Text>
+                {isParts && part.group ? <IconRow icon="construct-outline" label="Part" value={part.group} /> : null}
+                {isParts && fromDevice ? <IconRow icon="phone-portrait-outline" label="From" value={fromDevice} /> : null}
                 {item.color ? <IconRow icon="color-palette-outline" label="Color" value={item.color} /> : null}
                 {hasCategorySpecs(item) ? (
                   specDetailRows(item).map((r) => (
@@ -285,16 +299,27 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 ) : (item.ramLabel || item.storageLabel) ? (
                   <IconRow icon="hardware-chip-outline" label="Storage" value={[item.ramLabel, item.storageLabel].filter(Boolean).join(' / ')} />
                 ) : null}
-                <IconRow icon="phone-portrait-outline" label="Condition" value={conditionText} />
-                {item.imei ? <IconRow icon="barcode-outline" label="IMEI" value={item.imei} /> : null}
+                <IconRow icon="shield-checkmark-outline" label="Condition" value={conditionText} />
+                {item.imei && imeiApplies(resolveSpecCategory(item.deviceCategory, item.categoryCode, item.categoryName)) ? <IconRow icon="barcode-outline" label="IMEI" value={item.imei} /> : null}
               </View>
             </View>
+
+            {/* Seller's condition note, full width under the details. */}
+            {partNote ? (
+              <View className="flex-row" style={{ marginTop: 12, borderRadius: 12, padding: 12, backgroundColor: C.mint, borderLeftWidth: 3, borderLeftColor: C.green }}>
+                <Ionicons name="document-text-outline" size={16} color={C.green} style={{ marginTop: 1 }} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text className="font-extrabold" style={{ fontSize: 10.5, letterSpacing: 0.8, color: C.greenDark }}>CONDITION NOTE</Text>
+                  <Text style={{ fontSize: 13, color: C.ink, lineHeight: 19, marginTop: 3 }}>{partNote}</Text>
+                </View>
+              </View>
+            ) : null}
 
             {allPhotos.length > 0 ? (
               <>
                 <View className="flex-row items-center" style={{ marginTop: 14, marginBottom: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.soft }}>
                   <Ionicons name="images-outline" size={15} color={C.green} />
-                  <Text className="font-extrabold" style={{ marginLeft: 6, flex: 1, fontSize: 13, color: C.ink }}>Device Photos</Text>
+                  <Text className="font-extrabold" style={{ marginLeft: 6, flex: 1, fontSize: 13, color: C.ink }}>{isParts ? 'Part Photos' : 'Device Photos'}</Text>
                   <Text style={{ fontSize: 11, color: C.muted }}>Tap to view</Text>
                 </View>
                 <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
@@ -303,13 +328,13 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                       <TouchableOpacity
                         activeOpacity={0.85}
                         onPress={() => setViewer(i)}
-                        accessibilityLabel={`View ${PHOTO_LABELS[i] || `photo ${i + 1}`}`}
+                        accessibilityLabel={`View ${photoLabel(i)}`}
                         style={{ height: 88, borderRadius: 12, overflow: 'hidden', backgroundColor: C.page, borderWidth: 1, borderColor: C.soft }}
                       >
                         <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       </TouchableOpacity>
                       <Text style={{ fontSize: 11, marginTop: 4, textAlign: 'center', color: C.ink }} numberOfLines={1}>
-                        {PHOTO_LABELS[i] || `Photo ${i + 1}`}
+                        {photoLabel(i)}
                       </Text>
                     </View>
                   ))}
@@ -421,7 +446,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
 
       <ImageViewerModal
         visible={viewer != null}
-        images={allPhotos.map((uri, i) => ({ uri, label: PHOTO_LABELS[i] || `Photo ${i + 1}` }))}
+        images={allPhotos.map((uri, i) => ({ uri, label: photoLabel(i) }))}
         index={viewer || 0}
         onClose={() => setViewer(null)}
       />

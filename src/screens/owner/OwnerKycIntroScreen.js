@@ -15,15 +15,13 @@ import {
   ArrowRight,
   IdCard,
   CreditCard,
-  FileText,
-  Award,
 } from 'lucide-react-native';
 
-const BRAND_GREEN      = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+const BRAND_GREEN      = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 5 },
@@ -31,7 +29,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.04,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -40,8 +38,8 @@ const softShadow = {
 
 // Owner KYC = personal identity documents only (Aadhar front/back + PAN).
 const DOCS = [
-  { key: 'aadhar', Icon: IdCard,    title: 'Aadhar Card',      desc: 'Identity verification (front & back)', tint: '#E6F7E3', accent: '#16BB05' },
-  { key: 'pan',    Icon: CreditCard,title: 'PAN Card',         desc: 'Tax verification',                     tint: '#F0F8EF', accent: '#087A0A' },
+  { key: 'aadhar', Icon: IdCard,    title: 'Aadhar Card',      desc: 'Identity verification (front & back)', tint: '#E5F3F5', accent: '#035C6C' },
+  { key: 'pan',    Icon: CreditCard,title: 'PAN Card',         desc: 'Tax verification',                     tint: '#E5F3F5', accent: '#035C6C' },
 ];
 
 export default function OwnerKycIntroScreen({ navigation }) {
@@ -57,7 +55,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             paddingBottom: 14,
             paddingHorizontal: 16,
             borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
+            borderBottomColor: '#E5E7EB',
           }}
         >
           <View className="flex-row items-center">
@@ -67,7 +65,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
               hitSlop={6}
               className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
             >
-              <ChevronLeft size={20} color="#172117" />
+              <ChevronLeft size={20} color="#111111" />
             </TouchableOpacity>
             <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
               KYC Documents
@@ -75,7 +73,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
             <View
               className="px-2.5 py-1 rounded-full flex-row items-center bg-surface-muted"
             >
-              <Lock size={11} color="#172117" />
+              <Lock size={11} color="#111111" />
               <Text className="ml-1 text-text text-[10.5px] font-extrabold">SECURE</Text>
             </View>
           </View>
@@ -150,7 +148,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
                     <View
                       style={{
                         width: 26, height: 26, borderRadius: 13,
-                        backgroundColor: '#E6F7E3',
+                        backgroundColor: '#E5F3F5',
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >
@@ -186,7 +184,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
         {/* Security reassurance */}
         <View
           className="flex-row items-center mt-3 rounded-2xl px-3 py-3"
-          style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
+          style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
         >
           <View
             className="w-8 h-8 rounded-full items-center justify-center mr-2.5"

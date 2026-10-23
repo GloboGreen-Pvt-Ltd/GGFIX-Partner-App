@@ -16,18 +16,14 @@ import { getBrandsForCategory } from '../../../api/masterData';
 const HORIZONTAL_PAD = PICKER_PAD;
 const GRID_GAP = PICKER_GAP;
 // Grey page, white tiles. Search mode keeps a white list surface.
-const SCREEN_BG = '#F8F8F8';
-const SEARCH_BG = '#FFFFFF';
+const SCREEN_BG = '#F3F4F6';
 // Written as a value, not the `primary` class. NativeWind compiles
 // tailwind.config.js at BUILD time, so the class can lag behind the palette.
-const ACCENT = '#09AD2A';
-const ACCENT_TEXT = '#078F23';
-const MINT = '#EAF8EC';
+const ACCENT = '#035C6C';
 
 // Compact tile metrics: fixed inner padding and a short logo band, so a row
 // stays ~70pt tall instead of growing with the card width.
 const TILE_PAD = 8;
-const TILE_RADIUS = 14;
 
 // Columns follow the live width: 4 on small phones, 5 from 400pt, and more on
 // tablets — monotonic, so the grid never drops a column as the screen widens.
@@ -43,11 +39,11 @@ function brandColumns(width) {
 // Five visually distinct GGFIX-palette pairs keep the initials tellable apart,
 // which is the only job this list has.
 const BRAND_PALETTES = [
-  { bg: 'bg-[#EAF8EC]', text: 'text-[#078F23]' },
+  { bg: 'bg-[#E5F3F5]', text: 'text-[#035C6C]' },
   { bg: 'bg-[#FFF8E1]', text: 'text-[#8A6A00]' },
   { bg: 'bg-[#FEECEC]', text: 'text-[#D63232]' },
-  { bg: 'bg-[#F3F3F3]', text: 'text-[#1E1E1E]' },
-  { bg: 'bg-[#09AD2A]', text: 'text-white' },
+  { bg: 'bg-[#F3F4F6]', text: 'text-[#111111]' },
+  { bg: 'bg-[#035C6C]', text: 'text-white' },
 ];
 function paletteFor(name) {
   let h = 0;
@@ -160,22 +156,22 @@ export default function SelectBrandScreen({ navigation, route }) {
             className="h-10 w-10 items-center justify-center"
             hitSlop={8}
           >
-            <ArrowLeft size={22} color="#1E1E1E" />
+            <ArrowLeft size={22} color="#111111" />
           </Pressable>
-          <View className="flex-1 flex-row items-center rounded-xl px-3" style={{ backgroundColor: '#F3F3F3' }}>
-            <Search size={18} color="#8E8E8E" />
+          <View className="flex-1 flex-row items-center rounded-xl px-3" style={{ backgroundColor: '#F3F4F6' }}>
+            <Search size={18} color="#9CA3AF" />
             <TextInput
               autoFocus
               value={q}
               onChangeText={setQ}
               placeholder="Search brand"
-              placeholderTextColor="#8E8E8E"
+              placeholderTextColor="#9CA3AF"
               className="flex-1 py-2.5 ml-2 text-text text-[13px]"
               returnKeyType="search"
             />
             {q ? (
               <Pressable onPress={() => setQ('')} hitSlop={8}>
-                <X size={18} color="#6B6B6B" />
+                <X size={18} color="#6B7280" />
               </Pressable>
             ) : null}
           </View>
@@ -183,7 +179,7 @@ export default function SelectBrandScreen({ navigation, route }) {
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
           {searchResults.length === 0 ? (
             <EmptyState
-              icon={<Search size={28} color="#09AD2A" />}
+              icon={<Search size={28} color="#035C6C" />}
               title={q ? 'No brands found' : 'Search brands'}
               description={q ? `Nothing matches "${q.trim()}".` : 'Type a brand name (e.g. Google, Vivo, Samsung).'}
             />
@@ -225,7 +221,7 @@ export default function SelectBrandScreen({ navigation, route }) {
         sticky={false}
         right={(
           <Pressable onPress={() => setSearchOpen(true)} className="h-10 w-10 items-center justify-center" hitSlop={8}>
-            <Search size={22} color="#1E1E1E" />
+            <Search size={22} color="#111111" />
           </Pressable>
         )}
       />
@@ -270,10 +266,10 @@ export default function SelectBrandScreen({ navigation, route }) {
                       width: cardWidth,
                       padding: 9,
                       alignItems: 'center',
-                      backgroundColor: isCurrent ? '#EAF7F1' : '#FFFFFF',
+                      backgroundColor: isCurrent ? '#E5F3F5' : '#FFFFFF',
                       borderWidth: isCurrent ? 1.5 : 1,
-                      borderColor: isCurrent ? ACCENT : '#E6E6E6',
-                      shadowColor: '#1E1E1E',
+                      borderColor: isCurrent ? ACCENT : '#E5E7EB',
+                      shadowColor: '#111111',
                       shadowOpacity: isCurrent ? 0 : 0.04,
                       shadowRadius: 8,
                       shadowOffset: { width: 0, height: 2 },
@@ -332,7 +328,7 @@ export default function SelectBrandScreen({ navigation, route }) {
                 >
                   <View
                     className="rounded-lg items-center justify-center"
-                    style={{ height: logoBox, width: logoBox, marginBottom: 4, backgroundColor: 'rgba(0,76,64,0.10)' }}
+                    style={{ height: logoBox, width: logoBox, marginBottom: 4, backgroundColor: 'rgba(3, 92, 108,0.10)' }}
                   >
                     <Plus size={Math.round(logoBox * 0.4)} color={ACCENT} />
                   </View>
@@ -357,7 +353,7 @@ export default function SelectBrandScreen({ navigation, route }) {
           had none, so the input could sit behind the keyboard on a real
           device). */}
       <ResponsiveModal visible={otherOpen} onClose={() => { setOtherOpen(false); setOtherName(''); }} maxWidth={420}>
-        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E6E6E6', marginBottom: 14 }} />
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 14 }} />
         <Text className="text-[13px] font-extrabold text-text">Other brand</Text>
         <Text className="text-[12px] text-text-muted mt-1 leading-4">
           Type the brand as it appears on the device. It is saved on this booking only —
@@ -368,9 +364,9 @@ export default function SelectBrandScreen({ navigation, route }) {
           value={otherName}
           onChangeText={setOtherName}
           placeholder="e.g. Lava"
-          placeholderTextColor="#8E8E8E"
+          placeholderTextColor="#9CA3AF"
           className="mt-3 rounded-xl px-3 py-2.5 text-text text-[13px]"
-          style={{ backgroundColor: '#F3F3F3' }}
+          style={{ backgroundColor: '#F3F4F6' }}
           returnKeyType="done"
           onSubmitEditing={onPickOther}
         />

@@ -7,22 +7,23 @@ import { Card, PrimaryButton } from '../../../components/ui';
 import { createSellOrder, updateSellOrder } from '../../../api/orders';
 import { createListing } from '../../../api/marketplace';
 import { getSession } from '../../../auth/session';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  deviceCard: { borderColor: '#16BB05', borderWidth: 1 },
-  summaryCard: { borderColor: '#16BB05', borderWidth: 1 },
-  customerCard: { borderColor: '#087A0A', borderWidth: 1 },
+  deviceCard: { borderColor: '#035C6C', borderWidth: 1 },
+  summaryCard: { borderColor: '#035C6C', borderWidth: 1 },
+  customerCard: { borderColor: '#035C6C', borderWidth: 1 },
   body: { flexDirection: 'row' },
   modelName: { fontSize: 15, fontWeight: '700', color: colors.text },
   small: { fontSize: 13, color: colors.text, marginTop: 2 },
-  thumb: { width: 80, height: 90, borderRadius: 8, backgroundColor: '#E2E8E2', marginLeft: 12 },
+  thumb: { width: 80, height: 90, borderRadius: 8, backgroundColor: '#E5E7EB', marginLeft: 12 },
   photoHeading: { fontSize: 12, fontWeight: '700', color: colors.text, marginTop: 10, marginBottom: 6 },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
   photoItem: { width: 92, marginHorizontal: 3, marginBottom: 6 },
-  photoBox: { width: '100%', height: 86, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C8EEBF', overflow: 'hidden', backgroundColor: '#F7FAF7' },
+  photoBox: { width: '100%', height: 86, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C7E6EA', overflow: 'hidden', backgroundColor: '#F3F4F6' },
   photoLabel: { fontSize: 10, color: colors.textSecondary, textAlign: 'center', marginTop: 3, fontWeight: '600' },
-  heading: { fontSize: 13, fontWeight: '700', color: '#16BB05', marginBottom: 8 },
+  heading: { fontSize: 13, fontWeight: '700', color: '#035C6C', marginBottom: 8 },
   subHeading: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 10, marginBottom: 2 },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 5 },
   itemText: { marginLeft: 6, fontSize: 12, color: colors.text, flex: 1, lineHeight: 16 },
@@ -40,7 +41,7 @@ const PHOTO_SLOTS = [
 ];
 
 function Check() {
-  return <Ionicons name="checkmark-circle-outline" size={15} color="#087A0A" style={{ marginTop: 1 }} />;
+  return <Ionicons name="checkmark-circle-outline" size={15} color="#035C6C" style={{ marginTop: 1 }} />;
 }
 
 export default function SellCompleteScreen({ navigation, route }) {
@@ -49,6 +50,7 @@ export default function SellCompleteScreen({ navigation, route }) {
   const address = p.address || {};
   const images = p.images || {};
   const [saving, setSaving] = useState(false);
+  const showImei = useImeiApplies(device); // mobile phones only
 
   const storageLine = [device.ramLabel, device.storageLabel].filter(Boolean).join(' / ');
   const photos = PHOTO_SLOTS.filter((s) => images[s.key]);
@@ -63,7 +65,7 @@ export default function SellCompleteScreen({ navigation, route }) {
         ramOptionId: device.ramOptionId,
         storageOptionId: device.storageOptionId,
         color: device.color,
-        imei: device.imei,
+        imei: showImei ? device.imei : undefined,
         workingCondition: p.workingCondition,
         warrantyCode: p.warranty,
         addressId: p.addressId,
@@ -136,7 +138,7 @@ export default function SellCompleteScreen({ navigation, route }) {
               {device.color ? <Text style={styles.small}>Color: {device.color}</Text> : null}
               {storageLine ? <Text style={styles.small}>Storage: {storageLine}</Text> : null}
               <Text style={styles.small}>Device Condition: {p.deviceCondition || (p.workingCondition === 'DEAD' ? 'Unknown Condition' : 'Good')}</Text>
-              <Text style={styles.small}>IMEI Number : {device.imei || '-'}</Text>
+              {showImei ? <Text style={styles.small}>IMEI Number : {device.imei || '-'}</Text> : null}
             </View>
             {device.imageUrl ? (
               <Image source={{ uri: device.imageUrl }} style={styles.thumb} resizeMode="cover" />
@@ -216,13 +218,13 @@ export default function SellCompleteScreen({ navigation, route }) {
         {/* Customer Details */}
         {(address.fullName || address.addressLine) ? (
           <Card style={styles.customerCard}>
-            <Text style={[styles.heading, { color: '#087A0A' }]}>Customer Details</Text>
+            <Text style={[styles.heading, { color: '#035C6C' }]}>Customer Details</Text>
             <View style={styles.custRow}>
-              <Ionicons name="person-outline" size={16} color="#087A0A" style={{ marginTop: 1 }} />
+              <Ionicons name="person-outline" size={16} color="#035C6C" style={{ marginTop: 1 }} />
               <Text style={styles.custText}>{[address.fullName, phone].filter(Boolean).join('  |  ')}</Text>
             </View>
             <View style={styles.custRow}>
-              <Ionicons name="location-outline" size={16} color="#087A0A" style={{ marginTop: 1 }} />
+              <Ionicons name="location-outline" size={16} color="#035C6C" style={{ marginTop: 1 }} />
               <Text style={styles.custText}>{[address.addressLine, address.locality, address.city, address.state, address.pincode].filter(Boolean).join(', ')}</Text>
             </View>
           </Card>
@@ -233,7 +235,7 @@ export default function SellCompleteScreen({ navigation, route }) {
           title={p.editSellOrderId ? 'Update Order →' : 'Sell Now →'}
           onPress={submit}
           loading={saving}
-          style={{ backgroundColor: p.editSellOrderId ? '#16BB05' : '#087A0A' }}
+          style={{ backgroundColor: p.editSellOrderId ? '#035C6C' : '#035C6C' }}
         />
       </View>
     </View>

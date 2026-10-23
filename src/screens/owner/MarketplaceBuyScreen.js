@@ -34,7 +34,7 @@ export default function MarketplaceBuyScreen({ navigation }) {
       <FlatList
         data={list}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#004C40']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} />}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <View style={styles.row}>
@@ -49,13 +49,13 @@ export default function MarketplaceBuyScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
+  safe: { flex: 1, backgroundColor: '#111111' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10 },
-  title: { fontSize: 15, fontWeight: '700', color: '#F7FAF7' },
-  link: { fontSize: 13, color: '#004C40' },
+  title: { fontSize: 15, fontWeight: '700', color: '#F3F4F6' },
+  link: { fontSize: 13, color: '#035C6C' },
   list: { padding: 12, paddingBottom: 24 },
-  row: { backgroundColor: '#172117', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#172117' },
-  name: { fontSize: 13, fontWeight: '600', color: '#F7FAF7' },
-  price: { fontSize: 13, color: '#004C40', marginTop: 4 },
-  empty: { fontSize: 13, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
+  row: { backgroundColor: '#111111', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#111111' },
+  name: { fontSize: 13, fontWeight: '600', color: '#F3F4F6' },
+  price: { fontSize: 13, color: '#035C6C', marginTop: 4 },
+  empty: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', marginTop: 24 },
 });

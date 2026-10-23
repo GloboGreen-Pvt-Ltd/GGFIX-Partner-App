@@ -27,6 +27,11 @@ config.resolver.blockList = [
   /[\\/]\.expo[\\/].*/,
 ];
 
+// On-device object detection model for the product scanner
+// (assets/models/efficientdet_lite0.tflite, loaded by react-native-fast-tflite).
+// Metro only reads this at startup — restart it after changing this list.
+if (!config.resolver.assetExts.includes('tflite')) config.resolver.assetExts.push('tflite');
+
 // `inlineRem: false` is what makes spacing responsive app-wide.
 //
 // By default NativeWind BAKES the rem base into the compiled stylesheet at

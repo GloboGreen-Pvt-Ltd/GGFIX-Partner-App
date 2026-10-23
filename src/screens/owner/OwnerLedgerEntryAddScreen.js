@@ -4,7 +4,6 @@ import {
   Animated,
   Image,
   Keyboard,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,6 +35,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { notify } from '../../components/confirm';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import VoiceNotePlayer from '../../components/VoiceNotePlayer';
 import { uploadMedia } from '../../api/masterData';
 import { formatMoney } from './revenueMath';
@@ -847,7 +847,7 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
                     {!b.url ? (
                       <View
                         className="items-center justify-center"
-                        style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(23, 33, 23, 0.45)' }]}
+                        style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(17, 17, 17, 0.45)' }]}
                       >
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       </View>
@@ -942,11 +942,11 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
         onPick={attachBooking}
       />
 
-      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+      <SafeModal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable
           onPress={() => setPreview(null)}
           className="flex-1 items-center justify-center"
-          style={{ backgroundColor: 'rgba(23, 33, 23, 0.92)' }}
+          style={{ backgroundColor: 'rgba(17, 17, 17, 0.92)' }}
         >
           {preview ? (
             <Image source={{ uri: preview }} style={{ width: '92%', height: '76%' }} resizeMode="contain" />
@@ -955,7 +955,7 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
             Tap anywhere to close
           </Text>
         </Pressable>
-      </Modal>
+      </SafeModal>
     </View>
   );
 }
@@ -1019,31 +1019,36 @@ function Keypad({ tint, onKey }) {
 
 function SourceSheet({ visible, tint, onClose, onPick }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        className="flex-1 justify-end"
-        style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
-      >
-        <Pressable
-          onPress={() => {}}
-          className="bg-card"
-          style={{ borderTopLeftRadius: SIZE.radius * 1.5, borderTopRightRadius: SIZE.radius * 1.5 }}
-        >
-          <View className="items-center" style={{ paddingTop: S.sm }}>
-            <View style={{ height: rs(4), width: rs(34), borderRadius: rs(2), backgroundColor: C.chipBg }} />
-          </View>
-          <Text className="font-extrabold text-center" style={{ fontSize: T.rowTitle, color: C.ink, marginTop: S.sm }}>
-            Attach to this entry
-          </Text>
-          <View className="flex-row justify-center" style={{ paddingVertical: S.lg, gap: rs(28) }}>
-            <SourceButton icon={Camera} label="Camera" tint={tint} onPress={() => onPick('camera')} />
-            <SourceButton icon={Images} label="Gallery" tint={tint} onPress={() => onPick('gallery')} />
-            <SourceButton icon={Ticket} label="Booking" tint={tint} onPress={() => onPick('booking')} />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* Clears this modal window's own nav-bar / home-indicator inset. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <Pressable
+            onPress={onClose}
+            className="flex-1 justify-end"
+            style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)' }}
+          >
+            <Pressable
+              onPress={() => {}}
+              className="bg-card"
+              style={{ borderTopLeftRadius: SIZE.radius * 1.5, borderTopRightRadius: SIZE.radius * 1.5, paddingBottom: insets.bottom }}
+            >
+              <View className="items-center" style={{ paddingTop: S.sm }}>
+                <View style={{ height: rs(4), width: rs(34), borderRadius: rs(2), backgroundColor: C.chipBg }} />
+              </View>
+              <Text className="font-extrabold text-center" style={{ fontSize: T.rowTitle, color: C.ink, marginTop: S.sm }}>
+                Attach to this entry
+              </Text>
+              <View className="flex-row justify-center" style={{ paddingVertical: S.lg, gap: rs(28) }}>
+                <SourceButton icon={Camera} label="Camera" tint={tint} onPress={() => onPick('camera')} />
+                <SourceButton icon={Images} label="Gallery" tint={tint} onPress={() => onPick('gallery')} />
+                <SourceButton icon={Ticket} label="Booking" tint={tint} onPress={() => onPick('booking')} />
+              </View>
+            </Pressable>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }
 
@@ -1115,137 +1120,142 @@ function BookingSheet({ visible, tint, phone, onClose, onPick }) {
   }, [visible, query]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        className="flex-1 justify-end"
-        style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
-      >
-        <Pressable
-          onPress={() => {}}
-          className="bg-card"
-          style={{
-            borderTopLeftRadius: SIZE.radius * 1.5,
-            borderTopRightRadius: SIZE.radius * 1.5,
-            paddingBottom: S.md,
-            maxHeight: '78%',
-          }}
-        >
-          <View className="items-center" style={{ paddingTop: S.sm }}>
-            <View style={{ height: rs(4), width: rs(34), borderRadius: rs(2), backgroundColor: C.chipBg }} />
-          </View>
-          <Text
-            className="font-extrabold text-center"
-            style={{ fontSize: T.rowTitle, color: C.ink, marginTop: S.sm }}
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* This window's own nav-bar inset; lifted above the keyboard while searching. */}
+      <ModalInsets>
+        {({ insets, keyboard }) => (
+          <Pressable
+            onPress={onClose}
+            className="flex-1 justify-end"
+            style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)', paddingBottom: keyboard }}
           >
-            Select a booking
-          </Text>
-
-          <View
-            className="flex-row items-center"
-            style={{
-              backgroundColor: C.field,
-              borderWidth: 1,
-              borderColor: C.hairline,
-              borderRadius: SIZE.radius,
-              paddingHorizontal: S.md,
-              marginHorizontal: S.lg,
-              marginTop: S.sm,
-            }}
-          >
-            <Search size={rs(16)} color={C.muted} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Mobile number or ticket id"
-              placeholderTextColor={C.placeholder}
-              keyboardType="default"
-              autoCorrect={false}
-              className="flex-1"
-              style={{ paddingVertical: S.sm, marginLeft: S.sm, fontSize: T.input, color: C.ink }}
-            />
-            {query ? (
-              <Pressable
-                onPress={() => setQuery('')}
-                hitSlop={rs(10)}
-                className="rounded-full items-center justify-center active:opacity-70"
-                style={{ height: SIZE.tile, width: SIZE.tile }}
-              >
-                <X size={rs(14)} color={C.muted} />
-              </Pressable>
-            ) : null}
-          </View>
-
-          {loading ? (
-            <View className="items-center" style={{ paddingVertical: S.xl }}>
-              <ActivityIndicator color={tint} />
-            </View>
-          ) : (
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: S.lg, paddingTop: S.sm, paddingBottom: S.sm }}
+            <Pressable
+              onPress={() => {}}
+              className="bg-card"
+              style={{
+                borderTopLeftRadius: SIZE.radius * 1.5,
+                borderTopRightRadius: SIZE.radius * 1.5,
+                paddingBottom: S.md + (keyboard > 0 ? 0 : insets.bottom),
+                maxHeight: '78%',
+              }}
             >
-              {rows.map((row) => (
-                <Pressable
-                  key={row.id}
-                  onPress={() => onPick(row)}
-                  className="flex-row items-center active:opacity-70"
-                  style={{
-                    borderBottomWidth: 1,
-                    borderBottomColor: C.hairline,
-                    paddingVertical: S.md,
-                  }}
-                >
-                  <View
-                    className="items-center justify-center"
-                    style={{
-                      height: SIZE.avatarMd,
-                      width: SIZE.avatarMd,
-                      borderRadius: SIZE.radiusSm,
-                      backgroundColor: `${tint}14`,
-                    }}
-                  >
-                    <Ticket size={rs(17)} color={tint} />
-                  </View>
-                  <View className="flex-1" style={{ marginLeft: S.sm }}>
-                    <Text
-                      className="font-extrabold"
-                      style={{ fontSize: T.rowTitle, color: C.ink }}
-                      numberOfLines={1}
-                    >
-                      {row.trackingId}
-                    </Text>
-                    <Text style={{ fontSize: T.rowSub, color: C.muted }} numberOfLines={1}>
-                      {[row.label, row.customerName].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                  <View className="items-end" style={{ marginLeft: S.xs }}>
-                    {row.amount ? (
-                      <Text className="font-bold" style={{ fontSize: T.rowAmount, color: C.ink }}>
-                        {formatMoney(row.amount)}
-                      </Text>
-                    ) : null}
-                    <Text style={{ fontSize: T.caption, color: C.muted }} numberOfLines={1}>
-                      {row.status}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+              <View className="items-center" style={{ paddingTop: S.sm }}>
+                <View style={{ height: rs(4), width: rs(34), borderRadius: rs(2), backgroundColor: C.chipBg }} />
+              </View>
+              <Text
+                className="font-extrabold text-center"
+                style={{ fontSize: T.rowTitle, color: C.ink, marginTop: S.sm }}
+              >
+                Select a booking
+              </Text>
 
-              {!rows.length ? (
-                <Text
-                  className="text-center"
-                  style={{ fontSize: T.rowSub, color: C.muted, paddingVertical: S.xl }}
+              <View
+                className="flex-row items-center"
+                style={{
+                  backgroundColor: C.field,
+                  borderWidth: 1,
+                  borderColor: C.hairline,
+                  borderRadius: SIZE.radius,
+                  paddingHorizontal: S.md,
+                  marginHorizontal: S.lg,
+                  marginTop: S.sm,
+                }}
+              >
+                <Search size={rs(16)} color={C.muted} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Mobile number or ticket id"
+                  placeholderTextColor={C.placeholder}
+                  keyboardType="default"
+                  autoCorrect={false}
+                  className="flex-1"
+                  style={{ paddingVertical: S.sm, marginLeft: S.sm, fontSize: T.input, color: C.ink }}
+                />
+                {query ? (
+                  <Pressable
+                    onPress={() => setQuery('')}
+                    hitSlop={rs(10)}
+                    className="rounded-full items-center justify-center active:opacity-70"
+                    style={{ height: SIZE.tile, width: SIZE.tile }}
+                  >
+                    <X size={rs(14)} color={C.muted} />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {loading ? (
+                <View className="items-center" style={{ paddingVertical: S.xl }}>
+                  <ActivityIndicator color={tint} />
+                </View>
+              ) : (
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingHorizontal: S.lg, paddingTop: S.sm, paddingBottom: S.sm }}
                 >
-                  {searched
-                    ? 'No bookings found for that number.'
-                    : 'Enter a mobile number or ticket id to find a booking.'}
-                </Text>
-              ) : null}
-            </ScrollView>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+                  {rows.map((row) => (
+                    <Pressable
+                      key={row.id}
+                      onPress={() => onPick(row)}
+                      className="flex-row items-center active:opacity-70"
+                      style={{
+                        borderBottomWidth: 1,
+                        borderBottomColor: C.hairline,
+                        paddingVertical: S.md,
+                      }}
+                    >
+                      <View
+                        className="items-center justify-center"
+                        style={{
+                          height: SIZE.avatarMd,
+                          width: SIZE.avatarMd,
+                          borderRadius: SIZE.radiusSm,
+                          backgroundColor: `${tint}14`,
+                        }}
+                      >
+                        <Ticket size={rs(17)} color={tint} />
+                      </View>
+                      <View className="flex-1" style={{ marginLeft: S.sm }}>
+                        <Text
+                          className="font-extrabold"
+                          style={{ fontSize: T.rowTitle, color: C.ink }}
+                          numberOfLines={1}
+                        >
+                          {row.trackingId}
+                        </Text>
+                        <Text style={{ fontSize: T.rowSub, color: C.muted }} numberOfLines={1}>
+                          {[row.label, row.customerName].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                      <View className="items-end" style={{ marginLeft: S.xs }}>
+                        {row.amount ? (
+                          <Text className="font-bold" style={{ fontSize: T.rowAmount, color: C.ink }}>
+                            {formatMoney(row.amount)}
+                          </Text>
+                        ) : null}
+                        <Text style={{ fontSize: T.caption, color: C.muted }} numberOfLines={1}>
+                          {row.status}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+
+                  {!rows.length ? (
+                    <Text
+                      className="text-center"
+                      style={{ fontSize: T.rowSub, color: C.muted, paddingVertical: S.xl }}
+                    >
+                      {searched
+                        ? 'No bookings found for that number.'
+                        : 'Enter a mobile number or ticket id to find a booking.'}
+                    </Text>
+                  ) : null}
+                </ScrollView>
+              )}
+            </Pressable>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }

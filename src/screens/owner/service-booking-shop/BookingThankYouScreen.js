@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, ActivityIndicator,
+  View, Text, ScrollView, Pressable, ActivityIndicator, BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot from 'react-native-view-shot';
 import * as Clipboard from 'expo-clipboard';
-import { ScreenHeader } from '../../../components/rnr';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
 import { getSession } from '../../../auth/session';
@@ -16,18 +17,19 @@ import {
 } from '../AllBooking/ReceiptCard';
 import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
-import { specDisplayParts } from '../../../utils/deviceSpecs';
+import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
+import { imeiApplies } from '../../../utils/imeiPolicy';
 
 // GGFIX palette.
-const ACCENT = '#09AD2A';       // GGFIX green — fills, icons
-const PRIMARY = '#078F23';      // deeper green — green TEXT, gradient partner
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const TEXT_SECONDARY = '#6B6B6B';
+const ACCENT = '#035C6C';       // GGFIX green — fills, icons
+const PRIMARY = '#035C6C';      // deeper green — green TEXT, gradient partner
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const TEXT_SECONDARY = '#6B7280';
 
 export default function BookingThankYouScreen({ navigation, route }) {
   const { customer = {}, devices = [], tickets = [] } = route?.params || {};
-  const trackingId = tickets[0]?.trackingId || 'CSPEN00000000';
+  const trackingId = tickets[0]?.trackingId || '—';
   const total = devices.reduce(
     (sum, d) => sum + (d.services || []).reduce((s, x) => s + (Number(x.price) || 0), 0),
     0,
@@ -73,7 +75,8 @@ export default function BookingThankYouScreen({ navigation, route }) {
       modelName: d.modelName,
       imageUrl: d.imageUrl,
       variant: specDisplayParts(d, { withColor: true }).join(' · '),
-      imei: d.imei || null,
+      // IMEI is printed for mobile phones only.
+      imei: imeiApplies(resolveSpecCategory(d.deviceCategory, d.categoryCode, d.categoryName)) ? d.imei || null : null,
       serviceNames: (d.services || []).map((x) => x.serviceName).filter(Boolean),
       price: (d.services || []).reduce((sum, x) => sum + (Number(x.price) || 0), 0),
     })),
@@ -155,31 +158,28 @@ export default function BookingThankYouScreen({ navigation, route }) {
     }
   };
 
+  // The booking is done, so Back (header, Android hardware back, iOS swipe)
+  // goes to Home — never back into the wizard screen before this one.
+  const goHome = useCallback(() => navigation.navigate('OwnerTabs', { screen: 'Home' }), [navigation]);
+  useEffect(() => { navigation.setOptions({ gestureEnabled: false }); }, [navigation]);
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { goHome(); return true; });
+    return () => sub.remove();
+  }, [goHome]));
+
   const r = useResponsive();
+  const insets = useSafeAreaInsets();
   // Tablet / large-screen: cap the column and centre it, same convention as
   // the other booking-flow screens.
   const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#F8F8F8' }}>
+    <View className="flex-1" style={{ backgroundColor: '#F3F4F6' }}>
       {/* popToTop() only unwinds to the top of the BOOKING stack, which lands on
           the first wizard step — Back from a finished booking would restart the
           one just completed. Go to Home instead: the booking is done, so the
-          wizard is not somewhere to return to.
-          Transparent so it blends into the mint hero below, with a small
-          subtle brand line in the existing `right` slot. */}
-      <ScreenHeader
-        title=""
-        transparent
-        onBack={() => navigation.navigate('OwnerTabs', { screen: 'Home' })}
-        right={(
-          <View className="items-end">
-            <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 1, color: PRIMARY }}>REPAIR TODAY</Text>
-            <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 0.5, color: TEXT_SECONDARY }}>A BRIGHTER TOMORROW</Text>
-          </View>
-        )}
-      />
-      <ScrollView contentContainerStyle={{ paddingBottom: rs(32) }}>
+          wizard is not somewhere to return to. */}
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + rs(4), paddingBottom: rs(16) }}>
         {/* On-screen Thank You receipt — shown here, never sent. */}
         <BookingReceipt
           {...receiptProps}
@@ -188,46 +188,45 @@ export default function BookingThankYouScreen({ navigation, route }) {
           onCopyTrackingId={copyTrackingId}
         />
 
-        {/* ── Confirmation banner — information only. ─────────────────── */}
-        <View style={{ paddingHorizontal: rs(14), marginTop: rs(4) }}>
-          <View style={colStyle}>
-            <View
-              className="flex-row items-center"
-              style={{
-                borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
-              }}
-            >
-              <View
-                className="items-center justify-center"
-                style={{ height: 32, width: 32, borderRadius: 11, marginRight: 10, backgroundColor: ACCENT }}
-              >
-                <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" />
-              </View>
-              <View className="flex-1">
-                <Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>Booking confirmed!</Text>
-                <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={2}>
-                  Your request is ready for technician assignment.
-                </Text>
-              </View>
+      </ScrollView>
+
+      {/* Booking confirmed + actions — Assign · WhatsApp · SMS · Barcode Print —
+          fixed at the bottom of the screen (was a popup that opened by itself). */}
+      <View
+        style={{
+          backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: '#E5E7EB',
+          paddingHorizontal: rs(14), paddingTop: rs(12), paddingBottom: insets.bottom + rs(12),
+          shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 10,
+        }}
+      >
+        <View style={colStyle}>
+          <View
+            className="flex-row items-center"
+            style={{ borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}
+          >
+            <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 11, marginRight: 10, backgroundColor: ACCENT }}>
+              <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" />
+            </View>
+            <View className="flex-1">
+              <Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>Booking confirmed!</Text>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={2}>
+                Your request is ready for technician assignment.
+              </Text>
             </View>
           </View>
-        </View>
 
-        {/* Booking actions — Assign · WhatsApp · SMS · Barcode Print, the
-            same actions a booking offers on the Bookings list. */}
-        <View style={{ paddingHorizontal: rs(14), marginTop: rs(10) }}>
-          <View className="flex-row" style={[{ marginHorizontal: -4 }, colStyle]}>
+          <View className="flex-row" style={{ marginHorizontal: -4, marginTop: rs(12) }}>
             <ActionTile icon="person-add-outline" label="Assign" color={PRIMARY} tint={MINT} onPress={assignTechnician} />
             <ActionTile icon="logo-whatsapp" label="WhatsApp" color="#16A34A" tint="#E6F7E3" onPress={shareWhatsApp} busy={sharing} disabled={sharing} />
             <ActionTile icon="chatbubble-ellipses-outline" label="SMS" color="#2563EB" tint="#E4EEFF" onPress={shareSms} />
             <ActionTile icon="barcode-outline" label="Barcode Print" color="#B45309" tint="#FFF0D2" onPress={printBarcode} />
           </View>
         </View>
-      </ScrollView>
+      </View>
 
       {/* Multi-device booking: pick whose barcode to print. */}
       <ResponsiveModal visible={barcodePickerOpen} onClose={() => setBarcodePickerOpen(false)}>
-        <Text style={{ fontSize: 16, fontWeight: '800', color: '#1E1E1E' }}>Print barcode for</Text>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }}>Print barcode for</Text>
         <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2, marginBottom: 10 }}>Each device has its own tracking ID.</Text>
         {bookedTickets.map(({ ticket, device }) => (
           <Pressable
@@ -235,13 +234,13 @@ export default function BookingThankYouScreen({ navigation, route }) {
             onPress={() => openBarcodeFor(ticket)}
             accessibilityRole="button"
             className="flex-row items-center active:opacity-80"
-            style={{ borderRadius: 14, borderWidth: 1, borderColor: '#E6E6E6', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}
+            style={{ borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}
           >
             <View className="items-center justify-center" style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: '#FFF0D2', marginRight: 10 }}>
               <Ionicons name="barcode-outline" size={17} color="#B45309" />
             </View>
             <View className="flex-1">
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E1E1E' }} numberOfLines={1}>{device.modelName || 'Device'}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{device.modelName || 'Device'}</Text>
               {ticket.trackingId ? (
                 <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }}>#{ticket.trackingId}</Text>
               ) : null}
@@ -274,15 +273,15 @@ function ActionTile({ icon, label, color, tint, onPress, busy = false, disabled 
       className="flex-1 items-center active:opacity-80"
       style={{
         marginHorizontal: 4, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14,
-        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F3F3', opacity: disabled && !busy ? 0.5 : 1,
-        shadowColor: '#1E1E1E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', opacity: disabled && !busy ? 0.5 : 1,
+        shadowColor: '#111111', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
       }}
     >
       <View className="items-center justify-center" style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: tint }}>
         {busy ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={19} color={color} />}
       </View>
       <Text
-        style={{ marginTop: 6, fontSize: 11.5, fontWeight: '800', color: '#1E1E1E', textAlign: 'center' }}
+        style={{ marginTop: 6, fontSize: 11.5, fontWeight: '800', color: '#111111', textAlign: 'center' }}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.8}

@@ -17,22 +17,22 @@ import { getOwnerKycDocuments } from '../../api/shops';
 import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — green #09AD2A, red #F84141, yellow #F3BF23, ink #1E1E1E,
-// neutrals #F8F8F8 / #F3F3F3.
+// GGFIX palette — green #035C6C, red #F84141, yellow #F3BF23, ink #111111,
+// neutrals #F3F4F6 / #F3F4F6.
 const C = {
-  green: '#09AD2A',
-  greenDark: '#078F23',
-  mint: '#EAF8EC',
+  green: '#035C6C',
+  greenDark: '#035C6C',
+  mint: '#E5F3F5',
   red: '#F84141',
   redTint: '#FEECEC',
   yellow: '#F3BF23',
   yellowInk: '#8A6A00',
   yellowTint: '#FFF8E1',
-  ink: '#1E1E1E',
-  muted: '#6B6B6B',
-  line: '#E6E6E6',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  ink: '#111111',
+  muted: '#6B7280',
+  line: '#E5E7EB',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   card: '#FFFFFF',
 };
 
@@ -245,7 +245,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                         accessibilityLabel={`View ${doc.title}`}
                       >
                         <DocumentPreview url={doc.url} label={doc.title} height={previewH} rounded={10} fit="contain" />
-                        <View style={{ position: 'absolute', right: 5, bottom: 5, height: 22, width: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(30,30,30,0.7)' }}>
+                        <View style={{ position: 'absolute', right: 5, bottom: 5, height: 22, width: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(17, 17, 17,0.7)' }}>
                           <Maximize2 size={11} color="#FFFFFF" />
                         </View>
                       </TouchableOpacity>

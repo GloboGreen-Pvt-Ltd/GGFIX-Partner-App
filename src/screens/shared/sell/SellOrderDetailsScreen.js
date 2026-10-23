@@ -8,22 +8,24 @@ import { getSellOrder, cancelSellOrder } from '../../../api/orders';
 import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions, getDeviceCategories } from '../../../api/masterData';
 import { listAddresses } from '../../../api/customer';
 import { confirm, notify } from '../../../components/confirm';
+import { resolveSpecCategory } from '../../../utils/deviceSpecs';
+import { imeiApplies } from '../../../utils/imeiPolicy';
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  deviceCard: { borderColor: '#087A0A', borderWidth: 1 },
-  summaryCard: { borderColor: '#16BB05', borderWidth: 1 },
-  customerCard: { borderColor: '#087A0A', borderWidth: 1 },
+  deviceCard: { borderColor: '#035C6C', borderWidth: 1 },
+  summaryCard: { borderColor: '#035C6C', borderWidth: 1 },
+  customerCard: { borderColor: '#035C6C', borderWidth: 1 },
   body: { flexDirection: 'row' },
   modelName: { fontSize: 15, fontWeight: '700', color: colors.text },
   small: { fontSize: 13, color: colors.text, marginTop: 2 },
-  thumb: { width: 80, height: 90, borderRadius: 8, backgroundColor: '#E2E8E2', marginLeft: 12 },
+  thumb: { width: 80, height: 90, borderRadius: 8, backgroundColor: '#E5E7EB', marginLeft: 12 },
   photoHeading: { fontSize: 12, fontWeight: '700', color: colors.text, marginTop: 10, marginBottom: 6 },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
   photoItem: { width: 92, marginHorizontal: 3, marginBottom: 6 },
-  photoBox: { width: '100%', height: 86, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C8EEBF', overflow: 'hidden', backgroundColor: '#F7FAF7' },
+  photoBox: { width: '100%', height: 86, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C7E6EA', overflow: 'hidden', backgroundColor: '#F3F4F6' },
   photoLabel: { fontSize: 10, color: colors.textSecondary, textAlign: 'center', marginTop: 3, fontWeight: '600' },
-  heading: { fontSize: 13, fontWeight: '700', color: '#16BB05', marginBottom: 8 },
+  heading: { fontSize: 13, fontWeight: '700', color: '#035C6C', marginBottom: 8 },
   subHeading: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 10, marginBottom: 2 },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 5 },
   itemText: { marginLeft: 6, fontSize: 12, color: colors.text, flex: 1, lineHeight: 16 },
@@ -54,7 +56,7 @@ const WARRANTY_LABELS = {
 const EDITABLE_STATUSES = new Set(['PENDING', 'PENDING_QUOTATION', 'AWAITING_QUOTATION', 'DRAFT']);
 
 function Check() {
-  return <Ionicons name="checkmark-circle-outline" size={15} color="#087A0A" style={{ marginTop: 1 }} />;
+  return <Ionicons name="checkmark-circle-outline" size={15} color="#035C6C" style={{ marginTop: 1 }} />;
 }
 
 async function confirmDestructive(title, message, onConfirm, confirmLabel = 'Confirm') {
@@ -222,7 +224,9 @@ export default function SellOrderDetailsScreen({ navigation, route }) {
               {order.color ? <Text style={styles.small}>Color: {order.color}</Text> : null}
               {storageLine ? <Text style={styles.small}>Storage: {storageLine}</Text> : null}
               <Text style={styles.small}>Device Condition: {conditionText}</Text>
-              <Text style={styles.small}>IMEI Number : {order.imei || '-'}</Text>
+              {imeiApplies(resolveSpecCategory(meta.categoryCode, meta.categoryName)) ? (
+                <Text style={styles.small}>IMEI Number : {order.imei || '-'}</Text>
+              ) : null}
             </View>
             {meta.image ? (
               <Image source={{ uri: meta.image }} style={styles.thumb} resizeMode="cover" />
@@ -302,13 +306,13 @@ export default function SellOrderDetailsScreen({ navigation, route }) {
         {/* Customer Details */}
         {address ? (
           <Card style={styles.customerCard}>
-            <Text style={[styles.heading, { color: '#087A0A' }]}>Customer Details</Text>
+            <Text style={[styles.heading, { color: '#035C6C' }]}>Customer Details</Text>
             <View style={styles.custRow}>
-              <Ionicons name="person-outline" size={16} color="#087A0A" style={{ marginTop: 1 }} />
+              <Ionicons name="person-outline" size={16} color="#035C6C" style={{ marginTop: 1 }} />
               <Text style={styles.custText}>{[address.fullName, phone].filter(Boolean).join('  |  ')}</Text>
             </View>
             <View style={styles.custRow}>
-              <Ionicons name="location-outline" size={16} color="#087A0A" style={{ marginTop: 1 }} />
+              <Ionicons name="location-outline" size={16} color="#035C6C" style={{ marginTop: 1 }} />
               <Text style={styles.custText}>{[address.addressLine, address.locality, address.city, address.state, address.pincode].filter(Boolean).join(', ')}</Text>
             </View>
           </Card>

@@ -9,14 +9,14 @@ import { LABEL_PRESETS, presetLabel, presetSizeText } from '../../../services/pr
 import { useLabelPreset } from '../../../services/printer/useLabelPreset';
 import LabelPreview from './LabelPreview';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
-const ACCENT = '#09AD2A';
-const PRIMARY = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F8F8F8';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const DANGER = '#B3261E';
 // Both cards draw their label at one shared scale: the widest preset fills
 // the card, a narrower one gets its width share (38mm -> 76%).
@@ -190,7 +190,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
                 <View
                   style={{
                     height: 18, width: 18, borderRadius: 9, marginLeft: 4, alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: active ? ACCENT : '#FFFFFF', borderWidth: active ? 0 : 1.5, borderColor: '#CFCFCF',
+                    backgroundColor: active ? ACCENT : '#FFFFFF', borderWidth: active ? 0 : 1.5, borderColor: '#D1D5DB',
                   }}
                 >
                   {active ? <Check size={12} color="#FFFFFF" strokeWidth={3} /> : null}

@@ -60,7 +60,7 @@ export default function NewBookingScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#172117" />
+          <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
         <Text style={styles.title}>New Booking</Text>
         <View style={{ width: 36 }} />
@@ -70,24 +70,24 @@ export default function NewBookingScreen({ navigation }) {
         <TouchableOpacity style={styles.newCustomerCard} onPress={goNewCustomer} activeOpacity={0.9}>
           <View style={styles.newCustomerIcon}>
             <Ionicons name="people" size={28} color="#FFFFFF" />
-            <Ionicons name="add-circle" size={16} color="#16BB05" style={styles.newCustomerPlus} />
+            <Ionicons name="add-circle" size={16} color="#035C6C" style={styles.newCustomerPlus} />
           </View>
           <Text style={styles.newCustomerText}>New Customer</Text>
         </TouchableOpacity>
 
         <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color="#8FA08F" />
+          <Ionicons name="search-outline" size={18} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search Existing Customer Name  or Mobile Number..."
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             value={q}
             onChangeText={setQ}
           />
         </View>
 
         {loading ? (
-          <ActivityIndicator size="small" color="#16BB05" style={{ marginTop: 24 }} />
+          <ActivityIndicator size="small" color="#035C6C" style={{ marginTop: 24 }} />
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
@@ -117,7 +117,7 @@ export default function NewBookingScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
     height: 48,
     flexDirection: 'row',
@@ -126,13 +126,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#172117' },
+  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   newCustomerCard: {
     alignSelf: 'center',
     width: 116,
     height: 116,
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -145,13 +145,13 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FAF7',
+    backgroundColor: '#F3F4F6',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 10,
   },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 13, color: '#172117' },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 13, color: '#111111' },
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,18 +164,18 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E2E8E2' },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E5E7EB' },
   customerMeta: { flex: 1, marginLeft: 10 },
-  customerName: { fontSize: 13, fontWeight: '700', color: '#172117' },
-  customerSub: { fontSize: 11, color: '#667066', marginTop: 1 },
+  customerName: { fontSize: 13, fontWeight: '700', color: '#111111' },
+  customerSub: { fontSize: 11, color: '#6B7280', marginTop: 1 },
   bookingBtn: {
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   bookingBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  empty: { textAlign: 'center', color: '#667066', marginTop: 30 },
+  empty: { textAlign: 'center', color: '#6B7280', marginTop: 30 },
   error: { textAlign: 'center', color: '#DC2626', marginTop: 16, paddingHorizontal: 16 },
 });
 

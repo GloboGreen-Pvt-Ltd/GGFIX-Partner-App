@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import { X } from 'lucide-react-native';
 import { rs } from '../../theme/metrics';
 import { C, S, SIZE, T } from './ledgerUi';
@@ -107,146 +108,152 @@ export default function LedgerFilterSheet({ visible, value, onClose, onApply }) 
   const active = GROUPS.find((g) => g.key === group) || GROUPS[0];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        className="flex-1 justify-end"
-        style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
-      >
-        {/* Swallows the backdrop press so a tap inside can't dismiss. */}
-        <Pressable
-          onPress={() => {}}
-          className="bg-card"
-          style={{ borderTopLeftRadius: rs(20), borderTopRightRadius: rs(20) }}
-        >
-          {/* ── header ─────────────────────────────────────────────── */}
-          <View
-            className="flex-row items-center"
-            style={{
-              paddingHorizontal: S.lg,
-              paddingVertical: S.md,
-              borderBottomWidth: 1,
-              borderBottomColor: C.hairline,
-            }}
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* The modal window's own insets — the screen's don't reach it. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <Pressable
+            onPress={onClose}
+            className="flex-1 justify-end"
+            style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)' }}
           >
-            <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }}>
-              Filter
-            </Text>
+            {/* Swallows the backdrop press so a tap inside can't dismiss. */}
             <Pressable
-              onPress={onClose}
-              hitSlop={rs(10)}
-              accessibilityRole="button"
-              accessibilityLabel="Close filter"
-              className="items-center justify-center active:opacity-60"
-              style={{ height: SIZE.headerIcon, width: SIZE.headerIcon }}
+              onPress={() => {}}
+              className="bg-card"
+              style={{ borderTopLeftRadius: rs(20), borderTopRightRadius: rs(20) }}
             >
-              <X size={rs(19)} color={C.ink} />
-            </Pressable>
-          </View>
+              {/* ── header ─────────────────────────────────────────────── */}
+              <View
+                className="flex-row items-center"
+                style={{
+                  paddingHorizontal: S.lg,
+                  paddingVertical: S.md,
+                  borderBottomWidth: 1,
+                  borderBottomColor: C.hairline,
+                }}
+              >
+                <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }}>
+                  Filter
+                </Text>
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={rs(10)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close filter"
+                  className="items-center justify-center active:opacity-60"
+                  style={{ height: SIZE.headerIcon, width: SIZE.headerIcon }}
+                >
+                  <X size={rs(19)} color={C.ink} />
+                </Pressable>
+              </View>
 
-          {/* ── rails ──────────────────────────────────────────────── */}
-          <View className="flex-row" style={{ height: rs(280) }}>
-            <View style={{ width: '36%', backgroundColor: C.field }}>
-              {GROUPS.map((g) => {
-                const on = g.key === active.key;
-                return (
-                  <Pressable
-                    key={g.key}
-                    onPress={() => setGroup(g.key)}
-                    className="justify-center active:opacity-70"
-                    style={{
-                      paddingVertical: S.lg,
-                      paddingHorizontal: S.md,
-                      // The marker is a left border rather than a separate view
-                      // so the label never shifts by a pixel when it lights up.
-                      borderLeftWidth: rs(3),
-                      borderLeftColor: on ? C.green : 'transparent',
-                      borderBottomWidth: 1,
-                      borderBottomColor: C.hairline,
-                      backgroundColor: on ? '#FFFFFF' : 'transparent',
-                    }}
-                  >
-                    <Text
-                      className="font-extrabold"
-                      style={{ fontSize: T.rowTitle, color: on ? C.green : C.ink }}
-                    >
-                      {g.title}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+              {/* ── rails ──────────────────────────────────────────────── */}
+              <View className="flex-row" style={{ height: rs(280) }}>
+                <View style={{ width: '36%', backgroundColor: C.field }}>
+                  {GROUPS.map((g) => {
+                    const on = g.key === active.key;
+                    return (
+                      <Pressable
+                        key={g.key}
+                        onPress={() => setGroup(g.key)}
+                        className="justify-center active:opacity-70"
+                        style={{
+                          paddingVertical: S.lg,
+                          paddingHorizontal: S.md,
+                          // The marker is a left border rather than a separate view
+                          // so the label never shifts by a pixel when it lights up.
+                          borderLeftWidth: rs(3),
+                          borderLeftColor: on ? C.green : 'transparent',
+                          borderBottomWidth: 1,
+                          borderBottomColor: C.hairline,
+                          backgroundColor: on ? '#FFFFFF' : 'transparent',
+                        }}
+                      >
+                        <Text
+                          className="font-extrabold"
+                          style={{ fontSize: T.rowTitle, color: on ? C.green : C.ink }}
+                        >
+                          {g.title}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            <ScrollView
-              className="flex-1"
-              contentContainerStyle={{ paddingVertical: S.xs }}
-              showsVerticalScrollIndicator={false}
-            >
-              {active.options.map((o) => {
-                const on = draft[active.key] === o.key;
-                return (
-                  <Pressable
-                    key={o.key}
-                    onPress={() => setDraft((d) => ({ ...d, [active.key]: o.key }))}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    className="flex-row items-center active:opacity-70"
-                    style={{ paddingHorizontal: S.lg, paddingVertical: S.md }}
-                  >
-                    <Text
-                      className="flex-1"
-                      style={{ fontSize: T.rowTitle, color: C.ink, fontWeight: on ? '800' : '500' }}
-                    >
-                      {o.label}
-                    </Text>
-                    <Radio selected={on} />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
+                <ScrollView
+                  className="flex-1"
+                  contentContainerStyle={{ paddingVertical: S.xs }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {active.options.map((o) => {
+                    const on = draft[active.key] === o.key;
+                    return (
+                      <Pressable
+                        key={o.key}
+                        onPress={() => setDraft((d) => ({ ...d, [active.key]: o.key }))}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                        className="flex-row items-center active:opacity-70"
+                        style={{ paddingHorizontal: S.lg, paddingVertical: S.md }}
+                      >
+                        <Text
+                          className="flex-1"
+                          style={{ fontSize: T.rowTitle, color: C.ink, fontWeight: on ? '800' : '500' }}
+                        >
+                          {o.label}
+                        </Text>
+                        <Radio selected={on} />
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-          {/* ── footer ─────────────────────────────────────────────── */}
-          <View
-            className="flex-row"
-            style={{
-              paddingHorizontal: S.lg,
-              paddingTop: S.md,
-              paddingBottom: S.lg,
-              borderTopWidth: 1,
-              borderTopColor: C.hairline,
-            }}
-          >
-            {/* Clear resets the draft in place instead of applying and closing:
-                the owner almost always picks something else straight after, and
-                closing the sheet would make them reopen it to do that. */}
-            <Pressable
-              onPress={() => setDraft(DEFAULT_LEDGER_FILTER)}
-              className="flex-1 items-center justify-center rounded-full active:opacity-70"
-              style={{
-                minHeight: SIZE.buttonMin,
-                marginRight: S.sm,
-                borderWidth: 1.5,
-                borderColor: C.green,
-                backgroundColor: '#FFFFFF',
-              }}
-            >
-              <Text className="font-extrabold" style={{ fontSize: T.button, color: C.green }}>
-                Clear
-              </Text>
+              {/* ── footer ─────────────────────────────────────────────── */}
+              <View
+                className="flex-row"
+                style={{
+                  paddingHorizontal: S.lg,
+                  paddingTop: S.md,
+                  // Edge-to-edge modal: Clear / Apply sit above the gesture / 3-button bar.
+                  paddingBottom: S.lg + insets.bottom,
+                  borderTopWidth: 1,
+                  borderTopColor: C.hairline,
+                }}
+              >
+                {/* Clear resets the draft in place instead of applying and closing:
+                    the owner almost always picks something else straight after, and
+                    closing the sheet would make them reopen it to do that. */}
+                <Pressable
+                  onPress={() => setDraft(DEFAULT_LEDGER_FILTER)}
+                  className="flex-1 items-center justify-center rounded-full active:opacity-70"
+                  style={{
+                    minHeight: SIZE.buttonMin,
+                    marginRight: S.sm,
+                    borderWidth: 1.5,
+                    borderColor: C.green,
+                    backgroundColor: '#FFFFFF',
+                  }}
+                >
+                  <Text className="font-extrabold" style={{ fontSize: T.button, color: C.green }}>
+                    Clear
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { onApply?.(draft); onClose?.(); }}
+                  className="flex-1 items-center justify-center rounded-full active:opacity-85"
+                  style={{ minHeight: SIZE.buttonMin, backgroundColor: C.green }}
+                >
+                  <Text className="font-extrabold" style={{ fontSize: T.button, color: '#FFFFFF' }}>
+                    Apply
+                  </Text>
+                </Pressable>
+              </View>
             </Pressable>
-            <Pressable
-              onPress={() => { onApply?.(draft); onClose?.(); }}
-              className="flex-1 items-center justify-center rounded-full active:opacity-85"
-              style={{ minHeight: SIZE.buttonMin, backgroundColor: C.green }}
-            >
-              <Text className="font-extrabold" style={{ fontSize: T.button, color: '#FFFFFF' }}>
-                Apply
-              </Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }

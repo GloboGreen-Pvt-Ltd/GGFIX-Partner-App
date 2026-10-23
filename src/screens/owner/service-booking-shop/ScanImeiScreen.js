@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Platform, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, Pressable, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { ScreenHeader } from '../../../components/rnr';
-import { notify } from '../../../components/confirm';
 
 // Barcode formats that can carry an IMEI number. Code128 is the most common
 // on phone packaging; we include EAN/UPC/datamatrix/qr too so the same screen
@@ -25,6 +25,8 @@ function normaliseImei(raw) {
 }
 
 export default function ScanImeiScreen({ navigation, route }) {
+  // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
+  const insets = useSafeAreaInsets();
   const onScan = route?.params?.onScan;
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -57,7 +59,7 @@ export default function ScanImeiScreen({ navigation, route }) {
   if (!permission) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#087A0A" />
+        <ActivityIndicator size="large" color="#035C6C" />
       </View>
     );
   }
@@ -136,7 +138,7 @@ export default function ScanImeiScreen({ navigation, route }) {
               return (
                 <View
                   key={i}
-                  style={{ position: 'absolute', top, bottom, left, right, width: 36, height: 36, borderColor: '#16BB05', ...borders }}
+                  style={{ position: 'absolute', top, bottom, left, right, width: 36, height: 36, borderColor: '#035C6C', ...borders }}
                 />
               );
             })}
@@ -148,7 +150,7 @@ export default function ScanImeiScreen({ navigation, route }) {
         </View>
 
         {/* Manual entry escape hatch */}
-        <View className="absolute left-0 right-0 bottom-0 px-6 pb-8">
+        <View className="absolute left-0 right-0 bottom-0 px-6" style={{ paddingBottom: 16 + insets.bottom }}>
           <Pressable
             onPress={() => navigation.goBack()}
             className="self-center bg-white/15 border border-white/30 rounded-full px-5 py-2"

@@ -33,7 +33,7 @@ export default function DeviceMissingPartsScreen({ route, navigation }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter Details"
-                placeholderTextColor="#8FA08F"
+                placeholderTextColor="#9CA3AF"
                 value={row.details}
                 onChangeText={(v) => updateRow(index, { details: v })}
               />
@@ -71,7 +71,7 @@ function Toggle({ label, active, onPress }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
   content: { padding: 12, paddingBottom: 24 },
   card: {
@@ -80,24 +80,24 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12,
   },
-  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 6 },
+  title: { fontSize: 13, fontWeight: '700', color: '#111111', marginBottom: 6 },
   row: {
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 9,
     marginBottom: 6,
   },
-  partName: { fontSize: 13, fontWeight: '600', color: '#172117', marginBottom: 4 },
+  partName: { fontSize: 13, fontWeight: '600', color: '#111111', marginBottom: 4 },
   input: {
-    backgroundColor: '#F7FAF7',
+    backgroundColor: '#F3F4F6',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 13,
-    color: '#172117',
+    color: '#111111',
     marginBottom: 8,
   },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -107,16 +107,16 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#8FA08F',
+    borderColor: '#9CA3AF',
     marginRight: 6,
   },
   checkboxActive: {
-    backgroundColor: '#087A0A',
-    borderColor: '#16BB05',
+    backgroundColor: '#035C6C',
+    borderColor: '#035C6C',
   },
-  toggleLabel: { fontSize: 12, color: '#172117' },
+  toggleLabel: { fontSize: 12, color: '#111111' },
   button: {
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     paddingVertical: 12,
     borderRadius: 999,
     alignItems: 'center',

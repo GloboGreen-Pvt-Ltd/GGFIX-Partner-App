@@ -10,8 +10,8 @@ import { getSession } from '../auth/session';
  *     back to the persisted session); without coordinates the request is sent
  *     without lat/lng, exactly as the Buy screen does;
  *   - radiusKm = 20;
- *   - excludeSellerId = the signed-in user, and the shop's own listings are
- *     dropped client-side.
+ *   - excludeSellerId = the signed-in user, and listings from any of the
+ *     owner's shops (not only the active one) are dropped client-side.
  */
 export const NEARBY_RADIUS_KM = 20;
 
@@ -20,10 +20,24 @@ export async function getListingOrigin() {
   if (!session) session = await getSession();
   const shop = session?.activeShop;
   const shopId = shop?.id || session?.shopId || null;
+  const ownShopIds = ownShopIdsOf(session, shopId);
   if (shop && shop.latitude != null && shop.longitude != null) {
-    return { lat: Number(shop.latitude), lng: Number(shop.longitude), shopName: shop.name, sellerId: session?.userId, shopId };
+    return { lat: Number(shop.latitude), lng: Number(shop.longitude), shopName: shop.name, sellerId: session?.userId, shopId, ownShopIds };
   }
-  return { lat: null, lng: null, shopName: session?.shopName, sellerId: session?.userId, shopId };
+  return { lat: null, lng: null, shopName: session?.shopName, sellerId: session?.userId, shopId, ownShopIds };
+}
+
+/** Every shop this owner runs (active one included) — none of them should
+ *  show up for the owner to buy from. */
+export function ownShopIdsOf(session, shopId) {
+  return [shopId, ...(session?.shops || []).map((s) => s?.id)].filter(Boolean);
+}
+
+/** True when a listing / product belongs to the signed-in owner. */
+export function isOwnListing(origin, row) {
+  if (!row) return false;
+  if (row.shopId && (origin?.ownShopIds || [origin?.shopId]).includes(row.shopId)) return true;
+  return !!origin?.sellerId && (row.sellerUserId === origin.sellerId || row.sellerId === origin.sellerId);
 }
 
 export async function fetchNearbyListings(origin) {
@@ -32,8 +46,7 @@ export async function fetchNearbyListings(origin) {
   if (origin?.sellerId) params.excludeSellerId = origin.sellerId;
   const data = await marketplaceApi.get('/marketplace/buy/nearby', { query: params });
   const list = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
-  const myShopId = origin?.shopId || null;
-  return (list || []).filter((l) => !myShopId || l.shopId !== myShopId);
+  return (list || []).filter((l) => !isOwnListing(origin, l));
 }
 
 // ── Shared display helpers (same rules as OwnerBuyListingScreen) ────────────

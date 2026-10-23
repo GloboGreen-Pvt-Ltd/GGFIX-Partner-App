@@ -66,7 +66,7 @@ const STEPS = [
 ];
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.10,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 6 },

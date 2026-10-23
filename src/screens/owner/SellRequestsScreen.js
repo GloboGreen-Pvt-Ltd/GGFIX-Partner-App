@@ -4,7 +4,6 @@ import {
   FlatList,
   Image,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import { ChevronLeft, ChevronRight, MapPin, Navigation, Phone, RefreshCw, Smartphone, Sparkles, User, X, Info, Send } from 'lucide-react-native';
 import {
   getListingOrigin, fetchNearbyListings, NEARBY_RADIUS_KM,
@@ -34,22 +34,22 @@ import { normalizeDeviceImageUrl } from '../../utils/images';
  */
 
 // GGFIX palette.
-const ACCENT = '#09AD2A';       // fills, icons
-const ACCENT_TEXT = '#078F23';  // green TEXT
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const SOFT_MINT = '#F8F8F8';
-const PAGE_BG = '#F8F8F8';
-const BORDER = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const ACCENT = '#035C6C';       // fills, icons
+const ACCENT_TEXT = '#035C6C';  // green TEXT
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
+const BORDER = '#E5E7EB';
+const HAIR = '#F3F4F6';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const AMBER = '#8A6A00';        // yellow-palette TEXT
 const AMBER_BG = '#FFF8E1';
 const AMBER_LINE = '#F6DE8C';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.04,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 2 },
@@ -166,98 +166,103 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
   const customer = listingCustomerName(item);
   const condition = item.condition ? listingConditionLabel(item.condition) : null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(30,30,30,0.5)', justifyContent: 'flex-end' }}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%' }}>
-          <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
-            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: TEXT_PRIMARY }}>Sell Request</Text>
-              <Pressable onPress={onClose} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
-                <X size={15} color={TEXT_PRIMARY} />
-              </Pressable>
-            </View>
-
-            {/* Device + customer */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 10, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}>
-              <DeviceImage uri={item.productImage} size={64} radius={12} />
-              <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-                <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY }} numberOfLines={2}>{item.productName || 'Device'}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                  <User size={11} color={TEXT_SECONDARY} />
-                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: 4 }} numberOfLines={1}>{customer} · Customer listing</Text>
+    <SafeModal visible transparent animationType="fade" onRequestClose={onClose}>
+      {/* Clears this modal window's own nav-bar / home-indicator inset. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17,0.5)', justifyContent: 'flex-end' }}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%' }}>
+              <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 + insets.bottom }}>
+                <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: TEXT_PRIMARY }}>Sell Request</Text>
+                  <Pressable onPress={onClose} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
+                    <X size={15} color={TEXT_PRIMARY} />
+                  </Pressable>
                 </View>
-                {price.label ? (
-                  price.open ? (
-                    <View style={{ alignSelf: 'flex-start', marginTop: 5, backgroundColor: AMBER_BG, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: AMBER }}>{price.label}</Text>
+
+                {/* Device + customer */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 10, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}>
+                  <DeviceImage uri={item.productImage} size={64} radius={12} />
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY }} numberOfLines={2}>{item.productName || 'Device'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                      <User size={11} color={TEXT_SECONDARY} />
+                      <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: 4 }} numberOfLines={1}>{customer} · Customer listing</Text>
                     </View>
-                  ) : (
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT_TEXT, marginTop: 4 }}>Expected {price.label}</Text>
-                  )
-                ) : null}
-              </View>
-            </View>
-
-            {/* Details */}
-            <View style={{ marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: HAIR, backgroundColor: '#FFFFFF' }}>
-              {[
-                ['Condition', condition],
-                ['Location', place],
-                ['Distance', distance],
-                ['Phone', phone],
-                ['Description', item.description],
-              ]
-                .filter(([, v]) => v)
-                .map(([k, v], i, arr) => (
-                  <View key={k} style={{ flexDirection: 'row', paddingHorizontal: 11, paddingVertical: 8, borderBottomWidth: i === arr.length - 1 ? 0 : 1, borderBottomColor: HAIR }}>
-                    <Text style={{ width: 88, fontSize: 11, color: TEXT_SECONDARY, fontWeight: '600' }}>{k}</Text>
-                    <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY }}>{v}</Text>
+                    {price.label ? (
+                      price.open ? (
+                        <View style={{ alignSelf: 'flex-start', marginTop: 5, backgroundColor: AMBER_BG, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: AMBER }}>{price.label}</Text>
+                        </View>
+                      ) : (
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT_TEXT, marginTop: 4 }}>Expected {price.label}</Text>
+                      )
+                    ) : null}
                   </View>
-                ))}
-            </View>
+                </View>
 
-            {/* Actions that work today */}
-            <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
-              <Pressable
-                onPress={onOpenDetails}
-                className="active:opacity-85"
-                style={{ flex: 1, height: 42, borderRadius: 12, backgroundColor: ACCENT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>View Full Details</Text>
-                <ChevronRight size={15} color="#FFFFFF" style={{ marginLeft: 3 }} />
-              </Pressable>
-              {phone ? (
-                <Pressable
-                  onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
-                  className="active:opacity-85"
-                  style={{ height: 42, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                {/* Details */}
+                <View style={{ marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: HAIR, backgroundColor: '#FFFFFF' }}>
+                  {[
+                    ['Condition', condition],
+                    ['Location', place],
+                    ['Distance', distance],
+                    ['Phone', phone],
+                    ['Description', item.description],
+                  ]
+                    .filter(([, v]) => v)
+                    .map(([k, v], i, arr) => (
+                      <View key={k} style={{ flexDirection: 'row', paddingHorizontal: 11, paddingVertical: 8, borderBottomWidth: i === arr.length - 1 ? 0 : 1, borderBottomColor: HAIR }}>
+                        <Text style={{ width: 88, fontSize: 11, color: TEXT_SECONDARY, fontWeight: '600' }}>{k}</Text>
+                        <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY }}>{v}</Text>
+                      </View>
+                    ))}
+                </View>
+
+                {/* Actions that work today */}
+                <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
+                  <Pressable
+                    onPress={onOpenDetails}
+                    className="active:opacity-85"
+                    style={{ flex: 1, height: 42, borderRadius: 12, backgroundColor: ACCENT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>View Full Details</Text>
+                    <ChevronRight size={15} color="#FFFFFF" style={{ marginLeft: 3 }} />
+                  </Pressable>
+                  {phone ? (
+                    <Pressable
+                      onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
+                      className="active:opacity-85"
+                      style={{ height: 42, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Phone size={14} color={ACCENT} />
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT_TEXT, marginLeft: 5 }}>Call</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {/* Quotation — disabled until the listing is linked to its Sell Order. */}
+                <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'flex-start', backgroundColor: AMBER_BG, borderWidth: 1, borderColor: AMBER_LINE, borderRadius: 12, padding: 9 }}>
+                  <Info size={14} color={AMBER} style={{ marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 11, color: AMBER, marginLeft: 7, lineHeight: 16 }}>
+                    Sending a quote for customer sell requests isn't switched on yet — it needs this request to be linked to its sell order on the Near G Fix server.
+                  </Text>
+                </View>
+                <View
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
+                  style={{ marginTop: 8, height: 42, borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <Phone size={14} color={ACCENT} />
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT_TEXT, marginLeft: 5 }}>Call</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {/* Quotation — disabled until the listing is linked to its Sell Order. */}
-            <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'flex-start', backgroundColor: AMBER_BG, borderWidth: 1, borderColor: AMBER_LINE, borderRadius: 12, padding: 9 }}>
-              <Info size={14} color={AMBER} style={{ marginTop: 1 }} />
-              <Text style={{ flex: 1, fontSize: 11, color: AMBER, marginLeft: 7, lineHeight: 16 }}>
-                Sending a quote for customer sell requests isn't switched on yet — it needs this request to be linked to its sell order on the GGFIX server.
-              </Text>
-            </View>
-            <View
-              accessibilityRole="button"
-              accessibilityState={{ disabled: true }}
-              style={{ marginTop: 8, height: 42, borderRadius: 12, backgroundColor: '#F3F3F3', borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Send size={14} color="#9A9A9A" />
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#9A9A9A', marginLeft: 6 }}>Send Quote</Text>
-            </View>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+                  <Send size={14} color="#9CA3AF" />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#9CA3AF', marginLeft: 6 }}>Send Quote</Text>
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }
 

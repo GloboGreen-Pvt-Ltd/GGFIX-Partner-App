@@ -618,7 +618,7 @@ export default function OwnerCashBookScreen({ navigation }) {
                 paddingVertical: S.tight,
                 minHeight: rs(34),
                 marginRight: S.xs,
-                backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
+                backgroundColor: active ? '#E5F3F5' : '#FFFFFF',
                 borderWidth: 1.5,
                 borderColor: active ? C.green : C.border,
               }}

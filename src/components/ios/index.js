@@ -36,34 +36,34 @@ import { Check, ChevronRight } from 'lucide-react-native';
 export const HAIRLINE = StyleSheet.hairlineWidth;
 
 // Brand green, kept as the app's tint colour.
-export const GREEN = '#087A0A';
-export const GREEN_LIGHT = '#16BB05';
-export const GREEN_DARK = '#087A0A';
+export const GREEN = '#035C6C';
+export const GREEN_LIGHT = '#035C6C';
+export const GREEN_DARK = '#035C6C';
 
 // iOS semantic colours (light appearance).
 export const C = {
   groupedBg: '#FFFFFF',                 // systemGroupedBackground
   card: '#FFFFFF',                      // secondarySystemGroupedBackground
-  fill: 'rgba(143, 160, 143, 0.12)',       // tertiarySystemFill
-  highlight: 'rgba(143, 160, 143, 0.20)',  // row press highlight
-  label: '#172117',
-  label2: 'rgba(23, 33, 23, 0.60)',        // secondaryLabel
-  label3: 'rgba(23, 33, 23, 0.30)',        // tertiaryLabel
-  separator: 'rgba(23, 33, 23, 0.16)',     // lighter than iOS 18 — glass wants less line
-  placeholder: '#8FA08F',
+  fill: 'rgba(156, 163, 175, 0.12)',       // tertiarySystemFill
+  highlight: 'rgba(156, 163, 175, 0.20)',  // row press highlight
+  label: '#111111',
+  label2: 'rgba(17, 17, 17, 0.60)',        // secondaryLabel
+  label3: 'rgba(17, 17, 17, 0.30)',        // tertiaryLabel
+  separator: 'rgba(17, 17, 17, 0.16)',     // lighter than iOS 18 — glass wants less line
+  placeholder: '#9CA3AF',
   tint: GREEN,
   // System palette for icon tiles.
-  blue: '#16BB05',
-  green: '#16BB05',
-  indigo: '#16BB05',
+  blue: '#035C6C',
+  green: '#035C6C',
+  indigo: '#035C6C',
   orange: '#F59E0B',
   pink: '#DC2626',
-  purple: '#16BB05',
-  teal: '#16BB05',
-  cyan: '#16BB05',
+  purple: '#035C6C',
+  teal: '#035C6C',
+  cyan: '#035C6C',
   red: '#DC2626',
   yellow: '#F59E0B',
-  grey: '#8FA08F',
+  grey: '#9CA3AF',
 };
 
 // Liquid Glass surface recipe. `fill` is deliberately high-opacity: without a
@@ -75,21 +75,21 @@ export const GLASS = {
   edge: 'rgba(255,255,255,0.85)',       // specular top edge
   hairline: 'rgba(255,255,255,0.55)',   // inner light border
   shadow: {
-    shadowColor: '#0B1F14',
+    shadowColor: '#111111',
     shadowOpacity: 0.10,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
   tileShadow: {
-    shadowColor: '#0B1F14',
+    shadowColor: '#111111',
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   chromeShadow: {
-    shadowColor: '#0B1F14',
+    shadowColor: '#111111',
     shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },

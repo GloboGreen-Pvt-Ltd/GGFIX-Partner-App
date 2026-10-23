@@ -35,6 +35,26 @@ const MARGIN_MM = 2;
 const TOP_FONT = { name: '3', charWidth: 16, height: 24 }; // service number, centered
 const TEXT_FONT = { name: '2', charWidth: 12, height: 20 }; // brand+model / customer / security
 const BOTTOM_FONT = { name: '1', charWidth: 10, height: 12 }; // created-on (10, not 8: conservative)
+// A detail line too long for TEXT_FONT drops to this smaller font, then wraps
+// onto two lines — so the narrow 38mm label shows the full value, not "…".
+const SMALL_FONT = { name: '1', charWidth: 8, height: 12 };
+const SMALL_LINE_STEP = 14; // dots from one wrapped small line to the next
+const BIG_FONT = { name: '3', charWidth: 16, height: 24 };
+// Device-lock line goes one built-in font size up (TSPL fonts are fixed sizes,
+// so this is the closest to a small bump): 20→24 dots, or 24→32 on BarCode1.
+// Still falls back to the normal fonts when the value is too long.
+const XL_FONT = { name: '4', charWidth: 24, height: 32 };
+const bumpFont = (f) => (f.height < BIG_FONT.height ? BIG_FONT : XL_FONT);
+
+// Per-preset sizing. The wider 50mm BarCode1 label has room for a bigger QR
+// (5-dot modules) and a bigger detail font; each detail line uses the first
+// font in `detailFonts` it fits in, the last one wrapping onto two lines.
+const DEFAULT_TUNING = { qrCell: 4, detailFonts: [TEXT_FONT, SMALL_FONT] };
+const PRESET_TUNING = {
+  // qrShift moves the QR (and the detail column with it); textShift adds dots
+  // between the QR and the detail column.
+  barcode1: { qrCell: 5, detailFonts: [BIG_FONT, TEXT_FONT, SMALL_FONT], qrShift: 10, textShift: 2 },
+};
 
 // Main row: QR on the left, three unlabeled detail lines on the right.
 const QR_Y_MM = 6;
@@ -85,6 +105,7 @@ function qrModules(data) {
  */
 export function computeLabelLayout(preset = DEFAULT_LABEL_PRESET, qrData = '') {
   const p = resolveLabelPreset(preset);
+  const tuning = PRESET_TUNING[p.id] || DEFAULT_TUNING;
   const widthDots = mm(p.widthMm);
   const heightDots = mm(p.heightMm);
   const margin = mm(MARGIN_MM);
@@ -100,10 +121,10 @@ export function computeLabelLayout(preset = DEFAULT_LABEL_PRESET, qrData = '') {
   const qrY = mm(QR_Y_MM);
   const modules = qrModules(qrData);
   const qrMaxSize = bottomY - mm(0.5) - qrY;
-  const cell = Math.max(2, Math.min(QR_CELL_SIZE, Math.floor(qrMaxSize / modules)));
-  const qr = { x: margin, y: qrY, size: modules * cell, cell };
+  const cell = Math.max(2, Math.min(tuning.qrCell || QR_CELL_SIZE, Math.floor(qrMaxSize / modules)));
+  const qr = { x: Math.max(0, margin + (tuning.qrShift || 0)), y: qrY, size: modules * cell, cell };
 
-  const textX = qr.x + qr.size + mm(QR_TEXT_GAP_MM);
+  const textX = qr.x + qr.size + mm(QR_TEXT_GAP_MM) + (tuning.textShift || 0);
   const textWidth = widthDots - margin - textX;
   const text = {
     ...TEXT_FONT,
@@ -111,6 +132,7 @@ export function computeLabelLayout(preset = DEFAULT_LABEL_PRESET, qrData = '') {
     ys: TEXT_LINE_OFFSETS_MM.map((o) => qr.y + mm(o)),
     width: textWidth,
     maxChars: Math.max(1, Math.floor(textWidth / TEXT_FONT.charWidth)),
+    fonts: tuning.detailFonts,
   };
 
   return { preset: p, widthDots, heightDots, margin, top, qr, text, bottom };
@@ -127,6 +149,34 @@ function truncate(value, max) {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
+/**
+ * Fits one detail value into the text column: TEXT_FONT on one line if it fits,
+ * else SMALL_FONT on one line, else SMALL_FONT word-wrapped onto two lines
+ * (only a value longer than two small lines still ends in "…").
+ * `dy` is each line's offset from the slot's y, keeping the block centred on it.
+ */
+export function fitDetail(value, text) {
+  const s = String(value ?? '').trim();
+  const fonts = text.fonts || DEFAULT_TUNING.detailFonts;
+  const slotH = fonts[0].height;
+  const maxFor = (f) => Math.max(1, Math.floor(text.width / f.charWidth));
+  for (const f of fonts) {
+    if (s.length <= maxFor(f)) return { font: f, lines: [{ text: s, dy: Math.round((slotH - f.height) / 2) }] };
+  }
+  const small = fonts[fonts.length - 1];
+  const smallMax = maxFor(small);
+  let first = '';
+  for (const w of s.split(/\s+/)) {
+    const next = first ? `${first} ${w}` : w;
+    if (next.length > smallMax) break;
+    first = next;
+  }
+  if (!first) first = s.slice(0, smallMax);
+  const rest = truncate(s.slice(first.length), smallMax);
+  const top = Math.round((slotH - small.height) / 2) - Math.round(SMALL_LINE_STEP / 2);
+  return { font: small, lines: [{ text: first, dy: top }, { text: rest, dy: top + SMALL_LINE_STEP }] };
+}
+
 /** Rough horizontal center within a band, with no native TSPL text-align. */
 function centerX(text, band) {
   const widthDots = text.length * band.charWidth;
@@ -139,11 +189,18 @@ function centerX(text, band) {
  * or runs into the QR. LabelPreview shows these same strings.
  */
 export function labelTexts(data, layout) {
+  // The three detail lines, fitted (font + one or two lines each).
+  const baseFonts = layout.text.fonts || DEFAULT_TUNING.detailFonts;
+  const securityText = { ...layout.text, fonts: [bumpFont(baseFonts[0]), ...baseFonts] };
+  const details = [data?.brandModel, data?.customerName, data?.deviceSecurity]
+    .map((v, i) => fitDetail(v, i === 2 ? securityText : layout.text));
+  const joined = (d) => d.lines.map((l) => l.text).join(' ');
   return {
     serviceNumber: truncate(data?.trackingId, layout.top.maxChars),
-    brandModel: truncate(data?.brandModel, layout.text.maxChars),
-    customerName: truncate(data?.customerName, layout.text.maxChars),
-    deviceSecurity: truncate(data?.deviceSecurity, layout.text.maxChars),
+    details,
+    brandModel: joined(details[0]),
+    customerName: joined(details[1]),
+    deviceSecurity: joined(details[2]),
     createdLine: data?.createdOn
       ? truncate(`${data.createdOn.date}  ${data.createdOn.time}`, layout.bottom.maxChars)
       : '',
@@ -175,9 +232,7 @@ export function buildLabelCommand(data, opts = {}) {
     // trackingId the on-screen QR already encodes (LabelPreview.js /
     // BarcodePrintScreen.js), unchanged.
     `QRCODE ${qr.x},${qr.y},H,${qr.cell},A,0,"${esc(data?.trackingId)}"`,
-    `TEXT ${text.x},${text.ys[0]},"${text.name}",0,1,1,"${esc(t.brandModel)}"`,
-    `TEXT ${text.x},${text.ys[1]},"${text.name}",0,1,1,"${esc(t.customerName)}"`,
-    `TEXT ${text.x},${text.ys[2]},"${text.name}",0,1,1,"${esc(t.deviceSecurity)}"`,
+    ...t.details.flatMap((d, i) => d.lines.map((l) => `TEXT ${text.x},${text.ys[i] + l.dy},"${d.font.name}",0,1,1,"${esc(l.text)}"`)),
     ...(t.createdLine ? [`TEXT ${centerX(t.createdLine, bottom)},${bottom.y},"${bottom.name}",0,1,1,"${esc(t.createdLine)}"`] : []),
     `PRINT ${copies}`,
   ];

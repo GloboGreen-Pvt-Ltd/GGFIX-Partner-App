@@ -45,7 +45,7 @@ export default function DeviceSecurityScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
   content: { padding: 12, paddingBottom: 24 },
   card: {
@@ -54,40 +54,40 @@ const styles = StyleSheet.create({
     padding: 11,
     marginBottom: 12,
   },
-  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 4 },
-  subtitle: { fontSize: 12, color: '#667066', marginBottom: 8 },
+  title: { fontSize: 13, fontWeight: '700', color: '#111111', marginBottom: 4 },
+  subtitle: { fontSize: 12, color: '#6B7280', marginBottom: 8 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8E2',
+    borderBottomColor: '#E5E7EB',
   },
   optionRowActive: {
-    backgroundColor: '#F0F8EF',
+    backgroundColor: '#E5F3F5',
   },
   radioOuter: {
     width: 18,
     height: 18,
     borderRadius: 9,
     borderWidth: 1,
-    borderColor: '#8FA08F',
+    borderColor: '#9CA3AF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
   },
   radioOuterActive: {
-    borderColor: '#16BB05',
+    borderColor: '#035C6C',
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#16BB05',
+    backgroundColor: '#035C6C',
   },
-  optionLabel: { fontSize: 13, color: '#172117' },
+  optionLabel: { fontSize: 13, color: '#111111' },
   button: {
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     paddingVertical: 12,
     borderRadius: 999,
     alignItems: 'center',

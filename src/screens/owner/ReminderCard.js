@@ -26,12 +26,12 @@ import { formatPhone } from '../../api/ledgerParties';
 
 export const REMINDER_CARD_WIDTH = 380;
 
-const GREEN = '#087A0A';
-const INK = '#172117';
-const MUTED = '#667066';
+const GREEN = '#035C6C';
+const INK = '#111111';
+const MUTED = '#6B7280';
 const AMBER = '#B45309';
 const AMBER_TINT = '#FEF3C7';
-const HAIRLINE = '#E6EDE5';
+const HAIRLINE = '#E5F3F5';
 
 /**
  * @param {string} shopName
@@ -147,7 +147,7 @@ export default function ReminderCard({
 
         <View
           style={{
-            backgroundColor: '#F3F8F2',
+            backgroundColor: '#E5F3F5',
             paddingHorizontal: 16,
             paddingVertical: 10,
             borderTopWidth: 1,

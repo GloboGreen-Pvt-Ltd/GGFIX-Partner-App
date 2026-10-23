@@ -3,8 +3,8 @@
  * src/lib/productDetect/index.js in both). App-specific I/O lives in
  * ./sources.js (server identify, visual search, catalogue); ranking in ./core.js.
  *
- *   camera / gallery → preparePhoto (resize + JPEG) → OCR ∥ server identify
- *   → catalogue ranking → visual search only if still unsure → result
+ *   camera / gallery → preparePhoto (resize + JPEG) → OCR → server identify
+ *   (with the OCR text) ∥ visual search → catalogue ranking → result
  */
 import { Platform } from 'react-native';
 import { buildIndex, detectProduct } from './core';
@@ -66,27 +66,39 @@ export function warmProductDetect() { catalogIndex().catch(() => {}); }
  * { status: 'exact'|'choose'|'none', best, candidates (≤3, each with .ref =
  *   the app's own catalogue row and .confidence 0..1), confidence, reason, label }
  * Throws only when the catalogue itself can't load (offline).
+ * opts.source: 'CAMERA' | 'GALLERY' (sent to the server for its metrics).
  */
-export async function detectProductFromPhoto(uri, dims) {
+export async function detectProductFromPhoto(uri, dims, { source } = {}) {
   const started = Date.now();
   const photo = await preparePhoto(uri, dims);
-  const [ocr, identify, index, visual] = await Promise.all([
-    runOcr(photo.uri),
-    sources.identify(photo).catch((e) => ({ ok: false, error: e?.message || 'identify failed' })),
-    catalogIndex(),
-    // In parallel from the start: the matcher service also READS the photo's
-    // text server-side (model name / number on the device, box, sticker or
-    // About-phone screen) — the strongest signal when this build has no OCR.
-    // Capped so a slow / unreachable service never stalls the scanner.
-    sources.visual
-      ? Promise.race([
-        sources.visual(photo, {}).catch(() => null),
-        new Promise((resolve) => setTimeout(() => resolve(null), VISUAL_TIMEOUT_MS)),
-      ])
-      : Promise.resolve(null),
+  // In parallel from the start: the matcher service also READS the photo's
+  // text server-side (model name / number on the device, box, sticker or
+  // About-phone screen) — the strongest signal when this build has no OCR.
+  // Capped so a slow / unreachable service never stalls the scanner.
+  const visualP = sources.visual
+    ? Promise.race([
+      sources.visual(photo, {}).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), VISUAL_TIMEOUT_MS)),
+    ])
+    : Promise.resolve(null);
+  const indexP = catalogIndex();
+  indexP.catch(() => {}); // rejection is handled below; avoid an early unhandled warning
+  // On-device OCR first (well under a second): the server gets the text it
+  // read, so a model name / number on the device or box counts as evidence
+  // there too, next to the photo's look and the AI's answer.
+  const ocr = await runOcr(photo.uri);
+  const [identify, index, visual] = await Promise.all([
+    sources.identify(photo, { ocrText: ocr.ok && ocr.text ? ocr.text : undefined, source })
+      .catch((e) => ({ ok: false, error: e?.message || 'identify failed' })),
+    indexP,
+    visualP,
   ]);
   const ocrText = [ocr.text, visual?.ocrText].filter(Boolean).join('\n');
   const result = detectProduct(index, { ocrText, identify, visual: visual?.ok ? visual : null });
+  // Why the server identify didn't help (e.g. RATE_LIMITED) — for the message.
+  if (!identify.ok) { result.serverError = identify.error || null; result.retryAfterSeconds = identify.retryAfterSeconds ?? null; }
+  // For feedback: which model the user finally picked for this scan.
+  result.scanId = identify.ok ? identify.scanId || null : null;
   // Debug trail: why this device (or none) and how sure.
   console.log('[DETECT]', JSON.stringify({
     status: result.status,

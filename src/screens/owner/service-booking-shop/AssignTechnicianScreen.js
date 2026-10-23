@@ -30,14 +30,12 @@ export default function AssignTechnicianScreen({ navigation, route }) {
       for (const t of tickets) {
         await ticketApi.patch(`/tickets/${t.id}`, { body: { assignedTechnicianId: tech.id } });
       }
-      // Re-assign flow from TicketDetail: pop back so the detail screen's
-      // focus listener refetches and shows the new technician.
-      if (returnToTicketId) {
-        notify('Technician assigned', `${tech.name || 'Technician'} has been assigned.`);
-        navigation.goBack();
-        return;
-      }
-      navigation.replace('BookingSuccessful', { tickets, customer, devices, assignedTech: tech });
+      // No separate success screen: show the (system) toast, then —
+      // re-assign from TicketDetail: pop back so its focus listener refetches;
+      // new booking (Thank You page): straight to Home.
+      notify('Technician assigned', `${tech.name || 'Technician'} has been assigned.`, { preset: 'done' });
+      if (returnToTicketId) navigation.goBack();
+      else navigation.navigate('OwnerTabs', { screen: 'Home' });
     } catch (e) {
       notify('Error', e?.message || 'Failed to assign');
     } finally { setBusy(null); }
@@ -48,12 +46,12 @@ export default function AssignTechnicianScreen({ navigation, route }) {
       <ScreenHeader title="Technician Assign" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerClassName="px-4 pt-4 pb-12">
         <View className="flex-row items-center mb-4">
-          <Ionicons name="person" size={22} color="#172117" />
+          <Ionicons name="person" size={22} color="#111111" />
           <Text className="ml-2 font-bold text-text">All Technician List</Text>
         </View>
 
         {loading ? (
-          <ActivityIndicator color="#004C40" />
+          <ActivityIndicator color="#035C6C" />
         ) : techs.length === 0 ? (
           <Text className="text-text-muted text-center py-12">No technicians registered for this shop</Text>
         ) : techs.map((t) => {
@@ -75,7 +73,7 @@ export default function AssignTechnicianScreen({ navigation, route }) {
                 // still carries the old green for that token. `bg-purple-500`
                 // was here before and was simply wrong — nothing else in this
                 // app is purple. Button forwards `style` onto its Pressable.
-                style={{ backgroundColor: '#004C40' }}
+                style={{ backgroundColor: '#035C6C' }}
                 size="sm"
                 loading={busy === t.id}
                 disabled={!isAvailable}

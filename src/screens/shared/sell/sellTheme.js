@@ -5,8 +5,8 @@ import { ArrowRight, Check, PencilLine } from 'lucide-react-native';
 
 /**
  * Shared look for the Sell flow (Sell home → Your Device → Choose Description
- * → assessment steps → price → listed). GGFIX palette: green #09AD2A, ink
- * #1E1E1E, white, neutrals #F8F8F8 / #F3F3F3.
+ * → assessment steps → price → listed). GGFIX palette: green #035C6C, ink
+ * #111111, white, neutrals #F3F4F6 / #F3F4F6.
  *
  * Kept local to the Sell flow on purpose — theme/colors.js and
  * components/ui.js are shared by 40+ other screens.
@@ -15,16 +15,16 @@ import { ArrowRight, Check, PencilLine } from 'lucide-react-native';
  * drops `style={({ pressed }) => …}` functions (see components/ios/index.js).
  */
 export const SELL = {
-  green: '#09AD2A',
-  greenDark: '#078F23', // green text on white / light-green fills
-  greenLight: '#EAF8EC',
-  greenLine: '#CDEFD5',
-  ink: '#1E1E1E',
-  muted: '#6B6B6B',
-  subtle: '#8E8E8E',
-  line: '#E6E6E6',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  green: '#035C6C',
+  greenDark: '#035C6C', // green text on white / light-green fills
+  greenLight: '#E5F3F5',
+  greenLine: '#C7E6EA',
+  ink: '#111111',
+  muted: '#6B7280',
+  subtle: '#9CA3AF',
+  line: '#E5E7EB',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   card: '#FFFFFF',
   danger: '#DC2626',
   dangerLight: '#FDECEC',
@@ -34,7 +34,7 @@ export const SELL = {
 };
 
 export const sellShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
@@ -95,7 +95,7 @@ export function SellFooter({ caption, children }) {
         backgroundColor: SELL.card,
         borderTopWidth: 1,
         borderTopColor: SELL.soft,
-        shadowColor: '#1E1E1E',
+        shadowColor: '#111111',
         shadowOpacity: 0.06,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: -4 },

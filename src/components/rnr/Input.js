@@ -1,5 +1,5 @@
 import React, { forwardRef, memo, useState } from 'react';
-import { Platform, Text, TextInput, View, Pressable } from 'react-native';
+import { Platform, Text, TextInput, View } from 'react-native';
 import { cn } from './cn';
 import { tokens } from '../../theme/colors';
 

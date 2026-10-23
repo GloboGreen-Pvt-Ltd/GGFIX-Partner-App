@@ -20,25 +20,23 @@ import {
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 
-const GREEN       = '#087A0A';
-const GREEN_LIGHT = '#16BB05';
-const GREEN_DARK  = '#087A0A';
+const GREEN       = '#035C6C';
+const GREEN_DARK  = '#035C6C';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function pad2(n) { return String(n).padStart(2, '0'); }
 
 // Each mode focuses one metric pulled from the per-employee attendance summary.
 const MODE_META = {
   attendance: { title: 'Attendance',  icon: CalendarCheck, key: 'presentDays',     unit: 'days', accent: GREEN_DARK },
   late:       { title: 'Late',        icon: Clock,         key: 'lateHours',       unit: 'hrs',  accent: '#B45309' },
   permission: { title: 'Permission',  icon: Hand,          key: 'permissionCount', unit: '',     accent: '#B45309' },
-  leave:      { title: 'Leave',       icon: CalendarX,     key: 'leaveDays',       unit: 'days', accent: '#16BB05' },
+  leave:      { title: 'Leave',       icon: CalendarX,     key: 'leaveDays',       unit: 'days', accent: '#035C6C' },
 };
 
 const num = (v) => (v == null ? 0 : Number(v) || 0);
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },
@@ -111,10 +109,10 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
 
   const Stat = ({ label, value, focal }) => (
     <View className="items-center px-2">
-      <Text className="text-[13px] font-extrabold" style={{ color: focal ? meta.accent : '#172117' }}>
+      <Text className="text-[13px] font-extrabold" style={{ color: focal ? meta.accent : '#111111' }}>
         {value}
       </Text>
-      <Text className="text-[9px] font-bold mt-0.5" style={{ color: focal ? meta.accent : '#8FA08F' }}>
+      <Text className="text-[9px] font-bold mt-0.5" style={{ color: focal ? meta.accent : '#9CA3AF' }}>
         {label}
       </Text>
     </View>
@@ -132,7 +130,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
       >
         <View
           className="h-11 w-11 rounded-2xl items-center justify-center mr-3"
-          style={{ backgroundColor: '#F0F8EF' }}
+          style={{ backgroundColor: '#E5F3F5' }}
         >
           <Text className="text-[13px] font-extrabold" style={{ color: GREEN_DARK }}>{initials}</Text>
         </View>
@@ -147,7 +145,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
           <Stat label="Late" value={num(d.lateHours)} focal={mode === 'late'} />
           <Stat label="Perm" value={num(d.permissionCount)} focal={mode === 'permission'} />
           <Stat label="Leave" value={num(d.leaveDays)} focal={mode === 'leave'} />
-          <ChevronRight size={16} color="#CBD5CB" style={{ marginLeft: 2 }} />
+          <ChevronRight size={16} color="#D1D5DB" style={{ marginLeft: 2 }} />
         </View>
       </Pressable>
     );
@@ -161,19 +159,19 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
         >
           <View className="flex-row items-center" style={{ paddingHorizontal: 16 }}>
             <Pressable
               onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
               hitSlop={10}
               className="h-9 w-9 rounded-full items-center justify-center"
-              style={{ backgroundColor: '#EFF5EE' }}
+              style={{ backgroundColor: '#E5F3F5' }}
             >
-              <ChevronLeft size={20} color="#172117" />
+              <ChevronLeft size={20} color="#111111" />
             </Pressable>
             <View className="flex-1 flex-row items-center justify-center">
-              <HeaderIcon size={16} color="#172117" />
+              <HeaderIcon size={16} color="#111111" />
               <Text className="text-center text-text text-[17px] font-extrabold ml-1.5">{meta.title}</Text>
             </View>
             <View className="h-9 w-9" />
@@ -183,11 +181,11 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
           <View className="flex-row items-center justify-between mt-3" style={{ paddingHorizontal: 16 }}>
             <View className="flex-row items-center bg-surface-muted rounded-full px-1 py-1">
               <Pressable onPress={() => stepMonth(-1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
-                <ChevronLeft size={16} color="#172117" />
+                <ChevronLeft size={16} color="#111111" />
               </Pressable>
               <Text className="text-text text-[12px] font-extrabold px-1.5">{MONTHS[month - 1]} {year}</Text>
               <Pressable onPress={() => stepMonth(1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
-                <ChevronRight size={16} color="#172117" />
+                <ChevronRight size={16} color="#111111" />
               </Pressable>
             </View>
             <View className="bg-surface-muted rounded-full px-3 py-1.5">
@@ -220,7 +218,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
           contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
           ListEmptyComponent={
             <View className="items-center pt-12 px-8">
-              <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E6F7E3' }}>
+              <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E5F3F5' }}>
                 <Users size={28} color={GREEN_DARK} />
               </View>
               <Text className="text-[13px] font-extrabold text-gray-700">No staff yet</Text>

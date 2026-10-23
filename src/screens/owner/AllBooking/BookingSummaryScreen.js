@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ticketApi } from '../../../api/client';
 import { paymentFromTicket } from './ReceiptCard';
@@ -22,12 +22,12 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const ACCENT_GREEN = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 10 },
@@ -35,7 +35,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -47,7 +47,7 @@ function SectionHeader({ icon: Icon, label }) {
     <View className="flex-row items-center mb-3">
       <View
         className="w-7 h-7 rounded-full items-center justify-center mr-2"
-        style={{ backgroundColor: '#E6F7E3' }}
+        style={{ backgroundColor: '#E5F3F5' }}
       >
         <Icon size={14} color={BRAND_GREEN_DARK} />
       </View>
@@ -66,7 +66,7 @@ function DetailRow({ icon: Icon, label, value }) {
     <View className="flex-row items-start py-2.5">
       <View
         className="w-8 h-8 rounded-full items-center justify-center mr-3"
-        style={{ backgroundColor: '#F0F8EF' }}
+        style={{ backgroundColor: '#E5F3F5' }}
       >
         <Icon size={14} color={ACCENT_GREEN} />
       </View>
@@ -82,7 +82,7 @@ function DetailRow({ icon: Icon, label, value }) {
   );
 }
 
-function QuickAction({ icon: Icon, label, sub, onPress, tint = '#F0F8EF', accent = ACCENT_GREEN }) {
+function QuickAction({ icon: Icon, label, sub, onPress, tint = '#E5F3F5', accent = ACCENT_GREEN }) {
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -183,7 +183,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
           borderBottomLeftRadius: 28,
           borderBottomRightRadius: 28,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center justify-between">
@@ -193,12 +193,12 @@ export default function BookingSummaryScreen({ route, navigation }) {
             hitSlop={6}
             className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={20} color="#172117" />
+            <ChevronLeft size={20} color="#111111" />
           </TouchableOpacity>
           <View
             className="flex-row items-center px-3 py-1.5 rounded-full bg-surface-muted"
           >
-            <Sparkles size={12} color="#172117" />
+            <Sparkles size={12} color="#111111" />
             <Text className="ml-1.5 text-text text-[11px] font-bold tracking-wide">
               BOOKING PLACED
             </Text>
@@ -209,13 +209,13 @@ export default function BookingSummaryScreen({ route, navigation }) {
         <View className="items-center mt-5">
           <View
             className="w-20 h-20 rounded-full items-center justify-center"
-            style={{ backgroundColor: '#E6F7E3' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
             <View
               className="w-16 h-16 rounded-full items-center justify-center"
               style={{ backgroundColor: '#FFFFFF' }}
             >
-              <CheckCircle2 size={36} color={BRAND_GREEN_DARK} fill="#E6F7E3" />
+              <CheckCircle2 size={36} color={BRAND_GREEN_DARK} fill="#E5F3F5" />
             </View>
           </View>
           <Text className="text-text text-2xl font-extrabold mt-3">
@@ -248,7 +248,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
             </View>
             <View
               className="px-3 py-1.5 rounded-full flex-row items-center"
-              style={{ backgroundColor: '#E6F7E3' }}
+              style={{ backgroundColor: '#E5F3F5' }}
             >
               <View
                 className="w-2 h-2 rounded-full mr-1.5"
@@ -302,7 +302,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
 
             <View
               className="mt-3 p-4 rounded-2xl flex-row items-center justify-between"
-              style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
+              style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
             >
               <View className="flex-row items-center">
                 <View
@@ -339,7 +339,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
                 </View>
                 <View
                   className="flex-row items-center mt-2 pt-2"
-                  style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
+                  style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
                 >
                   <Text className="flex-1 text-[12px] font-extrabold text-gray-900">Balance Amount</Text>
                   <Text
@@ -367,16 +367,16 @@ export default function BookingSummaryScreen({ route, navigation }) {
               icon={Share2}
               label="Share"
               sub="Receipt"
-              tint="#F0F8EF"
-              accent="#16BB05"
+              tint="#E5F3F5"
+              accent="#035C6C"
               onPress={handleInvoice}
             />
             <QuickAction
               icon={QrCode}
               label="Barcode"
               sub="E-Print"
-              tint="#F0F8EF"
-              accent="#16BB05"
+              tint="#E5F3F5"
+              accent="#035C6C"
               onPress={handleBarcode}
             />
           </View>

@@ -14,12 +14,12 @@ import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions } from '.
 
 // Friendly names + per-category icon for the contextual banner.
 const CATEGORY_META = {
-  SMARTPHONE: { name: 'Smartphones',  icon: Smartphone,  color: '#087A0A', bg: 'bg-primary/10' },
-  LAPTOP:     { name: 'Laptops',      icon: Laptop,      color: '#16BB05', bg: 'bg-primary/10' },
+  SMARTPHONE: { name: 'Smartphones',  icon: Smartphone,  color: '#035C6C', bg: 'bg-primary/10' },
+  LAPTOP:     { name: 'Laptops',      icon: Laptop,      color: '#035C6C', bg: 'bg-primary/10' },
   SMARTWATCH: { name: 'Smartwatches', icon: Watch,       color: '#B45309', bg: 'bg-warning/10' },
-  TABLET:     { name: 'Tablets',      icon: Tablet,      color: '#087A0A', bg: 'bg-info/10' },
-  AUDIO:      { name: 'Audio Devices', icon: Headphones, color: '#087A0A', bg: 'bg-danger/10' },
-  SPEAKER:    { name: 'Speakers',     icon: Volume2,     color: '#087A0A', bg: 'bg-success/10' },
+  TABLET:     { name: 'Tablets',      icon: Tablet,      color: '#035C6C', bg: 'bg-info/10' },
+  AUDIO:      { name: 'Audio Devices', icon: Headphones, color: '#035C6C', bg: 'bg-danger/10' },
+  SPEAKER:    { name: 'Speakers',     icon: Volume2,     color: '#035C6C', bg: 'bg-success/10' },
 };
 
 export default function SellSelectDeviceScreen({ navigation, route }) {
@@ -164,7 +164,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
         {presetCategoryName ? (
           <View className={`border rounded-xl p-2.5 mb-3 flex-row items-center ${meta?.bg || 'bg-primary/5'} border-primary/15`}>
             <View className={`h-8 w-8 rounded-full items-center justify-center mr-2 ${meta?.bg || 'bg-primary/10'}`}>
-              <Icon size={14} color={meta?.color || '#087A0A'} />
+              <Icon size={14} color={meta?.color || '#035C6C'} />
             </View>
             <View className="flex-1">
               <Text className="text-[10px] text-text-muted uppercase tracking-widest">Selling</Text>
@@ -182,7 +182,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
 
         {items.length === 0 ? (
           <EmptyState
-            icon={<Icon size={26} color={meta?.color || '#087A0A'} />}
+            icon={<Icon size={26} color={meta?.color || '#035C6C'} />}
             title={categoryCode ? `No saved ${presetCategoryName?.toLowerCase()} yet` : 'No saved devices'}
             description={presetCategoryId ? 'Add the device you want to sell.' : 'Add one to sell.'}
           />
@@ -202,7 +202,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
                     {deviceImage(d) ? (
                       <Image source={{ uri: deviceImage(d) }} style={{ width: 44, height: 44 }} resizeMode="cover" />
                     ) : (
-                      <DIcon size={18} color={active ? '#fff' : (dMeta?.color || '#087A0A')} />
+                      <DIcon size={18} color={active ? '#fff' : (dMeta?.color || '#035C6C')} />
                     )}
                   </View>
                   <View className="flex-1">
@@ -216,7 +216,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
                       {d.color ? <Text className="text-[10px] text-text-muted mr-2">{d.color}</Text> : null}
                       {(deviceRam(d) || deviceStorage(d)) ? (
                         <View className="flex-row items-center mr-2">
-                          <HardDrive size={9} color="#667066" />
+                          <HardDrive size={9} color="#6B7280" />
                           <Text className="text-[10px] text-text-muted ml-0.5">
                             {[deviceRam(d), deviceStorage(d)].filter(Boolean).join(' / ')}
                           </Text>
@@ -247,7 +247,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
                       })}
                       className="flex-1 flex-row items-center justify-center py-1.5 active:opacity-70"
                     >
-                      <Pencil size={12} color="#16BB05" />
+                      <Pencil size={12} color="#035C6C" />
                       <Text className="text-[11px] font-bold text-secondary ml-1">Edit</Text>
                     </Pressable>
                     <Pressable
@@ -265,7 +265,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
                       onPress={() => proceedWith(d)}
                       className="flex-1 flex-row items-center justify-center py-1.5 active:opacity-70 border-l border-border"
                     >
-                      <CheckCircle2 size={12} color="#16BB05" />
+                      <CheckCircle2 size={12} color="#035C6C" />
                       <Text className="text-[11px] font-bold text-success ml-1">Use</Text>
                     </Pressable>
                   </View>
@@ -288,7 +288,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
           className="bg-primary/5 border border-dashed border-primary/40 rounded-xl p-3 flex-row items-center mt-1 active:opacity-80"
         >
           <View className="h-10 w-10 rounded-xl bg-primary/10 items-center justify-center mr-2.5">
-            <Plus size={18} color="#087A0A" />
+            <Plus size={18} color="#035C6C" />
           </View>
           <View className="flex-1">
             <Text className="text-[13px] font-extrabold text-primary">Select Other Device</Text>
@@ -296,7 +296,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
               {presetCategoryId ? 'Pick a different brand & model' : 'Pick category, brand & model'}
             </Text>
           </View>
-          <ChevronRight size={16} color="#087A0A" />
+          <ChevronRight size={16} color="#035C6C" />
         </Pressable>
       </ScrollView>
 

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Linking, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Smartphone,
   Filter,
@@ -25,7 +25,14 @@ import {
   CalendarClock,
   ListChecks,
   UserCheck,
+  CheckCircle2,
+  RefreshCcw,
+  Copy,
+  Calculator,
+  ScanLine,
 } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
+import { ResponsiveModal } from '../../../components/responsive';
 import {
   SearchBar,
   EmptyState,
@@ -33,7 +40,8 @@ import {
 } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
-import { listShopRepairBookings } from '../../../api/orders';
+import SafeModal from '../../../components/SafeModal';
+import { confirmShopRepairBooking, listShopRepairBookings } from '../../../api/orders';
 import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
 import { getModelsByBrand, getRamOptions, getStorageOptions, parseModelNumbers } from '../../../api/masterData';
 import {
@@ -50,21 +58,14 @@ import {
   TechnicianPickerSheet,
 } from './BookingActionSheets';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
+import { imeiApplies, primeModelCategory, resolveRecordCategory } from '../../../utils/imeiPolicy';
+import { useTabBarSpace } from '../../../navigation/tabBarMetrics';
+import { estimatedTotalOf } from './ReceiptCard';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
-
-// The Re-Estimated action borrows its blue from the scope itself rather than
-// hardcoding one, so the card button, the Re-Estimated tile and the Home
-// shortcut can't drift to three different blues.
-const RE_ESTIMATED_BLUE = SCOPES.RE_ESTIMATED.color;
-
-// The History action's colour. Kept from the retired Home "History" shortcut
-// tile so the button reads the same as the surface it replaced, and so the
-// ticket card's History matches the pickup card's.
-const HISTORY_CYAN = '#16BB05';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const ACCENT_GREEN = '#035C6C';
 
 // Status → label + tinted background colour for the badge. The status family
 // (warning / primary / success / danger) decides the colour without bringing
@@ -87,9 +88,9 @@ const STATUS_VARIANT = {
 
 const TONE_STYLE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.12)', fg: '#B45309', border: 'rgba(245, 158, 11, 0.35)' },
-  blue:   { bg: 'rgba(22, 187, 5, 0.12)', fg: '#16BB05', border: 'rgba(22, 187, 5, 0.35)' },
-  purple: { bg: 'rgba(126, 217, 87, 0.12)', fg: '#087A0A', border: 'rgba(126, 217, 87, 0.35)' },
-  green:  { bg: 'rgba(8, 122, 10, 0.12)',  fg: BRAND_GREEN_DARK, border: 'rgba(8, 122, 10, 0.35)' },
+  blue:   { bg: 'rgba(3, 92, 108, 0.12)', fg: '#035C6C', border: 'rgba(3, 92, 108, 0.35)' },
+  purple: { bg: 'rgba(53, 125, 137, 0.12)', fg: '#035C6C', border: 'rgba(53, 125, 137, 0.35)' },
+  green:  { bg: 'rgba(3, 92, 108, 0.12)',  fg: BRAND_GREEN_DARK, border: 'rgba(3, 92, 108, 0.35)' },
   red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C', border: 'rgba(220, 38, 38, 0.35)' },
 };
 
@@ -170,17 +171,16 @@ function formatTime(d) {
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Home screen tool-tile disc colours (DashboardScreen), cycled across the tiles.
+const HOME_TILE_TONES = ['#357D89', '#5E9440', '#3B82F6', '#6B7280'];
+
 export default function BookingHistoryScreen({ navigation, route }) {
+  // The tab bar floats over the page; keep the last items clear of it.
+  const tabSpace = useTabBarSpace();
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
   const numCols = winW >= 680 ? 2 : 1;
   const isSmall = winW < 360;
-  // The pickup card carries four actions. At 10px labels "Service Status ·
-  // Pickup Assign · Pickup History · Details" needs ~340dp of card width, which
-  // a 360dp phone (and either column of the 2-up tablet grid) does not have —
-  // so the two-word labels are only used where they actually fit, and the icons
-  // carry the meaning elsewhere.
-  const wideActions = numCols === 1 && winW >= 420;
   // Scope-tile icon metrics — scaled off the window so the grid stays
   // proportional from a 320px phone up.
   // Scope tiles are deliberately small: three rows of them sit between the
@@ -211,7 +211,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // for the longest one ("Ready for Delivery").
   // That is two rows of vertical space handed back above the first booking.
   // A one-tile menu (Invoice) spans the row instead of sitting at half width.
-  const chipCols = numCols > 1 || menuList.length === 1 ? Math.max(1, menuList.length) : 2;
+  // Phone: 4 per row, each tile stacked (icon + count over the label).
+  // Tablet: the whole set on one row, tiles laid out side by side.
+  // Up to six scopes sit on one row on a phone too (Bookings · Active ·
+  // Delivery Ready · Delivered · Cancelled · Returned); a longer set wraps at 4.
+  const chipCols = numCols > 1 || menuList.length <= 6 ? Math.max(1, menuList.length) : 4;
+  const chipStacked = numCols === 1;
 
   // Where a tapped ticket row goes. Default is nowhere — the card's own button
   // row names every destination, so a bare tap has nothing unambiguous to mean.
@@ -366,9 +371,10 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // told the owner nothing they hadn't just seen on the card. Bookings reached
   // from Billing / Booking Status Report already navigate straight in; this
   // makes the bookings list behave the same way.
-  const startInvoiceFor = useCallback((b) => {
+  const startInvoiceFor = useCallback(async (b) => {
     if (!b?.id) return;
-    if (String(b.imei || '').trim()) {
+    // Only mobile phones are gated on an IMEI; other devices have none.
+    if (String(b.imei || '').trim() || !imeiApplies(await resolveRecordCategory(b))) {
       goInvoiceGeneratorFor(b);
       return;
     }
@@ -406,6 +412,76 @@ export default function BookingHistoryScreen({ navigation, route }) {
     setPickupStatusOpen(false);
     setPickupAssignOpen(false);
   }, []);
+
+  // Booking card tap → action grid (Status first, then the card's other actions).
+  const [bookingMenuFor, setBookingMenuFor] = useState(null);
+  const fromBookingMenu = (fn) => () => {
+    const b = bookingMenuFor;
+    setBookingMenuFor(null);
+    setTimeout(() => fn(b), 320);
+  };
+  // Same rules the old action row used: Re-Est / Reschedule only on the
+  // Re-Estimated list, no Assign on the Invoice list, Invoice only once there
+  // is one, Receipt / Barcode dropped once delivered AND invoiced.
+  const bookingActionsFor = (b) => {
+    if (!b) return [];
+    const invoiced = hasInvoice(b);
+    const delivered = String(b.status || '').toUpperCase() === 'DELIVERED';
+    const done = delivered && invoiced;
+    // Order: Edit · Re-Schedule · Assign · History · Receipt · Barcode ·
+    // Details · Update Status (Re-Schedule and History on every list now).
+    return [
+      // Edit on every list (the booking's edit wizard); called Re-Estimate on
+      // the Re-Estimated list. Not offered once delivered AND invoiced.
+      opensEdit || !done ? { key: 'edit', label: opensEdit ? 'Re-Estimate' : 'Edit', icon: Pencil, run: goEditFor } : null,
+      // Re-Estimate, right after Edit: straight to this booking's services &
+      // prices. Not on the Re-Estimated list (its Edit already is Re-Estimate)
+      // and not once delivered.
+      opensEdit || delivered ? null : { key: 'reestimate', label: 'Re-Estimate', icon: Calculator, run: goReEstimateFor },
+      done ? null : { key: 'reschedule', label: 'Re-Schedule', icon: CalendarClock, run: openRescheduleFor },
+      // Delivered: no Assign / Update Status — Re-Service starts a new linked booking.
+      isInvoiceMenu || delivered ? null : { key: 'assign', label: 'Assign', icon: UserCog, run: openTechPickerFor },
+      { key: 'history', label: 'History', icon: History, run: goTimelineFor },
+      done ? null : { key: 'receipt', label: 'Receipt', icon: Share2, run: openShareFor },
+      done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: goBarcodeFor },
+      invoiced ? { key: 'invoice', label: 'Invoice', icon: ReceiptIndianRupee, run: goInvoiceFor } : null,
+      { key: 'details', label: 'Details', icon: FileText, run: goDetailsFor },
+      delivered ? null : { key: 'status', label: 'Update Status', icon: ListChecks, run: openStatusFor },
+      delivered ? { key: 'reservice', label: 'Re-Service', icon: RefreshCcw, run: goReServiceFor } : null,
+    ].filter(Boolean);
+  };
+
+  // Pickup card tap → this action sheet (Status · Assign · History · Details).
+  const [pickupMenuFor, setPickupMenuFor] = useState(null);
+  // Status / Assign open their own sheets — let this one slide away first
+  // (two RN Modals swapping in one tick is unreliable on iOS).
+  const fromPickupMenu = (fn) => () => {
+    const b = pickupMenuFor;
+    setPickupMenuFor(null);
+    setTimeout(() => fn(b), 320);
+  };
+
+  // "Accepted" tile: a pickup still waiting for the shop is accepted right
+  // here in one tap (same call as the status sheet's "Confirm pickup
+  // request"); a pickup already past that opens the status sheet instead.
+  const [accepting, setAccepting] = useState(false);
+  const isUnconfirmedPickup = (b) => ['ORDER_PLACED', 'PICKUP_REQUESTED'].includes(String(b?.status || '').toUpperCase());
+  const acceptPickup = async () => {
+    const b = pickupMenuFor;
+    if (!b?.id || accepting) return;
+    if (!isUnconfirmedPickup(b)) { fromPickupMenu(openPickupStatusFor)(); return; }
+    setAccepting(true);
+    try {
+      await confirmShopRepairBooking(b.id);
+      notify('Pickup accepted', 'You can assign a pickup person now.', { preset: 'done' });
+      setPickupMenuFor(null);
+      loadPickups();
+    } catch (e) {
+      notify('Could not accept', e?.body?.error || e?.body?.message || e?.message || 'Please try again.', { preset: 'error', haptic: 'error' });
+    } finally {
+      setAccepting(false);
+    }
+  };
 
   const openPickupStatusFor = useCallback((b) => {
     if (!b?.id) return;
@@ -473,6 +549,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
     navigation.navigate('BookingTimeline', { ticketId: b.id });
   }, [closeSheets, navigation]);
 
+  // Re-Service: a delivered device is back (same or a different issue). Opens
+  // the booking wizard pre-filled with this device + customer via TicketDetail,
+  // and the new ticket is linked to this one for repair history.
+  const goReServiceFor = useCallback((b) => {
+    if (!b?.id) return;
+    navigation.navigate('TicketDetail', { ticketId: b.id, autoReService: true });
+  }, [navigation]);
+
   // Requote list: the slot History takes elsewhere opens the Reschedule sheet.
   const openRescheduleFor = useCallback((b) => {
     if (!b?.id) return;
@@ -487,6 +571,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
     if (!b?.id) return;
     closeSheets();
     navigation.navigate('TicketDetail', { ticketId: b.id, autoEdit: true });
+  }, [closeSheets, navigation]);
+
+  // Into the same wizard at Services, as an edit of this booking (TicketDetail
+  // → onAction('reestimate')).
+  const goReEstimateFor = useCallback((b) => {
+    if (!b?.id) return;
+    closeSheets();
+    navigation.navigate('TicketDetail', { ticketId: b.id, autoReEstimate: true });
   }, [closeSheets, navigation]);
 
   // AssignTechnician's own screen lives in the nested RepairServiceBookingShop
@@ -555,7 +647,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           await Promise.all(brandIds.map(async (bId) => {
             try {
               const models = await getModelsByBrand(bId);
-              (models || []).forEach((m) => { modelById[m.id] = m; });
+              (models || []).forEach((m) => { modelById[m.id] = m; primeModelCategory(m); });
             } catch (_) {}
           }));
         }
@@ -567,7 +659,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           return {
             ...t,
             _modelName: m?.name || t.deviceDisplayName || t.modelName || null,
-            _modelNumber: parseModelNumbers(m?.modelNumber).join(' · ') || null,
+            _modelNumber: parseModelNumbers(m?.modelNumber).join(' - ') || null,
             _ramStorage: hasCategorySpecs(t)
               ? specDisplayParts(t).join(' · ')
               : ([ramLabel, storageLabel].filter(Boolean).join(' + ') || null),
@@ -678,14 +770,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
     return (
       <Pressable
-        onPress={() => navigation.navigate('OwnerPickupServiceDetail', { id: item.id, booking: item })}
+        onPress={() => setPickupMenuFor(item)}
         className="bg-card rounded-2xl mb-3 active:opacity-90"
         style={{
           flex: numCols > 1 ? 1 : undefined,
           padding: 12,
           borderWidth: 1,
-          borderColor: '#E2E8E2',
-          shadowColor: '#172117',
+          borderColor: '#E5E7EB',
+          shadowColor: '#111111',
           shadowOpacity: 0.05,
           shadowRadius: 8,
           shadowOffset: { width: 0, height: 3 },
@@ -693,14 +785,14 @@ export default function BookingHistoryScreen({ navigation, route }) {
         }}
       >
         <View className="flex-row items-start">
-          <View className="h-16 w-16 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: '#F0F8EF' }}>
-            <Truck size={26} color="#16BB05" />
+          <View className="h-16 w-16 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
+            <Truck size={26} color="#035C6C" />
           </View>
 
           <View className="flex-1 flex-row">
             <View className="flex-1 pr-2">
-              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(22, 187, 5, 0.12)' }}>
-                <Text className="text-[9.5px] font-extrabold" style={{ color: '#16BB05' }}>#{ref}</Text>
+              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
+                <Text className="text-[9.5px] font-extrabold" style={{ color: '#035C6C' }}>#{ref}</Text>
               </View>
               <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
               {item.pickupAddressText ? (
@@ -716,7 +808,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               </View>
               {dateStr ? (
                 <View className="flex-row items-center mt-2">
-                  <Calendar size={11} color="#667066" />
+                  <Calendar size={11} color="#6B7280" />
                   <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
                 </View>
               ) : null}
@@ -726,68 +818,41 @@ export default function BookingHistoryScreen({ navigation, route }) {
         </View>
 
         <View className="h-px bg-border my-2.5" />
-        <Row icon={<User size={11} color="#667066" />} label="Customer" value={item.customerName || '-'} />
-        {item.customerMobile ? <Row icon={<Phone size={11} color="#667066" />} label="Mobile" value={item.customerMobile} /> : null}
-
-        <View className="flex-row items-center mt-1">
-          <View className="flex-1 flex-row items-center pr-2">
-            <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
-            <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
-          </View>
+        {/* 2 × 2 grid: Customer · Mobile, then Services · Pickup By. */}
+        <View className="flex-row">
+          <InfoCell icon={<User size={11} color="#6B7280" />} label="Customer" value={item.customerName || '-'} />
+          <InfoCell align="right" icon={<Phone size={11} color="#6B7280" />} label="Mobile" value={item.customerMobile || '-'} />
         </View>
-
-        {/* Who is carrying this pickup. The action row below only ever says
-            "Pickup Assign", so without this line the card gave no sign whether
-            anyone had been assigned — the owner had to open the sheet to find
-            out. Colour is inline so the "Not assigned" grey can't be lost to
-            className merging. */}
-        <View className="flex-row items-center py-0.5">
-          <View className="w-4 items-center mr-1.5"><UserCheck size={11} color="#667066" /></View>
-          <Text className="text-[10px] text-text-muted w-16">Pickup By</Text>
-          <Text
-            className="text-[11px] flex-1 font-semibold"
-            style={{ color: item.pickupPersonName ? '#172117' : '#8FA08F' }}
-            numberOfLines={1}
-          >
-            {item.pickupPersonName || 'Not assigned'}
-          </Text>
-        </View>
-
-        {/* Action row — the pickup equivalent of the ticket card's, with the
-            verbs a doorstep job actually takes. The old "View details" chevron
-            that sat on the Services line is gone: Details is one of these
-            buttons now, and keeping both meant two controls for one
-            destination. The card itself still opens Details on tap.
-            Nested Pressables — RN gives the responder to the inner one, so a
-            button tap does NOT also fire the card. */}
-        <View className="flex-row items-center mt-2 pt-2 border-t border-border">
-          <CardAction
-            icon={<ListChecks size={13} color="#16BB05" />}
-            label={wideActions ? 'Service Status' : 'Status'}
-            flex={wideActions ? 1.35 : 1}
-            onPress={() => openPickupStatusFor(item)}
-          />
-          <CardAction
-            icon={<UserCheck size={13} color="#B45309" />}
-            label={wideActions ? 'Pickup Assign' : 'Assign'}
-            flex={wideActions ? 1.3 : 1}
-            onPress={() => openPickupAssignFor(item)}
-          />
-          <CardAction
-            icon={<History size={13} color="#087A0A" />}
-            label={wideActions ? 'Pickup History' : 'History'}
-            flex={wideActions ? 1.35 : 1}
-            onPress={() => goPickupHistoryFor(item)}
-          />
-          <CardAction
-            icon={<FileText size={13} color="#667066" />}
-            label="Details"
-            onPress={() => goPickupDetailsFor(item)}
+        <View className="flex-row" style={{ marginTop: 6 }}>
+          <InfoCell icon={<Wrench size={11} color="#6B7280" />} label="Services" value={services || '—'} />
+          <InfoCell
+            align="right"
+            icon={<UserCheck size={11} color="#6B7280" />}
+            label="Pickup By"
+            value={item.pickupPersonName || 'Not assigned'}
+            valueColor={item.pickupPersonName ? '#111111' : '#9CA3AF'}
           />
         </View>
+        {/* Status / Assign / History / Details moved into the tap sheet. */}
       </Pressable>
     );
+  };
+
+  // The card's small call button: straight to the phone dialer with the number.
+  const callPhone = (phone) => {
+    const tel = String(phone).replace(/[^\d+]/g, '');
+    if (!tel) return;
+    Linking.openURL(`tel:${tel}`).catch(() => notify('Could not call', 'This device cannot place calls.', { preset: 'error' }));
+  };
+
+  // The card's small copy button next to the customer's number.
+  const copyPhone = async (phone) => {
+    try {
+      await Clipboard.setStringAsync(String(phone));
+      notify('Copied', `${phone} copied.`, { preset: 'done' });
+    } catch (e) {
+      notify('Copy failed', e?.message || 'Could not copy the number.', { preset: 'error' });
+    }
   };
 
   // ── Card row ──────────────────────────────────────────────────────
@@ -795,7 +860,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
     if (item._ghost) return <View style={{ flex: 1, marginHorizontal: 0 }} />;
     const deviceName = item._modelName || item.deviceDisplayName || item.deviceModelName || item.modelName || 'Device';
     const deviceImage = item._modelImage || item.deviceImageUrl || null;
-    const specs = [item._modelNumber, item._ramStorage].filter(Boolean).join(' · ');
+    const specs = [item._modelNumber, item._ramStorage].filter(Boolean).join(' - ');
     const color = item.color;
     const trackingId = item.trackingId || (item.id ? item.id.slice(0, 8).toUpperCase() : '-');
     const statusMeta = STATUS_VARIANT[String(item.status || '').toUpperCase()] || { label: item.status || 'Pending', tone: 'amber' };
@@ -805,43 +870,20 @@ export default function BookingHistoryScreen({ navigation, route }) {
     const tone = TONE_STYLE[statusMeta.tone] || TONE_STYLE.amber;
     const dateStr = formatDate(item.createdAt);
     const timeStr = formatTime(item.createdAt);
+    // Invoice total (finalPrice) once one is raised, otherwise the estimate —
+    // summed from the line items when estimatedPrice is null. Always shown,
+    // ₹0 included, so a missing price reads as zero rather than a blank card.
+    const amountNum = Number(item.finalPrice ?? estimatedTotalOf(item)) || 0;
+    const amountStr = `₹${amountNum.toLocaleString('en-IN')}`;
 
     // A card tap opens Update Service Status. Every *destination* the card could
     // navigate to is already a labelled button in the row underneath, so the tap
     // is free for the one thing that isn't a destination — changing where the
     // booking is in its flow. The Re-Estimated mount keeps its edit shortcut on
     // the "Re-Est" button rather than on the card itself.
-    const onCardPress = () => openStatusFor(item);
+    const onCardPress = () => setBookingMenuFor(item);
 
-    // Invoice is only offered once the booking HAS one — the action opens the
-    // saved document, so on a booking with no invoice it would be a button that
-    // can only report its own absence.
-    const invoiced = hasInvoice(item);
-
-    // Once a booking is delivered AND has its invoice, Receipt and Barcode drop
-    // off the row. The invoice supersedes the receipt — it is the same summary,
-    // billed rather than quoted — and the barcode exists to find a handset that
-    // is still in the shop, which a delivered one no longer is. Dropping them
-    // also takes the delivered card from six buttons to four, which is what
-    // makes the remaining labels legible.
-    const delivered = String(item.status || '').toUpperCase() === 'DELIVERED';
-    const showReceipt = !(delivered && invoiced);
-    const showBarcode = !(delivered && invoiced);
-
-    // Base row is Assign · History · Details (no Assign on the Invoice list),
-    // plus whichever of Receipt, Barcode, Invoice and Re-Estimate apply. At six
-    // or more an equal split leaves each slot too narrow for a 10px label beside
-    // a 13px glyph, so the whole row steps down a size rather than letting
-    // "Barcode" and "Details" ellipsise. Under 360dp five is already crowded.
-    const actionCount = (isInvoiceMenu ? 2 : 3)
-      + (showReceipt ? 1 : 0)
-      + (showBarcode ? 1 : 0)
-      + (invoiced ? 1 : 0)
-      + (opensEdit ? 1 : 0);
-    const crowded = actionCount > 5 || isSmall;
-    const actionGlyph = crowded ? 12 : 13;
-
-    return (
+return (
       <Pressable
         onPress={onCardPress || undefined}
         // Without this the card still dims on touch, which reads as "that did
@@ -852,8 +894,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
           flex: numCols > 1 ? 1 : undefined,
           padding: 10,
           borderWidth: 1,
-          borderColor: '#E2E8E2',
-          shadowColor: '#172117',
+          borderColor: '#E5E7EB',
+          shadowColor: '#111111',
           shadowOpacity: 0.05,
           shadowRadius: 8,
           shadowOffset: { width: 0, height: 3 },
@@ -873,15 +915,22 @@ export default function BookingHistoryScreen({ navigation, route }) {
           <View className="flex-1 flex-row">
             {/* left info column */}
             <View className="flex-1 pr-2">
-              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(8, 122, 10, 0.12)' }}>
+              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
                 <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
               </View>
+              {item.parentTicketId ? (
+                <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: '#FFF8E1' }}>
+                  <Text className="text-[9.5px] font-extrabold" style={{ color: '#8A6A00' }}>
+                    RE-SERVICE{item.parentTrackingId ? ` · #${item.parentTrackingId}` : ''}
+                  </Text>
+                </View>
+              ) : null}
               <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
               {specs ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{specs}</Text>
               ) : null}
               {color ? (
-                <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>Color: {color}</Text>
+                <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{color}</Text>
               ) : null}
             </View>
 
@@ -897,12 +946,15 @@ export default function BookingHistoryScreen({ navigation, route }) {
               </View>
               {dateStr ? (
                 <View className="flex-row items-center mt-1.5">
-                  <Calendar size={11} color="#667066" />
+                  <Calendar size={11} color="#6B7280" />
                   <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
                 </View>
               ) : null}
               {timeStr ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5">{timeStr}</Text>
+              ) : null}
+              {amountStr ? (
+                <Text className="text-[12px] font-extrabold mt-0.5" style={{ color: ACCENT_GREEN }} numberOfLines={1}>{amountStr}</Text>
               ) : null}
             </View>
           </View>
@@ -910,115 +962,50 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
         {/* Divider + detail rows */}
         <View className="h-px bg-border my-2" />
-        <Row icon={<User size={11} color="#667066" />} label="Customer" value={customerName} />
-        {phone ? <Row icon={<Phone size={11} color="#667066" />} label="Mobile" value={phone} /> : null}
+        {/* Customer - mobile on one line, with a small copy button for the number. */}
+        <View className="flex-row items-center py-0.5">
+          <View className="w-4 items-center mr-1.5"><User size={11} color="#6B7280" /></View>
+          <Text className="text-[10px] text-text-muted w-16">Customer</Text>
+          <Text className="text-[11px] text-text font-semibold" style={{ flexShrink: 1 }} numberOfLines={1}>{customerName}</Text>
+          {phone ? (
+            <>
+              <Text className="text-[11px] text-text-muted"> - </Text>
+              <Text className="text-[11px] text-text font-semibold">{phone}</Text>
+              <Pressable
+                onPress={() => callPhone(phone)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${phone}`}
+                className="items-center justify-center active:opacity-60"
+                style={{ marginLeft: 6, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(96, 145, 56, 0.14)' }}
+              >
+                <Phone size={10} color="#609138" />
+              </Pressable>
+              <Pressable
+                onPress={() => copyPhone(phone)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Copy mobile number ${phone}`}
+                className="items-center justify-center active:opacity-60"
+                style={{ marginLeft: 6, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(3, 92, 108, 0.12)' }}
+              >
+                <Copy size={10} color={ACCENT_GREEN} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
 
-        {/* Services footer line */}
-        <View className="flex-row items-center mt-1">
-          <View className="flex-1 flex-row items-center pr-2">
-            <View className="w-4 items-center mr-1.5"><Wrench size={11} color="#667066" /></View>
-            <Text className="text-[10px] text-text-muted w-16">Services</Text>
-            <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={1}>{services || '—'}</Text>
+        {/* Services footer line — every service, in full. */}
+        <View className="flex-row items-start mt-1">
+          <View className="flex-1 flex-row items-start pr-2">
+            <View className="w-4 items-center mr-1.5" style={{ marginTop: 2 }}><Wrench size={11} color="#6B7280" /></View>
+            <Text className="text-[10px] text-text-muted w-16" style={{ marginTop: 1 }}>Services</Text>
+            <Text className="text-[11px] text-text flex-1 font-semibold">{services || '—'}</Text>
           </View>
         </View>
 
-        {/* Action row — every action this card offers, one tap away. Five on
-            every list (Assign · History · Receipt · Barcode · Details), plus
-            Re-Estimate on the one mount that is about exactly that.
-            Labels are shortened because full ones ("Assign Technician",
-            "Share Receipt"…) don't fit a phone-width card on a single line.
-            On the ordinary lists this row is the ONLY way off the card — the
-            card itself is inert. On the Re-Estimated mount, where it isn't,
-            these stay nested Pressables: RN hands the responder to the inner
-            one, so a button tap doesn't also fire the card's own destination. */}
-        <View className="flex-row items-center mt-1.5 pt-1.5 border-t border-border">
-          {/* Re-Estimated list only, and deliberately first: there the card tap
-              already opens the edit wizard, but nothing on the card SAID so —
-              the "View details" chevron is suppressed above for that very
-              reason, which left the screen's whole purpose unlabelled. This is
-              that missing affordance, using the same Pencil + blue as the
-              Re-Estimated tile and the Home shortcut so the three read as one
-              thing. */}
-          {opensEdit ? (
-            <CardAction
-              icon={<Pencil size={actionGlyph} color={RE_ESTIMATED_BLUE} />}
-              // The sixth slot leaves no room for the long form anywhere, so
-              // this label no longer gets the extra flex it used to take from
-              // the others — it takes the even split under the short name.
-              label="Re-Est"
-              compact={crowded}
-              onPress={() => goEditFor(item)}
-            />
-          ) : null}
-          {isInvoiceMenu ? null : (
-            <CardAction
-              icon={<UserCog size={actionGlyph} color={BRAND_GREEN_DARK} />}
-              label="Assign"
-              compact={crowded}
-              onPress={() => openTechPickerFor(item)}
-            />
-          )}
-          {/* Straight after Assign. On the Requote list the slot is Reschedule
-              instead — moving the delivery date & time is part of re-quoting a
-              job; a booking's History stays on the main Bookings list's cards.
-              Everywhere else it is History: it used to appear only on the Service History mount
-              the Home shortcut opened; that shortcut is gone, because a
-              booking's history belongs to the booking, not to a whole separate
-              copy of this list you had to find the row in again. */}
-          {opensEdit ? (
-            <CardAction
-              icon={<CalendarClock size={actionGlyph} color={BRAND_GREEN_DARK} />}
-              label="Reschedule"
-              compact={crowded}
-              // The one long label in a six-button row: a little extra width so
-              // it reads whole instead of "Resched…". The short labels beside it
-              // ("Assign", "Barcode") still fit the even share that's left.
-              flex={1.4}
-              onPress={() => openRescheduleFor(item)}
-            />
-          ) : (
-            <CardAction
-              icon={<History size={actionGlyph} color={HISTORY_CYAN} />}
-              label="History"
-              compact={crowded}
-              onPress={() => goTimelineFor(item)}
-            />
-          )}
-          {showReceipt ? (
-            <CardAction
-              icon={<Share2 size={actionGlyph} color="#16BB05" />}
-              label="Receipt"
-              compact={crowded}
-              onPress={() => openShareFor(item)}
-            />
-          ) : null}
-          {/* Next to Receipt because they are the same question asked twice —
-              what the customer was quoted, and what they were billed. Same
-              glyph and amber as the Invoice scope tile. On a delivered booking
-              it stands alone: see showReceipt above. */}
-          {invoiced ? (
-            <CardAction
-              icon={<ReceiptIndianRupee size={actionGlyph} color="#B45309" />}
-              label="Invoice"
-              compact={crowded}
-              onPress={() => goInvoiceFor(item)}
-            />
-          ) : null}
-          {showBarcode ? (
-            <CardAction
-              icon={<QrCode size={actionGlyph} color="#B45309" />}
-              label="Barcode"
-              compact={crowded}
-              onPress={() => goBarcodeFor(item)}
-            />
-          ) : null}
-          <CardAction
-            icon={<FileText size={actionGlyph} color="#667066" />}
-            label="Details"
-            compact={crowded}
-            onPress={() => goDetailsFor(item)}
-          />
-        </View>
+        {/* Actions (Update Status, Assign, History, Receipt, Barcode,
+            Details…) open as a grid when the card is tapped. */}
       </Pressable>
     );
   };
@@ -1036,30 +1023,34 @@ export default function BookingHistoryScreen({ navigation, route }) {
             hitSlop={6}
             className="h-9 w-9 rounded-full bg-surface-muted items-center justify-center mr-2.5 active:opacity-70"
           >
-            <ArrowLeft size={19} color="#172117" />
+            <ArrowLeft size={19} color="#111111" />
           </Pressable>
-          <View className="flex-1">
-            <Text className="text-text-muted text-[11px] font-bold tracking-widest">{eyebrowText}</Text>
-            <Text className="text-text text-[17px] font-extrabold mt-0.5" numberOfLines={1}>
+          {/* Title block centred on the SCREEN (not between the two buttons,
+              which differ in width); padded so it never runs under them. */}
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 56 }}>
+            <Text className="text-text-muted text-[11px] font-bold tracking-widest text-center" numberOfLines={1}>{eyebrowText}</Text>
+            <Text className="text-text text-[17px] font-extrabold mt-0.5 text-center" numberOfLines={1}>
               {counts[scope.key] ?? 0}{' '}
               {(counts[scope.key] ?? 0) === 1 ? nounText : `${nounText}s`}
             </Text>
           </View>
+          <View className="flex-1" />
+          {/* Filters — icon only: white on the medium teal, darker teal while
+              open / filtering; the active-filter count rides as a badge. */}
           <Pressable
             onPress={() => setShowFilters((v) => !v)}
-            className="flex-row items-center rounded-full px-3.5 py-2 active:opacity-80"
-            style={{ backgroundColor: showFilters || activeFilters > 0 ? ACCENT_GREEN : '#F0F8EF' }}
+            accessibilityRole="button"
+            accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filters'}
+            className="h-9 w-9 rounded-full items-center justify-center active:opacity-80"
+            style={{ backgroundColor: showFilters || activeFilters > 0 ? ACCENT_GREEN : '#357D89' }}
           >
-            <Filter size={15} color={showFilters || activeFilters > 0 ? '#fff' : ACCENT_GREEN} />
-            <Text
-              className="text-[13px] font-extrabold ml-1.5"
-              style={{ color: showFilters || activeFilters > 0 ? '#fff' : ACCENT_GREEN }}
-            >
-              Filters
-            </Text>
+            <Filter size={16} color="#FFFFFF" />
             {activeFilters > 0 ? (
-              <View className="ml-1.5 px-1.5 rounded-full" style={{ backgroundColor: '#fff' }}>
-                <Text className="text-[10px] font-extrabold" style={{ color: ACCENT_GREEN }}>{activeFilters}</Text>
+              <View
+                className="absolute items-center justify-center rounded-full"
+                style={{ top: -3, right: -3, minWidth: 16, height: 16, paddingHorizontal: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_GREEN }}
+              >
+                <Text className="text-[9px] font-extrabold" style={{ color: ACCENT_GREEN }}>{activeFilters}</Text>
               </View>
             ) : null}
           </Pressable>
@@ -1073,6 +1064,19 @@ export default function BookingHistoryScreen({ navigation, route }) {
           onChangeText={setQuery}
           placeholder="Search by Tracking ID, Customer name, Mobile…"
           onClear={() => setQuery('')}
+          // Scan the booking's QR (job sheet / slip) to open it straight away.
+          rightAccessory={(
+            <Pressable
+              onPress={() => navigation.navigate('ScanQrCode')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Scan booking QR code"
+              className="items-center justify-center active:opacity-60"
+              style={{ marginLeft: 8, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: '#E5E7EB' }}
+            >
+              <ScanLine size={18} color={ACCENT_GREEN} strokeWidth={2.2} />
+            </Pressable>
+          )}
         />
       </View>
 
@@ -1090,6 +1094,59 @@ export default function BookingHistoryScreen({ navigation, route }) {
           label had barely 50px and wrapped mid-word), and the entire set on one
           row on a tablet, where the width is there for the taking and three
           rows of half-empty tiles were pure waste. */}
+      {chipStacked ? (
+        // Phone: the Home screen Services-grid look — one white panel, each
+        // scope a white icon on a medium teal / green / blue / grey disc (the
+        // same cycle as Home's tool tiles), the count as a badge
+        // on the disc and the label underneath. The selected scope gets a
+        // ring in its colour and a coloured label.
+        <View
+          style={{
+            marginHorizontal: 12, marginTop: 8, paddingVertical: 6,
+            backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB',
+            flexDirection: 'row', flexWrap: 'wrap',
+          }}
+        >
+          {menuList.map((s, idx) => {
+            const Icon = s.icon;
+            const active = scope.key === s.key;
+            const tone = HOME_TILE_TONES[idx % HOME_TILE_TONES.length];
+            // Six to a row leaves ~56px a tile on a phone — a slightly smaller disc.
+            const disc = chipCols >= 6 ? (isSmall ? 28 : 30) : (isSmall ? 32 : 34);
+            return (
+              <Pressable
+                key={s.key}
+                onPress={() => selectScope(s.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${s.chipLabel || s.label}, ${counts[s.key] ?? 0}`}
+                className="items-center active:opacity-80"
+                style={{ width: `${100 / chipCols}%`, paddingVertical: 5, paddingHorizontal: 4 }}
+              >
+                <View style={{ padding: 2, borderRadius: 999, borderWidth: 2, borderColor: active ? tone : 'transparent' }}>
+                  <View className="items-center justify-center" style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone }}>
+                    <Icon size={chipCols >= 6 ? (isSmall ? 13 : 14) : (isSmall ? 15 : 16)} color="#FFFFFF" strokeWidth={2.2} />
+                  </View>
+                  <View
+                    className="absolute items-center justify-center"
+                    style={{ top: -4, right: -6, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: tone }}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: tone }} numberOfLines={1}>{counts[s.key] ?? 0}</Text>
+                  </View>
+                </View>
+                <Text
+                  style={{ marginTop: 4, fontSize: isSmall ? 10 : 11, lineHeight: isSmall ? 13 : 14, fontWeight: active ? '800' : '600', color: active ? tone : '#111111', textAlign: 'center' }}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {s.chipLabel || s.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
       <View
         style={{
           paddingHorizontal: 10,
@@ -1109,14 +1166,16 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 style={{
                   paddingVertical: 4,
                   paddingHorizontal: isSmall ? 7 : 8,
-                  backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
-                  borderWidth: 1,
-                  borderColor: active ? ACCENT_GREEN : '#E2E8E2',
+                  // Each scope's own tint; the selected one gets its colour as the border.
+                  backgroundColor: s.bg,
+                  borderWidth: active ? 1.5 : 1,
+                  borderColor: active ? s.color : s.bg,
                 }}
               >
+                <>
                 <View
                   className="rounded-full items-center justify-center mr-1.5"
-                  style={{ height: chipIcon, width: chipIcon, backgroundColor: s.bg }}
+                  style={{ height: chipIcon, width: chipIcon, backgroundColor: '#FFFFFF' }}
                 >
                   <Icon size={chipGlyph} color={s.color} strokeWidth={2.3} />
                 </View>
@@ -1131,19 +1190,21 @@ export default function BookingHistoryScreen({ navigation, route }) {
                   className="font-semibold flex-1"
                   style={{
                     fontSize: isSmall ? 9.5 : 10.5,
-                    color: active ? ACCENT_GREEN : '#667066',
+                    color: active ? s.color : '#1F2937',
                   }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.75}
                 >
-                  {s.label}
+                  {s.chipLabel || s.label}
                 </Text>
+                </>
               </Pressable>
             </View>
           );
         })}
       </View>
+      )}
 
       {error ? (
         <View className="mx-4 mt-2 rounded-xl px-3 py-2"
@@ -1171,7 +1232,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               colors={[ACCENT_GREEN]}
             />
           }
-          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: tabSpace }}
           ListEmptyComponent={
             <EmptyState
               icon={<ClipboardList size={26} color={ACCENT_GREEN} />}
@@ -1185,30 +1246,32 @@ export default function BookingHistoryScreen({ navigation, route }) {
       )}
 
       {/* ── Filter popup (modal, slides up from bottom) ──────────── */}
-      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(23, 33, 23, 0.45)' }}>
+      <SafeModal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 17, 17, 0.45)' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowFilters(false)} />
-          <View
+          {/* Pads this modal window's own nav-bar / home-indicator inset. */}
+          <SafeAreaView
+            edges={['bottom']}
             style={{
               backgroundColor: '#FFFFFF',
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               paddingHorizontal: 16,
               paddingTop: 10,
-              paddingBottom: insets.bottom + 16,
+              paddingBottom: 16,
               maxHeight: winH * 0.78,
             }}
           >
-            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: 12 }} />
+            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
               <Text className="text-[15px] font-extrabold text-text">Filters</Text>
               <Pressable
                 onPress={() => setShowFilters(false)}
                 hitSlop={8}
                 className="h-8 w-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#EFF5EE' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
-                <X size={16} color="#172117" />
+                <X size={16} color="#111111" />
               </Pressable>
             </View>
 
@@ -1260,8 +1323,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
                     active={dateFilter === d}
                     onPress={() => setDateFilter(dateFilter === d ? null : d)}
                     leading={
-                      <View className="h-7 w-7 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: '#EFF5EE' }}>
-                        <Calendar size={14} color="#667066" strokeWidth={2.3} />
+                      <View className="h-7 w-7 rounded-full items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                        <Calendar size={14} color="#6B7280" strokeWidth={2.3} />
                       </View>
                     }
                   />
@@ -1273,7 +1336,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
               <Pressable
                 onPress={() => { setDateFilter(null); setQuery(''); }}
                 className="flex-1 mr-1.5 py-3 rounded-xl items-center active:opacity-70"
-                style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8E2' }}
+                style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }}
               >
                 <Text className="text-[13px] font-extrabold text-text">Clear all</Text>
               </Pressable>
@@ -1292,9 +1355,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
                 </LinearGradient>
               </Pressable>
             </View>
-          </View>
+          </SafeAreaView>
         </View>
-      </Modal>
+      </SafeModal>
 
       {/* ── Technician list sheet (from the card's "Assign" button) ────── */}
       <TechnicianPickerSheet
@@ -1308,6 +1371,41 @@ export default function BookingHistoryScreen({ navigation, route }) {
           Refetches rather than patching the row: the scope tiles count off the
           same array, so moving a booking to Delivered has to move those counts
           with it. */}
+      {/* Booking actions — opened by tapping a booking card. Home tool-tile
+          look: white icon on a teal / green / blue / grey disc, 4 per row. */}
+      <ResponsiveModal visible={!!bookingMenuFor} onClose={() => setBookingMenuFor(null)}>
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+          {bookingMenuFor ? (bookingMenuFor._modelName || bookingMenuFor.deviceDisplayName || bookingMenuFor.deviceModelName || bookingMenuFor.modelName || 'Booking') : ''}
+        </Text>
+        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
+          #{bookingMenuFor ? (bookingMenuFor.trackingId || String(bookingMenuFor.id || '').slice(0, 8).toUpperCase()) : ''}
+          {bookingMenuFor?.customerName ? ` · ${bookingMenuFor.customerName}` : ''}
+        </Text>
+        <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
+          {bookingActionsFor(bookingMenuFor).map((a, i) => {
+            const Icon = a.icon;
+            return (
+              <Pressable
+                key={a.key}
+                onPress={fromBookingMenu(a.run)}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+                className="items-center active:opacity-70"
+                style={{ width: '25%', paddingHorizontal: 4, paddingVertical: 8 }}
+              >
+                <View className="items-center justify-center" style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: HOME_TILE_TONES[i % HOME_TILE_TONES.length] }}>
+                  <Icon size={19} color="#FFFFFF" />
+                </View>
+                <Text style={{ marginTop: 6, fontSize: 11.5, fontWeight: '600', color: '#111111', textAlign: 'center' }} numberOfLines={2}>
+                  {a.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ResponsiveModal>
+
       <ServiceStatusSheet
         visible={statusOpen}
         booking={actionBooking}
@@ -1353,6 +1451,47 @@ export default function BookingHistoryScreen({ navigation, route }) {
           Both refetch rather than patching the row in place: the scope tiles
           count off the same `pickups` array, so a confirm that moves a row out
           of Pickup Request has to move the two counts with it. */}
+      {/* Pickup actions — opened by tapping a pickup card. */}
+      <ResponsiveModal visible={!!pickupMenuFor} onClose={() => setPickupMenuFor(null)}>
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+          {pickupMenuFor?.customerName || 'Pickup'}
+        </Text>
+        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
+          #{String(pickupMenuFor?.bookingNumber || (pickupMenuFor?.id ? String(pickupMenuFor.id).slice(0, 8).toUpperCase() : '')).replace(/^#+/, '')}
+        </Text>
+        <View className="flex-row" style={{ marginHorizontal: -4 }}>
+          {[
+            // Home screen tool-tile look: white icon on a medium teal / green /
+            // blue / grey disc, black label underneath, no tile box.
+            { key: 'accept', label: 'Accepted', icon: CheckCircle2, color: HOME_TILE_TONES[0], run: acceptPickup, busy: accepting },
+            { key: 'assign', label: 'Assign', icon: UserCheck, color: HOME_TILE_TONES[1], run: fromPickupMenu(openPickupAssignFor) },
+            { key: 'history', label: 'History', icon: History, color: HOME_TILE_TONES[2], run: fromPickupMenu(goPickupHistoryFor) },
+            { key: 'details', label: 'Details', icon: FileText, color: HOME_TILE_TONES[3], run: fromPickupMenu(goPickupDetailsFor) },
+          ].map((a) => {
+            const Icon = a.icon;
+            return (
+              <Pressable
+                key={a.key}
+                onPress={a.run}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+                disabled={!!a.busy}
+                className="flex-1 items-center active:opacity-70"
+                style={{ marginHorizontal: 4, paddingVertical: 8 }}
+              >
+                <View className="items-center justify-center" style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: a.color }}>
+                  {a.busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon size={19} color="#FFFFFF" />}
+                </View>
+                <Text style={{ marginTop: 6, fontSize: 12, fontWeight: '600', color: '#111111', textAlign: 'center' }} numberOfLines={1}>
+                  {a.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ResponsiveModal>
+
       <PickupStatusSheet
         visible={pickupStatusOpen}
         booking={pickupTarget}
@@ -1372,15 +1511,17 @@ export default function BookingHistoryScreen({ navigation, route }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// Helpers
-// ════════════════════════════════════════════════════════════════════════════
-function Row({ icon, label, value, numberOfLines }) {
+// One cell of the pickup card's 2 × 2 detail grid: small grey label (with its
+// icon) over the bold value. Left column aligns left, right column aligns right.
+function InfoCell({ icon, label, value, valueColor = '#111111', align = 'left' }) {
+  const right = align === 'right';
   return (
-    <View className="flex-row items-center py-0.5">
-      <View className="w-4 items-center mr-1.5">{icon}</View>
-      <Text className="text-[10px] text-text-muted w-16">{label}</Text>
-      <Text className="text-[11px] text-text flex-1 font-semibold" numberOfLines={numberOfLines || 1}>{value}</Text>
+    <View style={{ flex: 1, minWidth: 0, [right ? 'paddingLeft' : 'paddingRight']: 8, alignItems: right ? 'flex-end' : 'flex-start' }}>
+      <View className="flex-row items-center">
+        {icon}
+        <Text className="text-[10px] text-text-muted" style={{ marginLeft: 4 }}>{label}</Text>
+      </View>
+      <Text className="text-[11.5px] font-semibold" style={{ color: valueColor, marginTop: 1, textAlign: right ? 'right' : 'left', alignSelf: 'stretch' }} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -1388,59 +1529,21 @@ function Row({ icon, label, value, numberOfLines }) {
 // Full-width filter row. Replaces the old horizontal pill rail: with six
 // options per section the pills ran off the right edge, so the ones at the end
 // were invisible until you swiped.
-// One button in the card's action row: small icon + short label, four across.
-// hitSlop widens the touch target vertically without making the row taller —
-// the labels are only 10px, so the visible box alone is a tight target.
-//
-// `flex` exists because the row is an equal split by default, which the pickup
-// card breaks: its two-word labels ("Service Status", "Pickup History") need a
-// bigger share than "Details", which is one short word with room to spare.
-//
-// `compact` is the ticket card's answer to the same pressure, and it is the
-// opposite trade: there every label is already one short word, so nothing can
-// give up width to anything else — the row as a whole shrinks instead. Six
-// actions at ~1/6 of a phone-width card is under 50dp per slot, which a 13px
-// glyph plus a 10px label overruns, and the labels are what carries the
-// meaning. hitSlop keeps the touch target honest at either size.
-//
-// The style is a plain object, NOT the ({ pressed }) => … form — NativeWind's
-// interop drops function styles on a className'd Pressable outright, taking the
-// flex with it.
-function CardAction({ icon, label, onPress, flex = 1, compact = false }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-      style={{ flex }}
-      className="flex-row items-center justify-center py-1 active:opacity-60"
-    >
-      {icon}
-      <Text
-        className="font-extrabold text-text"
-        style={{ fontSize: compact ? 9 : 10, marginLeft: compact ? 2 : 4 }}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function FilterRow({ label, active, onPress, leading, trailing }) {
   return (
     <Pressable
       onPress={onPress}
       className="flex-row items-center rounded-xl px-3 py-2.5 mb-2 active:opacity-80"
       style={{
-        backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
+        backgroundColor: active ? '#E5F3F5' : '#FFFFFF',
         borderWidth: 1.5,
-        borderColor: active ? ACCENT_GREEN : '#E2E8E2',
+        borderColor: active ? ACCENT_GREEN : '#E5E7EB',
       }}
     >
       {leading || null}
       <Text
         className="flex-1 text-[13px] font-bold"
-        style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
+        style={{ color: active ? BRAND_GREEN_DARK : '#111111' }}
         numberOfLines={1}
       >
         {label}

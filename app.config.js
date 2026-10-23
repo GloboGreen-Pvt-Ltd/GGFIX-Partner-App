@@ -12,7 +12,7 @@ const masterBase =
 
 export default {
   expo: {
-    name: 'GGFIX Partner',
+    name: 'Near G Fix Partner',
     slug: 'ggfix-partner-app',
     // EAS account/organization that owns the project (from your Expo dashboard).
     // Verify this matches expo.dev → your account. Change if different.
@@ -29,7 +29,7 @@ export default {
       infoPlist: {
         // iOS has no shared Downloads folder, so a saved statement lands in the
         // app's own Documents directory. These two keys are what make that
-        // directory show up in the Files app under "GGFIX Partner" — without them
+        // directory show up in the Files app under "Near G Fix Partner" — without them
         // the file is saved somewhere the owner cannot reach.
         UIFileSharingEnabled: true,
         LSSupportsOpeningDocumentsInPlace: true,
@@ -85,16 +85,32 @@ export default {
       // audio asset is touched.
       'expo-font',
       'expo-asset',
-      ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock GGFIX.' }],
+      ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock Near G Fix Partner.' }],
       ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
       // Product camera / QR scanner and gallery pick (iOS usage strings).
-      ['expo-camera', { cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
-      ['expo-image-picker', { photosPermission: 'GGFIX uses your photos only to identify a device from a picture you choose.', cameraPermission: 'GGFIX uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
+      ['expo-camera', { cameraPermission: 'Near G Fix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
+      ['expo-image-picker', { photosPermission: 'Near G Fix Partner uses your photos only to identify a device from a picture you choose.', cameraPermission: 'Near G Fix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
       // Android 11+ package visibility for the WhatsApp / SMS receipt share.
       // `android/` is gitignored in the mirror, so the hand-edited manifest never
       // reaches an EAS build — this is what puts the <queries> block in the
       // generated one. See plugins/withAndroidQueries.js.
       './plugins/withAndroidQueries',
+      // Live product scanner (react-native-vision-camera 5 frame outputs): ML Kit
+      // OCR + barcode only. Non-Latin OCR models are left out to keep the
+      // binary small; the camera permission strings come from expo-camera above.
+      [
+        'react-native-vision-camera-mlkit',
+        {
+          textRecognition: true,
+          textRecognitionChinese: false,
+          textRecognitionDevanagari: false,
+          textRecognitionJapanese: false,
+          textRecognitionKorean: false,
+          barcodeScanning: true,
+        },
+      ],
+      // On-device object detection (CPU delegate only — no GPU libraries).
+      'react-native-fast-tflite',
       // Cleartext HTTP for the plain-http backend. The bare android.usesCleartextTraffic
       // key is ignored by Expo prebuild — it must be set via expo-build-properties.
       [
@@ -107,6 +123,11 @@ export default {
             // (armeabi-v7a, ~16MB), shrinking the universal APK from ~114MB to ~50MB.
             // buildArchs writes `reactNativeArchitectures` into gradle.properties.
             buildArchs: ['arm64-v8a'],
+            // Android 8.0+: react-native-vision-camera-resizer (GPU frame resize
+            // for the scanner's on-device device detection) declares minSdk 26.
+            // Expo's default is 24 (Android 7.x) — dropping the resizer would be
+            // the way back to 24.
+            minSdkVersion: 26,
           },
         },
       ],

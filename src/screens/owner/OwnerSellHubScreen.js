@@ -1,26 +1,31 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import {
-  TrendingUp, ShieldCheck, Truck, ChevronRight, FileText, Store, LayoutGrid, Smartphone, ArrowRight, Wrench, ShoppingBag,
+  TrendingUp, ShieldCheck, Truck, ChevronRight, FileText, LayoutGrid, Smartphone, ArrowRight, Wrench, ShoppingBag, Package,
 } from 'lucide-react-native';
+import { marketplaceApi } from '../../api/client';
+import { selectShopId, selectUserId } from '../../store/authSlice';
 import { OfferBanner, EmptyState, Loader } from '../../components/rnr';
 import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { tintFor } from '../shared/categoryTints';
 import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
 import { rf } from '../../utils/responsive';
 import { useCurrentDevice, deviceName, deviceTitle, roughEstimate } from '../../utils/currentDevice';
+import { useTabBarSpace } from '../../navigation/tabBarMetrics';
 
 // Same page as the Customer app's Sell home (SellHomeScreen); picking a device
 // starts the Partner listing flow (SelectBrand, OWNER_LIST).
 
-// Partner app Sell palette — green #09AD2A, ink #1E1E1E, neutrals #F8F8F8 / #F3F3F3.
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';      // green text
-const MINT = '#EAF8EC';
-const PAGE_BG = '#F8F8F8';
-const BORDER = '#E6E6E6';
-const TEXT = '#1E1E1E';
-const MUTED = '#6B6B6B';
+// Partner app Sell palette — green #035C6C, ink #111111, neutrals #F3F4F6 / #F3F4F6.
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';      // green text
+const MINT = '#E5F3F5';
+const PAGE_BG = '#F3F4F6';
+const BORDER = '#E5E7EB';
+const TEXT = '#111111';
+const MUTED = '#6B7280';
 const AMBER_FG = '#B45309';
 const AMBER_BG = '#FFF3CD';
 const MAX_W = 1000;
@@ -67,12 +72,6 @@ const PROMISES = [
   { icon: TrendingUp, title: 'Best Price', sub: 'Highest value guaranteed', color: ACCENT, bg: MINT },
   { icon: ShieldCheck, title: 'Verified Shops', sub: 'Trusted & verified partners', color: AMBER_FG, bg: AMBER_BG },
   { icon: Truck, title: 'Free Pickup', sub: 'Hassle-free at your doorstep', color: ACCENT, bg: MINT },
-];
-
-const STEPS = [
-  { n: 1, icon: FileText, title: 'Tell us about your device', sub: 'Model · condition · accessories' },
-  { n: 2, icon: Store, title: 'Get quotes from shops', sub: 'Up to 5 instant quotes' },
-  { n: 3, icon: Truck, title: 'Pickup at your doorstep', sub: 'Pick the best · free pickup' },
 ];
 
 // NOTE: Pressables take plain style objects only — NativeWind's cssInterop
@@ -136,6 +135,8 @@ function CategoryChip({ label, size, isAll, uri, photo, code, onPress, gap = 10 
 }
 
 export default function OwnerSellHubScreen({ navigation, route }) {
+  // The tab bar floats over the page; keep the last items clear of it.
+  const tabSpace = useTabBarSpace();
   const [cats, setCats] = useState([]);
   const [menuImages, setMenuImages] = useState({});
   const [banners, setBanners] = useState([]);
@@ -147,6 +148,29 @@ export default function OwnerSellHubScreen({ navigation, route }) {
   const bannerRef = useRef(null);
   const { width } = useWindowDimensions();
   const currentDevice = useCurrentDevice();
+
+  // This shop's own sell listings (same source and ownership rule as My
+  // Orders → Sell), newest first — the latest few show at the bottom.
+  const shopId = useSelector(selectShopId);
+  const userId = useSelector(selectUserId);
+  const [listings, setListings] = useState([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const loadListings = useCallback(async () => {
+    try {
+      const data = await marketplaceApi.get('/marketplace/products', { query: { type: 'SELL' } });
+      const list = Array.isArray(data) ? data : (data?.content || data?.data || []);
+      // By shop first: one owner runs several shops, so the user id alone would
+      // pull every shop's listings into whichever shop is active.
+      const mine = list.filter((p) => (shopId ? p.shopId === shopId : (userId && p.sellerUserId === userId)));
+      mine.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      setListings(mine);
+    } catch (_) {
+      setListings([]);
+    } finally {
+      setListingsLoading(false);
+    }
+  }, [shopId, userId]);
+  useFocusEffect(useCallback(() => { loadListings(); }, [loadListings]));
 
   useEffect(() => {
     (async () => {
@@ -216,7 +240,7 @@ export default function OwnerSellHubScreen({ navigation, route }) {
     const cat = extra.categoryId ? extra
       : first ? { categoryId: first.id, categoryCode: (first.code || '').toUpperCase(), categoryName: first.name } : null;
     if (!cat) return;
-    navigation.navigate('SelectBrand', {
+    navigation.navigate('SellDeviceDetails', {
       flow: route?.params?.flow || 'OWNER_LIST',
       ...cat,
       editSellOrderId: route?.params?.editSellOrderId,
@@ -227,7 +251,7 @@ export default function OwnerSellHubScreen({ navigation, route }) {
     <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
       {/* ---------- Header: back · Sell on GGFIX · my sell orders ---------- */}
       <PageHeader
-        title="Sell on GGFIX"
+        title="Sell on Near G Fix"
         subtitle="Sell your device. Get quotes from verified shops."
         onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
         right={<HeaderIconButton icon={FileText} color={ACCENT} size={17} label="My sell orders" onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' })} />}
@@ -236,7 +260,7 @@ export default function OwnerSellHubScreen({ navigation, route }) {
       {loading ? (
         <Loader label="Loading categories..." />
       ) : (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabSpace }}>
           <View style={centered}>
             {/* Hero carousel (admin banners, image only). Falls back to the
                 built-in offer banner when none are published. */}
@@ -363,36 +387,74 @@ export default function OwnerSellHubScreen({ navigation, route }) {
               })}
             </View>
 
-            {/* How it works */}
-            <View style={{ paddingHorizontal: padH, marginTop: 18, marginBottom: 8 }}>
-              <Text style={{ fontSize: rf(15), fontWeight: '800', color: TEXT }}>How it works</Text>
-              <Text style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>Three steps to cash in hand</Text>
+            {/* My sell listings — the latest five; See All opens My Orders → Sell. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, marginTop: 18, marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: rf(15), fontWeight: '800', color: TEXT }}>My Sell Listings</Text>
+                <Text style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>Devices and parts you've listed</Text>
+              </View>
+              {listings.length ? (
+                <Pressable
+                  onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' })}
+                  accessibilityRole="button"
+                  className="active:opacity-70"
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: MINT, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
+                >
+                  <Text style={{ fontSize: rf(12), fontWeight: '800', color: PRIMARY }}>See All</Text>
+                  <ChevronRight size={14} color={PRIMARY} />
+                </Pressable>
+              ) : null}
             </View>
             <View style={{ paddingHorizontal: padH }}>
-              {STEPS.map((s) => {
-                const Icon = s.icon;
-                return (
-                  <View
-                    key={s.n}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16,
-                      borderWidth: 1, borderColor: BORDER, paddingVertical: 10, paddingLeft: 12, paddingRight: 10, marginBottom: 8, ...cardShadow,
-                    }}
-                  >
-                    <View style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      <Text style={{ color: '#FFFFFF', fontSize: rf(12.5), fontWeight: '800' }}>{s.n}</Text>
-                    </View>
-                    <View style={{ height: 36, width: 36, borderRadius: 12, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      <Icon size={18} color={PRIMARY} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: TEXT }}>{s.title}</Text>
-                      <Text numberOfLines={1} style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>{s.sub}</Text>
-                    </View>
-                    <ChevronRight size={17} color={MUTED} />
+              {listingsLoading ? null : listings.length === 0 ? (
+                <View style={{ alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingVertical: 20, paddingHorizontal: 16 }}>
+                  <View style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}>
+                    <Package size={20} color={ACCENT} />
                   </View>
-                );
-              })}
+                  <Text style={{ fontSize: rf(13), fontWeight: '800', color: TEXT, marginTop: 8 }}>No listings yet</Text>
+                  <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: 2, textAlign: 'center' }}>Pick a category above to list your first device.</Text>
+                </View>
+              ) : (
+                listings.slice(0, 5).map((p) => {
+                  const status = String(p.status || 'ACTIVE').toUpperCase();
+                  const live = status === 'ACTIVE';
+                  const sold = status === 'SOLD' || status === 'COMPLETED';
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => navigation.navigate('MarketplaceListingDetails', { productId: p.id, listing: p })}
+                      accessibilityRole="button"
+                      className="active:opacity-90"
+                      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 10, marginBottom: 8, ...cardShadow }}
+                    >
+                      <View style={{ height: 52, width: 52, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
+                        {p.imageUrl ? (
+                          <Image resizeMethod="resize" source={{ uri: p.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="contain" />
+                        ) : (
+                          <Smartphone size={20} color={MUTED} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: TEXT }}>{p.title || 'Listing'}</Text>
+                        <Text numberOfLines={1} style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>
+                          {p.descriptionType === 'SPARE_PARTS' ? 'Spare part' : (p.conditionLabel || 'Device')}
+                          {p.createdAt ? ` · ${new Date(p.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                        {p.price != null ? (
+                          <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: PRIMARY }}>₹{Number(p.price).toLocaleString('en-IN')}</Text>
+                        ) : null}
+                        <View style={{ marginTop: 4, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: live ? MINT : sold ? '#EFF4EB' : '#F3F4F6' }}>
+                          <Text style={{ fontSize: rf(10), fontWeight: '800', color: live ? PRIMARY : sold ? '#4A7029' : MUTED }}>
+                            {live ? 'Live' : sold ? 'Sold' : status.charAt(0) + status.slice(1).toLowerCase()}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
             </View>
           </View>
         </ScrollView>

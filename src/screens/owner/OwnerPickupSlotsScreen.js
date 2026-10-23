@@ -8,7 +8,6 @@ import {
   TextInput,
   TouchableOpacity,
   Pressable,
-  Modal,
   ActivityIndicator,
   StatusBar,
   useWindowDimensions,
@@ -19,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
 import { notify } from '../../components/confirm';
+import SafeModal from '../../components/SafeModal';
 // Add-only by design: a saved slot is a commitment customers can already be
 // booking against, so this screen never offers edit or delete.
 import { getShopPickupSlots, addShopPickupSlot } from '../../api/shops';
@@ -55,20 +55,6 @@ function dayLabel(code) {
   // Older rows may still carry NULL from the previous "Any day" support.
   if (code == null) return 'Any day (legacy)';
   return DAYS.find((d) => d.code === code)?.long ?? `Day ${code}`;
-}
-
-// Render the user's current multi-day selection as "Mon to Sat", "All days",
-// or "Mon, Wed, Fri". Empty when nothing picked.
-function daysSummary(days) {
-  if (!days || days.length === 0) return '';
-  const sorted = [...days].sort((a, b) => a - b);
-  if (sorted.length === 7) return 'All days';
-  const consecutive = sorted.every((c, i) => i === 0 || c === sorted[i - 1] + 1);
-  const dayShort = (c) => DAYS.find((d) => d.code === c)?.short ?? `?`;
-  if (consecutive && sorted.length > 1) {
-    return `${dayShort(sorted[0])} to ${dayShort(sorted[sorted.length - 1])}`;
-  }
-  return sorted.map(dayShort).join(', ');
 }
 
 // Backend returns "HH:MM:SS"; show the user "HH:MM". Submit also sends "HH:MM".
@@ -109,19 +95,19 @@ function parseTimeInput(raw) {
   return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
 }
 
-// GGFIX palette — green #09AD2A (deep #078F23 for green text / active fills),
-// ink #1E1E1E, neutrals #F8F8F8 / #F3F3F3, yellow #F3BF23 for warnings.
+// GGFIX palette — green #035C6C (deep #035C6C for green text / active fills),
+// ink #111111, neutrals #F3F4F6 / #F3F4F6, yellow #F3BF23 for warnings.
 const C = {
-  deep: '#078F23',
-  primary: '#09AD2A',
-  bright: '#09AD2A',
-  mint: '#EAF8EC',
-  softMint: '#F8F8F8',
-  bg: '#F8F8F8',
+  deep: '#035C6C',
+  primary: '#035C6C',
+  bright: '#035C6C',
+  mint: '#E5F3F5',
+  softMint: '#F3F4F6',
+  bg: '#F3F4F6',
   card: '#FFFFFF',
-  border: '#E6E6E6',
-  text: '#1E1E1E',
-  muted: '#6B6B6B',
+  border: '#E5E7EB',
+  text: '#111111',
+  muted: '#6B7280',
   warn: '#F3BF23',
   softWarn: '#FFF8E1',
 };
@@ -178,7 +164,7 @@ function TimePickerSheet({ visible, title, value, fallback, onCancel, onConfirm 
   }, [visible, value, fallback]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.pickBackdrop} onPress={onCancel}>
         {/* Swallows the backdrop press so tapping inside the card can't close it. */}
         <Pressable style={styles.pickCard} onPress={() => {}}>
@@ -205,7 +191,7 @@ function TimePickerSheet({ visible, title, value, fallback, onCancel, onConfirm 
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 
@@ -224,7 +210,7 @@ function TimeField({ label, value, placeholder, onPress }) {
       >
         <Ionicons name="time-outline" size={16} color={C.primary} />
         <Text
-          style={[styles.fieldValue, !value && { color: '#9E9E9E' }]}
+          style={[styles.fieldValue, !value && { color: '#9CA3AF' }]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
@@ -456,7 +442,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
               <Ionicons
                 name="car-outline"
                 size={20}
-                color={pickupEnabled ? C.deep : '#9E9E9E'}
+                color={pickupEnabled ? C.deep : '#9CA3AF'}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -476,9 +462,9 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                 value={pickupEnabled}
                 onValueChange={onTogglePickup}
                 disabled={!ownerId}
-                trackColor={{ false: '#D6D6D6', true: C.bright }}
+                trackColor={{ false: '#D1D5DB', true: C.bright }}
                 thumbColor="#FFFFFF"
-                ios_backgroundColor="#D6D6D6"
+                ios_backgroundColor="#D1D5DB"
               />
             )}
           </View>
@@ -578,7 +564,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                   value={form.capacity}
                   onChangeText={(t) => setForm((f) => ({ ...f, capacity: t }))}
                   placeholder="20"
-                  placeholderTextColor="#9E9E9E"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="number-pad"
                   maxLength={3}
                 />
@@ -751,7 +737,7 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   heroBack: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F3F3F3',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center', justifyContent: 'center',
   },
   heroTitle: { fontSize: 17, fontWeight: '800', color: C.text },
@@ -764,8 +750,8 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F3F3F3',
-    shadowColor: '#1E1E1E',
+    borderColor: '#F3F4F6',
+    shadowColor: '#111111',
     shadowOpacity: 0.06,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
@@ -777,7 +763,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.mint,
     alignItems: 'center', justifyContent: 'center',
   },
-  iconTileOff: { backgroundColor: '#F3F3F3' },
+  iconTileOff: { backgroundColor: '#F3F4F6' },
   cardTitle: { fontSize: 15, fontWeight: '800', color: C.text },
   cardTitleLg: { fontSize: 15, fontWeight: '800', color: C.text },
   cardSub: { fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 16 },
@@ -834,7 +820,7 @@ const styles = StyleSheet.create({
     maxWidth: 38,
     aspectRatio: 1,
     borderRadius: 999,
-    backgroundColor: '#F3F3F3',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center', justifyContent: 'center',
   },
   dayCircleActive: {
@@ -845,7 +831,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  dayCircleText: { fontSize: 13, color: '#6B6B6B', fontWeight: '800' },
+  dayCircleText: { fontSize: 13, color: '#6B7280', fontWeight: '800' },
   dayCircleTextActive: { color: '#FFFFFF' },
 
   errorText: { fontSize: 11, color: '#F84141', marginTop: 6 },
@@ -905,7 +891,7 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     paddingVertical: 4,
     elevation: 12,
-    shadowColor: '#1E1E1E',
+    shadowColor: '#111111',
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -929,7 +915,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   emptyHill: { position: 'absolute', bottom: -48, width: 150, height: 70, borderRadius: 999, backgroundColor: C.mint },
   emptyHillL: { left: -40 },
@@ -952,8 +938,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#F3F3F3',
-    shadowColor: '#1E1E1E',
+    borderColor: '#F3F4F6',
+    shadowColor: '#111111',
     shadowOpacity: 0.04,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -1005,7 +991,7 @@ const styles = StyleSheet.create({
   // ---- time picker sheet
   pickBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(30, 30, 30, 0.45)',
+    backgroundColor: 'rgba(17, 17, 17, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -1024,6 +1010,6 @@ const styles = StyleSheet.create({
   pickRowTextOn: { color: '#FFFFFF', fontWeight: '800' },
   pickActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   pickBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  pickBtnGhost: { backgroundColor: '#F3F3F3' },
+  pickBtnGhost: { backgroundColor: '#F3F4F6' },
   pickBtnText: { fontSize: 13, fontWeight: '800' },
 });

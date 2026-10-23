@@ -4,7 +4,6 @@ import {
   FlatList,
   Image,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -36,7 +35,6 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Check,
-  Zap,
   ShieldCheck,
   BadgePercent,
   RotateCcw,
@@ -48,19 +46,20 @@ import {
 import { marketplaceApi } from '../../api/client';
 import { listProducts, getCart, addToCart } from '../../api/marketplace';
 import { normalizeDeviceImageUrl, resolveDeviceImageSource } from '../../utils/images';
-import { listingConditionLabel, listingCustomerName } from '../../api/nearbyListings';
+import { isOwnListing, listingConditionLabel, listingCustomerName, ownShopIdsOf } from '../../api/nearbyListings';
 import { fetchMe } from '../../api/auth';
 import { getSession } from '../../auth/session';
 import { getDeviceCategories, getBrands, getBrandsForCategory, getModelsByBrand, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { listShops } from '../../api/shops';
 import { OfferBanner } from '../../components/rnr';
 import { notify } from '../../components/confirm';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import { tintFor } from '../shared/categoryTints';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
-const GREEN       = '#09AD2A';
-const GREEN_LIGHT = '#09AD2A';  // gradient top stop only - keeps the CTA from going flat
-const GREEN_DARK  = '#078F23';  // deeper green for green text/icons and gradient ends
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
+const GREEN       = '#035C6C';
+const GREEN_LIGHT = '#035C6C';  // gradient top stop only - keeps the CTA from going flat
+const GREEN_DARK  = '#035C6C';  // deeper green for green text/icons and gradient ends
 
 const RADIUS_KM = 20;
 
@@ -69,7 +68,7 @@ const RADIUS_KM = 20;
 const NO_BRANDS = [];
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 4 },
@@ -102,9 +101,9 @@ function bannerImage(b) {
 
 // Static trust strip — marketing content, same on every load.
 const TRUST = [
-  { icon: ShieldCheck,  title: 'Verified Sellers', sub: '100% Trusted',    color: GREEN, bg: '#EAF8EC' },
-  { icon: BadgePercent, title: 'Best Prices',      sub: 'Great Discounts', color: GREEN, bg: '#EAF8EC' },
-  { icon: RotateCcw,    title: 'Easy Returns',     sub: '7 Days Policy',   color: GREEN, bg: '#EAF8EC' },
+  { icon: ShieldCheck,  title: 'Verified Sellers', sub: '100% Trusted',    color: GREEN, bg: '#E5F3F5' },
+  { icon: BadgePercent, title: 'Best Prices',      sub: 'Great Discounts', color: GREEN, bg: '#E5F3F5' },
+  { icon: RotateCcw,    title: 'Easy Returns',     sub: '7 Days Policy',   color: GREEN, bg: '#E5F3F5' },
   { icon: ShieldCheck,  title: 'Warranty',         sub: 'Brand Warranty',  color: '#D97706', bg: '#FEF3C7' },
 ];
 
@@ -383,10 +382,11 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     if (!session) session = await getSession();
     const shop = session?.activeShop;
     const shopId = shop?.id || session?.shopId || null;
+    const ownShopIds = ownShopIdsOf(session, shopId);
     if (shop && shop.latitude != null && shop.longitude != null) {
-      return { lat: Number(shop.latitude), lng: Number(shop.longitude), shopName: shop.name, sellerId: session?.userId, shopId };
+      return { lat: Number(shop.latitude), lng: Number(shop.longitude), shopName: shop.name, sellerId: session?.userId, shopId, ownShopIds };
     }
-    return { lat: null, lng: null, shopName: session?.shopName, sellerId: session?.userId, shopId };
+    return { lat: null, lng: null, shopName: session?.shopName, sellerId: session?.userId, shopId, ownShopIds };
   }, []);
 
   const load = useCallback(
@@ -411,11 +411,10 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         const shopMap = new Map();
         (Array.isArray(shopData) ? shopData : []).forEach((s) => { if (s?.id) shopMap.set(s.id, s); });
 
-        const myShopId = o.shopId || null;
-
         const listingArr = Array.isArray(listingData) ? listingData : listingData?.content ?? listingData?.data ?? [];
         const listingCards = (listingArr || [])
-          .filter((l) => !myShopId || l.shopId !== myShopId)
+          // None of the owner's own shops — active or not — are buyable here.
+          .filter((l) => !isOwnListing(o, l))
           .map((l) => {
             const shop = l.shopId ? shopMap.get(l.shopId) : null;
             const card = listingToCard(l);
@@ -429,7 +428,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         setListings(listingCards);
 
         const productCards = (productData || [])
-          .filter((p) => !myShopId || p.shopId !== myShopId)
+          .filter((p) => !isOwnListing(o, p))
           .map((p) => {
             const card = productToCard(p);
             const shop = p.shopId ? shopMap.get(p.shopId) : null;
@@ -571,7 +570,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
       <TouchableOpacity activeOpacity={0.85} onPress={() => openDetail(item)} className="bg-white rounded-2xl p-3 mb-2.5" style={cardShadow}>
         <View className="flex-row items-start">
           <View style={{ position: 'relative', marginRight: 10 }}>
-            <View className="w-[56px] h-[56px] rounded-2xl overflow-hidden items-center justify-center" style={{ backgroundColor: '#EAF8EC' }}>
+            <View className="w-[56px] h-[56px] rounded-2xl overflow-hidden items-center justify-center" style={{ backgroundColor: '#E5F3F5' }}>
               {item.productImage ? (
                 <Image source={{ uri: item.productImage }} style={{ width: 56, height: 56 }} resizeMode="cover" />
               ) : isSpare ? <Wrench size={21} color={GREEN_DARK} /> : <Smartphone size={22} color={GREEN_DARK} />}
@@ -605,7 +604,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 </View>
               ) : null}
               {item.condition ? (
-                <View className="self-start flex-row items-center px-2 py-1 rounded-full mb-1" style={{ backgroundColor: '#EAF8EC' }}>
+                <View className="self-start flex-row items-center px-2 py-1 rounded-full mb-1" style={{ backgroundColor: '#E5F3F5' }}>
                   <Sparkles size={10} color={GREEN} />
                   <Text className="ml-1 text-[10px] font-extrabold" style={{ color: GREEN, letterSpacing: 0.3 }}>{listingConditionLabel(item.condition)}</Text>
                 </View>
@@ -613,16 +612,16 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             </View>
             {item.shopName ? (
               <View className="flex-row items-center mt-0.5">
-                <Store size={12} color="#8E8E8E" />
+                <Store size={12} color="#9CA3AF" />
                 <Text className="text-[11px] text-gray-700 font-bold ml-1 flex-1" numberOfLines={1}>{item.shopName}</Text>
               </View>
             ) : null}
             <View className="flex-row items-center mt-0.5">
-              <MapPin size={12} color="#8E8E8E" />
+              <MapPin size={12} color="#9CA3AF" />
               <Text className="text-[11px] text-gray-500 ml-1 flex-1" numberOfLines={1}>{sellerLine}</Text>
             </View>
             {distance ? (
-              <View className="self-start flex-row items-center px-2 py-1 rounded-full mt-1.5" style={{ backgroundColor: '#EAF8EC' }}>
+              <View className="self-start flex-row items-center px-2 py-1 rounded-full mt-1.5" style={{ backgroundColor: '#E5F3F5' }}>
                 <NavIcon size={10} color={GREEN_DARK} />
                 <Text className="ml-1 text-[10px] font-extrabold" style={{ color: GREEN_DARK }}>{distance} away</Text>
               </View>
@@ -643,13 +642,13 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View className="my-2" style={{ borderTopWidth: 1, borderTopColor: '#E6E6E6', borderStyle: 'dashed' }} />
+        <View className="my-2" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' }} />
 
         <View className="flex-row">
           <TouchableOpacity
             activeOpacity={0.85} onPress={() => openDetail(item)}
             className="flex-1 mr-2 rounded-xl py-2.5 flex-row items-center justify-center"
-            style={{ backgroundColor: '#EAF8EC', borderWidth: 1, borderColor: '#EAF8EC' }}
+            style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#E5F3F5' }}
           >
             <Eye size={14} color={GREEN_DARK} />
             <Text className="ml-1.5 text-[12px] font-extrabold" style={{ color: GREEN_DARK }}>View Details</Text>
@@ -688,7 +687,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   // `photo`: a Category Menu image — a large transparent cut-out, drawn at
   // nearly the tile's full size (fit, not cropped) over the category tint.
   const CategoryChip = ({ active, label, isAll, uri, photo, emoji, code, onPress }) => {
-    const tint = isAll ? '#EAF8EC' : tintFor(code);
+    const tint = isAll ? '#E5F3F5' : tintFor(code);
     return (
       <Pressable onPress={onPress} className="items-center mr-2.5 active:opacity-80" style={{ width: CAT_CHIP_SIZE }}>
         <View
@@ -715,7 +714,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         <Text
           className="mt-1 text-center"
           numberOfLines={1}
-          style={{ fontSize: CAT_CHIP_LABEL_F, color: active ? GREEN_DARK : '#1E1E1E', fontWeight: active ? '800' : '600' }}
+          style={{ fontSize: CAT_CHIP_LABEL_F, color: active ? GREEN_DARK : '#111111', fontWeight: active ? '800' : '600' }}
         >
           {label}
         </Text>
@@ -739,7 +738,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   };
   const SellerLine = ({ item }) => (
     <View className="flex-row items-center mt-0.5">
-      {item.sellerType === 'CUSTOMER' ? <User size={10} color="#8E8E8E" /> : <Store size={10} color="#8E8E8E" />}
+      {item.sellerType === 'CUSTOMER' ? <User size={10} color="#9CA3AF" /> : <Store size={10} color="#9CA3AF" />}
       <Text className="text-[10px] text-gray-700 font-bold ml-1 flex-1" numberOfLines={1}>{sellerOf(item)}</Text>
     </View>
   );
@@ -752,7 +751,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     const distance = item.distanceKm != null ? `${item.distanceKm} km` : null;
     return (
       <Pressable onPress={() => openDetail(item)} className="bg-white rounded-2xl flex-row items-center active:opacity-90" style={{ width: 244, marginRight: 12, padding: 10, ...cardShadow }}>
-        <View className="rounded-xl items-center justify-center overflow-hidden mr-2.5" style={{ width: 60, height: 60, backgroundColor: '#EAF8EC' }}>
+        <View className="rounded-xl items-center justify-center overflow-hidden mr-2.5" style={{ width: 60, height: 60, backgroundColor: '#E5F3F5' }}>
           {item.productImage ? <Image source={{ uri: item.productImage }} style={{ width: 60, height: 60 }} resizeMode="cover" /> : <Smartphone size={24} color={GREEN_DARK} />}
         </View>
         <View className="flex-1 pr-1">
@@ -769,7 +768,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           onPress={() => handleAddToCart(item)}
           hitSlop={8}
           className="h-9 w-9 rounded-full items-center justify-center"
-          style={{ backgroundColor: '#EAF8EC' }}
+          style={{ backgroundColor: '#E5F3F5' }}
         >
           {item.source === 'product' ? <Plus size={17} color={GREEN_DARK} strokeWidth={2.6} /> : <ChevronRight size={17} color={GREEN_DARK} strokeWidth={2.6} />}
         </Pressable>
@@ -847,7 +846,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                     {uri ? (
                       <Image source={{ uri }} style={{ width: '100%', aspectRatio: heroRatio }} resizeMode="contain" />
                     ) : (
-                      <View style={{ width: '100%', aspectRatio: heroRatio, backgroundColor: '#EAF8EC' }} />
+                      <View style={{ width: '100%', aspectRatio: heroRatio, backgroundColor: '#E5F3F5' }} />
                     )}
                   </Pressable>
                 </View>
@@ -864,7 +863,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                     width: i === bannerIndex ? 18 : 6,
                     borderRadius: 3,
                     marginHorizontal: 3,
-                    backgroundColor: i === bannerIndex ? GREEN : '#D6D6D6',
+                    backgroundColor: i === bannerIndex ? GREEN : '#D1D5DB',
                   }}
                 />
               ))}
@@ -928,25 +927,25 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             style={{
               paddingHorizontal: 10, paddingVertical: 6,
               backgroundColor: brandFilter ? GREEN : '#FFFFFF',
-              borderWidth: 1, borderColor: brandFilter ? GREEN : '#E6E6E6',
+              borderWidth: 1, borderColor: brandFilter ? GREEN : '#E5E7EB',
             }}
           >
-            <Tag size={12} color={brandFilter ? '#FFFFFF' : '#6B6B6B'} />
+            <Tag size={12} color={brandFilter ? '#FFFFFF' : '#6B7280'} />
             <View style={{ maxWidth: 92, marginLeft: 4, marginRight: 2 }}>
-              <Text className="text-[11px] font-extrabold" numberOfLines={1} style={{ color: brandFilter ? '#FFFFFF' : '#1E1E1E' }}>
+              <Text className="text-[11px] font-extrabold" numberOfLines={1} style={{ color: brandFilter ? '#FFFFFF' : '#111111' }}>
                 {brandFilter ? brandFilter.name : 'Brand'}
               </Text>
             </View>
-            <ChevronDown size={13} color={brandFilter ? '#FFFFFF' : '#6B6B6B'} />
+            <ChevronDown size={13} color={brandFilter ? '#FFFFFF' : '#6B7280'} />
           </Pressable>
           {brandFilter ? (
             <Pressable
               onPress={() => setBrandFilter(null)}
               hitSlop={8}
               className="h-6 w-6 rounded-full items-center justify-center ml-1.5"
-              style={{ backgroundColor: '#F3F3F3' }}
+              style={{ backgroundColor: '#F3F4F6' }}
             >
-              <X size={12} color="#6B6B6B" />
+              <X size={12} color="#6B7280" />
             </Pressable>
           ) : null}
         </View>
@@ -955,7 +954,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   );
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#F8F8F8' }}>
+    <View className="flex-1" style={{ backgroundColor: '#F3F4F6' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
@@ -963,7 +962,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           style={{
             backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16,
             borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-            borderBottomWidth: 1, borderBottomColor: '#E6E6E6',
+            borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
           }}
         >
           <View style={{ paddingHorizontal: padH }}>
@@ -974,7 +973,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 hitSlop={10}
                 className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
               >
-                <ChevronLeft size={20} color="#1E1E1E" />
+                <ChevronLeft size={20} color="#111111" />
               </Pressable>
               <View className="flex-1 items-center">
                 <Text className="text-text text-[17px] font-extrabold">Buy</Text>
@@ -985,7 +984,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 hitSlop={10}
                 className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
               >
-                <ShoppingCart size={18} color="#1E1E1E" />
+                <ShoppingCart size={18} color="#111111" />
                 {cartCount > 0 ? (
                   <View className="absolute -top-1 -right-1 rounded-full min-w-[16px] h-4 px-1 items-center justify-center" style={{ backgroundColor: '#F59E0B', borderWidth: 1.5, borderColor: '#FFFFFF' }}>
                     <Text className="text-text text-[9px] font-extrabold">{cartCount > 9 ? '9+' : cartCount}</Text>
@@ -998,7 +997,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             <View className="flex-row items-center" style={{ marginTop: 14 }}>
               <View
                 className="flex-1 flex-row items-center"
-                style={{ backgroundColor: '#F3F3F3', borderRadius: 16, borderWidth: 1, borderColor: '#E6E6E6', paddingHorizontal: 14, paddingVertical: 11 }}
+                style={{ backgroundColor: '#F3F4F6', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 11 }}
               >
                 <Search size={18} color={GREEN} />
                 <TextInput
@@ -1010,8 +1009,8 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                   autoCorrect={false}
                   autoComplete="off"
                   placeholder="Search mobiles, spares, accessories..."
-                  placeholderTextColor="#8E8E8E"
-                  style={{ flex: 1, marginLeft: 10, color: '#1E1E1E', fontSize: 13, padding: 0 }}
+                  placeholderTextColor="#9CA3AF"
+                  style={{ flex: 1, marginLeft: 10, color: '#111111', fontSize: 13, padding: 0 }}
                 />
                 {searchText ? (
                   <TouchableOpacity
@@ -1020,17 +1019,17 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                     hitSlop={6}
                     className="w-7 h-7 rounded-full items-center justify-center"
                   >
-                    <X size={14} color="#6B6B6B" />
+                    <X size={14} color="#6B7280" />
                   </TouchableOpacity>
                 ) : null}
               </View>
               <Pressable
                 onPress={() => setShowFilters(true)}
                 className="ml-2 flex-row items-center rounded-2xl px-3.5 active:opacity-80"
-                style={{ height: 46, backgroundColor: activeFilters > 0 ? GREEN : '#FFFFFF', borderWidth: 1, borderColor: activeFilters > 0 ? GREEN : '#E6E6E6' }}
+                style={{ height: 46, backgroundColor: activeFilters > 0 ? GREEN : '#FFFFFF', borderWidth: 1, borderColor: activeFilters > 0 ? GREEN : '#E5E7EB' }}
               >
-                <SlidersHorizontal size={16} color={activeFilters > 0 ? '#FFFFFF' : '#1E1E1E'} />
-                <Text className="text-[13px] font-extrabold ml-1.5" style={{ color: activeFilters > 0 ? '#FFFFFF' : '#1E1E1E' }}>Filters</Text>
+                <SlidersHorizontal size={16} color={activeFilters > 0 ? '#FFFFFF' : '#111111'} />
+                <Text className="text-[13px] font-extrabold ml-1.5" style={{ color: activeFilters > 0 ? '#FFFFFF' : '#111111' }}>Filters</Text>
                 {activeFilters > 0 ? (
                   <View className="ml-1.5 px-1.5 rounded-full" style={{ backgroundColor: '#FFFFFF' }}>
                     <Text className="text-[10px] font-extrabold" style={{ color: GREEN_DARK }}>{activeFilters}</Text>
@@ -1063,7 +1062,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           ListEmptyComponent={
             browsing ? (
               <View className="items-center pt-10 px-8">
-                <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#EAF8EC' }}>
+                <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#E5F3F5' }}>
                   <Store size={32} color={GREEN_DARK} />
                 </View>
                 <Text className="text-[13px] font-extrabold text-gray-700 text-center">{selected ? `No ${brandFilter ? `${brandFilter.name} ` : ''}${selected.name} products available` : `No ${brandFilter ? `${brandFilter.name} ` : ''}items yet`}</Text>
@@ -1075,15 +1074,16 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
       )}
 
       {/* Filters popup */}
-      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(30, 30, 30, 0.45)' }}>
+      <SafeModal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 17, 17, 0.45)' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowFilters(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
-            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E6E6E6', marginBottom: 12 }} />
+          {/* Pads this modal window's own nav-bar / home-indicator inset. */}
+          <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
+            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
               <Text className="text-[13px] font-extrabold text-gray-900">Filters</Text>
-              <Pressable onPress={() => setShowFilters(false)} hitSlop={8} className="h-8 w-8 rounded-full items-center justify-center" style={{ backgroundColor: '#F3F3F3' }}>
-                <X size={16} color="#1E1E1E" />
+              <Pressable onPress={() => setShowFilters(false)} hitSlop={8} className="h-8 w-8 rounded-full items-center justify-center" style={{ backgroundColor: '#F3F4F6' }}>
+                <X size={16} color="#111111" />
               </Pressable>
             </View>
 
@@ -1098,14 +1098,14 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             <Pressable
               onPress={openBrandPicker}
               className="flex-row items-center rounded-xl active:opacity-80"
-              style={{ paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: brandFilter ? GREEN : '#E6E6E6' }}
+              style={{ paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: brandFilter ? GREEN : '#E5E7EB' }}
             >
-              <Tag size={14} color={brandFilter ? GREEN_DARK : '#6B6B6B'} />
-              <Text className="flex-1 text-[12px] font-extrabold ml-2" numberOfLines={1} style={{ color: brandFilter ? '#1E1E1E' : '#6B6B6B' }}>
+              <Tag size={14} color={brandFilter ? GREEN_DARK : '#6B7280'} />
+              <Text className="flex-1 text-[12px] font-extrabold ml-2" numberOfLines={1} style={{ color: brandFilter ? '#111111' : '#6B7280' }}>
                 {brandFilter ? brandFilter.name : 'All brands'}
               </Text>
               <Text className="text-[10.5px] text-text-muted mr-1" numberOfLines={1}>{selected ? selected.name : 'All categories'}</Text>
-              <ChevronRight size={15} color="#6B6B6B" />
+              <ChevronRight size={15} color="#6B7280" />
             </Pressable>
 
             <Text className="text-[10px] font-extrabold text-text-muted tracking-widest mb-2 mt-3">SELLER</Text>
@@ -1116,7 +1116,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             </View>
 
             <View className="flex-row mt-5">
-              <Pressable onPress={clearFilters} className="flex-1 mr-1.5 py-3 rounded-xl items-center active:opacity-70" style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#E6E6E6' }}>
+              <Pressable onPress={clearFilters} className="flex-1 mr-1.5 py-3 rounded-xl items-center active:opacity-70" style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }}>
                 <Text className="text-[13px] font-extrabold text-gray-900">Clear</Text>
               </Pressable>
               <Pressable onPress={() => setShowFilters(false)} className="flex-1 ml-1.5 rounded-xl active:opacity-90 overflow-hidden">
@@ -1125,72 +1125,77 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 </LinearGradient>
               </Pressable>
             </View>
-          </View>
+          </SafeAreaView>
         </View>
-      </Modal>
+      </SafeModal>
 
       {/* Brand picker — the list is scoped to the selected category */}
-      <Modal visible={showBrands} transparent animationType="slide" onRequestClose={() => setShowBrands(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(30, 30, 30, 0.45)' }}>
-          <Pressable style={{ flex: 1 }} onPress={() => setShowBrands(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 22, maxHeight: '78%' }}>
-            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E6E6E6', marginBottom: 12 }} />
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 pr-2">
-                <Text className="text-[13px] font-extrabold text-gray-900">Brand</Text>
-                <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>
-                  {selected ? `Brands in ${selected.name}` : 'All categories'}
-                </Text>
+      <SafeModal visible={showBrands} transparent animationType="slide" onRequestClose={() => setShowBrands(false)}>
+        {/* This window's own nav-bar inset; lifted above the keyboard while searching. */}
+        <ModalInsets>
+          {({ insets, keyboard }) => (
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 17, 17, 0.45)', paddingBottom: keyboard }}>
+              <Pressable style={{ flex: 1 }} onPress={() => setShowBrands(false)} />
+              <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 22 + (keyboard > 0 ? 0 : insets.bottom), maxHeight: '78%' }}>
+                <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-2">
+                    <Text className="text-[13px] font-extrabold text-gray-900">Brand</Text>
+                    <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>
+                      {selected ? `Brands in ${selected.name}` : 'All categories'}
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setShowBrands(false)} hitSlop={8} className="h-8 w-8 rounded-full items-center justify-center" style={{ backgroundColor: '#F3F4F6' }}>
+                    <X size={16} color="#111111" />
+                  </Pressable>
+                </View>
+
+                <View
+                  className="flex-row items-center"
+                  style={{ backgroundColor: '#F3F4F6', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 9, marginTop: 12, marginBottom: 10 }}
+                >
+                  <Search size={16} color={GREEN} />
+                  <TextInput
+                    value={brandQuery}
+                    onChangeText={setBrandQuery}
+                    placeholder="Search brands"
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={{ flex: 1, marginLeft: 8, color: '#111111', fontSize: 13, padding: 0 }}
+                  />
+                  {brandQuery ? (
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => setBrandQuery('')} hitSlop={6} className="w-6 h-6 rounded-full items-center justify-center">
+                      <X size={13} color="#6B7280" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <BrandRow label="All brands" active={!brandFilter} onPress={() => { setBrandFilter(null); setShowBrands(false); }} />
+                  {brandsLoading ? (
+                    <ActivityIndicator style={{ marginTop: 18 }} color={GREEN} />
+                  ) : filteredBrands.length === 0 ? (
+                    <Text className="text-[12px] text-text-muted text-center" style={{ paddingVertical: 22 }}>
+                      {brands.length === 0
+                        ? 'No brands mapped to this category yet.'
+                        : 'No brand matches that search.'}
+                    </Text>
+                  ) : filteredBrands.map((b) => (
+                    <BrandRow
+                      key={b.id}
+                      label={b.name}
+                      logo={resolveDeviceImageSource({ url: b.imageUrl, base64: b.imageBase64 })}
+                      active={brandFilter?.id === b.id}
+                      onPress={() => { setBrandFilter({ id: b.id, name: b.name }); setShowBrands(false); }}
+                    />
+                  ))}
+                </ScrollView>
               </View>
-              <Pressable onPress={() => setShowBrands(false)} hitSlop={8} className="h-8 w-8 rounded-full items-center justify-center" style={{ backgroundColor: '#F3F3F3' }}>
-                <X size={16} color="#1E1E1E" />
-              </Pressable>
             </View>
-
-            <View
-              className="flex-row items-center"
-              style={{ backgroundColor: '#F3F3F3', borderRadius: 14, borderWidth: 1, borderColor: '#E6E6E6', paddingHorizontal: 12, paddingVertical: 9, marginTop: 12, marginBottom: 10 }}
-            >
-              <Search size={16} color={GREEN} />
-              <TextInput
-                value={brandQuery}
-                onChangeText={setBrandQuery}
-                placeholder="Search brands"
-                placeholderTextColor="#8E8E8E"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={{ flex: 1, marginLeft: 8, color: '#1E1E1E', fontSize: 13, padding: 0 }}
-              />
-              {brandQuery ? (
-                <TouchableOpacity activeOpacity={0.7} onPress={() => setBrandQuery('')} hitSlop={6} className="w-6 h-6 rounded-full items-center justify-center">
-                  <X size={13} color="#6B6B6B" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <BrandRow label="All brands" active={!brandFilter} onPress={() => { setBrandFilter(null); setShowBrands(false); }} />
-              {brandsLoading ? (
-                <ActivityIndicator style={{ marginTop: 18 }} color={GREEN} />
-              ) : filteredBrands.length === 0 ? (
-                <Text className="text-[12px] text-text-muted text-center" style={{ paddingVertical: 22 }}>
-                  {brands.length === 0
-                    ? 'No brands mapped to this category yet.'
-                    : 'No brand matches that search.'}
-                </Text>
-              ) : filteredBrands.map((b) => (
-                <BrandRow
-                  key={b.id}
-                  label={b.name}
-                  logo={resolveDeviceImageSource({ url: b.imageUrl, base64: b.imageBase64 })}
-                  active={brandFilter?.id === b.id}
-                  onPress={() => { setBrandFilter({ id: b.id, name: b.name }); setShowBrands(false); }}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+          )}
+        </ModalInsets>
+      </SafeModal>
     </View>
   );
 }
@@ -1203,11 +1208,11 @@ function BrandRow({ label, logo, active, onPress }) {
       className="flex-row items-center rounded-2xl mb-1.5 active:opacity-80"
       style={{
         paddingHorizontal: 12, paddingVertical: 10,
-        backgroundColor: active ? '#EAF8EC' : '#FFFFFF',
-        borderWidth: 1, borderColor: active ? GREEN : '#E6E6E6',
+        backgroundColor: active ? '#E5F3F5' : '#FFFFFF',
+        borderWidth: 1, borderColor: active ? GREEN : '#E5E7EB',
       }}
     >
-      <View className="items-center justify-center rounded-xl overflow-hidden mr-3" style={{ width: 34, height: 34, backgroundColor: '#EAF8EC' }}>
+      <View className="items-center justify-center rounded-xl overflow-hidden mr-3" style={{ width: 34, height: 34, backgroundColor: '#E5F3F5' }}>
         {logo ? (
           <Image source={{ uri: logo }} style={{ width: 26, height: 26 }} resizeMode="contain" />
         ) : (
@@ -1225,9 +1230,9 @@ function Chip({ label, active, onPress }) {
     <Pressable
       onPress={onPress}
       className="mr-2 mb-2 px-3.5 py-2 rounded-full active:opacity-80"
-      style={{ backgroundColor: active ? GREEN : '#F3F3F3', borderWidth: 1, borderColor: active ? GREEN : '#E6E6E6' }}
+      style={{ backgroundColor: active ? GREEN : '#F3F4F6', borderWidth: 1, borderColor: active ? GREEN : '#E5E7EB' }}
     >
-      <Text className="text-[12px] font-extrabold" style={{ color: active ? '#FFFFFF' : '#6B6B6B' }}>{label}</Text>
+      <Text className="text-[12px] font-extrabold" style={{ color: active ? '#FFFFFF' : '#6B7280' }}>{label}</Text>
     </Pressable>
   );
 }
