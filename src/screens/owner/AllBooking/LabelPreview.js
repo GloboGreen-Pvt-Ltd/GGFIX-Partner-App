@@ -66,7 +66,7 @@ export default function LabelPreview({
       <View style={{ flex: 1 }} onLayout={(e) => setInnerWidth(e.nativeEvent.layout.width)}>
         {k > 0 ? (
           <>
-            {line(top, top.y, t.serviceNumber || '—', { align: 'center', weight: '800' })}
+            {line({ ...top, height: t.topLine.font.height }, top.y + t.topLine.dy, t.topLine.text || '—', { align: 'center', weight: '800' })}
             {/* QR drawn 2px smaller than its slot, centred in it. */}
             <View style={{ position: 'absolute', left: qr.x * k, top: qr.y * k, width: qr.size * k, height: qr.size * k, alignItems: 'center', justifyContent: 'center' }}>
               <QRCode value={String(trackingId || 'NO-ID')} size={Math.max(1, Math.floor(qr.size * k) - 2)} color="#000000" backgroundColor="#FFFFFF" />

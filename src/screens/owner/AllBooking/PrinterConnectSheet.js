@@ -107,8 +107,10 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
     }, copies, preset);
   };
 
+  // Only a live connect / print holds the sheet open — a stuck check or
+  // permission step must never trap the user in it.
   const handleClose = () => {
-    if (busy) return;
+    if (state === PRINTER_STATE.CONNECTING || state === PRINTER_STATE.PRINTING) return;
     onClose?.();
   };
 
