@@ -39,6 +39,7 @@ import {
   Truck,
   Keyboard,
   ScanLine,
+  SkipForward,
   X,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
@@ -918,6 +919,20 @@ export function ImeiGateSheet({
             tint={TINT.green}
             title="Scan IMEI"
             onPress={() => { onClose?.(); onScanRequest?.(booking); }}
+          />
+          {/* Customer couldn't / wouldn't share the IMEI — continue without it. */}
+          <ActionRow
+            icon={<SkipForward size={18} color={TINT.amber.fg} />}
+            tint={TINT.amber}
+            title="Customer didn't provide IMEI"
+            onPress={() => Alert.alert(
+              'Continue without IMEI?',
+              'The invoice will be generated without an IMEI number.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Continue', onPress: () => { onClose?.(); onVerified?.(booking); } },
+              ],
+            )}
           />
         </>
       ) : (
