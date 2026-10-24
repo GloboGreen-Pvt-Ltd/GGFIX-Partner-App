@@ -134,6 +134,11 @@ export function ResponsiveModal({ visible, onClose, maxWidth = 560, scrollable =
 function ModalPanel({ asDialog, onClose, maxWidth, scrollable, contentStyle, children }) {
   const { width, height } = useWindowDimensions();
   const { bottom, keyboard, insets } = useSheetBottomInset();
+  // Never taller than what's left between the status bar and the
+  // keyboard / nav bar, so the buttons at the bottom stay reachable.
+  const maxPanelHeight = Math.max(220, height - insets.top - (keyboard > 0 ? keyboard : 0) - (asDialog ? SPACING.xl * 2 + insets.bottom : 0));
+  const padTop = SPACING.md;
+  const padBottom = asDialog ? SPACING.lg : SPACING.lg + (keyboard > 0 ? 0 : insets.bottom);
 
   const panel = (
     <View
@@ -146,28 +151,37 @@ function ModalPanel({ asDialog, onClose, maxWidth, scrollable, contentStyle, chi
           borderTopRightRadius: 24,
           borderBottomLeftRadius: asDialog ? 24 : 0,
           borderBottomRightRadius: asDialog ? 24 : 0,
-          paddingTop: SPACING.md,
+          paddingTop: padTop,
           // Sheet: the window's bottom inset (or nothing while the keyboard,
           // which already covers it, is up). Dialog: plain padding.
-          paddingBottom: asDialog ? SPACING.lg : SPACING.lg + (keyboard > 0 ? 0 : insets.bottom),
+          paddingBottom: padBottom,
           paddingHorizontal: SPACING.lg,
-          // Never taller than what's left between the status bar and the
-          // keyboard / nav bar, so the buttons at the bottom stay reachable.
-          maxHeight: Math.max(220, height - insets.top - (keyboard > 0 ? keyboard : 0) - (asDialog ? SPACING.xl * 2 + insets.bottom : 0)),
+          maxHeight: maxPanelHeight,
         },
         contentStyle,
       ]}
     >
-      {children}
+      {/* The scroller lives INSIDE the height-capped panel: wrapped around it,
+          the panel's maxHeight clipped the content and there was nothing left
+          to scroll (long paired-printer list in Print QR Label). */}
+      {scrollable ? (
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          // Explicit cap (not just flexShrink) so the scroller is always
+          // height-bounded and actually scrolls.
+          style={{ flexGrow: 0, maxHeight: maxPanelHeight - padTop - padBottom }}
+        >
+          {children}
+        </ScrollView>
+      ) : children}
     </View>
   );
 
   return (
-    <Pressable
-      onPress={onClose}
+    <View
       style={{
         flex: 1,
-        backgroundColor: 'rgba(17, 17, 17,0.45)',
         justifyContent: asDialog ? 'center' : 'flex-end',
         alignItems: 'center',
         paddingHorizontal: asDialog ? SPACING.xl : 0,
@@ -176,13 +190,15 @@ function ModalPanel({ asDialog, onClose, maxWidth, scrollable, contentStyle, chi
         paddingBottom: asDialog ? Math.max(insets.bottom, keyboard) : keyboard,
       }}
     >
-      {/* Swallows the press so a tap inside never falls through to the scrim. */}
-      <Pressable onPress={() => {}} style={{ width: '100%', alignItems: 'center' }}>
-        {scrollable
-          ? <ScrollView keyboardShouldPersistTaps="handled" style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center' }}>{panel}</ScrollView>
-          : panel}
-      </Pressable>
-    </Pressable>
+      {/* Scrim is a SIBLING behind the panel, not its parent: a Pressable
+          wrapping the panel (plus a tap-swallowing inner Pressable) held the
+          touch responder and kept the ScrollView from scrolling. */}
+      <Pressable
+        onPress={onClose}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(17, 17, 17,0.45)' }}
+      />
+      {panel}
+    </View>
   );
 }
 

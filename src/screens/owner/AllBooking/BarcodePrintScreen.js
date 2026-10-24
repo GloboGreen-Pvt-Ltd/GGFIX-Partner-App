@@ -414,7 +414,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
   const previewW = Math.min(250, r.width - 80);
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+    <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
@@ -461,8 +461,10 @@ export default function BarcodePrintScreen({ navigation, route }) {
         </View>
       </View>
 
+      {/* Inline flex (not className) so the scroller is always height-bounded —
+          without a bounded height it grows to its content and never scrolls. */}
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 90 }}
       >
