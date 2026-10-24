@@ -22,6 +22,7 @@ import {
   Pause,
   Trash2,
   Eraser,
+  Ban,
 } from 'lucide-react-native';
 import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
 import { notify } from '../../../components/confirm';
@@ -103,6 +104,10 @@ const LOCK_FIELD_OPTIONS = [
 // Device photos (optional, up to 5). Stored in devicePhotosJson as
 // { front, back, photo3, photo4, photo5 } so every existing reader — customer
 // app, staff app, booking edit — still finds the first two as front / back.
+// Reasons offered when the customer doesn't give an IMEI.
+const IMEI_OTHER = 'Other';
+const IMEI_SKIP_REASONS = ['Customer refused', 'Device not powering on', 'IMEI not visible / damaged', IMEI_OTHER];
+
 const PHOTO_KEYS = ['front', 'back', 'photo3', 'photo4', 'photo5'];
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // master-data /media/upload limit
 
@@ -202,6 +207,11 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     || (!params.reService && params.prefillEstimatedReadyIso)
     || now.toISOString();
   const [imei, setImei] = useState(params.prefillImei || '');
+  // "Customer didn't give IMEI" — closes the IMEI field and asks for a reason
+  // instead, so a booking can still go ahead without one.
+  const [noImei, setNoImei] = useState(!!params.prefillNoImei);
+  const [noImeiReason, setNoImeiReason] = useState(params.prefillNoImeiReason || '');
+  const [noImeiOther, setNoImeiOther] = useState(params.prefillNoImeiOther || '');
   // Non-mobile devices (Laptop / Tablet / Smartwatch / Audio) take a serial number instead.
   const [serialNumber, setSerialNumber] = useState(params.prefillSerialNumber || params.serialNumber || '');
   // Charger, case, SIM tray … handed over with the device.
@@ -387,6 +397,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     if (isRecording) { try { await stopRecording(); } catch (_) {} }
     await removeAudio();
     setImei('');
+    setNoImei(false);
+    setNoImeiReason('');
+    setNoImeiOther('');
     setComplaint('');
     setDuration(2);
     setReadyOverride(null);
@@ -440,8 +453,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   };
 
   // Continue allowed once the user has SOME description of the issue (text or
-  // audio) AND has explicitly toggled customer approval. Don't gate on IMEI —
-  // it's optional and not every device has one (laptops, audio gear).
+  // audio) AND has explicitly toggled customer approval. IMEI is gated
+  // separately (imeiOk below) and only for phones — laptops / audio gear don't
+  // have one.
   const hasIssue = complaint.trim().length > 0 || !!audioUrl;
   // ── Device photos (moved here from Device Information) ─────────────────
   const seedPhotos = params.devicePhotos || params.prefillDevicePhotos;
@@ -559,7 +573,14 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     : lockType === 'PATTERN' && patternDots < 4 ? 'Draw at least 4 dots.'
     : '';
 
-  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && photoUrls.length > 0 && !lockError;
+  // IMEI (phones only): a valid 14–17 digit number, or "not given" + a reason.
+  // Re-estimates edit an existing ticket and aren't held up by it.
+  const imeiDigits = imei.replace(/\D/g, '');
+  const imeiValid = imeiDigits.length >= 14 && imeiDigits.length <= 17;
+  const noImeiText = noImeiReason === IMEI_OTHER ? noImeiOther.trim() : noImeiReason;
+  const imeiOk = !showImei || params.reEstimate || (noImei ? !!noImeiText : imeiValid);
+
+  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && photoUrls.length > 0 && !lockError && imeiOk;
 
   // Back to Issue Description, then Next, used to open this screen empty — the
   // back press unmounts it. Keep what was entered (as the prefill* params this
@@ -567,6 +588,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const draftRef = useRef(null);
   draftRef.current = {
     prefillImei: imei,
+    prefillNoImei: noImei,
+    prefillNoImeiReason: noImeiReason,
+    prefillNoImeiOther: noImeiOther,
     prefillSerialNumber: serialNumber,
     prefillAccessories: accessories,
     prefillLock: { type: lockType, value: lockValue },
@@ -588,12 +612,15 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     if (!isReady) return;
     navigation.navigate('DeviceInformation', {
       ...params,
-      imei: imei.trim(),
+      imei: showImei && noImei ? '' : imeiDigits,
       serialNumber: showImei ? undefined : (serialNumber.trim() || undefined),
+      // No ticket field for the reason, so it rides on the complaint where
+      // staff will see it.
+      complaint: [complaint.trim(), showImei && noImei && noImeiText ? `IMEI not provided: ${noImeiText}` : '']
+        .filter(Boolean).join('\n'),
       devicePhotos: devicePhotosParam(),
       accessories: accessories.trim() || undefined,
       lock: lockOptions.length > 1 ? { type: lockType, value: lockType === 'NONE' ? '' : lockValue.trim() } : undefined,
-      complaint: complaint.trim(),
       issueAudioUrl: audioUrl || null,
       estimatedAt: `${dateLabel} ${timeLabel}, ${effectiveHours}Hr`,
       estimatedDelivery: `${deliveryDateLabel} - ${deliveryTimeLabel}`,
@@ -672,9 +699,44 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
           {/* Label + one field: barcode icon · number · scan button inside. */}
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
             <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-              {/* Optional — Continue never waits on it (see hasIssue). */}
-              IMEI Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+              {/* Required unless "Customer didn't give IMEI" is ticked (imeiOk). */}
+              IMEI Number{params.reEstimate ? <Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text> : <Text style={{ color: RED_TEXT }}> *</Text>}
             </Text>
+            {/* Two plain choices up front: type the IMEI, or say it wasn't given. */}
+            <View className="flex-row" style={{ gap: rs(8), marginBottom: rs(10) }}>
+              {[
+                { key: false, title: 'Have IMEI', hint: 'Type or scan it', Icon: Barcode },
+                { key: true, title: 'No IMEI', hint: 'Customer didn’t give', Icon: Ban },
+              ].map(({ key, title, hint, Icon }) => {
+                const on = noImei === key;
+                return (
+                  <Pressable
+                    key={title}
+                    onPress={() => setNoImei(key)}
+                    className="flex-1 flex-row items-center active:opacity-80"
+                    style={{
+                      paddingHorizontal: rs(10), paddingVertical: rs(9), borderRadius: rs(12), borderWidth: on ? 1.5 : 1,
+                      borderColor: on ? ACCENT : LINE, backgroundColor: on ? ACCENT_08 : SCREEN_BG,
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                  >
+                    {on
+                      ? <CircleCheck size={rf(18)} color={ACCENT} strokeWidth={2} />
+                      : <Circle size={rf(18)} color={SUBTLE} strokeWidth={1.75} />}
+                    <View style={{ marginLeft: rs(8), flex: 1, minWidth: 0 }}>
+                      <View className="flex-row items-center">
+                        <Icon size={rf(14)} color={on ? ACCENT : INK} strokeWidth={2} />
+                        <Text style={{ marginLeft: rs(5), fontSize: rf(13), fontWeight: '700', color: on ? ACCENT_TEXT : INK }} numberOfLines={1}>{title}</Text>
+                      </View>
+                      <Text style={{ fontSize: rf(11), color: MUTED, marginTop: 1 }} numberOfLines={1}>{hint}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {!noImei ? (
+            <>
             <View
               className="flex-row items-center"
               style={{
@@ -704,6 +766,56 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 <ScanLine size={rf(20)} color={INK} strokeWidth={1.75} />
               </Pressable>
             </View>
+            {imeiDigits.length > 0 && !imeiValid ? (
+              <Text style={{ fontSize: rf(11.5), color: RED_TEXT, marginTop: rs(5) }}>
+                IMEI must be 14–17 digits ({imeiDigits.length} entered). Dial *#06# to see it.
+              </Text>
+            ) : null}
+            </>
+            ) : null}
+
+            {noImei ? (
+              <View>
+                <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: INK, marginBottom: rs(6) }}>
+                  Why no IMEI?<Text style={{ color: RED_TEXT }}> *</Text>
+                  <Text style={{ fontWeight: '400', color: MUTED }}>  Pick one</Text>
+                </Text>
+                <View className="flex-row flex-wrap" style={{ gap: rs(8) }}>
+                  {IMEI_SKIP_REASONS.map((reason) => {
+                    const on = noImeiReason === reason;
+                    return (
+                      <Pressable
+                        key={reason}
+                        onPress={() => setNoImeiReason(reason)}
+                        className="active:opacity-80"
+                        style={{
+                          paddingHorizontal: rs(12), paddingVertical: rs(7), borderRadius: rs(18), borderWidth: 1,
+                          borderColor: on ? ACCENT : LINE, backgroundColor: on ? ACCENT_08 : SCREEN_BG,
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                      >
+                        <Text style={{ fontSize: rf(12.5), fontWeight: on ? '700' : '500', color: on ? ACCENT_TEXT : INK }}>{reason}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {noImeiReason === IMEI_OTHER ? (
+                  <TextInput
+                    placeholder="Type the reason"
+                    placeholderTextColor={SUBTLE}
+                    value={noImeiOther}
+                    onChangeText={setNoImeiOther}
+                    maxLength={120}
+                    cursorColor={ACCENT}
+                    style={{
+                      marginTop: rs(8), height: rs(44), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                      paddingHorizontal: rs(12), paddingVertical: 0, fontSize: rf(13.5), color: INK, backgroundColor: SCREEN_BG,
+                    }}
+                  />
+                ) : null}
+              </View>
+            ) : null}
           </View>
           </>
           ) : (
@@ -1150,6 +1262,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 ? 'Add an issue description to continue.'
                 : !photoUrls.length
                 ? 'Add at least one device photo to continue.'
+                : !imeiOk
+                ? (noImei ? 'Pick why there is no IMEI.' : 'Enter a valid IMEI, or choose “No IMEI”.')
                 : params.reEstimate ? 'Confirm customer re-estimate approval to continue.' : 'Confirm customer approval to continue.'}
             </Text>
           ) : null}

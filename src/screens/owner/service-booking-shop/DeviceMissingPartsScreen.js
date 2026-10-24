@@ -61,13 +61,23 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
     for (const p of prefill) {
       const key = p.partId || p.id;
       if (!key) continue;
-      seed[key] = { missing: !!p.missing, damage: !!p.damage, detail: p.detail || '' };
+      // Older drafts could carry both flags; keep Damaged, the stronger one.
+      seed[key] = { missing: !!p.missing && !p.damage, damage: !!p.damage, detail: p.detail || '' };
     }
     return seed;
   });
 
   const setField = (id, key, value) =>
     setState((p) => ({ ...p, [id]: { ...(p[id] || {}), [key]: value } }));
+
+  // Missing and Damaged are either/or for a part (a missing part can't also be
+  // damaged): turning one on turns the other off; tapping the active one clears it.
+  const setFlag = (id, key) =>
+    setState((p) => {
+      const row = p[id] || {};
+      const on = !row[key];
+      return { ...p, [id]: { ...row, missing: key === 'missing' && on, damage: key === 'damage' && on } };
+    });
 
   const { missingCount, damageCount, flaggedItems } = useMemo(() => {
     let m = 0, d = 0;
@@ -224,7 +234,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                     tint={MISSING}
                     tintText={MISSING_TEXT}
                     tintBg={MISSING_BG}
-                    onPress={() => setField(p.id, 'missing', !row.missing)}
+                    onPress={() => setFlag(p.id, 'missing')}
                     style={{ flex: 1 }}
                   />
                   <FlagPill
@@ -233,7 +243,7 @@ export default function DeviceMissingPartsScreen({ navigation, route }) {
                     tint={DAMAGE}
                     tintText={DAMAGE_TEXT}
                     tintBg={DAMAGE_BG}
-                    onPress={() => setField(p.id, 'damage', !row.damage)}
+                    onPress={() => setFlag(p.id, 'damage')}
                     style={{ flex: 1 }}
                   />
                 </View>
