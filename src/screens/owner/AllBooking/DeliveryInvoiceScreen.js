@@ -94,8 +94,13 @@ function priceItemsFromTicket(ticket) {
       if (Array.isArray(parsed)) return parsed;
     } catch (_) {}
   }
-  return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price, warranty: s.warranty })) || [];
 }
+
+// Warranty the booking entered per issue ("3 Months"); the fixed 30-day line is
+// only the fallback when no issue carries one.
+const hasItemWarranty = (items) => items.some((i) => String(i.warranty || '').trim());
+const warrantyNote = (items) => (hasItemWarranty(items) ? 'Warranty as listed per service.' : '30-day repair warranty included.');
 
 function buildReceiptText(t) {
   const items = priceItemsFromTicket(t);
@@ -115,13 +120,13 @@ function buildReceiptText(t) {
     `${t.customerAddress || ''}\n\n` +
     `Device: ${t.deviceDisplayName || t.deviceModelName || t.modelName || '—'}\n\n` +
     `â”€â”€â”€ Services â”€â”€â”€\n` +
-    items.map((i, idx) => `${idx + 1}. ${i.label}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}`).join('\n') +
+    items.map((i, idx) => `${idx + 1}. ${i.label}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}${i.warranty ? `  (Warranty: ${i.warranty})` : ''}`).join('\n') +
     `\n\nSubtotal: ₹${subtotal.toLocaleString('en-IN')}\n` +
     `GST (18%): ₹${tax.toLocaleString('en-IN')}\n` +
     `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n` +
     `Total: ₹${total.toLocaleString('en-IN')}\n\n` +
     `Thank you for choosing Near G Fix!\n` +
-    `30-day repair warranty included.`
+    warrantyNote(items)
   );
 }
 
@@ -454,9 +459,16 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                     {i + 1}
                   </Text>
                 </View>
-                <Text className="text-[12px] text-gray-800 flex-1 pl-2 pr-2" numberOfLines={2}>
-                  {item.label}
-                </Text>
+                <View className="flex-1 pl-2 pr-2">
+                  <Text className="text-[12px] text-gray-800" numberOfLines={2}>
+                    {item.label}
+                  </Text>
+                  {item.warranty ? (
+                    <Text className="text-[10.5px] text-gray-500 mt-0.5">
+                      Warranty : {item.warranty}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text
                   className="text-[12px] font-bold text-gray-900 text-right"
                   style={{ width: 76 }}
@@ -602,7 +614,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
           >
             <Text className="text-[10.5px] text-gray-600 leading-4">
-              We declare that this invoice shows the actual price of the goods described above and all particulars are true and correct. 30-day repair warranty included.
+              We declare that this invoice shows the actual price of the goods described above and all particulars are true and correct. {warrantyNote(items)}
             </Text>
           </View>
         </View>

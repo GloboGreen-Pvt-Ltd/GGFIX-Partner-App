@@ -60,7 +60,7 @@ import {
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, primeModelCategory, resolveRecordCategory } from '../../../utils/imeiPolicy';
 import { useTabBarSpace } from '../../../navigation/tabBarMetrics';
-import { estimatedTotalOf } from './ReceiptCard';
+import { estimatedTotalOf, paymentFromTicket } from './ReceiptCard';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#035C6C';
@@ -875,6 +875,26 @@ export default function BookingHistoryScreen({ navigation, route }) {
     // ₹0 included, so a missing price reads as zero rather than a blank card.
     const amountNum = Number(item.finalPrice ?? estimatedTotalOf(item)) || 0;
     const amountStr = `₹${amountNum.toLocaleString('en-IN')}`;
+    // Payment rows, one per line (label left, value right): Estimate, what was
+    // collected (Advance / Full Paid), Balance. A delivered booking was settled
+    // at the counter, so it reads Full Paid rather than "Pay on delivery".
+    const estimateNum = Number(estimatedTotalOf(item)) || 0;
+    const billTotal = Number(item.finalPrice ?? estimateNum) || 0;
+    const pay = paymentFromTicket(item, billTotal);
+    const deliveredPaid = String(item.status || '').toUpperCase() === 'DELIVERED';
+    const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+    const balanceNum = deliveredPaid ? 0 : pay ? pay.balance : billTotal;
+    const payRows = [
+      { label: 'Estimate', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
+      deliveredPaid || pay?.label === 'Full Payment'
+        ? { label: 'Full Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
+        : pay
+          ? { label: 'Advance', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
+          : { label: 'Payment', value: 'Pay on delivery', fg: '#6B7280', bg: '#F3F4F6' },
+      balanceNum > 0
+        ? { label: 'Balance', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
+        : { label: 'Balance', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
+    ];
 
     // A card tap opens Update Service Status. Every *destination* the card could
     // navigate to is already a labelled button in the row underneath, so the tap
@@ -993,6 +1013,20 @@ return (
               </Pressable>
             </>
           ) : null}
+        </View>
+
+        {/* Estimate · Advance / Full Paid · Balance — one coloured line each. */}
+        <View className="mt-1.5">
+          {payRows.map((r, i) => (
+            <View
+              key={r.label}
+              className="flex-row items-center justify-between"
+              style={{ marginTop: i ? 3 : 0, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: r.bg }}
+            >
+              <Text className="text-[10.5px] font-semibold" style={{ color: r.fg }} numberOfLines={1}>{r.label}</Text>
+              <Text className="text-[10.5px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>{r.value}</Text>
+            </View>
+          ))}
         </View>
 
         {/* Services footer line — every service, in full. */}

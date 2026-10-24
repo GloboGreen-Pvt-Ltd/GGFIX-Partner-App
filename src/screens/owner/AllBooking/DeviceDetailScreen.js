@@ -215,7 +215,7 @@ function TimelineRow({ icon: Icon, label, value, sub, done, isLast }) {
 const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // "Apple iPhone 11 · A2221 (64 GB / Black)" → { name: "Apple iPhone 11", modelNumber: "A2221" }.
-function splitDisplayName(raw) {
+export function splitDisplayName(raw) {
   const str = String(raw || '').trim();
   const m = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(str);
   return { name: (m?.[1] || str).trim(), modelNumber: m?.[2]?.trim() || null };

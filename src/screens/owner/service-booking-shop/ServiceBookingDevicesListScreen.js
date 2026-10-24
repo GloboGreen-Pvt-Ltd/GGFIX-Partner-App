@@ -75,6 +75,18 @@ function priceItemsJsonFor(device) {
   return items.length ? JSON.stringify(items) : null;
 }
 
+// Order-free "issue|amount" key of a priceItemsJson, to compare a saved
+// booking's issues with the edited ones.
+function priceItemsKey(json) {
+  let items = [];
+  try { items = JSON.parse(json || '[]'); } catch (_) {}
+  if (!Array.isArray(items)) items = [];
+  return items
+    .map((i) => `${String(i?.label || i?.name || '').trim().toLowerCase()}|${Number(i?.amount ?? i?.price) || 0}`)
+    .sort()
+    .join(',');
+}
+
 export default function ServiceBookingDevicesListScreen({ navigation, route }) {
   const params = route?.params || {};
   const insets = useSafeAreaInsets();
@@ -298,12 +310,20 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         //
         // Not fatal if it fails — the re-estimate itself is saved by then, and
         // losing the whole submit over a badge would be worse than a stale one.
-        try {
-          await ticketApi.patch(`/tickets/${params.editTicketId}/status`, {
-            query: { status: 'QUOTED' },
-          });
-        } catch (statusErr) {
-          console.log('Re-estimate saved, status → QUOTED failed:', statusErr?.message);
+        //
+        // Only an added / changed issue or price is a re-estimate. A plain edit
+        // (customer, device, IMEI, photos…) keeps the booking's status.
+        const reEstimated = params.originalPriceItemsJson === undefined
+          ? !!params.reEstimate
+          : priceItemsKey(params.originalPriceItemsJson) !== priceItemsKey(priceItemsJsonFor(d));
+        if (reEstimated) {
+          try {
+            await ticketApi.patch(`/tickets/${params.editTicketId}/status`, {
+              query: { status: 'QUOTED' },
+            });
+          } catch (statusErr) {
+            console.log('Re-estimate saved, status → QUOTED failed:', statusErr?.message);
+          }
         }
         navigation.replace('BookingThankYou', {
           customer: params.customer,

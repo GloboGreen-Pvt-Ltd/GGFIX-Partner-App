@@ -54,11 +54,16 @@ export default {
       // statement leaves in the shade (Android 13+).
       // The expo-contacts plugin below injects the first too, but they are
       // listed here so the manifest's permission set is readable in one place.
+      // BLUETOOTH_CONNECT backs the QR label printer (Android 12+ "Nearby
+      // devices" runtime prompt); without it in the manifest the request is
+      // auto-denied. BLUETOOTH covers bondedDevices on Android 11 and below.
       permissions: [
         'ACCESS_FINE_LOCATION',
         'ACCESS_COARSE_LOCATION',
         'READ_CONTACTS',
         'POST_NOTIFICATIONS',
+        'BLUETOOTH',
+        'BLUETOOTH_CONNECT',
       ],
     },
     plugins: [
@@ -128,6 +133,12 @@ export default {
             // Expo's default is 24 (Android 7.x) — dropping the resizer would be
             // the way back to 24.
             minSdkVersion: 26,
+            // Release-size trims: R8 strips unused Java/Kotlin code, unused
+            // resources are dropped, and .so files ship compressed in the APK
+            // (the biggest win — they are extracted on install instead).
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            useLegacyPackaging: true,
           },
         },
       ],

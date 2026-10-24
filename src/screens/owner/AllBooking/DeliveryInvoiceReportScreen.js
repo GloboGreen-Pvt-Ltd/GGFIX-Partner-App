@@ -17,6 +17,9 @@ import { confirm, notify } from '../../../components/confirm';
 import { saveToDownloads, notifyDownloaded } from '../../../lib/downloads';
 import { ticketApi, authApi } from '../../../api/client';
 import { getSession } from '../../../auth/session';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
+import { getModel, parseModelNumbers } from '../../../api/masterData';
+import { splitDisplayName } from './DeviceDetailScreen';
 
 // expo-print / expo-sharing / expo-file-system are platform-native; require
 // lazily so the web bundle (and dev environments without the modules
@@ -85,6 +88,22 @@ function safeJson(s, fallback) {
   catch { return fallback; }
 }
 
+// Address is optional on Customer Details, but bookings still get region
+// names filled in ("Tamil Nadu, Tamil Nadu"). Drop repeated parts and return
+// '' when nothing but state / district / city names (or a pincode) is left.
+function enteredAddress(raw, regions) {
+  const region = new Set(regions.filter(Boolean).map((r) => String(r).trim().toLowerCase()));
+  const seen = new Set();
+  const parts = String(raw || '').split(',').map((p) => p.trim()).filter((p) => {
+    const k = p.toLowerCase();
+    if (!k || k === '—' || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const isRegion = (p) => region.has(p.toLowerCase()) || /^\d{6}$/.test(p);
+  return parts.every(isRegion) ? '' : parts.join(', ');
+}
+
 export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { ticketId } = route.params || {};
@@ -93,10 +112,12 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const [shop, setShop] = useState(null);     // public shop card (name/mobile/address/gst)
   const [owner, setOwner] = useState(null);   // logged-in owner session (name + phone)
   const [customer, setCustomer] = useState(null); // customer record (for address fallback)
+  const [model, setModel] = useState(null);       // catalogue model (device name fallback)
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const showImei = useImeiApplies(ticket); // mobile phones only
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -121,11 +142,18 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       // older bookings or pickup flows it can be NULL even though the
       // customer DOES have an address row. Fall back to a lookup by phone
       // so the printed invoice still carries the address.
-      if (t?.customerPhone && !t?.customerAddress) {
+      // Always fetched: its state / district / city tell an entered address
+      // apart from the auto-filled region names (see enteredAddress).
+      if (t?.customerPhone) {
         try {
           const c = await ticketApi.get(`/customers/lookup`, { query: { mobile: t.customerPhone } });
           setCustomer(c || null);
         } catch { setCustomer(null); }
+      }
+      // Older bookings carry no deviceDisplayName — name the device from its
+      // catalogue model instead.
+      if (t?.modelId && !String(t?.deviceDisplayName || '').trim()) {
+        setModel(await getModel(t.modelId).catch(() => null));
       }
     } finally {
       setLoading(false);
@@ -197,17 +225,24 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   // Resolved customer address: prefer the ticket's denormalized snapshot,
   // then the fetched customer's `address` (legacy concat), then a freshly
   // composed line from structured columns (addressLine / area / district /
-  // state / pincode). Falls back to '—' so the receipt always shows the row.
+  // state / pincode). Address is optional, so it is '' (row hidden) unless
+  // the customer actually entered one.
   const composedCustomerAddr = customer
     ? [customer.addressLine, customer.area || customer.locality, customer.district || customer.city, customer.state, customer.pincode]
         .filter((p) => p && String(p).trim())
         .join(', ')
     : '';
-  const customerAddress =
-    ticket?.customerAddress
-    || customer?.address
-    || composedCustomerAddr
-    || '—';
+  const customerAddress = enteredAddress(
+    ticket?.customerAddress || customer?.address || composedCustomerAddr,
+    [customer?.state, customer?.district, customer?.city, customer?.taluk],
+  );
+
+  // TO block device line: "Apple iPhone 13 · A2633", IMEI for phones only.
+  const shownDevice = splitDisplayName(ticket?.deviceDisplayName);
+  const deviceModel = shownDevice.name
+    ? [shownDevice.name, shownDevice.modelNumber].filter(Boolean).join(' · ')
+    : [model?.name, parseModelNumbers(model?.modelNumber)[0]].filter(Boolean).join(' · ');
+  const deviceImei = showImei ? String(ticket?.imei || '').trim() : '';
 
   // Per-row tax breakdown. Returns 0 GST when taxMode = WITHOUT or 0% so
   // the rendered tables match the saved invoice.totalGst.
@@ -300,7 +335,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const buildInvoiceHtml = () => buildHtml({
     invoice, ticket, spareLines, serviceLines,
     shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-    customerName, customerAddress, trackingId,
+    customerName, customerAddress, trackingId, deviceModel, deviceImei,
     totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
     grandTotalBreak,
   });
@@ -634,7 +669,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 <Text className="text-[13px] font-extrabold text-gray-900 mt-1">
                   {ticket?.customerName || '—'}
                 </Text>
-                {customerAddress && customerAddress !== '—' ? (
+                {customerAddress ? (
                   <Text className="text-[11px] text-gray-600 mt-1 leading-4">
                     {customerAddress}
                   </Text>
@@ -642,6 +677,16 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 {ticket?.customerPhone ? (
                   <Text className="text-[11px] text-gray-700 mt-2 font-semibold">
                     Mobile : {ticket.customerPhone}
+                  </Text>
+                ) : null}
+                {deviceModel ? (
+                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
+                    Device : {deviceModel}
+                  </Text>
+                ) : null}
+                {deviceImei ? (
+                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
+                    IMEI : {deviceImei}
                   </Text>
                 ) : null}
               </View>
@@ -1028,7 +1073,7 @@ function fmtDateH(iso) {
 function buildHtml({
   invoice, ticket, spareLines, serviceLines,
   shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-  customerName, customerAddress, trackingId,
+  customerName, customerAddress, trackingId, deviceModel, deviceImei,
   totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
   grandTotalBreak,
 }) {
@@ -1134,7 +1179,6 @@ function buildHtml({
   // tight tables, prominent total band, and a single-line "Customer
   // Signature : <name>" + "Authorised Signatory : <shop / owner>" footer.
   // Padding and font sizes tuned so the whole receipt fits one A4 page.
-  const customerAddrLine = customerAddress || '—';
   const gt = grandTotalBreak || { base: 0, totalGst: 0, total: 0 };
   const taxableAmount   = gt.base;
   const totalGstTax     = gt.totalGst;
@@ -1386,8 +1430,10 @@ function buildHtml({
         <div>
           <div class="lbl">Billed To</div>
           <div class="nm">${esc(customerName || '—')}</div>
+          ${customerAddress ? `<div class="ln">${esc(customerAddress)}</div>` : ''}
           ${ticket?.customerPhone ? `<div class="ln">Mobile · ${esc(ticket.customerPhone)}</div>` : ''}
-          <div class="ln">Address · ${esc(customerAddrLine)}</div>
+          ${deviceModel ? `<div class="ln">Device · ${esc(deviceModel)}</div>` : ''}
+          ${deviceImei ? `<div class="ln">IMEI · ${esc(deviceImei)}</div>` : ''}
         </div>
         <div style="text-align:right">
           <div class="lbl">Issued By</div>

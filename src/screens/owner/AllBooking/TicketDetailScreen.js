@@ -1495,6 +1495,9 @@ function buildEditParams(ticket, { lineItems, estimatedTotal }) {
       value: ticket.deviceSecurityValue || '',
     },
     prefillEstimatedPrice: estimatedTotal,
+    // Saved issues + prices, so the save can tell a re-estimate (issue added /
+    // changed) from a plain edit of the booking details.
+    originalPriceItemsJson: ticket.priceItemsJson || null,
     // Payment already recorded. Carried through so re-saving an edited booking
     // re-sends it — the PUT rewrites the whole payment block, so an unprefilled
     // payment section would wipe the deposit and reset the ticket to PENDING.
