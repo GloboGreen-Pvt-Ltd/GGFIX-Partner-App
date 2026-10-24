@@ -132,7 +132,7 @@ function priceItemsFromTicket(ticket) {
       if (Array.isArray(parsed)) return parsed;
     } catch (_) {}
   }
-  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price, warranty: s.warranty })) || [];
 }
 
 export default function InvoiceGeneratorScreen({ route, navigation }) {
