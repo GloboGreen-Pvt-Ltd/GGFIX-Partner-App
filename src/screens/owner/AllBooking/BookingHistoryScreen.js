@@ -885,15 +885,15 @@ export default function BookingHistoryScreen({ navigation, route }) {
     const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
     const balanceNum = deliveredPaid ? 0 : pay ? pay.balance : billTotal;
     const payRows = [
-      { label: 'Estimate', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
+      { label: 'Estimate', short: 'Est', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
       deliveredPaid || pay?.label === 'Full Payment'
-        ? { label: 'Full Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
+        ? { label: 'Full Paid', short: 'Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
         : pay
-          ? { label: 'Advance', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
-          : { label: 'Payment', value: 'Pay on delivery', fg: '#6B7280', bg: '#F3F4F6' },
+          ? { label: 'Advance', short: 'Adv', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
+          : { label: 'Payment', short: 'Pay', value: 'on delivery', fg: '#6B7280', bg: '#F3F4F6' },
       balanceNum > 0
-        ? { label: 'Balance', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
-        : { label: 'Balance', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
+        ? { label: 'Balance', short: 'Bal', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
+        : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
     ];
 
     // A card tap opens Update Service Status. Every *destination* the card could
@@ -952,6 +952,16 @@ return (
               {color ? (
                 <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{color}</Text>
               ) : null}
+              {/* Estimate · Advance / Full Paid · Balance — compact chips under the colour. */}
+              <View className="flex-row flex-wrap mt-1" style={{ gap: 3 }}>
+                {payRows.map((r) => (
+                  <View key={r.label} style={{ paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 5, backgroundColor: r.bg }}>
+                    <Text className="text-[9px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>
+                      {r.short} {r.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
 
             {/* right meta column: status pill, then date + time */}
@@ -1013,20 +1023,6 @@ return (
               </Pressable>
             </>
           ) : null}
-        </View>
-
-        {/* Estimate · Advance / Full Paid · Balance — one coloured line each. */}
-        <View className="mt-1.5">
-          {payRows.map((r, i) => (
-            <View
-              key={r.label}
-              className="flex-row items-center justify-between"
-              style={{ marginTop: i ? 3 : 0, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: r.bg }}
-            >
-              <Text className="text-[10.5px] font-semibold" style={{ color: r.fg }} numberOfLines={1}>{r.label}</Text>
-              <Text className="text-[10.5px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>{r.value}</Text>
-            </View>
-          ))}
         </View>
 
         {/* Services footer line — every service, in full. */}
