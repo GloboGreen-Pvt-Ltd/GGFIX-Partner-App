@@ -226,9 +226,10 @@ class GgfixPrinterModule : Module() {
         // Discovery (if somehow left running) slows the connect handshake
         // and is irrelevant here — we only ever connect to an already
         // paired address.
-        a.cancelDiscovery()
-        val s = device.createRfcommSocketToServiceRecord(SPP_UUID)
-        s.connect()
+        // On Android 12+ cancelDiscovery() needs BLUETOOTH_SCAN, which this app
+        // doesn't hold — unguarded, its SecurityException failed every connect.
+        try { a.cancelDiscovery() } catch (_: SecurityException) {}
+        val s = openRfcomm(device)
         val newLink = BluetoothLink(s)
         link = newLink
         startWatcher(newLink)
@@ -381,5 +382,39 @@ class GgfixPrinterModule : Module() {
     watcher = null
     link?.close()
     link = null
+  }
+
+  /**
+   * Opens an SPP socket, trying in turn: secure SDP lookup, insecure SDP
+   * lookup (many budget label printers reject the secure handshake), then a
+   * direct RFCOMM channel 1 — the well-known fallback for printers whose SDP
+   * record is missing ("read failed, socket might closed"). The last
+   * failure is rethrown so the sheet still shows a real reason.
+   */
+  private fun openRfcomm(device: BluetoothDevice): BluetoothSocket {
+    val attempts = listOf<() -> BluetoothSocket>(
+      { device.createRfcommSocketToServiceRecord(SPP_UUID) },
+      { device.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
+      {
+        device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+          .invoke(device, 1) as BluetoothSocket
+      },
+    )
+    var last: IOException? = null
+    for (open in attempts) {
+      var s: BluetoothSocket? = null
+      try {
+        s = open()
+        s.connect()
+        return s
+      } catch (e: IOException) {
+        try { s?.close() } catch (_: IOException) {}
+        last = e
+      } catch (e: ReflectiveOperationException) {
+        try { s?.close() } catch (_: IOException) {}
+        last = IOException(e.message ?: "RFCOMM channel 1 fallback unavailable", e)
+      }
+    }
+    throw last ?: IOException("Could not open a Bluetooth socket")
   }
 }
