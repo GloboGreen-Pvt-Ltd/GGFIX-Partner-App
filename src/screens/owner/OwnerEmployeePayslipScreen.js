@@ -389,10 +389,10 @@ export default function OwnerEmployeePayslipScreen({ route }) {
               </View>
               <View style={styles.heroDivider} />
               <View style={styles.heroEmpRow}>
-                <View>
+                <View style={{ flex: 1, marginRight: rs(10) }}>
                   <Text style={styles.heroEmpLabel}>Employee</Text>
-                  <Text style={styles.heroEmpName}>{employee.name || '—'}</Text>
-                  <Text style={styles.heroEmpRole}>{employee.roleLabel || 'Technician'}</Text>
+                  <Text style={styles.heroEmpName} numberOfLines={1}>{employee.name || '—'}</Text>
+                  <Text style={styles.heroEmpRole} numberOfLines={1}>{employee.roleLabel || 'Technician'}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.heroEmpLabel}>ID</Text>

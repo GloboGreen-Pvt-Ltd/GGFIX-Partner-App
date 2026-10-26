@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { UserPlus, User, Mail, Phone, ArrowLeft, ChevronRight as ChevronRightIcon, UploadCloud, MapPin, Search, Check, X, IdCard } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ticketApi } from '../../../api/client';
 import { uploadMedia, getDeviceCategories } from '../../../api/masterData';
 import { notify } from '../../../components/confirm';
@@ -562,6 +563,9 @@ export default function CustomerDetailsScreen({ navigation, route }) {
         : {};
       navigation.navigate('DeviceDetails', {
         ...editCarry,
+        // Add Device on an existing booking: every device booked from here
+        // joins that booking number (next suffix) instead of drawing a new one.
+        ...(route?.params?.addToBookingNumber ? { addToBookingNumber: route.params.addToBookingNumber } : {}),
         customerId: resolved.id,
         customer: resolved,
         ...(preselected?.id ? { preselectedCategory: preselected } : {}),
@@ -604,11 +608,11 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           <View style={{ width: 36 }} />
         </View>
       </View>
-      <KeyboardAvoidingView
+      {/* KeyboardAwareScrollView (repo pattern): lifts the focused field above
+          the keyboard on both platforms, incl. the address fields near Next. */}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-      <ScrollView
+        bottomOffset={24}
         contentContainerStyle={{
           padding: compact ? 10 : 12,
           // Next is the last item — keep it above the gesture / 3-button bar.
@@ -808,8 +812,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           )}
         </Pressable>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* Category picker. `ResponsiveModal` makes this a bottom sheet on a
           phone and a centred dialog on a tablet, and caps its height to the

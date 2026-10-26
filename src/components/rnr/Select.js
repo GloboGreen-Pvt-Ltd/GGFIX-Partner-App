@@ -108,7 +108,7 @@ export function Select({
           >
             <Pressable
               className="bg-card rounded-2xl max-h-80 overflow-hidden"
-              style={compact ? { width: menuWidth } : null}
+              style={compact ? { width: menuWidth, maxWidth: '100%' } : { width: '100%', maxWidth: 560, alignSelf: 'center' }}
               onPress={(e) => e.stopPropagation()}
             >
               {menuTitle ? (

@@ -92,6 +92,7 @@ export default function ShopChatInboxScreen({ navigation }) {
             <View className="flex-row items-center">
               <Pressable
                 onPress={() => navigation.goBack()}
+                hitSlop={8}
                 className="items-center justify-center active:opacity-80"
                 style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
               >

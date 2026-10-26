@@ -197,7 +197,7 @@ export default function OwnerLeaveRequestsScreen({ navigation, route }) {
               >
                 <ChipIcon size={13} color={active ? opt.accent : MUTED} />
                 <Text
-                  style={{ marginLeft: 5, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? opt.text : MUTED }}
+                  style={{ marginLeft: 5, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? opt.text : MUTED, flexShrink: 1 }}
                   numberOfLines={1}
                 >
                   {opt.label}
@@ -345,6 +345,7 @@ export default function OwnerLeaveRequestsScreen({ navigation, route }) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'REJECTED')}
+                      hitSlop={{ top: 6, bottom: 6 }}
                       disabled={actionId != null}
                       className="flex-row items-center justify-center"
                       style={{
@@ -361,6 +362,7 @@ export default function OwnerLeaveRequestsScreen({ navigation, route }) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'APPROVED')}
+                      hitSlop={{ top: 6, bottom: 6 }}
                       disabled={actionId != null}
                       className="flex-row items-center justify-center"
                       style={{

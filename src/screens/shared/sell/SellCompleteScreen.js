@@ -129,7 +129,7 @@ export default function SellCompleteScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {/* Device */}
         <Card style={styles.deviceCard}>
           <View style={styles.body}>

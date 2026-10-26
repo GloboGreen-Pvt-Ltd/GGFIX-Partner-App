@@ -14,6 +14,7 @@ import { ticketApi } from '../../api/client';
 import { confirm, notify } from '../../components/confirm';
 import { FEATURE } from '../../subscription/entitlements';
 import { showLimitPopup } from '../../subscription/limitPopup';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 350;
@@ -206,6 +207,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
                 {relieved ? (
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.addBtn]}
+                    hitSlop={{ top: 8, bottom: 8 }}
                     onPress={() => handleAdd(emp)}
                     disabled={acting === emp.id}
                     activeOpacity={0.85}
@@ -222,6 +224,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
                 ) : (
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.blockBtn]}
+                    hitSlop={{ top: 8, bottom: 8 }}
                     onPress={() => handleBlock(emp)}
                     disabled={acting === emp.id}
                     activeOpacity={0.85}
@@ -238,6 +241,7 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
                 )}
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.workBtn]}
+                  hitSlop={{ top: 8, bottom: 8 }}
                   onPress={() => openWorkRecord(emp)}
                   activeOpacity={0.85}
                 >
@@ -266,7 +270,8 @@ export default function OwnerEmployeeAddScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
-  content: { padding: 12, paddingBottom: 24 },
+  // Tablets: cap and centre the column.
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
 
   newStaffCard: {
     backgroundColor: '#FFFFFF',
@@ -331,6 +336,7 @@ const styles = StyleSheet.create({
 
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
     gap: 6,
     marginTop: 8,

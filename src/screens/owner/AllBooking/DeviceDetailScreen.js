@@ -494,7 +494,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                     activeOpacity={0.85}
                     accessibilityRole="imagebutton"
                     accessibilityLabel={`Booking photo ${i + 1} of ${photos.length}`}
-                    style={{ width: '33.333%', padding: 4 }}
+                    style={{ width: r.isTablet ? '20%' : '33.333%', padding: 4 }}
                   >
                     <Image
                       source={{ uri }}

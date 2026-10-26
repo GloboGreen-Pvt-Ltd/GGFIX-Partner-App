@@ -421,9 +421,9 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               accessibilityRole="button"
               style={{ flex: 1, minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.redTint, borderWidth: 1.5, borderColor: C.red, opacity: acting ? 0.6 : 1 }}
             >
-              <View className="flex-row items-center">
+              <View className="flex-row items-center" style={{ maxWidth: '100%', paddingHorizontal: 8 }}>
                 <Ionicons name="close-circle-outline" size={17} color={C.red} />
-                <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: C.red }}>Selling Cancel</Text>
+                <Text className="font-extrabold" style={{ flexShrink: 1, marginLeft: 6, fontSize: 13, color: C.red }} numberOfLines={1}>Selling Cancel</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
@@ -434,9 +434,9 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               style={{ flex: 1, minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, opacity: acting ? 0.6 : 1 }}
             >
               {acting ? <ActivityIndicator color="#FFFFFF" /> : (
-                <View className="flex-row items-center">
+                <View className="flex-row items-center" style={{ maxWidth: '100%', paddingHorizontal: 8 }}>
                   <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" />
-                  <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: '#FFFFFF' }}>Selling Completed</Text>
+                  <Text className="font-extrabold" style={{ flexShrink: 1, marginLeft: 6, fontSize: 13, color: '#FFFFFF' }} numberOfLines={1}>Selling Completed</Text>
                 </View>
               )}
             </TouchableOpacity>

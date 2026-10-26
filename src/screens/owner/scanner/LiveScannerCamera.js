@@ -59,7 +59,7 @@ function reticleRect(layout) {
 }
 
 /** Box / reticle / focus ring — keeps the ~2-per-second box updates out of the parent's renders. */
-const Overlay = forwardRef(function Overlay({ layout, hint }, ref) {
+const Overlay = forwardRef(function Overlay({ layout, hint, strongScore = 0, acceptClasses = null, wrongHint }, ref) {
   const [box, setBox] = useState(null);
   const [ring, setRing] = useState(null);
   const missRef = useRef(0);
@@ -95,7 +95,11 @@ const Overlay = forwardRef(function Overlay({ layout, hint }, ref) {
   const frame = viewBox
     ? { left: viewBox.x * vw, top: viewBox.y * vh, width: viewBox.w * vw, height: viewBox.h * vh }
     : { left: ret.x * vw, top: ret.y * vh, width: ret.w * vw, height: ret.h * vh };
-  const color = viewBox ? '#3DDC97' : TEAL;
+  // Below `strongScore` the box is amber: something is there, not yet confident.
+  // A class outside `acceptClasses` is red: the wrong kind of device.
+  const wrong = !!viewBox && !!acceptClasses && !acceptClasses.includes(box.cls);
+  const weak = !!viewBox && !wrong && box.score < strongScore;
+  const color = viewBox ? (wrong ? '#F84141' : weak ? '#F3BF23' : '#3DDC97') : TEAL;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={{ position: 'absolute', ...frame }}>
@@ -112,7 +116,7 @@ const Overlay = forwardRef(function Overlay({ layout, hint }, ref) {
         ))}
         {viewBox ? (
           <View style={{ position: 'absolute', top: -26, left: 0, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: rf(11), fontWeight: '800' }}>{box.label} found</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: rf(11), fontWeight: '800' }}>{wrong ? `Wrong device (${box.label})` : `${box.label} found`}</Text>
           </View>
         ) : null}
       </View>
@@ -121,14 +125,25 @@ const Overlay = forwardRef(function Overlay({ layout, hint }, ref) {
       ) : null}
       {hint ? (
         <Text style={{ position: 'absolute', left: 24, right: 24, top: frame.top + frame.height + 14, fontSize: rf(12.5), color: '#FFFFFF', textAlign: 'center', lineHeight: rf(18), textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 }}>
-          {viewBox ? `${box.label} detected — tap the shutter` : hint}
+          {viewBox ? (wrong ? (wrongHint || 'Wrong device') : weak ? 'Hold steady — move a little closer' : `${box.label} detected — tap the shutter`) : hint}
         </Text>
       ) : null}
     </View>
   );
 });
 
-function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText, onCodes, onCameraError }, ref) {
+// Opt-in props for other screens (defaults keep the product scanner as is):
+//   onlyClass        — keep one COCO class (e.g. PHONE_CLASS); -1 = any device
+//   detectOnly       — skip OCR / barcodes
+//   strongScore      — score at which the box turns green (amber below)
+//   acceptClasses    — classes that are the right device (others draw red)
+//   wrongHint        — hint shown under a red box
+//   onBox            — every detection result (box or null) on the JS thread
+//   onDetectorState  — 'ready' | 'failed' once the TFLite model settles
+function LiveScannerCameraImpl({
+  isActive, torch, hint, chipsBottom = 28, onText, onCodes, onCameraError,
+  onlyClass = -1, detectOnly = false, strongScore = 0, acceptClasses = null, wrongHint, onBox, onDetectorState,
+}, ref) {
   const device = VC.useCameraDevice('back');
   const photoOutput = VC.usePhotoOutput(PHOTO_OPTIONS);
   const text = useTextRecognitionMaybe();
@@ -137,22 +152,33 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
 
   const [detector, setDetector] = useState(null);
   useEffect(() => {
-    if (!LIVE?.tflite || !LIVE?.resizer) return undefined;
+    if (!LIVE?.tflite || !LIVE?.resizer || !LIVE?.frames) {
+      handlers.current.onDetectorState?.('failed');
+      return undefined;
+    }
     let alive = true;
     loadDeviceDetector(LIVE.Tflite)
       .then((d) => {
         if (!alive) return;
-        if (d.width === MODEL_SIZE && d.height === MODEL_SIZE) setDetector(d);
-        else console.warn(`[SCANNER] detector input ${d.width}x${d.height} != ${MODEL_SIZE} — using the centre reticle`);
+        if (d.width === MODEL_SIZE && d.height === MODEL_SIZE) {
+          setDetector(d);
+          handlers.current.onDetectorState?.('ready');
+        } else {
+          console.warn(`[SCANNER] detector input ${d.width}x${d.height} != ${MODEL_SIZE} — using the centre reticle`);
+          handlers.current.onDetectorState?.('failed');
+        }
       })
-      .catch((e) => console.warn('[SCANNER] object detector unavailable, using the centre reticle:', e?.message || String(e)));
+      .catch((e) => {
+        console.warn('[SCANNER] object detector unavailable, using the centre reticle:', e?.message || String(e));
+        if (alive) handlers.current.onDetectorState?.('failed');
+      });
     return () => { alive = false; };
   }, []);
 
   const camRef = useRef(null);
   const overlayRef = useRef(null);
   const handlers = useRef({});
-  handlers.current = { onText, onCodes, onCameraError };
+  handlers.current = { onText, onCodes, onCameraError, onBox, onDetectorState };
   const latest = useRef({ box: null, boxAt: 0, text: '', textAt: 0, codes: new Map() });
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const layoutRef = useRef(layout);
@@ -166,6 +192,7 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
       L.box = payload;
       L.boxAt = Date.now();
       overlayRef.current?.setBox(payload);
+      handlers.current.onBox?.(payload);
     } else if (kind === 'text') {
       L.text = payload;
       L.textAt = Date.now();
@@ -190,8 +217,8 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
   const model = detector?.model ?? null;
   const inputBytes = detector?.inputBytes ?? 0;
   const resizer = resizerState?.resizer ?? null;
-  const textFn = text?.textRecognition ?? null;
-  const barFn = barcode?.barcodeScanning ?? null;
+  const textFn = detectOnly ? null : (text?.textRecognition ?? null);
+  const barFn = detectOnly ? null : (barcode?.barcodeScanning ?? null);
   const enabled = !!isActive;
 
   const onFrame = useCallback((frame) => {
@@ -218,7 +245,7 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
         } finally {
           gpu.dispose();
         }
-        const best = outputs ? parseBestDevice(outputs, DETECT_MIN_SCORE) : null;
+        const best = outputs ? parseBestDevice(outputs, DETECT_MIN_SCORE, onlyClass) : null;
         if (best) {
           const o = frame.orientation;
           const sideways = o === 'left' || o === 'right';
@@ -266,7 +293,7 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
     } finally {
       frame.dispose();
     }
-  }, [enabled, model, resizer, inputBytes, textFn, barFn, emit]);
+  }, [enabled, model, resizer, inputBytes, textFn, barFn, emit, onlyClass]);
 
   const frameOutput = useFrameOutputMaybe({
     targetResolution: FRAME_RESOLUTION,
@@ -396,7 +423,7 @@ function LiveScannerCameraImpl({ isActive, torch, hint, chipsBottom = 28, onText
           <ActivityIndicator color="#FFFFFF" />
         </View>
       )}
-      <Overlay ref={overlayRef} layout={layout} hint={hint} />
+      <Overlay ref={overlayRef} layout={layout} hint={hint} strongScore={strongScore} acceptClasses={acceptClasses} wrongHint={wrongHint} />
       {chips.length > 1 && isActive ? (
         <View style={{ position: 'absolute', bottom: chipsBottom, alignSelf: 'center', flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 20, padding: 4 }}>
           {chips.map((d) => {

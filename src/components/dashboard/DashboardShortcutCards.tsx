@@ -46,7 +46,7 @@ const TEXT_BOTTOM = 96;
  * back to the full box.
  */
 function assetSize(src: ImageSourcePropType): { width?: number; height?: number } | null {
-  if (typeof Image.resolveAssetSource === 'function') return Image.resolveAssetSource(src);
+  if (typeof Image.resolveAssetSource === 'function') return Image.resolveAssetSource(src) ?? null;
   try {
     const asset = Asset.fromModule(src as number);
     return { width: asset.width ?? undefined, height: asset.height ?? undefined };

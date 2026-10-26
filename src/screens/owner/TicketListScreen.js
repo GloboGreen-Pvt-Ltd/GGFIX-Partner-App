@@ -13,8 +13,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ticketApi } from '../../api/client';
+import { useResponsive } from '../../theme/responsive';
 
 export default function TicketListScreen({ navigation }) {
+  const r = useResponsive();
+  // Tablets: search + list share one capped, centred column.
+  const capStyle = { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' };
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -97,7 +101,7 @@ export default function TicketListScreen({ navigation }) {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Bookings History</Text>
       </View>
-      <View style={styles.searchRow}>
+      <View style={[styles.searchRow, capStyle]}>
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={18} color="#9CA3AF" />
           <TextInput
@@ -116,7 +120,7 @@ export default function TicketListScreen({ navigation }) {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} />}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, capStyle, { paddingBottom: 24 + r.insets.bottom }]}
         ListEmptyComponent={<Text style={styles.empty}>No tickets</Text>}
       />
     </SafeAreaView>
@@ -161,7 +165,7 @@ const styles = StyleSheet.create({
   device: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   statusRow: { flexDirection: 'row', marginTop: 4 },
   statusLabel: { fontSize: 12, color: '#6B7280' },
-  statusValue: { fontSize: 12, color: '#DC2626', marginLeft: 4, fontWeight: '600' },
+  statusValue: { flexShrink: 1, fontSize: 12, color: '#DC2626', marginLeft: 4, fontWeight: '600' },
   fieldRow: { flexDirection: 'row', marginTop: 4 },
   fieldLabel: { flex: 0.7, fontSize: 12, color: '#6B7280' },
   fieldValue: { flex: 1, fontSize: 12, color: '#111111' },

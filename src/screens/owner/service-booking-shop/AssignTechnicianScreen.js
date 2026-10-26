@@ -6,6 +6,7 @@ import { Avatar, Button, Card, ScreenHeader } from '../../../components/rnr';
 import { authApi, ticketApi } from '../../../api/client';
 import { selectShopId } from '../../../store/authSlice';
 import { notify } from '../../../components/confirm';
+import { ResponsiveContainer } from '../../../components/responsive';
 
 export default function AssignTechnicianScreen({ navigation, route }) {
   const shopId = useSelector(selectShopId);
@@ -45,6 +46,8 @@ export default function AssignTechnicianScreen({ navigation, route }) {
     <View className="flex-1 bg-background">
       <ScreenHeader title="Technician Assign" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerClassName="px-4 pt-4 pb-12">
+        {/* Capped + centred on tablets; phones keep full width. */}
+        <ResponsiveContainer pad={false}>
         <View className="flex-row items-center mb-4">
           <Ionicons name="person" size={22} color="#111111" />
           <Text className="ml-2 font-bold text-text">All Technician List</Text>
@@ -62,7 +65,7 @@ export default function AssignTechnicianScreen({ navigation, route }) {
             <Card key={t.id} className="mb-3 flex-row items-center">
               <Avatar fallback={(t.name || '?').slice(0, 2)} size={40} />
               <View className="flex-1 ml-3">
-                <Text className="font-bold text-text">{t.name} {t.code ? `- ${t.code}` : ''}</Text>
+                <Text className="font-bold text-text" numberOfLines={1}>{t.name} {t.code ? `- ${t.code}` : ''}</Text>
                 <Text className="text-xs text-text-muted">
                   {t.roleLabel || 'Technician'} <Text className={`font-semibold ${statusColor}`}>● {statusLabel}</Text>
                 </Text>
@@ -84,6 +87,7 @@ export default function AssignTechnicianScreen({ navigation, route }) {
             </Card>
           );
         })}
+        </ResponsiveContainer>
       </ScrollView>
     </View>
   );

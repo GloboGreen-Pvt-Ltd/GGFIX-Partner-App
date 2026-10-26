@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronLeft,
@@ -128,7 +128,9 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const flow = route?.params?.flow || 'OWNER_LIST';
   const { width: winW } = useWindowDimensions();
   const isSmall = winW < 360;
-  const isTablet = winW >= 768;
+  // Same tablet breakpoint as theme/responsive.js (600).
+  const isTablet = winW >= 600;
+  const insets = useSafeAreaInsets();
   const padH = isTablet ? 24 : 16;
   // Tablet/iPad content centers under a width cap instead of every section
   // stretching edge-to-edge across a much wider screen.
@@ -311,7 +313,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
       {loading ? (
         <Loader label="Loading categories..." />
       ) : (
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
         <View style={{ width: '100%', maxWidth: maxContentWidth, alignSelf: 'center' }}>
           {/* ── Category selector — "All" first, then every real, active
               category (however many the admin has published — not forced to

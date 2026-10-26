@@ -79,7 +79,7 @@ function joinAddress(shop) {
 
 export default function OwnerQrCodeScreen({ navigation }) {
   const r = useResponsive();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 800), alignSelf: 'center' } : null;
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), r.maxWidth('list')), alignSelf: 'center' } : null;
   const [user, setUser] = useState(null);
   const [kycStatus, setKycStatus] = useState(null);
   // qrOnlyRef wraps ONLY the rendered QR image (white background + black
@@ -209,7 +209,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: rs(32) }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: rs(32) + r.insets.bottom }}
       >
         <View style={capStyle}>
         {/* Shop QR identity card */}

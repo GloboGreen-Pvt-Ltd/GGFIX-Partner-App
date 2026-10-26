@@ -639,7 +639,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
 
   // Carousel paging: page width = the carousel's measured width; auto-advance
   // every 3.5 s while there is more than one slide.
-  const heroRef = useRef<ScrollView>(null);
+  const heroRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [heroPageW, setHeroPageW] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
   const heroPage = heroPageW || bannerEffectiveWidth;

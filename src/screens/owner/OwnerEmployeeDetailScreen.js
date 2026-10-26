@@ -10,12 +10,12 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Image,
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { authApi, ticketApi } from '../../api/client';
@@ -744,10 +744,10 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <ScrollView
-            contentContainerStyle={[styles.addContent, capStyle]}
+            contentContainerStyle={[styles.addContent, capStyle, { paddingBottom: rs(96) + r.insets.bottom }]}
             keyboardShouldPersistTaps="handled"
           >
             {/* Profile hero */}
@@ -1256,7 +1256,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
           />
 
           {/* Sticky footer */}
-          <View style={styles.footerBar}>
+          <View style={[styles.footerBar, { paddingBottom: Math.max(rs(10), r.insets.bottom) }]}>
             <View style={[styles.footerInner, capStyle]}>
             <TouchableOpacity
               style={styles.footerCancel}
@@ -1332,8 +1332,8 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
   // Always three across — the Pickup Person / Technician six-tile layout. A
   // role with fewer tiles (Staff has five) keeps the same card size and just
   // leaves the last row short, instead of squeezing every tile into one row of
-  // narrow cards.
-  const qaCols = 3;
+  // narrow cards. Tablets fit all six in one row.
+  const qaCols = r.isTablet ? 6 : 3;
 
   const confirmToggleActive = async () => {
     const ok = await confirm({
@@ -1355,7 +1355,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.viewContent, capStyle]}>
+      <ScrollView contentContainerStyle={[styles.viewContent, capStyle, { paddingBottom: rs(24) + r.insets.bottom }]}>
         {/* Hero header */}
         <View style={styles.heroCard}>
           <View style={styles.heroAvatarWrap}>
@@ -1372,7 +1372,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             <Text style={styles.heroName} numberOfLines={1}>{employee.name}</Text>
             <View style={styles.heroRolePill}>
               <Ionicons name="construct-outline" size={rs(13)} color="#035C6C" />
-              <Text style={styles.heroRolePillText}>{employee.roleLabel || 'Technician'}</Text>
+              <Text style={styles.heroRolePillText} numberOfLines={1}>{employee.roleLabel || 'Technician'}</Text>
             </View>
             <Text style={styles.heroId}>ID: {empId}</Text>
           </View>
@@ -2065,7 +2065,7 @@ const styles = StyleSheet.create({
   heroAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
   heroAvatarDot: { position: 'absolute', right: rs(2), bottom: rs(2), width: rs(13), height: rs(13), borderRadius: rs(7), borderWidth: 2, borderColor: '#FFFFFF' },
   heroInfo: { flex: 1 },
-  heroName: { fontSize: 17, fontWeight: '800', color: '#111111' },
+  heroName: { fontSize: 17, fontWeight: '800', color: '#111111', marginRight: rs(72) }, // clears the absolute status pill
   heroRolePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: rs(5), backgroundColor: '#E5F3F5', paddingHorizontal: rs(9), paddingVertical: rs(3), borderRadius: 999, marginTop: rs(5) },
   heroRolePillText: { fontSize: 11, fontWeight: '700', color: '#035C6C' },
   heroId: { fontSize: 11, color: '#9CA3AF', marginTop: rs(5), letterSpacing: 0.4 },

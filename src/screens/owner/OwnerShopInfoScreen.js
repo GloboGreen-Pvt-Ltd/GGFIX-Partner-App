@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -193,7 +194,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
   const isCreate = route?.params?.mode === 'create';
   const r = useResponsive();
   const insets = useSafeAreaInsets();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 1080), alignSelf: 'center' } : null;
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), r.maxWidth('wide')), alignSelf: 'center' } : null;
   // Service tiles in the "all services" sheet go 2 across (3 on a wide tablet).
   const serviceCols = r.width >= 900 ? 3 : 2;
   const [ownerId, setOwnerId] = useState(null);
@@ -914,7 +915,10 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
         </>
       ) : (
         <>
-          <ScrollView
+          {/* Keyboard-aware: the focused field scrolls clear of the keyboard and
+              the sticky save bar (lower address / time fields sat under it). */}
+          <KeyboardAwareScrollView
+            bottomOffset={90}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             style={{ backgroundColor: PAGE_BG }}
@@ -1255,7 +1259,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               </View>
             </View>
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Sticky save bar */}
           <View
@@ -1364,7 +1368,7 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, fo
           <View className="flex-row flex-wrap" style={{ marginHorizontal: -3 }}>
             {items.map((svc) => (
               <View key={svc} style={{ width: `${100 / cols}%`, padding: 3 }}>
-                <View className="flex-row items-center" style={{ height: 38, borderRadius: 10, paddingHorizontal: 9, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: SOFT_MINT }}>
+                <View className="flex-row items-center" style={{ minHeight: 38, borderRadius: 10, paddingHorizontal: 9, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: SOFT_MINT }}>
                   <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: dark ? TEXT_PRIMARY : ACCENT, alignItems: 'center', justifyContent: 'center' }}>
                     <CheckCircle2 size={11} color="#FFFFFF" />
                   </View>

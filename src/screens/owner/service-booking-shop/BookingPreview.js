@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { StackActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '../../../theme/responsive';
 import { Eye, Pencil, X } from 'lucide-react-native';
 import { bookingSnapshot, draftDevicesFor, subscribeBooking } from './bookingDraft';
 
@@ -15,7 +16,7 @@ const LINE = '#E5E7EB';
 // Screens that take input — the eye button shows on these only.
 export const PREVIEW_SCREENS = new Set([
   'CustomerDetails', 'DeviceDetails', 'DeviceColorStorage', 'DeviceServices',
-  'ServicePriceEstimate', 'DeviceInformation', 'DeviceMissingParts', 'ServiceBookingDevicesList',
+  'ServicePriceEstimate', 'DeviceInformation', 'ServiceBookingDevicesList',
 ]);
 
 const LOCK_LABEL = { NONE: 'No lock', PIN: 'PIN', PASSWORD: 'Password', PATTERN: 'Pattern', ACCOUNT: 'Account' };
@@ -124,6 +125,7 @@ function Row({ label, value }) {
  */
 export default function BookingPreviewButton({ navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
   useEffect(() => (open ? subscribeBooking(() => setTick((t) => t + 1)) : undefined), [open]);
@@ -154,7 +156,7 @@ export default function BookingPreviewButton({ navigation }) {
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={() => setOpen(false)} />
-        <View style={{ maxHeight: '82%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: insets.bottom + 12 }}>
+        <View style={{ maxHeight: '82%', width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: insets.bottom + 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: LINE }}>
             <Eye size={18} color={ACCENT} />
             <Text style={{ flex: 1, marginLeft: 8, fontSize: 16, fontWeight: '800', color: INK }}>Booking Preview</Text>
@@ -189,7 +191,7 @@ export default function BookingPreviewButton({ navigation }) {
                 >
                   {p.current.rows.map(([l, v]) => <Row key={l} label={l} value={v} />)}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
-                    {[['DeviceServices', 'Services'], ['ServicePriceEstimate', 'Issue & photos'], ['DeviceInformation', 'Prices & lock'], ['DeviceMissingParts', 'Missing parts']]
+                    {[['DeviceServices', 'Services'], ['ServicePriceEstimate', 'Issue, photos & parts'], ['DeviceInformation', 'Prices & lock']]
                       .filter(([n]) => p.editable(n))
                       .map(([n, l]) => (
                         <Pressable key={n} onPress={() => goEdit(n)} accessibilityRole="button"

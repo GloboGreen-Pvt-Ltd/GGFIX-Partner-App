@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '../../../theme/responsive';
 import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
@@ -120,6 +121,9 @@ function DetailRow({ icon: Icon, label, value }) {
 export default function ScanQrCodeScreen({ navigation }) {
   // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
   const insets = useSafeAreaInsets();
+  // Result sheet is capped + centred on tablets (side inset is 0 on phones).
+  const r = useResponsive();
+  const sheetSide = Math.max(0, (r.width - r.maxWidth('list')) / 2);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,11 +209,11 @@ export default function ScanQrCodeScreen({ navigation }) {
       />
 
       {/* Header overlay */}
-      <View className="absolute left-0 right-0 top-0 pt-12 px-4 pb-3 flex-row items-center" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}>
+      <View className="absolute left-0 right-0 top-0 px-4 pb-3 flex-row items-center" style={{ paddingTop: insets.top + 12, backgroundColor: 'rgba(0,0,0,0.35)' }}>
         <Pressable onPress={() => navigation.goBack()} className="w-10 h-10 rounded-full items-center justify-center bg-white/15 mr-3">
           <ChevronLeft size={22} color="#fff" />
         </Pressable>
-        <Text className="text-white text-[17px] font-extrabold">Scan QR Slip</Text>
+        <Text className="flex-1 text-white text-[17px] font-extrabold" numberOfLines={1}>Scan QR Slip</Text>
       </View>
 
       {/* Frame + brackets (hidden once a result sheet is up) */}
@@ -247,7 +251,7 @@ export default function ScanQrCodeScreen({ navigation }) {
 
       {/* Result / loading / not-found bottom sheet */}
       {showSheet ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 16 + insets.bottom, maxHeight: '78%' }}>
+        <View className="absolute bottom-0" style={{ left: sheetSide, right: sheetSide, backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 16 + insets.bottom, maxHeight: '78%' }}>
           {loading ? (
             <View className="items-center justify-center py-10">
               <ActivityIndicator size="large" color={BRAND_GREEN} />
@@ -270,7 +274,7 @@ export default function ScanQrCodeScreen({ navigation }) {
                   const m = statusMeta(ticket.status);
                   return (
                     <View className="px-3 py-1.5 rounded-full" style={{ backgroundColor: m.bg }}>
-                      <Text className="text-[11px] font-extrabold" style={{ color: m.color }}>{m.label}</Text>
+                      <Text className="text-[11px] font-extrabold" style={{ color: m.color }} numberOfLines={1}>{m.label}</Text>
                     </View>
                   );
                 })()}
@@ -329,8 +333,9 @@ export default function ScanQrCodeScreen({ navigation }) {
 }
 
 function SlimHeader({ onBack }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View className="pt-12 px-4 pb-3 flex-row items-center bg-card border-b border-border">
+    <View className="px-4 pb-3 flex-row items-center bg-card border-b border-border" style={{ paddingTop: insets.top + 12 }}>
       <Pressable onPress={onBack} className="w-10 h-10 rounded-full items-center justify-center bg-surface-muted mr-3">
         <ChevronLeft size={22} color="#111111" />
       </Pressable>

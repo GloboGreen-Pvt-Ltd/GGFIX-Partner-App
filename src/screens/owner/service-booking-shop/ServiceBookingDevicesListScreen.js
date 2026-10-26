@@ -178,6 +178,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     else setPaidText('');
   }, [grandTotal]);
 
+  // Typing an amount before picking a mode defaults it to Advance — the field
+  // stays editable because toggling `editable` on Android can leave it unfocusable.
+  const onChangeAmount = useCallback((t) => {
+    setPaidText(t);
+    if (t) setPaymentType((p) => p || 'ADVANCE');
+  }, []);
+
   // One booking, one payment — but each device becomes its own ticket, so the
   // amount is split across them in proportion to what each device is estimated
   // at. The parts must add back up to exactly what the customer handed over,
@@ -217,6 +224,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       customerId: params.customerId,
       customer: params.customer,
       existingDevices: devices,
+      // Keep joining the existing booking (Add Device) across "add another".
+      ...(params.addToBookingNumber ? { addToBookingNumber: params.addToBookingNumber } : {}),
     });
   };
 
@@ -275,7 +284,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       notify('Payment', 'Choose Advance or Full Payment for the amount entered');
       return;
     }
-    if (paidAmount > grandTotal) {
+    // ₹0 total = price not estimated yet; an advance is still allowed then.
+    if (grandTotal > 0 && paidAmount > grandTotal) {
       notify('Payment', `Amount collected can't be more than the grand total ₹${formatINR(grandTotal)}`);
       return;
     }
@@ -311,11 +321,11 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         // Not fatal if it fails — the re-estimate itself is saved by then, and
         // losing the whole submit over a badge would be worse than a stale one.
         //
-        // Only an added / changed issue or price is a re-estimate. A plain edit
-        // (customer, device, IMEI, photos…) keeps the booking's status.
-        const reEstimated = params.originalPriceItemsJson === undefined
-          ? !!params.reEstimate
-          : priceItemsKey(params.originalPriceItemsJson) !== priceItemsKey(priceItemsJsonFor(d));
+        // Only the Re-Estimate action re-estimates (and only when an issue or
+        // price actually changed). Edit Booking never does — even a price
+        // change there keeps the booking's status.
+        const reEstimated = !!params.reEstimate && (params.originalPriceItemsJson === undefined
+          || priceItemsKey(params.originalPriceItemsJson) !== priceItemsKey(priceItemsJsonFor(d)));
         if (reEstimated) {
           try {
             await ticketApi.patch(`/tickets/${params.editTicketId}/status`, {
@@ -323,6 +333,17 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             });
           } catch (statusErr) {
             console.log('Re-estimate saved, status → QUOTED failed:', statusErr?.message);
+          }
+        } else if (!params.reEstimate) {
+          // Edit Booking: record "Booking Edited" on the history (status unchanged).
+          // Not fatal — the edit itself is saved; a server without the
+          // BOOKING_EDITED step just rejects the history row.
+          try {
+            await ticketApi.post(`/tickets/${params.editTicketId}/progress-events`, {
+              body: { statusKey: 'BOOKING_EDITED', note: 'Booking Edited', actor: 'SHOP' },
+            });
+          } catch (evtErr) {
+            console.log('Edit saved, "Booking Edited" history row failed:', evtErr?.message);
           }
         }
         navigation.replace('BookingThankYou', {
@@ -337,9 +358,16 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       // Post each device, remembering which ones already succeeded so a retry
       // after a partial failure only re-submits the devices that still failed —
       // otherwise tapping Submit again would duplicate the already-created tickets.
+      // Numbering: one device → GTS-001. Several → the first draws the booking
+      // number as GTS-001-A and the rest join it (-B, -C …). Adding to an
+      // existing booking (params.addToBookingNumber) joins every device to it.
       for (let i = 0; i < devices.length; i++) {
         if (createdRef.current[i]) continue; // already booked on a previous attempt
-        const res = await ticketApi.post('/tickets', { body: buildTicketBody(devices[i], i) });
+        const bookingNumber = params.addToBookingNumber || createdRef.current[0]?.bookingNumber;
+        const numbering = bookingNumber
+          ? { bookingNumber }
+          : (devices.length > 1 ? { multiDevice: true } : {});
+        const res = await ticketApi.post('/tickets', { body: { ...buildTicketBody(devices[i], i), ...numbering } });
         createdRef.current[i] = res;
       }
       const created = devices.map((_, i) => createdRef.current[i]);
@@ -681,7 +709,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             balanceDue={balanceDue}
             grandTotal={grandTotal}
             onChangeMode={onChangeMode}
-            onChangeAmount={setPaidText}
+            onChangeAmount={onChangeAmount}
             colStyle={colStyle}
           />
         ) : null}
@@ -772,7 +800,7 @@ const PaymentSection = memo(function PaymentSection({
   const [pickerOpen, setPickerOpen] = useState(false);
   const selectedLabel = labelForMode(paymentType);
   const paid = Number(paidText) || 0;
-  const overTotal = paid > grandTotal;
+  const overTotal = grandTotal > 0 && paid > grandTotal;
 
   return (
     <>
@@ -831,7 +859,6 @@ const PaymentSection = memo(function PaymentSection({
                   keyboardType="number-pad"
                   placeholder="0"
                   placeholderTextColor="#9CA3AF"
-                  editable={!!paymentType}
                   className="flex-1 font-extrabold"
                   style={{ color: INK, paddingVertical: 9, paddingLeft: 4, fontSize: 13, textAlign: 'right' }}
                 />

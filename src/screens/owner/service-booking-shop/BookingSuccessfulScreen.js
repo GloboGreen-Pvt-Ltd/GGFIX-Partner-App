@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { Card } from '../../../components/rnr';
+import { ResponsiveContainer } from '../../../components/responsive';
+import { useResponsive } from '../../../theme/responsive';
 import { notify } from '../../../components/confirm';
 import { uploadMedia } from '../../../api/masterData';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
@@ -14,6 +16,9 @@ const APP_LINK = 'https://ggfix.app';
 export default function BookingSuccessfulScreen({ navigation, route }) {
   // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
   const insets = useSafeAreaInsets();
+  // Sticky share bar keeps its buttons within the capped content width on tablets.
+  const r = useResponsive();
+  const barSide = Math.max(0, (r.width - r.maxWidth('list')) / 2);
   const { tickets = [], devices = [], customer = {} } = route?.params || {};
 
   // This screen sits in the nested booking stack, so popToTop() alone only
@@ -160,7 +165,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="bg-card px-3 py-3 flex-row items-center border-b border-border">
+      <View className="bg-card px-3 pb-3 flex-row items-center border-b border-border" style={{ paddingTop: insets.top + 12 }}>
         <Pressable
           onPress={goHome}
           className="w-9 h-9 rounded-full items-center justify-center mr-2 active:opacity-70"
@@ -172,7 +177,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
           <Ionicons name="checkmark-circle" size={20} color="#035C6C" />
         </View>
         <View className="flex-1">
-          <Text className="font-extrabold text-text text-[13px]">Booking Successful</Text>
+          <Text className="font-extrabold text-text text-[13px]" numberOfLines={1}>Booking Successful</Text>
           <Text className="text-[10px] text-text-muted mt-0.5">{time} on {date}</Text>
         </View>
         <View className="bg-success/10 px-2 py-1 rounded-full">
@@ -181,6 +186,7 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
       </View>
 
       <ScrollView contentContainerClassName="px-4 pt-3 pb-32">
+        <ResponsiveContainer pad={false}>
         <ViewShot
           ref={receiptRef}
           options={{ format: 'png', quality: 0.95, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' }}
@@ -273,23 +279,24 @@ export default function BookingSuccessfulScreen({ navigation, route }) {
             ) : null}
           </Card>
         </ViewShot>
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* Share actions */}
-      <View className="absolute left-0 right-0 bottom-0 px-3 pt-3 bg-card border-t border-border flex-row" style={{ paddingBottom: 12 + insets.bottom, shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+      <View className="absolute left-0 right-0 bottom-0 pt-3 bg-card border-t border-border flex-row" style={{ paddingHorizontal: 12 + barSide, paddingBottom: 12 + insets.bottom, shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
         <Pressable
           onPress={shareWhatsApp}
           className="flex-1 mr-2 rounded-xl bg-success py-3 flex-row items-center justify-center active:opacity-80"
         >
           <Ionicons name="logo-whatsapp" size={18} color="#fff" />
-          <Text className="text-white font-extrabold text-[13px] ml-2">Share Image</Text>
+          <Text className="text-white font-extrabold text-[13px] ml-2" numberOfLines={1}>Share Image</Text>
         </Pressable>
         <Pressable
           onPress={shareSMS}
           className="flex-1 rounded-xl bg-secondary py-3 flex-row items-center justify-center active:opacity-80"
         >
           <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-          <Text className="text-white font-extrabold text-[13px] ml-2">Send SMS</Text>
+          <Text className="text-white font-extrabold text-[13px] ml-2" numberOfLines={1}>Send SMS</Text>
         </Pressable>
       </View>
     </View>
@@ -300,7 +307,7 @@ function Row({ label, value }) {
   return (
     <View className="flex-row mt-1">
       <Text className="flex-1 text-[11px] text-text-muted">{label}</Text>
-      <Text className="text-[12px] text-text font-semibold">{value}</Text>
+      <Text className="shrink text-[12px] text-text font-semibold text-right">{value}</Text>
     </View>
   );
 }

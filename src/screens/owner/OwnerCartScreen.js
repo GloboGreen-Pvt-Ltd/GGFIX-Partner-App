@@ -25,10 +25,14 @@ import {
 import { getCart, updateCartItem, removeCartItem, clearCart } from '../../api/marketplace';
 import { confirm, notify } from '../../components/confirm';
 import { normalizeDeviceImageUrl } from '../../utils/images';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 const GREEN       = '#035C6C';
 const GREEN_LIGHT = '#035C6C';  // gradient top stop only - keeps the CTA from going flat
 const GREEN_DARK  = '#035C6C';
+
+// Tablets: header, list and checkout bar share one capped, centred column.
+const CAP = { width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' };
 
 const cardShadow = {
   shadowColor: '#111111',
@@ -171,6 +175,7 @@ export default function OwnerCartScreen({ navigation }) {
                 disabled={isBusy || (Number(item.quantity) || 1) <= 1}
                 className="h-8 w-8 items-center justify-center"
                 activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               >
                 <Minus size={14} color={(Number(item.quantity) || 1) <= 1 ? '#D1D5DB' : GREEN_DARK} />
               </TouchableOpacity>
@@ -182,6 +187,7 @@ export default function OwnerCartScreen({ navigation }) {
                 disabled={isBusy}
                 className="h-8 w-8 items-center justify-center"
                 activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               >
                 <Plus size={14} color={GREEN_DARK} />
               </TouchableOpacity>
@@ -195,6 +201,7 @@ export default function OwnerCartScreen({ navigation }) {
               className="h-8 w-8 items-center justify-center rounded-full"
               style={{ backgroundColor: '#FEF2F2' }}
               activeOpacity={0.7}
+              hitSlop={6}
             >
               <Trash2 size={15} color="#DC2626" />
             </TouchableOpacity>
@@ -220,7 +227,7 @@ export default function OwnerCartScreen({ navigation }) {
             borderBottomColor: '#E5E7EB',
           }}
         >
-          <View className="flex-row items-center" style={{ paddingHorizontal: 16 }}>
+          <View className="flex-row items-center" style={[{ paddingHorizontal: 16 }, CAP]}>
             <Pressable
               onPress={() => navigation.goBack()}
               hitSlop={10}
@@ -228,7 +235,7 @@ export default function OwnerCartScreen({ navigation }) {
             >
               <ChevronLeft size={20} color="#111111" />
             </Pressable>
-            <Text className="flex-1 text-center text-text text-[13px] font-extrabold">My Cart</Text>
+            <Text className="flex-1 text-center text-text text-[13px] font-extrabold" numberOfLines={1}>My Cart</Text>
             {items.length ? (
               <Pressable onPress={onClear} hitSlop={10} className="px-2 h-9 rounded-full items-center justify-center bg-surface-muted">
                 <Text className="text-text text-[11px] font-extrabold">Clear</Text>
@@ -258,7 +265,7 @@ export default function OwnerCartScreen({ navigation }) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />
           }
-          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
+          contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }, CAP]}
           ListEmptyComponent={
             <View className="items-center pt-12 px-8">
               <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E5F3F5' }}>
@@ -278,13 +285,13 @@ export default function OwnerCartScreen({ navigation }) {
         <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#FFFFFF' }}>
           <View
             className="px-4 pt-3 pb-2 flex-row items-center"
-            style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
+            style={[{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }, CAP]}
           >
             <View className="flex-1">
-              <Text className="text-[11px] text-gray-500 font-semibold">
+              <Text className="text-[11px] text-gray-500 font-semibold" numberOfLines={1}>
                 {totalQty} item{totalQty === 1 ? '' : 's'} · Subtotal
               </Text>
-              <Text className="text-[15px] font-extrabold" style={{ color: GREEN_DARK }}>
+              <Text className="text-[15px] font-extrabold" style={{ color: GREEN_DARK }} numberOfLines={1}>
                 ₹{subtotal.toLocaleString('en-IN')}
               </Text>
             </View>

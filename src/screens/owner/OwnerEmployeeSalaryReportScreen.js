@@ -179,9 +179,9 @@ function SummaryTile({ label, value, sub, icon, color, bg }) {
       <View style={[styles.summaryIconWrap, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={rs(15)} color={color} />
       </View>
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summarySub}>{sub}</Text>
+      <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text style={styles.summaryLabel} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+      <Text style={styles.summarySub} numberOfLines={1}>{sub}</Text>
     </View>
   );
 }
@@ -255,9 +255,9 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
     shadowColor: '#111111', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  fyLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flex: 1 },
+  fyLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flex: 1, marginRight: rs(8) },
   fyIconWrap: { width: rs(34), height: rs(34), borderRadius: rs(10), backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' },
-  fyTextWrap: {},
+  fyTextWrap: { flexShrink: 1 },
   fyLabel: { fontSize: 10.5, color: '#9CA3AF', fontWeight: '600' },
   fyValue: { fontSize: 17, fontWeight: '800', color: '#111111', marginTop: rs(1) },
 

@@ -82,7 +82,7 @@ const S = StyleSheet.create({
   status: { borderWidth: 1, borderRadius: 999, paddingHorizontal: rs(8), paddingVertical: rs(3) },
   statusText: { fontSize: rf(10), fontWeight: '800', letterSpacing: 0.3 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(4), marginTop: rs(4) },
-  date: { fontSize: rf(11), fontWeight: '600', color: '#374151' },
+  date: { fontSize: rf(11), fontWeight: '600', color: '#374151', flexShrink: 1 },
   time: { fontSize: rf(10.5), color: '#6B7280', marginTop: 1 },
   divider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: rs(6) },
   row: { flexDirection: 'row', gap: rs(10) },

@@ -4,10 +4,11 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import { notify } from '../../components/confirm';
 import { uploadMedia } from '../../api/masterData';
-import { ResponsiveModal } from '../../components/responsive';
+import { ResponsiveModal, useResponsive } from '../../components/responsive';
 import ImageViewerModal from '../../components/ImageViewerModal';
 
 // Preset parts shown as default rows per group. Beyond these, the shop taps
@@ -58,6 +59,9 @@ export default function OwnerSellSparePartsScreen({ navigation, route }) {
   const [sheet, setSheet] = useState(null);
   const [preview, setPreview] = useState(null); // { urls, index }
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: content and the Sell Now bar share one capped, centred column.
+  const capStyle = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
 
   const photosOf = (g, slot) => images[g]?.[slot] || [];
   const noteOf = (g, slot) => (notes[g]?.[slot] || '').trim();
@@ -258,7 +262,14 @@ export default function OwnerSellSparePartsScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView style={{ backgroundColor: PAGE }} contentContainerStyle={{ padding: 12, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      {/* Keyboard-aware: a focused note / part-name field scrolls clear of the
+          keyboard and of the Sell Now bar. */}
+      <KeyboardAwareScrollView
+        bottomOffset={90}
+        style={{ backgroundColor: PAGE }}
+        contentContainerStyle={[{ padding: 12, paddingBottom: 100 + insets.bottom }, capStyle]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: MINT, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 12 }}>
           <MaterialIcons name="info-outline" size={16} color={TEAL} />
           <Text style={{ flex: 1, marginLeft: 8, fontSize: 12, color: INK, lineHeight: 17 }}>
@@ -327,11 +338,11 @@ export default function OwnerSellSparePartsScreen({ navigation, route }) {
             </View>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Bottom Sell Now bar */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: LINE }}>
-        <TouchableOpacity onPress={onSellNow} disabled={disabled} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 50, backgroundColor: TEAL, opacity: disabled ? 0.45 : 1, borderRadius: 14 }}>
+        <TouchableOpacity onPress={onSellNow} disabled={disabled} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled }} style={{ ...capStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 50, backgroundColor: TEAL, opacity: disabled ? 0.45 : 1, borderRadius: 14 }}>
           <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', marginRight: 6 }}>Sell Now{totalSelected ? ` (${totalSelected})` : ''}</Text>
           <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
@@ -377,7 +388,7 @@ export default function OwnerSellSparePartsScreen({ navigation, route }) {
 
 function SheetOption({ icon, label, onPress, danger = false }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', height: 54 }}>
+    <Pressable onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', minHeight: 54 }}>
       <View style={{ height: 40, width: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? 'rgba(220, 38, 38, 0.10)' : MINT }}>
         <MaterialIcons name={icon} size={21} color={danger ? '#DC2626' : TEAL} />
       </View>

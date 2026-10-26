@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   placeholder: { color: '#6B7280' },
   error: { fontSize: 12, color: '#DC2626', marginTop: 4 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#111111', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: 400 },
+  modal: { backgroundColor: '#111111', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: 400, width: '100%', maxWidth: 560, alignSelf: 'center' },
   option: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#111111' },
   optionText: { fontSize: 15, color: '#F3F4F6' },
 });

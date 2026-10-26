@@ -134,9 +134,9 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
       <View style={[styles.headerRow, capStyle]}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerDate}>{selected.getDate()}</Text>
-          <View>
-            <Text style={styles.headerDayLong}>{dayLong}</Text>
-            <Text style={styles.headerMonth}>{monthYear}</Text>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.headerDayLong} numberOfLines={1}>{dayLong}</Text>
+            <Text style={styles.headerMonth} numberOfLines={1}>{monthYear}</Text>
           </View>
         </View>
         <View style={styles.headerRight}>
@@ -241,7 +241,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
               return (
                 <View key={h} style={styles.hourRow} onLayout={(e) => { rowY.current[h] = e.nativeEvent.layout.y; }}>
                   <View style={styles.hourPill}>
-                    <Text style={styles.hourPillText}>{hourLabel(h)}</Text>
+                    <Text style={styles.hourPillText} numberOfLines={1} adjustsFontSizeToFit>{hourLabel(h)}</Text>
                   </View>
                   <View style={styles.connectorCol}>
                     <View style={styles.connectorLine} />
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     paddingBottom: rs(4),
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flexShrink: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: rs(6), marginLeft: rs(8) },
   navBtn: {
     width: rs(30),
     height: rs(30),

@@ -16,7 +16,7 @@ export function Dialog({ open, onClose, children, className }) {
             style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, keyboard) }}
             onPress={onClose}
           >
-            <Pressable className={cn('bg-card rounded-2xl p-6', className)} onPress={(e) => e.stopPropagation()}>
+            <Pressable className={cn('bg-card rounded-2xl p-6', className)} style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }} onPress={(e) => e.stopPropagation()}>
               {children}
             </Pressable>
           </Pressable>

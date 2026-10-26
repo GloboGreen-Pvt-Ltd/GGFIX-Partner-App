@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { ScanLine, Search, Smartphone, Sparkles, ChevronRight, Hash } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/rnr';
+import { ResponsiveContainer } from '../../../components/responsive';
 import { notify } from '../../../components/confirm';
 import { lookupImei } from '../../../api/imei';
 import { resolveDeviceImageSource } from '../../../utils/images';
@@ -111,6 +112,8 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
       <ScreenHeader title="Identify Device" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        {/* Capped + centred on tablets; phones keep full width. */}
+        <ResponsiveContainer kind="form" pad={false}>
         {/* Hero */}
         <View className="items-center mt-2 mb-4">
           <View className="h-14 w-14 rounded-3xl bg-success/10 items-center justify-center mb-2.5">
@@ -219,6 +222,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           <Sparkles size={13} color="#9CA3AF" />
           <Text className="text-[11px] text-text-muted ml-1.5">Powered by IMEI database lookup</Text>
         </View>
+        </ResponsiveContainer>
       </ScrollView>
     </View>
   );

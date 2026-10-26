@@ -561,6 +561,8 @@ export default function DeviceServicesScreen({ navigation, route }) {
           disabled={totalSelected === 0}
           className="active:opacity-90"
           style={{
+            // Tablets: same capped column as the list above.
+            ...(contentW ? { width: '100%', maxWidth: contentW, alignSelf: 'center' } : null),
             borderRadius: rs(18),
             overflow: 'hidden',
             backgroundColor: totalSelected > 0 ? ICON_TINT : CARD_BG,

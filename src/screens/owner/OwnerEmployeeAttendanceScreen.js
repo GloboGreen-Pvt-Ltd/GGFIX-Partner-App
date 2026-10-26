@@ -267,9 +267,9 @@ function StatRing({ value, label, color }) {
   return (
     <View style={styles.statRingWrap}>
       <View style={[styles.statRing, { borderColor: color.ring }]}>
-        <Text style={styles.statRingValue}>{value}</Text>
+        <Text style={styles.statRingValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       </View>
-      <Text style={[styles.statRingLabel, { color: color.text }]}>{label}</Text>
+      <Text style={[styles.statRingLabel, { color: color.text }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
     </View>
   );
 }
@@ -324,7 +324,7 @@ function DayCard({ day }) {
             </View>
             {isPermission ? (
               <View style={[styles.dayPill, styles.dayPillPermission]}>
-                <Text style={[styles.dayPillText, { color: YELLOW_TEXT }]}>{day.notes || 'Permission'}</Text>
+                <Text style={[styles.dayPillText, { color: YELLOW_TEXT }]} numberOfLines={1}>{day.notes || 'Permission'}</Text>
               </View>
             ) : null}
           </View>
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     shadowColor: INK, shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(8) },
-  cardTitle: { fontSize: 13, fontWeight: '800', color: INK },
+  cardTitle: { fontSize: 13, fontWeight: '800', color: INK, flexShrink: 1, marginRight: rs(8) },
 
   // Mint pill with green text — the same month pill as Employee Details.
   monthPill: {
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  statRingValue: { fontSize: 11.5, fontWeight: '800', color: INK },
+  statRingValue: { fontSize: 11.5, fontWeight: '800', color: INK, paddingHorizontal: rs(2) },
   statRingLabel: { fontSize: 10, fontWeight: '700', marginTop: rs(4) },
 
   calendar: { marginTop: rs(2), marginBottom: rs(4) },
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   dayInner: { flex: 1, paddingHorizontal: rs(10), paddingVertical: rs(8) },
   dayTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayDateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
-  dayTopRight: { flexDirection: 'row', gap: rs(6) },
+  dayTopRight: { flexDirection: 'row', gap: rs(6), flexShrink: 1, marginLeft: rs(6) },
   dayDate: { fontSize: 12, fontWeight: '800', color: INK },
   dayPill: {
     paddingHorizontal: rs(10),

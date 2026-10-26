@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { listShopRepairBookings } from '../../api/orders';
+import { useResponsive } from '../../theme/responsive';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -77,6 +78,10 @@ function customerLine(b) {
 }
 
 export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
+  // Tablet: cap the report column and centre it; phones are unaffected.
+  const r = useResponsive();
+  const contentW = r.isTablet ? Math.min(r.width - 32, 700) : undefined;
+  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
   const employee = route.params?.employee;
   // No `employee` param = ALL-PICKUP-PERSON mode, for the dashboard's "Pickup
   // Report" tile. With a param it stays one person's report, as before.
@@ -172,7 +177,7 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, capStyle]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} tintColor="#035C6C" />}
       >
         {/* This Month — stats */}
@@ -299,7 +304,7 @@ function StatTile({ value, label, hint, icon, bg, fg = '#FFFFFF' }) {
     <View style={styles.statTileWrap}>
       <View style={[styles.statTileTop, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={11} color={fg} />
-        <Text style={[styles.statTileTopText, { color: fg }]}>{label}</Text>
+        <Text style={[styles.statTileTopText, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
       </View>
       <Text style={styles.statTileValue}>{value}</Text>
       <Text style={styles.statTileHint}>{hint}</Text>
@@ -337,7 +342,7 @@ function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssig
       <View style={styles.pickupInner}>
         <View style={styles.pickupTopRow}>
           <Text style={styles.pickupDate}>{datePart}</Text>
-          <Text style={styles.pickupTracking}>{trackingId(booking)}</Text>
+          <Text style={styles.pickupTracking} numberOfLines={1}>{trackingId(booking)}</Text>
         </View>
 
         <View style={styles.pickupMetaRow}>
@@ -402,7 +407,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
+  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111', flexShrink: 1, marginRight: 8 },
   monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -431,8 +436,9 @@ const styles = StyleSheet.create({
     gap: 4,
     width: '100%',
     paddingVertical: 4,
+    paddingHorizontal: 3,
   },
-  statTileTopText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  statTileTopText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', flexShrink: 1 },
   statTileValue: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: 4 },
   statTileHint: { fontSize: 9, color: '#9CA3AF', marginTop: 1, fontWeight: '600' },
 
@@ -464,8 +470,8 @@ const styles = StyleSheet.create({
   pickupInner: { flex: 1, paddingHorizontal: 10, paddingVertical: 8 },
   pickupTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pickupDate: { fontSize: 12, fontWeight: '700', color: '#111111' },
-  pickupTracking: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
-  pickupAssignee: { fontSize: 11, color: '#035C6C', fontWeight: '700', marginLeft: 4 },
+  pickupTracking: { fontSize: 11, color: '#6B7280', fontWeight: '600', flexShrink: 1, marginLeft: 8 },
+  pickupAssignee: { fontSize: 11, color: '#035C6C', fontWeight: '700', marginLeft: 4, flexShrink: 1 },
   pickupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   pickupMetaText: { fontSize: 11, color: '#111111', flex: 1 },
   pickupBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },

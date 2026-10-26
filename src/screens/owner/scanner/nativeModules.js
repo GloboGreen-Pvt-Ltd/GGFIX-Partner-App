@@ -6,8 +6,13 @@
 // instead of crashing until the next native (EAS) build is installed.
 import { Platform } from 'react-native';
 
-const tryRequire = (load) => {
-  try { return load(); } catch (_) { return null; }
+// Why each module failed to load, for liveModulesDiagnosis().
+const failures = {};
+const tryRequire = (load, name) => {
+  try { return load(); } catch (e) {
+    if (name) failures[name] = String(e?.message || e).split(/\r?\n/)[0].slice(0, 160);
+    return null;
+  }
 };
 const tryCall = (fn) => {
   try { return !!fn(); } catch (_) { return false; }
@@ -30,11 +35,11 @@ export function getLiveModules() {
   cached = null;
   if (Platform.OS === 'web') return cached;
 
-  const VC = tryRequire(() => require('react-native-vision-camera'));
+  const VC = tryRequire(() => require('react-native-vision-camera'), 'react-native-vision-camera');
   if (!VC?.Camera || !VC?.usePhotoOutput || !VC?.useCameraDevice || !VC?.useCameraPermission) return cached;
 
-  const worklets = tryRequire(() => require('react-native-worklets'));
-  const vcWorklets = tryRequire(() => require('react-native-vision-camera-worklets'));
+  const worklets = tryRequire(() => require('react-native-worklets'), 'react-native-worklets');
+  const vcWorklets = tryRequire(() => require('react-native-vision-camera-worklets'), 'react-native-vision-camera-worklets');
   const frames = !!(vcWorklets?.provider && typeof worklets?.scheduleOnRN === 'function' && VC.useFrameOutput);
 
   const MLKit = tryRequire(() => require('react-native-vision-camera-mlkit'));
@@ -42,10 +47,10 @@ export function getLiveModules() {
   const ocr = !!MLKit && tryCall(() => MLKit.isFeatureAvailable(keys.TEXT_RECOGNITION));
   const barcodes = !!MLKit && tryCall(() => MLKit.isFeatureAvailable(keys.BARCODE_SCANNING));
 
-  const Resizer = tryRequire(() => require('react-native-vision-camera-resizer'));
+  const Resizer = tryRequire(() => require('react-native-vision-camera-resizer'), 'react-native-vision-camera-resizer');
   const resizer = !!Resizer?.useResizer && tryCall(() => Resizer.isResizerAvailable());
 
-  const Tflite = tryRequire(() => require('react-native-fast-tflite'));
+  const Tflite = tryRequire(() => require('react-native-fast-tflite'), 'react-native-fast-tflite');
 
   cached = {
     VC,
@@ -62,4 +67,27 @@ export function getLiveModules() {
     tflite: !!Tflite?.loadTensorflowModel,
   };
   return cached;
+}
+
+/**
+ * Human-readable reason the on-device detector can't run here (for logs and
+ * the "Device verification unavailable" screen). Typical: the app is running
+ * in Expo Go, or in a dev client / APK built before these native packages.
+ */
+export function liveModulesDiagnosis() {
+  if (Platform.OS === 'web') return 'web has no native detector';
+  // 'storeClient' = Expo Go (can never load these modules); 'bare' = a GGFIX build.
+  const C = tryRequire(() => require('expo-constants').default);
+  const host = C ? `${C.executionEnvironment || '?'}${C.executionEnvironment === 'storeClient' ? ' = EXPO GO' : ''}, app ${C.expoConfig?.android?.package || C.expoConfig?.slug || '?'}` : 'unknown host';
+  if (!getLiveModules()) {
+    const why = failures['react-native-vision-camera'] || 'VisionCamera API incomplete';
+    return `native camera module not in this app build [${host}] (${why}) — install the GGFIX dev build, not Expo Go`;
+  }
+  const m = getLiveModules();
+  if (!m) {
+    const why = failures['react-native-vision-camera'] || 'VisionCamera API incomplete';
+    return `native camera module not in this app build (${why}) — install the GGFIX dev build, not Expo Go`;
+  }
+  if (!m.tflite) return `TFLite not in this app build (${failures['react-native-fast-tflite'] || 'loadTensorflowModel missing'})`;
+  return 'native modules loaded';
 }

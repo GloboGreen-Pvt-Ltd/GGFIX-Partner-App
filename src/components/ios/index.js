@@ -307,7 +307,7 @@ export function Row({
         </View>
         {value !== undefined && value !== null && value !== '' ? (
           <Text
-            style={{ fontSize: T.body, color: valueColor || C.label2, letterSpacing: -0.4, fontWeight: valueColor ? '700' : '400' }}
+            style={{ fontSize: T.body, color: valueColor || C.label2, letterSpacing: -0.4, fontWeight: valueColor ? '700' : '400', flexShrink: 1, maxWidth: '55%' }}
             numberOfLines={1}
           >
             {value}

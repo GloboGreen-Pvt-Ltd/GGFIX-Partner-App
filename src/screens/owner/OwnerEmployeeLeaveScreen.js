@@ -221,7 +221,7 @@ function StatTile({ value, label, icon, tint, accent, onPress }) {
     <Wrap style={[styles.statTileWrap, { backgroundColor: tint }]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.statTileTop}>
         <Ionicons name={icon} size={rs(14)} color={accent} />
-        <Text style={[styles.statTileTopText, { color: accent }]}>{label}</Text>
+        <Text style={[styles.statTileTopText, { color: accent }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
       </View>
       <Text style={styles.statTileValue}>{value}</Text>
       <Text style={styles.statTileHint}>Total</Text>
@@ -245,7 +245,7 @@ function LeaveCard({ item, ownerCanApprove, onApprove, onReject }) {
       <View style={styles.leaveAccent} />
       <View style={styles.leaveInner}>
         <View style={styles.leaveTopRow}>
-          <Text style={styles.leaveDate}>{formatDate(item.startDate)}</Text>
+          <Text style={styles.leaveDate} numberOfLines={1}>{formatDate(item.startDate)}</Text>
           <View style={[styles.statusPill, pillStyle]}>
             <Text
               style={[
@@ -277,10 +277,10 @@ function LeaveCard({ item, ownerCanApprove, onApprove, onReject }) {
 
         {isPendingLeave(status) && ownerCanApprove && (
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.approveBtn} onPress={onApprove} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.approveBtn} onPress={onApprove} activeOpacity={0.85} hitSlop={{ top: 6, bottom: 6 }}>
               <Text style={styles.approveBtnText}>Approve</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.85} hitSlop={{ top: 6, bottom: 6 }}>
               <Text style={styles.rejectBtnText}>Reject</Text>
             </TouchableOpacity>
           </View>
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: rs(8),
   },
-  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
+  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111', flexShrink: 1, marginRight: rs(8) },
 
   monthPill: {
     flexDirection: 'row',
@@ -331,8 +331,8 @@ const styles = StyleSheet.create({
     padding: rs(8),
     alignItems: 'flex-start',
   },
-  statTileTop: { flexDirection: 'row', alignItems: 'center', gap: rs(5) },
-  statTileTopText: { fontSize: 10, fontWeight: '800' },
+  statTileTop: { flexDirection: 'row', alignItems: 'center', gap: rs(5), maxWidth: '100%' },
+  statTileTopText: { fontSize: 10, fontWeight: '800', flexShrink: 1 },
   statTileValue: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: rs(4) },
   statTileHint: { fontSize: 9.5, color: '#6B7280', marginTop: rs(1), fontWeight: '600' },
 
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   leaveAccent: { width: rs(3), backgroundColor: '#035C6C' },
   leaveInner: { flex: 1, paddingHorizontal: rs(10), paddingVertical: rs(8) },
   leaveTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  leaveDate: { fontSize: 11, fontWeight: '700', color: '#111111' },
+  leaveDate: { fontSize: 11, fontWeight: '700', color: '#111111', flexShrink: 1, marginRight: rs(8) },
 
   statusPill: {
     paddingHorizontal: rs(10),

@@ -70,7 +70,7 @@ export function SellButton({ title, onPress, disabled, loading, arrow = false, v
         <ActivityIndicator color={outline ? SELL.green : '#FFFFFF'} />
       ) : (
         <>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: outline ? SELL.ink : '#FFFFFF' }} numberOfLines={1}>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: outline ? SELL.ink : '#FFFFFF', flexShrink: 1 }} numberOfLines={1}>
             {title}
           </Text>
           {arrow ? <ArrowRight size={18} color={outline ? SELL.ink : '#FFFFFF'} strokeWidth={2.4} style={{ marginLeft: 8 }} /> : null}
@@ -102,12 +102,15 @@ export function SellFooter({ caption, children }) {
         elevation: 10,
       }}
     >
+      {/* Capped + centred on tablets; no effect on phones. */}
+      <View style={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
       {caption ? (
         <Text style={{ fontSize: 12, color: SELL.muted, textAlign: 'center', marginBottom: 8 }} numberOfLines={1}>
           {caption}
         </Text>
       ) : null}
       {children}
+      </View>
     </View>
   );
 }

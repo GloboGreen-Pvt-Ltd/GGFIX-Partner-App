@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenHeader } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
+import { ResponsiveContainer } from '../../../components/responsive';
 
 // statusList holds the real /tickets/counts enum keys; the tile keys/labels are
 // display only. The old code looked up the display key (e.g. 'SERVICE_ACCEPTED')
@@ -49,6 +50,8 @@ export default function BookingStatusScreen({ navigation }) {
     <View className="flex-1 bg-background">
       <ScreenHeader title="Booking Status" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerClassName="px-4 pt-4 pb-12">
+        {/* Capped + centred on tablets so the 2-up tiles don't stretch. */}
+        <ResponsiveContainer pad={false}>
         <View className="flex-row items-center mb-4">
           <Text className="flex-1 font-bold text-text">This Month Booking Status Sumary</Text>
           <Pressable><Text className="text-primary font-semibold underline">Previous Report</Text></Pressable>
@@ -75,6 +78,7 @@ export default function BookingStatusScreen({ navigation }) {
             </View>
           ))}
         </View>
+        </ResponsiveContainer>
       </ScrollView>
     </View>
   );

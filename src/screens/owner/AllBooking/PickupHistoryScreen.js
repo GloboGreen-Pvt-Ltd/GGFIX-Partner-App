@@ -241,7 +241,7 @@ export default function PickupHistoryScreen({ route }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

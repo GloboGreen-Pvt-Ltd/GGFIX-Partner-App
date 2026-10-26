@@ -9,7 +9,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +29,7 @@ import { assignPickupPerson } from '../../api/orders';
 import { notify } from '../../components/confirm';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
+import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette — green #035C6C (fills, rings, dots) with #035C6C for green
 // text/icons; ink #111111; neutrals #F3F4F6 / #F3F4F6; yellow #F3BF23.
@@ -99,9 +99,11 @@ function ProgressRing({ active, total, size = 52, stroke = 5 }) {
 }
 
 export default function OwnerEmployeeListScreen({ navigation, route }) {
-  const { width: winW } = useWindowDimensions();
-  const cols = winW >= 700 ? 2 : 1;
-  const capStyle = winW >= 768 ? { width: Math.min(winW - 32, 1000), alignSelf: 'center' } : null;
+  // Live breakpoints from the app's responsive system: tablets (600+) get two
+  // columns and a capped, centred column; phones stay single-column.
+  const r = useResponsive();
+  const cols = r.isTablet ? 2 : 1;
+  const capStyle = r.isTablet ? { width: Math.min(r.width - 32, r.maxWidth('wide')), alignSelf: 'center' } : null;
   const assignFor = route?.params?.assignFor || null;
   const bookingId = route?.params?.bookingId || null;
   const isPickupPicker = assignFor === 'pickup' && !!bookingId;
@@ -461,18 +463,19 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                     </Text>
                     <View className="flex-row items-center mt-1">
                       <Phone size={11} color={BRAND_GREEN} />
-                      <Text className="text-[11px] text-gray-600 ml-1.5" numberOfLines={1}>
+                      <Text className="text-[11px] text-gray-600 ml-1.5 flex-shrink" numberOfLines={1}>
                         {e.phone || e.email || '—'}
                       </Text>
                     </View>
                     <View
                       className="flex-row items-center self-start px-2 py-0.5 rounded-full mt-1.5"
-                      style={{ backgroundColor: roleTint }}
+                      style={{ backgroundColor: roleTint, maxWidth: '100%' }}
                     >
                       <RoleIcon size={11} color={roleAccent} />
                       <Text
                         className="ml-1 text-[10.5px] font-extrabold"
-                        style={{ color: roleAccent, letterSpacing: 0.3 }}
+                        style={{ color: roleAccent, letterSpacing: 0.3, flexShrink: 1 }}
+                        numberOfLines={1}
                       >
                         {role}
                       </Text>

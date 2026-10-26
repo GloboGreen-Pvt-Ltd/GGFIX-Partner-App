@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function OwnerEmployeeAddAdvanceScreen({ route, navigation }) {
   const employee = route.params?.employee;
@@ -58,7 +59,8 @@ export default function OwnerEmployeeAddAdvanceScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
-  content: { padding: 12 },
+  // Tablets: cap and centre the form column.
+  content: { padding: 12, width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   label: { fontSize: 13, fontWeight: '600', color: '#111111', marginBottom: 5 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, fontSize: 13, backgroundColor: '#FFF' },

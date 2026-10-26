@@ -37,14 +37,15 @@ function ActionButton({ icon: Icon, label, onPress, primary }) {
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
+      hitSlop={4}
       className="active:opacity-85"
       style={{
-        flex: 1, height: 40, borderRadius: 12, marginHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        flex: 1, minHeight: 40, paddingHorizontal: 6, borderRadius: 12, marginHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         backgroundColor: primary ? TEAL : '#FFFFFF', borderWidth: primary ? 0 : 1.5, borderColor: TEAL,
       }}
     >
       <Icon size={15} color={primary ? '#FFFFFF' : TEAL} />
-      <Text style={{ marginLeft: 6, fontSize: rf(12.5), fontWeight: '800', color: primary ? '#FFFFFF' : TEAL }} numberOfLines={1}>{label}</Text>
+      <Text style={{ flexShrink: 1, marginLeft: 6, fontSize: rf(12.5), fontWeight: '800', color: primary ? '#FFFFFF' : TEAL }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -190,7 +191,7 @@ export default function ScanResultsSheet({ state, result, selected, onSelect, on
           user taps to continue — nothing is selected for them. */}
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         {result.exact ? <BadgeCheck size={16} color="#15803D" style={{ marginRight: 5 }} /> : null}
-        <Text style={{ fontSize: rf(14), fontWeight: '800', color: INK }}>
+        <Text style={{ flexShrink: 1, fontSize: rf(14), fontWeight: '800', color: INK }}>
           {result.exact ? 'Exact model identified' : 'Exact model not identified'}
         </Text>
       </View>

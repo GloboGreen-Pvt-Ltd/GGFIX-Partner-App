@@ -59,7 +59,7 @@ export function ShopCard({
               <Text className="text-[12px] text-text-muted ml-1 flex-1" numberOfLines={1}>{address}</Text>
             </View>
           ) : null}
-          <View className="flex-row items-center mt-2">
+          <View className="flex-row flex-wrap items-center mt-2">
             {rating ? (
               <View className="flex-row items-center bg-success/10 rounded-full px-2 py-0.5 mr-2">
                 <Star size={11} color="#035C6C" fill="#035C6C" />
@@ -82,7 +82,7 @@ export function ShopCard({
 
           {/* Per-mode travel times from the customer's location to this shop */}
           {travelTimes?.length ? (
-            <View className="flex-row items-center mt-1.5">
+            <View className="flex-row flex-wrap items-center mt-1.5">
               {travelTimes.map((t) => {
                 const TIcon = t.Icon;
                 return (

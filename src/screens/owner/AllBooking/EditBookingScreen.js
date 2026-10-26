@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Smartphone,
@@ -20,6 +21,7 @@ import { notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
 import { resolveSpecCategory } from '../../../utils/deviceSpecs';
+import { useResponsive } from '../../../theme/responsive';
 
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -104,6 +106,8 @@ function SubLink({ icon: Icon, tint, accent, label, sub, onPress, divider }) {
 
 export default function EditBookingScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  const colStyle = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -226,11 +230,14 @@ export default function EditBookingScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
+      {/* KeyboardAwareScrollView lifts the focused field above the keyboard;
+          bottomOffset clears the sticky Save bar. */}
+      <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140, ...colStyle }}
       >
         {error ? (
           <View className="px-4" style={{ marginTop: 12 }}>
@@ -490,7 +497,7 @@ export default function EditBookingScreen({ route, navigation }) {
             />
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Sticky CTA */}
       <View
@@ -506,7 +513,7 @@ export default function EditBookingScreen({ route, navigation }) {
           activeOpacity={0.9}
           onPress={saveAndBack}
           disabled={saving}
-          style={cardShadow}
+          style={[cardShadow, colStyle]}
         >
           <LinearGradient
             colors={[BRAND_GREEN, BRAND_GREEN_DARK]}

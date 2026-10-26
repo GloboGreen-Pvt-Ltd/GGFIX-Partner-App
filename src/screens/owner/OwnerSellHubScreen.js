@@ -14,6 +14,7 @@ import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
 import { rf } from '../../utils/responsive';
 import { useCurrentDevice, deviceName, deviceTitle, roughEstimate } from '../../utils/currentDevice';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
+import { useResponsive } from '../../theme/responsive';
 
 // Same page as the Customer app's Sell home (SellHomeScreen); picking a device
 // starts the Partner listing flow (SelectBrand, OWNER_LIST).
@@ -147,6 +148,7 @@ export default function OwnerSellHubScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const bannerRef = useRef(null);
   const { width } = useWindowDimensions();
+  const r = useResponsive();
   const currentDevice = useCurrentDevice();
 
   // This shop's own sell listings (same source and ownership rule as My
@@ -209,8 +211,8 @@ export default function OwnerSellHubScreen({ navigation, route }) {
   const pageW = bannerPageW || contentW;
   const bannerW = pageW - padH * 2;
   const bannerH = Math.round(bannerW / bannerRatio);
-  // Sell for Cash: five category tiles across one row.
-  const catCols = 5;
+  // Sell for Cash: five category tiles across one row on phones, six on tablets.
+  const catCols = r.tileColumns({ phone: 5 });
   const catGap = 8;
   const catSize = Math.min(72, Math.floor((contentW - padH * 2 - catGap * (catCols - 1)) / catCols));
   // Action cards: one per screen with the next peeking in.

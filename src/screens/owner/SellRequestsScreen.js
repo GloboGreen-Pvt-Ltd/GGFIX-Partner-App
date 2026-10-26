@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SafeModal, { ModalInsets } from '../../components/SafeModal';
+import { CONTENT_MAX, useResponsive } from '../../theme/responsive';
 import { ChevronLeft, ChevronRight, MapPin, Navigation, Phone, RefreshCw, Smartphone, Sparkles, User, X, Info, Send } from 'lucide-react-native';
 import {
   getListingOrigin, fetchNearbyListings, NEARBY_RADIUS_KM,
@@ -171,7 +172,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
       <ModalInsets>
         {({ insets }) => (
           <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17,0.5)', justifyContent: 'flex-end' }}>
-            <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%' }}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%', width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' }}>
               <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 + insets.bottom }}>
                 <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -225,7 +226,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
                   <Pressable
                     onPress={onOpenDetails}
                     className="active:opacity-85"
-                    style={{ flex: 1, height: 42, borderRadius: 12, backgroundColor: ACCENT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ flex: 1, minHeight: 42, borderRadius: 12, backgroundColor: ACCENT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>View Full Details</Text>
                     <ChevronRight size={15} color="#FFFFFF" style={{ marginLeft: 3 }} />
@@ -234,7 +235,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
                     <Pressable
                       onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
                       className="active:opacity-85"
-                      style={{ height: 42, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ minHeight: 42, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                     >
                       <Phone size={14} color={ACCENT} />
                       <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT_TEXT, marginLeft: 5 }}>Call</Text>
@@ -252,7 +253,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
                 <View
                   accessibilityRole="button"
                   accessibilityState={{ disabled: true }}
-                  style={{ marginTop: 8, height: 42, borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ marginTop: 8, minHeight: 42, borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Send size={14} color="#9CA3AF" />
                   <Text style={{ fontSize: 13, fontWeight: '800', color: '#9CA3AF', marginLeft: 6 }}>Send Quote</Text>
@@ -267,6 +268,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
 }
 
 export default function SellRequestsScreen({ navigation }) {
+  const r = useResponsive();
   const [origin, setOrigin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -347,7 +349,7 @@ export default function SellRequestsScreen({ navigation }) {
           data={sorted}
           keyExtractor={(it, i) => String(it.id ?? `req-${i}`)}
           renderItem={({ item }) => <RequestCard item={item} onPress={() => setSelected(item)} />}
-          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 28, flexGrow: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 28 + r.insets.bottom, flexGrow: 1, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[ACCENT]} tintColor={ACCENT} />}
           ListHeaderComponent={
             noLocation ? (

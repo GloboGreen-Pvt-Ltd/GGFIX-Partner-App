@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
@@ -14,6 +15,7 @@ const styles = StyleSheet.create({
 
 export default function SellSelectShopScreen({ navigation, route }) {
   const sellOrderId = route?.params?.sellOrderId;
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ export default function SellSelectShopScreen({ navigation, route }) {
   if (loading) return <Loader />;
   return (
     <View style={styles.container}>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {items.length === 0 ? <Empty text="No quotations to choose from yet" /> : items.map((q, i) => (
           <TouchableOpacity key={q.id} style={styles.row} onPress={() => setSelectedId(q.id)}>
             <Ionicons name={selectedId === q.id ? 'radio-button-on' : 'radio-button-off'} size={22} color={selectedId === q.id ? '#035C6C' : colors.textSecondary} />
@@ -49,7 +51,7 @@ export default function SellSelectShopScreen({ navigation, route }) {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
         <PrimaryButton title="Submit" onPress={submit} loading={saving} disabled={!selectedId} />
       </View>
     </View>

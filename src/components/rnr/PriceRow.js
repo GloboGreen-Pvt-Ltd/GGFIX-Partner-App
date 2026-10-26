@@ -6,7 +6,7 @@ export function PriceRow({ label, value, bold = false, className, valueClassName
   return (
     <View className={cn('flex-row items-center justify-between py-2', className)}>
       <Text className={cn(
-        'text-[13px]',
+        'text-[13px] flex-1 mr-3',
         bold ? 'font-extrabold text-text' : muted ? 'text-text-muted' : 'text-text',
       )}>
         {label}

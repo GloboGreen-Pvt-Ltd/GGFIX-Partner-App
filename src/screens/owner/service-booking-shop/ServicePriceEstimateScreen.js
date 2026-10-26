@@ -25,6 +25,8 @@ import {
   Ban,
 } from 'lucide-react-native';
 import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
+import MissingPartsChecklist, { seedMissingParts, flaggedMissingParts } from './MissingPartsChecklist';
+import { categoryLabel, consumeValidated, discardTempImage, isVerifiableCategory } from '../scanner/devicePhotoCheck';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
 import ImageViewerModal from '../../../components/ImageViewerModal';
@@ -216,6 +218,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const [serialNumber, setSerialNumber] = useState(params.prefillSerialNumber || params.serialNumber || '');
   // Charger, case, SIM tray … handed over with the device.
   const [accessories, setAccessories] = useState(params.prefillAccessories || params.accessories || '');
+  const [missingParts, setMissingParts] = useState(() => seedMissingParts(params.missingParts || params.prefillMissingParts));
   // Seeded from a saved lock on re-estimate; sent on as `lock`, so Device
   // Information skips its own lock popup.
   const seedLock = params.lock || params.prefillLock || null;
@@ -489,13 +492,39 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       }
       return;
     }
+    // Photos (add or replace, camera or gallery) go through the capture / check
+    // screen, validated against this booking's device category; it hands back
+    // only an accepted photo.
+    if (!isVideo) {
+      if (!photoVerifiable) {
+        notify('Photo verification unavailable', `${categoryLabel(specCategory)} photos can't be verified yet — add a video instead, or continue without a photo.`);
+        return;
+      }
+      navigation.navigate('DevicePhotoCapture', {
+        mode: fromCamera ? 'camera' : 'gallery',
+        category: specCategory || null,
+        onDone: (asset) => uploadMediaAsset(asset, false, target),
+      });
+      return;
+    }
     try {
-      const opts = isVideo
-        ? { mediaTypes: 'videos', allowsEditing: false, videoMaxDuration: 15, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium }
-        : { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
+      const opts = { mediaTypes: 'videos', allowsEditing: false, videoMaxDuration: 15, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium };
       const result = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
+      await uploadMediaAsset(result.assets[0], true, target);
+    } catch (e) {
+      notify('Upload failed', e?.message || 'Try again');
+    }
+  };
+  const uploadMediaAsset = async (asset, isVideo, target = {}) => {
+    // Data-level gate: a photo that DevicePhotoCapture didn't accept (or one
+    // already uploaded once) never reaches state or the upload.
+    if (!isVideo && !consumeValidated(asset?.uri)) {
+      discardTempImage(asset?.uri);
+      notify('Photo not added', 'Only verified device photos can be added to the booking.');
+      return;
+    }
+    try {
       if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
         notify(isVideo ? 'Video too large' : 'Photo too large', isVideo
           ? 'The limit is 10 MB. Choose a shorter clip (about 5–8 seconds).'
@@ -516,6 +545,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       notify('Upload failed', tooBig ? 'The file is larger than 10 MB.' : (e?.message || 'Try again'));
     } finally {
       setPhotoUploading(false);
+      if (!isVideo) discardTempImage(asset.uri);
     }
   };
   // Close the sheet first, then open the picker — presenting a picker while a
@@ -546,14 +576,21 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     ...photoUrls.map((u, i) => ({ kind: 'photo', uri: u, index: i, label: `Photo ${i + 1}` })),
     ...(videoUrl ? [{ kind: 'video', uri: videoUrl, index: 0, label: 'Video' }] : []),
   ];
-  const canAddPhoto = photoUrls.length < PHOTO_KEYS.length;
+  // Smartwatch / Audio Device: the detector can't verify them, so the photo is
+  // optional and can't be added (fail-closed); Mobile / Tablet / Laptop require one.
+  const photoVerifiable = isVerifiableCategory(resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName));
+  const canAddPhoto = photoVerifiable && photoUrls.length < PHOTO_KEYS.length;
   const canAddMedia = canAddPhoto || !videoUrl;
   // 3 thumbnails per row on phones, 5 on tablets (a hair under, so rounding never wraps).
   const mediaPct = `${(100 / (r.isTablet ? 5 : 3)) - 0.1}%`;
 
   // At least one device photo is required; the video is optional.
   // Lock types this device can have (laptop: PIN + password; watch/audio: none).
-  const lockTypes = lockTypesFor(resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName));
+  const specCategory = resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName);
+  const lockTypes = lockTypesFor(specCategory);
+  // Missing / damaged parts is Mobile-only (unknown category keeps it).
+  const showMissingParts = !specCategory || specCategory === 'MOBILE';
+  const flaggedCount = flaggedMissingParts(missingParts).length;
   const lockOptions = [{ key: 'NONE', label: 'None' }, ...LOCK_FIELD_OPTIONS.filter((o) =>
     (o.key === 'ACCOUNT' ? lockTypes.includes('PATTERN') : lockTypes.includes(o.key)))];
   const patternDots = lockType === 'PATTERN' ? lockValue.split(',').filter(Boolean).length : 0;
@@ -580,7 +617,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const noImeiText = noImeiReason === IMEI_OTHER ? noImeiOther.trim() : noImeiReason;
   const imeiOk = !showImei || params.reEstimate || (noImei ? !!noImeiText : imeiValid);
 
-  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && photoUrls.length > 0 && !lockError && imeiOk;
+  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && (photoUrls.length > 0 || !photoVerifiable) && !lockError && imeiOk;
 
   // Back to Issue Description, then Next, used to open this screen empty — the
   // back press unmounts it. Keep what was entered (as the prefill* params this
@@ -593,6 +630,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     prefillNoImeiOther: noImeiOther,
     prefillSerialNumber: serialNumber,
     prefillAccessories: accessories,
+    prefillMissingParts: flaggedMissingParts(missingParts),
     prefillLock: { type: lockType, value: lockValue },
     prefillComplaint: complaint,
     prefillCustomerApproved: approval,
@@ -620,6 +658,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         .filter(Boolean).join('\n'),
       devicePhotos: devicePhotosParam(),
       accessories: accessories.trim() || undefined,
+      missingParts: showMissingParts ? flaggedMissingParts(missingParts) : [],
       lock: lockOptions.length > 1 ? { type: lockType, value: lockType === 'NONE' ? '' : lockValue.trim() } : undefined,
       issueAudioUrl: audioUrl || null,
       estimatedAt: `${dateLabel} ${timeLabel}, ${effectiveHours}Hr`,
@@ -997,7 +1036,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               Tap a thumbnail to preview / replace / remove it. ─────────────── */}
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
             <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-              Device Photo or Video<Text style={{ fontWeight: '400', color: MUTED }}> (Photo required)</Text>
+              Device Photo or Video<Text style={{ fontWeight: '400', color: MUTED }}>{photoVerifiable ? ' (Photo required)' : ' (Optional)'}</Text>
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -rs(4) }}>
               {mediaItems.map((m) => (
@@ -1057,7 +1096,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 </View>
               ) : null}
             </View>
-            {!photoUrls.length ? (
+            {!photoUrls.length && photoVerifiable ? (
               <Text style={{ fontSize: rf(12), color: RED_TEXT, marginTop: rs(2) }}>Add at least one photo of the device.</Text>
             ) : null}
           </View>
@@ -1083,6 +1122,21 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               />
             </View>
           </View>
+
+          {/* ── Device Missing Parts (Optional, Mobile only) ───────────────── */}
+          {showMissingParts ? (
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+              <View className="flex-row items-center" style={{ marginBottom: rs(8) }}>
+                <Text style={{ flex: 1, fontSize: rf(14), fontWeight: '700', color: INK }}>
+                  Device Missing Parts<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+                </Text>
+                <Text style={{ fontSize: rf(11), fontWeight: '800', color: flaggedCount ? '#D63232' : ACCENT }}>
+                  {flaggedCount} Part{flaggedCount === 1 ? '' : 's'} Flagged
+                </Text>
+              </View>
+              <MissingPartsChecklist value={missingParts} onChange={setMissingParts} />
+            </View>
+          ) : null}
 
           {/* ── Device Security Lock (Optional) — PIN / Pattern / Password /
               Account open the lock popup; the saved value shows on its row. ── */}
@@ -1260,7 +1314,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 ? 'Uploading device media…'
                 : !hasIssue
                 ? 'Add an issue description to continue.'
-                : !photoUrls.length
+                : !photoUrls.length && photoVerifiable
                 ? 'Add at least one device photo to continue.'
                 : !imeiOk
                 ? (noImei ? 'Pick why there is no IMEI.' : 'Enter a valid IMEI, or choose “No IMEI”.')
@@ -1375,7 +1429,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         ) : (
           // First step: Photo or Video, as two tiles.
           <View className="flex-row" style={{ gap: rs(12) }}>
-            {[['photo', 'photo-camera', 'Photo', canAddPhoto ? `${photoUrls.length} of ${PHOTO_KEYS.length} added` : '5 photos added'],
+            {[['photo', 'photo-camera', 'Photo', !photoVerifiable ? 'Verification not available for this device' : canAddPhoto ? `${photoUrls.length} of ${PHOTO_KEYS.length} added` : '5 photos added'],
               ['video', 'videocam', 'Video', videoUrl ? 'Replaces the current video' : 'Optional · up to 15 s']].map(([kind, icon, title, hint]) => {
               const off = kind === 'photo' && !canAddPhoto;
               return (
@@ -1431,12 +1485,12 @@ function SheetOption({ icon, label, onPress, danger = false, disabled = false })
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       className="flex-row items-center active:opacity-70"
-      style={{ height: rs(54), opacity: disabled ? 0.4 : 1 }}
+      style={{ minHeight: rs(54), opacity: disabled ? 0.4 : 1 }}
     >
       <View style={{ height: rs(40), width: rs(40), borderRadius: rs(20), alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? 'rgba(220, 38, 38, 0.10)' : MINT }}>
         <MaterialIcons name={icon} size={rf(21)} color={danger ? '#DC2626' : ACCENT} />
       </View>
-      <Text style={{ marginLeft: rs(14), fontSize: rf(14.5), fontWeight: '600', color: danger ? '#DC2626' : INK }}>{label}</Text>
+      <Text style={{ flex: 1, marginLeft: rs(14), fontSize: rf(14.5), fontWeight: '600', color: danger ? '#DC2626' : INK }}>{label}</Text>
     </Pressable>
   );
 }

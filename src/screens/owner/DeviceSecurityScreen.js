@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 const OPTIONS = ['None', 'Pattern', 'PIN', 'Password'];
 
@@ -30,7 +31,7 @@ export default function DeviceSecurityScreen({ route, navigation }) {
                 <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
                   {active ? <View style={styles.radioInner} /> : null}
                 </View>
-                <Text style={styles.optionLabel}>{opt}</Text>
+                <Text style={styles.optionLabel} numberOfLines={1}>{opt}</Text>
               </TouchableOpacity>
             );
           })}
@@ -47,7 +48,8 @@ export default function DeviceSecurityScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
-  content: { padding: 12, paddingBottom: 24 },
+  // Tablets: cap and centre the form column.
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -85,7 +87,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#035C6C',
   },
-  optionLabel: { fontSize: 13, color: '#111111' },
+  optionLabel: { flexShrink: 1, fontSize: 13, color: '#111111' },
   button: {
     backgroundColor: '#035C6C',
     paddingVertical: 12,

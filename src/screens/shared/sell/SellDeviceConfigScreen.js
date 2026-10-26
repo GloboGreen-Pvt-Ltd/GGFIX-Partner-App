@@ -65,7 +65,7 @@ export default function SellDeviceConfigScreen({ navigation, route }) {
   // screen's only header — it used to draw a second one of its own below it.
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <SellIntro title="Device configuration" caption="Tell us about the device's configuration." />
         {fields.map((f) => {
           const sel = selected[f.id];

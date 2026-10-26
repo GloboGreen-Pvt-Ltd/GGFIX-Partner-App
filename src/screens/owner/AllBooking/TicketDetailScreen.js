@@ -631,7 +631,7 @@ export default function TicketDetailScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: 128 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + 128 }}>
         <View style={{ width: contentW, alignSelf: 'center' }}>
         {/* ── Device hero ─────────────────────────────────────── */}
         <View className="px-4" style={{ marginTop: 12 }}>
@@ -1114,7 +1114,8 @@ export default function TicketDetailScreen({ route, navigation }) {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
-          paddingHorizontal: 16,
+          // Tablets: line the buttons up with the capped content column.
+          paddingHorizontal: Math.max(16, (winW - contentW) / 2 + 16),
           paddingTop: 12,
           paddingBottom: insets.bottom + 12,
           gap: 12,
@@ -1126,7 +1127,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           style={{ borderWidth: 1.5, borderColor: ACCENT_GREEN, paddingVertical: 14 }}
         >
           <Phone size={16} color={ACCENT_GREEN} />
-          <Text className="text-[13px] font-extrabold ml-2" style={{ color: ACCENT_GREEN }}>
+          <Text className="text-[13px] font-extrabold ml-2 flex-shrink" style={{ color: ACCENT_GREEN }} numberOfLines={1}>
             Contact Customer
           </Text>
         </Pressable>
@@ -1141,7 +1142,7 @@ export default function TicketDetailScreen({ route, navigation }) {
             style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
           >
             {isDelivered ? <RefreshCcw size={16} color="#FFFFFF" /> : <ClipboardList size={16} color="#FFFFFF" />}
-            <Text className="text-white text-[13px] font-extrabold ml-2">{isDelivered ? 'Re-Service' : 'Update Status'}</Text>
+            <Text className="text-white text-[13px] font-extrabold ml-2 flex-shrink" numberOfLines={1}>{isDelivered ? 'Re-Service' : 'Update Status'}</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -1173,6 +1174,10 @@ export default function TicketDetailScreen({ route, navigation }) {
                   paddingHorizontal: 16,
                   paddingTop: 12,
                   paddingBottom: insets.bottom + 16,
+                  // Tablets: a centred sheet, not a full-width strip.
+                  width: '100%',
+                  maxWidth: 560,
+                  alignSelf: 'center',
                 }}
               >
                 <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E5E7EB', marginBottom: 14 }} />
