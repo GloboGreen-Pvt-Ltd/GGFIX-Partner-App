@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function AssignTechnicianScreen({ route, navigation }) {
   const { ticketId } = route.params || {};
@@ -52,7 +53,7 @@ export default function AssignTechnicianScreen({ route, navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ActivityIndicator size="large" color="#16BB05" style={styles.loader} />
+        <ActivityIndicator size="large" color="#035C6C" style={styles.loader} />
       </SafeAreaView>
     );
   }
@@ -75,11 +76,11 @@ export default function AssignTechnicianScreen({ route, navigation }) {
             disabled={assigning != null}
           >
             <View style={styles.rowContent}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.role}>{item.roleLabel || item.email}</Text>
+              <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.role} numberOfLines={1}>{item.roleLabel || item.email}</Text>
             </View>
             {assigning === item.id ? (
-              <ActivityIndicator size="small" color="#16BB05" />
+              <ActivityIndicator size="small" color="#035C6C" />
             ) : (
               <Text style={styles.assignLabel}>Assign</Text>
             )}
@@ -92,24 +93,25 @@ export default function AssignTechnicianScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
+  safe: { flex: 1, backgroundColor: '#111111' },
   loader: { flex: 1, justifyContent: 'center' },
-  list: { padding: 12, paddingBottom: 24 },
-  hint: { fontSize: 13, color: '#8FA08F', marginBottom: 10 },
+  // Tablets: cap and centre the list instead of stretching rows edge-to-edge.
+  list: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
+  hint: { fontSize: 13, color: '#9CA3AF', marginBottom: 10 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#172117',
+    backgroundColor: '#111111',
     borderRadius: 12,
     padding: 12,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#172117',
+    borderColor: '#111111',
   },
-  rowContent: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '600', color: '#F7FAF7' },
-  role: { fontSize: 13, color: '#8FA08F', marginTop: 4 },
-  assignLabel: { fontSize: 13, fontWeight: '600', color: '#16BB05' },
-  empty: { fontSize: 13, color: '#8FA08F', textAlign: 'center', marginTop: 24 },
+  rowContent: { flex: 1, marginRight: 8 },
+  name: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
+  role: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
+  assignLabel: { fontSize: 13, fontWeight: '600', color: '#035C6C' },
+  empty: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', marginTop: 24 },
 });

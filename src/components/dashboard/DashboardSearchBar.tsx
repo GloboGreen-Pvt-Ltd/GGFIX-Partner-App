@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Search, QrCode, Camera, Mic } from 'lucide-react-native';
+import { Search, Camera, Mic } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Touchable } from './theme';
 import colors from '../../theme/colors';
 
@@ -13,7 +14,7 @@ export interface DashboardSearchBarProps {
   onVoicePress?: () => void;
 }
 
-const MUTED = '#64748B';
+const MUTED = '#6B7280';
 
 /** Search field in the Customer app's Home style: white rounded bar,
  * magnifier + placeholder (opens search), then plain camera (product search),
@@ -53,15 +54,31 @@ export function DashboardSearchBar({ pad, onSearchPress, onScanPress, onVoicePre
 
       <BarIcon icon={Camera} accessibilityLabel="Search product by camera" onPress={() => onScanPress('lens')} />
       {onVoicePress ? <BarIcon icon={Mic} accessibilityLabel="Voice search" onPress={onVoicePress} /> : null}
-      <BarIcon icon={QrCode} accessibilityLabel="Scan QR or barcode" onPress={() => onScanPress('qr')} />
+      {/* Scanner frame with its scan line only — no code inside. */}
+      <BarIcon icon={ScannerIcon} accessibilityLabel="Scan QR or barcode" onPress={() => onScanPress('qr')} />
     </View>
+  );
+}
+
+type BarIconGlyph = React.ComponentType<{ size?: number; color?: string }>;
+
+// A soft drop shadow lifts the scanner glyph off the bar (it's a font glyph,
+// so this is a text shadow — works on both platforms).
+function ScannerIcon({ size = 20, color }: { size?: number; color?: string }) {
+  return (
+    <MaterialCommunityIcons
+      name="line-scan"
+      size={size}
+      color={color}
+      style={{ textShadowColor: 'rgba(17,17,17,0.35)', textShadowOffset: { width: 0, height: 1.5 }, textShadowRadius: 3 }}
+    />
   );
 }
 
 // Search-bar icon button with a comfortable touch target (Customer Home's BarIcon).
 function BarIcon({
   icon: Icon, onPress, accessibilityLabel,
-}: { icon: typeof QrCode; onPress: () => void; accessibilityLabel: string }) {
+}: { icon: BarIconGlyph; onPress: () => void; accessibilityLabel: string }) {
   return (
     <Touchable
       onPress={onPress}

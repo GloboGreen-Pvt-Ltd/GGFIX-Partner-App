@@ -1,13 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Image, Modal } from 'react-native';
-import { Check, IndianRupee, Smartphone, Tag, Wrench } from 'lucide-react-native';
+import { View, Text, TextInput, Image, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { Check, ChevronLeft, IndianRupee, Smartphone, Tag, Wrench } from 'lucide-react-native';
 import { useSelector } from 'react-redux';
-import { ScreenHeader } from '../../components/rnr';
 import { notify } from '../../components/confirm';
+import SafeModal from '../../components/SafeModal';
 import { marketplaceApi } from '../../api/client';
 import { selectShopId } from '../../store/authSlice';
 import { specDisplayParts, specRequestFields } from '../../utils/deviceSpecs';
 import { SELL, SellButton, SellFooter, sellShadow } from '../shared/sell/sellTheme';
+import { useResponsive } from '../../theme/responsive';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -23,6 +26,8 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
+  const insets = useSafeAreaInsets();
+  const r = useResponsive();
 
   const toNum = (s) => {
     const n = Number(String(s ?? '').replace(/[^0-9.]/g, ''));
@@ -65,14 +70,21 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
             type: 'SELL',
             status: 'ACTIVE',
             title: p.partName,
-            description: `${p.group} · ${p.partName}`,
+            description: `${p.group} · ${p.partName}${p.note ? ` — ${p.note}` : ''}`,
             price: p._price,
             conditionLabel: 'Spare Part',
             descriptionType: 'SPARE_PARTS',
             imageUrl: p.imageUrl || Object.values(images).filter(Boolean)[0] || null,
             // Persist every extra photo the shop attached to this part (all but the primary).
             extraImageUrls: (p.imageUrls || []).filter((u) => u && u !== p.imageUrl),
-            assessmentJson: JSON.stringify({ spareParts: [p] }),
+            // Which device the part came from and, for a dead / unverified
+            // device, its screening answers (same endpoint, extra JSON only).
+            assessmentJson: JSON.stringify({
+              spareParts: [p],
+              ...(params.device?.modelName ? { device: { modelName: params.device.modelName, brandName: params.device.brandName || null } } : {}),
+              ...(params.workingCondition ? { workingCondition: params.workingCondition } : {}),
+              ...(params.screeningAnswers?.length ? { screeningAnswers: params.screeningAnswers } : {}),
+            }),
           };
           const res = await marketplaceApi.post('/marketplace/products', { body: payload });
           results.push(res);
@@ -152,15 +164,58 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScreenHeader title="Sell your Gadget" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-        <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.greenLight, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 14 }}>
-          <Tag size={13} color={SELL.greenDark} />
-          <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 1, color: SELL.greenDark, marginLeft: 6 }}>SELL NOW FOR AMAZING PRICE</Text>
+      {/* Header — back · centred title + subtitle · spacer */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: SELL.soft, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <ChevronLeft size={20} color={SELL.ink} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 8 }}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: SELL.ink }} numberOfLines={1}>Sell Your Gadget</Text>
+            <Text style={{ fontSize: 11.5, color: SELL.muted, marginTop: 2 }} numberOfLines={1}>
+              {isSparePartsMode ? 'Set a price for each part' : 'Set your selling price'}
+            </Text>
+          </View>
+          <View style={{ width: 36, height: 36 }} />
+        </View>
+      </View>
+
+      {/* Keyboard-aware: the focused price field scrolls clear of the keyboard. */}
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Intro strip */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.greenLight, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
+          <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: SELL.green, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+            <Tag size={15} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: SELL.greenDark }}>Sell now for an amazing price</Text>
+            <Text style={{ fontSize: 11.5, color: SELL.muted, marginTop: 1 }}>Nearby buyers see your listing right away.</Text>
+          </View>
         </View>
 
         {isSparePartsMode ? (
           <>
+            {device.modelName ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.card, borderRadius: 14, padding: 10, marginBottom: 14, borderWidth: 1, borderColor: SELL.soft }}>
+                <View style={{ height: 40, width: 40, borderRadius: 10, backgroundColor: SELL.soft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
+                  {device.imageUrl ? <Image source={{ uri: device.imageUrl }} style={{ width: 40, height: 40 }} resizeMode="contain" /> : <Smartphone size={18} color={SELL.muted} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', letterSpacing: 0.5, color: SELL.muted }}>PARTS FROM</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: SELL.ink, marginTop: 1 }} numberOfLines={1}>{device.modelName}</Text>
+                </View>
+              </View>
+            ) : null}
             <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink, paddingHorizontal: 2 }}>Set part prices</Text>
             <Text style={{ fontSize: 13, color: SELL.muted, marginTop: 3, marginBottom: 12, paddingHorizontal: 2 }}>
               Enter a price for each part you want to list. Parts left at 0 are skipped.
@@ -183,10 +238,13 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
                   <View style={{ flex: 1, paddingRight: 8 }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink }} numberOfLines={1}>{p.partName}</Text>
                     <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 1 }} numberOfLines={1}>{p.group}</Text>
+                    {p.note ? (
+                      <Text style={{ fontSize: 11.5, color: SELL.ink, marginTop: 3, fontStyle: 'italic' }} numberOfLines={3}>Note: {p.note}</Text>
+                    ) : null}
                   </View>
                   <View
                     style={{
-                      width: 124, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
+                      width: r.isSmallPhone ? 104 : 124, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
                       borderColor: hasPrice ? SELL.green : SELL.line, backgroundColor: hasPrice ? SELL.greenLight : SELL.card, paddingHorizontal: 10,
                     }}
                   >
@@ -204,44 +262,53 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
               );
             })}
 
-            <View style={{ backgroundColor: SELL.greenLight, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <View style={{ backgroundColor: SELL.green, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: SELL.muted }}>TOTAL · {pricedPartsCount}/{spareParts.length} PRICED</Text>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: SELL.greenDark, marginTop: 2 }}>₹{fmt(totalPartsPrice)}</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(255,255,255,0.8)' }}>TOTAL · {pricedPartsCount}/{spareParts.length} PRICED</Text>
+                <Text style={{ fontSize: 19, fontWeight: '800', color: '#FFFFFF', marginTop: 2 }}>₹{fmt(totalPartsPrice)}</Text>
               </View>
-              <View style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: SELL.card, alignItems: 'center', justifyContent: 'center' }}>
-                <IndianRupee size={18} color={SELL.green} />
+              <View style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                <IndianRupee size={18} color="#FFFFFF" />
               </View>
             </View>
           </>
         ) : (
-          <View style={{ backgroundColor: SELL.card, borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: SELL.soft, ...sellShadow }}>
-            <View style={{ height: 150, width: 150, borderRadius: 75, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              {device.imageUrl ? (
-                <Image source={{ uri: device.imageUrl }} style={{ width: 110, height: 130 }} resizeMode="contain" />
-              ) : (
-                <Smartphone size={44} color={SELL.green} />
-              )}
+          <>
+            {/* The device */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.card, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: SELL.soft, ...sellShadow }}>
+              <View style={{ height: 84, width: 84, borderRadius: 16, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12 }}>
+                {device.imageUrl ? (
+                  <Image source={{ uri: device.imageUrl }} style={{ width: 70, height: 78 }} resizeMode="contain" />
+                ) : (
+                  <Smartphone size={32} color={SELL.green} />
+                )}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink }} numberOfLines={2}>{device.modelName || 'Device'}</Text>
+                {specs || device.color ? (
+                  <Text style={{ fontSize: 12.5, color: SELL.muted, marginTop: 3 }} numberOfLines={1}>
+                    {[specs, device.color].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
+                <View style={{ alignSelf: 'flex-start', marginTop: 7, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: params.workingCondition === 'DEAD' ? '#F3F4F6' : SELL.greenLight }}>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: params.workingCondition === 'DEAD' ? SELL.muted : SELL.greenDark }}>
+                    {params.workingCondition === 'DEAD' ? 'Dead / Unverified' : 'Working Device'}
+                  </Text>
+                </View>
+              </View>
             </View>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.ink, textAlign: 'center' }} numberOfLines={2}>
-              {device.modelName || 'Device'}
-            </Text>
-            {specs || device.color ? (
-              <Text style={{ fontSize: 13, color: SELL.muted, marginTop: 3, textAlign: 'center' }} numberOfLines={1}>
-                {[specs, device.color].filter(Boolean).join(' · ')}
-              </Text>
-            ) : null}
 
-            <View style={{ alignSelf: 'stretch', marginTop: 18 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: SELL.ink }}>Your selling price</Text>
-              <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 2, marginBottom: 8 }}>Buyers nearby will see this price.</Text>
+            {/* Price */}
+            <View style={{ backgroundColor: SELL.card, borderRadius: 18, padding: 16, marginTop: 12, borderWidth: 1, borderColor: SELL.soft, ...sellShadow }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: SELL.ink }}>Your selling price</Text>
+              <Text style={{ fontSize: 12, color: SELL.muted, marginTop: 2, marginBottom: 10 }}>Buyers nearby will see this price.</Text>
               <View
                 style={{
                   flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14,
-                  borderColor: focused || priceNum > 0 ? SELL.green : SELL.line, backgroundColor: SELL.card,
+                  borderColor: focused || priceNum > 0 ? SELL.green : SELL.line, backgroundColor: focused ? SELL.greenLight : SELL.card,
                 }}
               >
-                <Text style={{ fontSize: 20, fontWeight: '800', color: SELL.ink, marginRight: 8 }}>₹</Text>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: SELL.ink, marginRight: 8 }}>₹</Text>
                 <TextInput
                   placeholder="0"
                   placeholderTextColor={SELL.subtle}
@@ -250,16 +317,19 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
                   onChangeText={setPriceText}
                   onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
-                  style={{ flex: 1, paddingVertical: 12, fontSize: 20, fontWeight: '800', color: SELL.ink }}
+                  style={{ flex: 1, paddingVertical: 12, fontSize: 22, fontWeight: '800', color: SELL.ink }}
                 />
               </View>
               {priceNum > 0 ? (
-                <Text style={{ fontSize: 12, fontWeight: '700', color: SELL.greenDark, marginTop: 6 }}>Listing price: ₹{fmt(priceNum)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: SELL.soft }}>
+                  <Text style={{ flex: 1, fontSize: 12.5, color: SELL.muted }}>Listing price</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: SELL.greenDark }}>₹{fmt(priceNum)}</Text>
+                </View>
               ) : null}
             </View>
-          </View>
+          </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <SellFooter caption={canSubmit ? null : (isSparePartsMode ? 'Price at least one part to continue' : 'Enter a price to continue')}>
         <SellButton
@@ -270,8 +340,8 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
       </SellFooter>
 
       {/* Confirm Sale */}
-      <Modal visible={confirming} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (!submitting) setConfirming(false); }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(30,30,30,0.5)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }}>
+      <SafeModal visible={confirming} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (!submitting) setConfirming(false); }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17,0.5)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }}>
           <View style={{ backgroundColor: SELL.card, borderRadius: 24, padding: 18, width: '100%', maxWidth: 420 }}>
             <View style={{ alignItems: 'center' }}>
               <View style={{ height: 52, width: 52, borderRadius: 26, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
@@ -319,7 +389,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
             </View>
           </View>
         </View>
-      </Modal>
+      </SafeModal>
     </View>
   );
 }

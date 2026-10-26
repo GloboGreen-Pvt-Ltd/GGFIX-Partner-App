@@ -13,13 +13,13 @@ import { PICKER_PAD, PICKER_GAP, pickerMetrics } from './pickerGrid';
 const HORIZONTAL_PAD = PICKER_PAD;
 const GRID_GAP = PICKER_GAP;
 const SCREEN_BG = '#FFFFFF';
-const CARD_BG = '#F8F8F8';
+const CARD_BG = '#F3F4F6';
 // The green tints are gone: every FILL on this screen is now the neutral
-// #F8F8F8. Foregrounds cannot take that value — #F8F8F8 measures 1.00:1 on the
+// #F3F4F6. Foregrounds cannot take that value — #F3F4F6 measures 1.00:1 on the
 // card and 1.06:1 on the page, i.e. invisible — so the icon, tick and "Current"
-// label take #004C40, the accent the rest of the booking flow already uses
+// label take #035C6C, the accent the rest of the booking flow already uses
 // (9.38:1 on the card).
-const ACCENT = '#004C40';
+const ACCENT = '#035C6C';
 
 export default function SelectSeriesScreen({ navigation, route }) {
   const flow = route?.params?.flow || 'PROFILE';

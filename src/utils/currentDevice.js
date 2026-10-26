@@ -1,4 +1,4 @@
-// Copied from the Customer app's utils/currentDevice.js (minus expo-device).
+// Copied from the Customer app's utils/currentDevice.js.
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -115,8 +115,21 @@ export function useCurrentDevice() {
       let ramGb = null;
       let storageGb = null;
 
-      // Model/brand from RN core (Android; no native module needed). The
-      // Customer app's copy also reads expo-device, which this app doesn't ship.
+      // expo-device first (iOS + Android): marketing name ("iPhone 11"), brand
+      // ("Apple") and RAM. iOS exposes no model at all without it — that's why
+      // Sell This Device showed nothing on an iPhone. Guarded: a build that
+      // predates the native module throws on require and falls through.
+      try {
+        // eslint-disable-next-line global-require
+        const Device = require('expo-device');
+        if (Device?.modelName) model = Device.modelName;
+        if (Device?.brand) brand = Device.brand;
+        else if (Device?.manufacturer) brand = Device.manufacturer;
+        if (Device?.totalMemory) ramGb = snap(Device.totalMemory / (1024 ** 3), RAM_TIERS);
+      } catch (_) { /* native module not in this build yet */ }
+
+      // Model/brand from RN core (Android; no native module needed) when
+      // expo-device gave nothing.
       if (Platform.OS === 'android') {
         const c = Platform.constants || {};
         if (!model) model = c.Model || null;

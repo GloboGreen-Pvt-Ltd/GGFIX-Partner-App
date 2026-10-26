@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ReportsScreen() {
@@ -12,7 +12,7 @@ export default function ReportsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117', padding: 16 },
-  title: { fontSize: 17, fontWeight: '700', color: '#F7FAF7', marginBottom: 12 },
-  hint: { fontSize: 13, color: '#8FA08F' },
+  safe: { flex: 1, backgroundColor: '#111111', padding: 16 },
+  title: { fontSize: 17, fontWeight: '700', color: '#F3F4F6', marginBottom: 12 },
+  hint: { fontSize: 13, color: '#9CA3AF' },
 });

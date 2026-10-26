@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,17 +17,19 @@ import { listingConditionLabel, listingCustomerName, listingPriceLabel } from '.
 import { getBrands, getDeviceCategories } from '../../api/masterData';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { notify } from '../../components/confirm';
+import SafeModal, { ModalInsets } from '../../components/SafeModal';
+import { useResponsive, CONTENT_MAX } from '../../theme/responsive';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3.
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
 const PALETTE = {
-  primary: '#09AD2A',
-  primaryDark: '#078F23',
-  mint: '#EAF8EC',
-  text: '#1E1E1E',
-  muted: '#6B6B6B',
-  border: '#E6E6E6',
-  soft: '#F3F3F3',
-  page: '#F8F8F8',
+  primary: '#035C6C',
+  primaryDark: '#035C6C',
+  mint: '#E5F3F5',
+  text: '#111111',
+  muted: '#6B7280',
+  border: '#E5E7EB',
+  soft: '#F3F4F6',
+  page: '#F3F4F6',
   card: '#FFFFFF',
   danger: '#DC2626',
   amberDark: '#B45309',
@@ -56,6 +57,11 @@ function formatListedOn(iso) {
  */
 export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablets: content column capped and centred; the sticky bar's buttons are
+  // pulled in to the same column via its side padding.
+  const r = useResponsive();
+  const capW = r.maxWidth('list');
+  const barPadH = Math.max(16, (r.width - capW) / 2);
   const listing = route.params?.listing || {};
   const isCustomer = listing.sellerType === 'CUSTOMER';
   const priceNum = listing.expectedPrice != null ? Number(listing.expectedPrice) : null;
@@ -169,7 +175,7 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7} accessibilityLabel="Go back" hitSlop={6}>
           <Ionicons name="chevron-back" size={20} color={PALETTE.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -178,13 +184,13 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 110 + insets.bottom }}>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 110 + insets.bottom, width: '100%', maxWidth: capW, alignSelf: 'center' }}>
         {/* Hero — white card so the product photos (shot on white) blend in. */}
         <View style={styles.hero}>
           {listing.productImage ? (
             <Image source={{ uri: normalizeDeviceImageUrl(listing.productImage) }} style={styles.heroImage} resizeMode="contain" />
           ) : (
-            <Ionicons name="phone-portrait-outline" size={80} color="#D6D6D6" />
+            <Ionicons name="phone-portrait-outline" size={80} color="#D1D5DB" />
           )}
           {isAwaitingQuote ? (
             <View style={[styles.priceBar, { backgroundColor: PALETTE.amberLight }]}>
@@ -259,11 +265,11 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
         <Text style={styles.disclaimer}>* Contact the seller after placing your order.</Text>
       </ScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
+      <View style={[styles.bottomBar, { paddingHorizontal: barPadH, paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
         {isProduct ? (
           <TouchableOpacity style={styles.primaryBtn} onPress={onAddToCart} disabled={adding} activeOpacity={0.85}>
             <Ionicons name="cart-outline" size={17} color="#FFFFFF" />
-            <Text style={styles.primaryText}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
+            <Text style={styles.primaryText} numberOfLines={1}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
           </TouchableOpacity>
         ) : (
           <>
@@ -280,13 +286,13 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
               accessibilityRole="button"
             >
               <Ionicons name={isAwaitingQuote ? 'pricetag-outline' : 'bag-check-outline'} size={16} color="#FFFFFF" />
-              <Text style={styles.primaryText}>{isAwaitingQuote ? 'Send Quote' : 'Order Now'}</Text>
+              <Text style={styles.primaryText} numberOfLines={1}>{isAwaitingQuote ? 'Send Quote' : 'Order Now'}</Text>
             </TouchableOpacity>
           </>
         )}
       </View>
 
-      <BlockedSheet info={blocked} onClose={() => setBlocked(null)} bottomInset={insets.bottom} />
+      <BlockedSheet info={blocked} onClose={() => setBlocked(null)} />
     </SafeAreaView>
   );
 }
@@ -303,7 +309,7 @@ function SpecRow({ icon, label, value, valueColor, onPress, actionLabel, last })
       </View>
       {onPress ? (
         <TouchableOpacity onPress={onPress} hitSlop={8} style={styles.specActionBtn}>
-          <Text style={styles.specAction}>{actionLabel || 'View'}</Text>
+          <Text style={styles.specAction} numberOfLines={1}>{actionLabel || 'View'}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -311,22 +317,27 @@ function SpecRow({ icon, label, value, valueColor, onPress, actionLabel, last })
 }
 
 /** Bottom sheet that says why an action can't complete, with one OK. */
-function BlockedSheet({ info, onClose, bottomInset }) {
+function BlockedSheet({ info, onClose }) {
   return (
-    <Modal visible={!!info} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 12) + 12 }]} onPress={() => {}}>
-          <View style={styles.sheetIcon}>
-            <Ionicons name={info?.icon || 'information-circle-outline'} size={22} color={PALETTE.amberDark} />
-          </View>
-          <Text style={styles.sheetTitle}>{info?.title}</Text>
-          <Text style={styles.sheetMessage}>{info?.message}</Text>
-          <TouchableOpacity style={[styles.primaryBtn, { flex: 0, marginTop: 16 }]} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.primaryText}>OK</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <SafeModal visible={!!info} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      {/* The modal window's own insets — the screen's don't reach it. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+            <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]} onPress={() => {}}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name={info?.icon || 'information-circle-outline'} size={22} color={PALETTE.amberDark} />
+              </View>
+              <Text style={styles.sheetTitle}>{info?.title}</Text>
+              <Text style={styles.sheetMessage}>{info?.message}</Text>
+              <TouchableOpacity style={[styles.primaryBtn, { flex: 0, marginTop: 16 }]} onPress={onClose} activeOpacity={0.85}>
+                <Text style={styles.primaryText}>OK</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }
 
@@ -397,7 +408,7 @@ const styles = StyleSheet.create({
   },
   specLabel: { fontSize: 11, color: PALETTE.muted, marginBottom: 1 },
   specValue: { fontSize: 13, fontWeight: '600', color: PALETTE.text },
-  specActionBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: PALETTE.mint },
+  specActionBtn: { marginLeft: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: PALETTE.mint },
   specAction: { fontSize: 11, fontWeight: '700', color: PALETTE.primaryDark },
   warrantyPill: {
     flex: 1,
@@ -440,7 +451,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  outlineText: { fontSize: 13, fontWeight: '800', color: PALETTE.primaryDark },
+  outlineText: { flexShrink: 1, fontSize: 13, fontWeight: '800', color: PALETTE.primaryDark },
   primaryBtn: {
     flex: 1,
     minHeight: 46,
@@ -452,9 +463,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 7,
   },
-  primaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(30,30,30,0.45)', justifyContent: 'flex-end' },
+  primaryText: { flexShrink: 1, color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(17, 17, 17,0.45)', justifyContent: 'flex-end' },
   sheet: {
+    // Tablets: capped and centred rather than spanning the screen.
+    width: '100%',
+    maxWidth: CONTENT_MAX.form,
+    alignSelf: 'center',
     backgroundColor: PALETTE.card,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,

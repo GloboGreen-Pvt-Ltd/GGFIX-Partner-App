@@ -11,5 +11,11 @@
        with no USB host support/OTG can still install and run the app; only
        the USB transport is simply unavailable — isUsbAvailable() reflects
        that already). -->
+  <!-- Also declared here (merged into the app manifest on every build) so the
+       printer never depends on app.config.js reaching the build: a build from a
+       stale android/ folder shipped without it, and Android then auto-denies
+       the runtime request with no "Nearby devices" entry in App permissions. -->
+  <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
   <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 </manifest>

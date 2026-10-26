@@ -24,7 +24,7 @@ function getSharingModule() {
 }
 import { selectShopId, selectSession } from '../../store/authSlice';
 import { useResponsive } from '../../theme/responsive';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 
 const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -77,41 +77,41 @@ function buildPayslipHtml({ shop, ownerMobile, employee, payslip, month, year, e
   <title>Pay Slip — ${esc(employee?.name || 'Employee')} — ${esc(monthName)} ${esc(year)}</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #172117; margin: 0; padding: 24px; }
-    .shop-head { text-align: center; padding-bottom: 14px; border-bottom: 2px solid #004C40; }
-    .shop-name { font-size: 22px; font-weight: 800; color: #172117; margin: 0; }
-    .shop-meta { font-size: 11px; color: #667066; margin: 4px 0; line-height: 1.45; }
+    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #111111; margin: 0; padding: 24px; }
+    .shop-head { text-align: center; padding-bottom: 14px; border-bottom: 2px solid #035C6C; }
+    .shop-name { font-size: 22px; font-weight: 800; color: #111111; margin: 0; }
+    .shop-meta { font-size: 11px; color: #6B7280; margin: 4px 0; line-height: 1.45; }
     .doc-title { text-align: center; margin: 18px 0 6px; }
-    .doc-title-label { letter-spacing: 4px; color: #667066; font-size: 10px; font-weight: 700; }
-    .doc-title-month { font-size: 18px; font-weight: 800; color: #004C40; margin-top: 2px; }
+    .doc-title-label { letter-spacing: 4px; color: #6B7280; font-size: 10px; font-weight: 700; }
+    .doc-title-month { font-size: 18px; font-weight: 800; color: #035C6C; margin-top: 2px; }
     .status-pill {
       display: inline-block; padding: 3px 10px; border-radius: 999px;
       font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
       color: #fff;
     }
-    .status-paid { background: #004C40; }
-    .status-pending { background: #F59E0B; color: #172117; }
+    .status-paid { background: #035C6C; }
+    .status-pending { background: #F59E0B; color: #111111; }
 
     .grid { display: flex; gap: 16px; margin-top: 16px; }
-    .grid > div { flex: 1; border: 1px solid #E2E8E2; border-radius: 8px; padding: 10px 12px; }
-    .grid h3 { margin: 0 0 8px; font-size: 11px; color: #667066; letter-spacing: 1px; text-transform: uppercase; }
+    .grid > div { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px 12px; }
+    .grid h3 { margin: 0 0 8px; font-size: 11px; color: #6B7280; letter-spacing: 1px; text-transform: uppercase; }
     .field { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
-    .field label { color: #667066; }
-    .field value { color: #172117; font-weight: 600; }
+    .field label { color: #6B7280; }
+    .field value { color: #111111; font-weight: 600; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
     thead th {
-      background: #004C40; color: #FFFFFF; padding: 8px 10px; text-align: left;
+      background: #035C6C; color: #FFFFFF; padding: 8px 10px; text-align: left;
       font-size: 11px; letter-spacing: 0.5px;
     }
-    tbody td { padding: 9px 10px; border-bottom: 1px solid #EFF5EE; color: #172117; }
-    tbody tr:nth-child(even) td { background: #F0F8EF; }
+    tbody td { padding: 9px 10px; border-bottom: 1px solid #E5F3F5; color: #111111; }
+    tbody tr:nth-child(even) td { background: #E5F3F5; }
     td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; }
     tfoot td { padding: 10px; font-weight: 800; }
-    .net-row td { background: #E6F7E3; color: #004C40; font-size: 13px; }
+    .net-row td { background: #E5F3F5; color: #035C6C; font-size: 13px; }
 
-    .footer { margin-top: 24px; display: flex; justify-content: space-between; font-size: 11px; color: #667066; }
-    .footer .sig { width: 40%; border-top: 1px solid #8FA08F; padding-top: 4px; text-align: center; }
+    .footer { margin-top: 24px; display: flex; justify-content: space-between; font-size: 11px; color: #6B7280; }
+    .footer .sig { width: 40%; border-top: 1px solid #9CA3AF; padding-top: 4px; text-align: center; }
   </style>
 </head>
 <body>
@@ -366,7 +366,7 @@ export default function OwnerEmployeePayslipScreen({ route }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.content, capStyle]}>
         {loading ? (
-          <ActivityIndicator size="large" color="#004C40" style={{ marginVertical: rs(28) }} />
+          <ActivityIndicator size="large" color="#035C6C" style={{ marginVertical: rs(28) }} />
         ) : (
           <>
             {/* Hero — month + employee */}
@@ -389,10 +389,10 @@ export default function OwnerEmployeePayslipScreen({ route }) {
               </View>
               <View style={styles.heroDivider} />
               <View style={styles.heroEmpRow}>
-                <View>
+                <View style={{ flex: 1, marginRight: rs(10) }}>
                   <Text style={styles.heroEmpLabel}>Employee</Text>
-                  <Text style={styles.heroEmpName}>{employee.name || '—'}</Text>
-                  <Text style={styles.heroEmpRole}>{employee.roleLabel || 'Technician'}</Text>
+                  <Text style={styles.heroEmpName} numberOfLines={1}>{employee.name || '—'}</Text>
+                  <Text style={styles.heroEmpRole} numberOfLines={1}>{employee.roleLabel || 'Technician'}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.heroEmpLabel}>ID</Text>
@@ -426,15 +426,15 @@ export default function OwnerEmployeePayslipScreen({ route }) {
             {/* Attendance summary */}
             <Text style={styles.sectionHeader}>Attendance</Text>
             <View style={styles.attendanceRow}>
-              <View style={[styles.attendanceTile, { backgroundColor: '#F0F8EF' }]}>
+              <View style={[styles.attendanceTile, { backgroundColor: '#E5F3F5' }]}>
                 <View style={styles.attendanceCheckCircle}>
                   <Ionicons name="checkmark" size={rs(15)} color="#FFFFFF" />
                 </View>
                 <Text style={styles.attendanceValue}>{data?.presentDays ?? 0}</Text>
                 <Text style={styles.attendanceLabel}>Present Days</Text>
               </View>
-              <View style={[styles.attendanceTile, { backgroundColor: '#F0F8EF' }]}>
-                <Ionicons name="briefcase" size={rs(20)} color="#004C40" />
+              <View style={[styles.attendanceTile, { backgroundColor: '#E5F3F5' }]}>
+                <Ionicons name="briefcase" size={rs(20)} color="#035C6C" />
                 <Text style={styles.attendanceValue}>{data?.dailyWageDays ?? 0}</Text>
                 <Text style={styles.attendanceLabel}>Daily Wage Days</Text>
               </View>
@@ -445,8 +445,8 @@ export default function OwnerEmployeePayslipScreen({ route }) {
             <View style={styles.breakdownCard}>
               <BreakdownRow
                 icon="cash-outline"
-                iconBg="#E6F7E3"
-                iconColor="#004C40"
+                iconBg="#E5F3F5"
+                iconColor="#035C6C"
                 label="Regular Salary"
                 sub="Monthly base"
                 value={formatRupee(data?.regularSalary)}
@@ -463,8 +463,8 @@ export default function OwnerEmployeePayslipScreen({ route }) {
               <View style={styles.breakdownDivider} />
               <BreakdownRow
                 icon="wallet-outline"
-                iconBg="#E6F7E3"
-                iconColor="#004C40"
+                iconBg="#E5F3F5"
+                iconColor="#035C6C"
                 label="Net Salary"
                 sub="After deductions"
                 value={formatRupee(data?.netSalary)}
@@ -473,8 +473,8 @@ export default function OwnerEmployeePayslipScreen({ route }) {
               <View style={styles.breakdownDivider} />
               <BreakdownRow
                 icon="card-outline"
-                iconBg="#F0F8EF"
-                iconColor="#004C40"
+                iconBg="#E5F3F5"
+                iconColor="#035C6C"
                 label="Net Wage"
                 sub="After deductions"
                 value={formatRupee(data?.netWage)}
@@ -491,10 +491,10 @@ export default function OwnerEmployeePayslipScreen({ route }) {
                 activeOpacity={0.85}
               >
                 {busy === 'download' ? (
-                  <ActivityIndicator size="small" color="#004C40" />
+                  <ActivityIndicator size="small" color="#035C6C" />
                 ) : (
                   <>
-                    <Ionicons name="download-outline" size={rs(16)} color="#004C40" />
+                    <Ionicons name="download-outline" size={rs(16)} color="#035C6C" />
                     <Text style={styles.actionBtnSecondaryText}>Download PDF</Text>
                   </>
                 )}
@@ -548,14 +548,14 @@ const styles = StyleSheet.create({
   content: { padding: rs(12), paddingBottom: rs(24) },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { fontSize: 13, color: '#DC2626' },
-  empty: { fontSize: 12, color: '#667066', textAlign: 'center', marginTop: rs(20) },
+  empty: { fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: rs(20) },
 
   hero: {
-    backgroundColor: '#004C40',
+    backgroundColor: '#035C6C',
     borderRadius: rs(14),
     paddingHorizontal: rs(14),
     paddingVertical: rs(14),
-    shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+    shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: rs(10) },
   heroIconWrap: {
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   heroStatusPaid: { backgroundColor: 'rgba(255,255,255,0.22)' },
   heroStatusPending: { backgroundColor: '#F59E0B' },
   heroStatusText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
-  heroStatusTextOnLight: { color: '#172117' },
+  heroStatusTextOnLight: { color: '#111111' },
 
   heroDivider: { height: rs(1), backgroundColor: 'rgba(255,255,255,0.18)', marginVertical: rs(10) },
 
@@ -596,11 +596,11 @@ const styles = StyleSheet.create({
     marginTop: rs(10),
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#111111', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  payoutLabel: { fontSize: 11, color: '#667066', fontWeight: '600', letterSpacing: 0.3 },
-  payoutAmount: { fontSize: 22, fontWeight: '800', color: '#004C40', marginTop: rs(4) },
+  payoutLabel: { fontSize: 11, color: '#6B7280', fontWeight: '600', letterSpacing: 0.3 },
+  payoutAmount: { fontSize: 22, fontWeight: '800', color: '#035C6C', marginTop: rs(4) },
   payoutSplit: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -608,11 +608,11 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   payoutSplitItem: { flex: 1, alignItems: 'center' },
-  payoutSplitSep: { width: rs(1), height: rs(28), backgroundColor: '#E2E8E2' },
-  payoutSplitLabel: { fontSize: 10.5, color: '#8FA08F', fontWeight: '600' },
-  payoutSplitValue: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(3) },
+  payoutSplitSep: { width: rs(1), height: rs(28), backgroundColor: '#E5E7EB' },
+  payoutSplitLabel: { fontSize: 10.5, color: '#9CA3AF', fontWeight: '600' },
+  payoutSplitValue: { fontSize: 13, fontWeight: '800', color: '#111111', marginTop: rs(3) },
 
-  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#172117', marginTop: rs(14), marginBottom: rs(9) },
+  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#111111', marginTop: rs(14), marginBottom: rs(9) },
 
   attendanceRow: { flexDirection: 'row', gap: rs(8) },
   attendanceTile: {
@@ -623,11 +623,11 @@ const styles = StyleSheet.create({
   },
   attendanceCheckCircle: {
     width: rs(26), height: rs(26), borderRadius: rs(13),
-    backgroundColor: '#004C40',
+    backgroundColor: '#035C6C',
     alignItems: 'center', justifyContent: 'center',
   },
-  attendanceValue: { fontSize: 17, fontWeight: '800', color: '#172117', marginTop: rs(8) },
-  attendanceLabel: { fontSize: 11, color: '#667066', fontWeight: '600', marginTop: rs(2) },
+  attendanceValue: { fontSize: 17, fontWeight: '800', color: '#111111', marginTop: rs(8) },
+  attendanceLabel: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: rs(2) },
 
   breakdownCard: {
     backgroundColor: '#FFFFFF',
@@ -635,8 +635,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(12),
     paddingVertical: rs(4),
     borderWidth: 1,
-    borderColor: '#E2E8E2',
-    shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#111111', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -652,11 +652,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   breakdownTextWrap: { flex: 1, minWidth: 0 },
-  breakdownLabel: { fontSize: 13, fontWeight: '800', color: '#172117' },
-  breakdownSub: { fontSize: 11, color: '#8FA08F', marginTop: rs(2) },
-  breakdownValue: { fontSize: 13, fontWeight: '800', color: '#172117' },
-  breakdownValueEmphasize: { color: '#004C40', fontWeight: '800' },
-  breakdownDivider: { height: rs(1), backgroundColor: '#EFF5EE' },
+  breakdownLabel: { fontSize: 13, fontWeight: '800', color: '#111111' },
+  breakdownSub: { fontSize: 11, color: '#9CA3AF', marginTop: rs(2) },
+  breakdownValue: { fontSize: 13, fontWeight: '800', color: '#111111' },
+  breakdownValueEmphasize: { color: '#035C6C', fontWeight: '800' },
+  breakdownDivider: { height: rs(1), backgroundColor: '#E5F3F5' },
 
   actionRow: { flexDirection: 'row', gap: rs(8), marginTop: rs(12) },
   actionBtn: {
@@ -668,8 +668,8 @@ const styles = StyleSheet.create({
     paddingVertical: rs(11),
     borderRadius: rs(12),
   },
-  actionBtnSecondary: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#004C40' },
-  actionBtnSecondaryText: { color: '#004C40', fontSize: 13, fontWeight: '800' },
-  actionBtnPrimary: { backgroundColor: '#004C40' },
+  actionBtnSecondary: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#035C6C' },
+  actionBtnSecondaryText: { color: '#035C6C', fontSize: 13, fontWeight: '800' },
+  actionBtnPrimary: { backgroundColor: '#035C6C' },
   actionBtnPrimaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 });

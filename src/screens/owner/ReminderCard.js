@@ -26,12 +26,12 @@ import { formatPhone } from '../../api/ledgerParties';
 
 export const REMINDER_CARD_WIDTH = 380;
 
-const GREEN = '#087A0A';
-const INK = '#172117';
-const MUTED = '#667066';
+const GREEN = '#035C6C';
+const INK = '#111111';
+const MUTED = '#6B7280';
 const AMBER = '#B45309';
 const AMBER_TINT = '#FEF3C7';
-const HAIRLINE = '#E6EDE5';
+const HAIRLINE = '#E5F3F5';
 
 /**
  * @param {string} shopName
@@ -99,7 +99,7 @@ export default function ReminderCard({
           <Text style={{ fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1.4 }}>
             PAYMENT REMINDER
           </Text>
-          <Text style={{ fontSize: 34.5, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontSize: 34.5, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
             {formatMoney(Math.abs(Number(amount) || 0))}
           </Text>
           <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
@@ -147,7 +147,7 @@ export default function ReminderCard({
 
         <View
           style={{
-            backgroundColor: '#F3F8F2',
+            backgroundColor: '#E5F3F5',
             paddingHorizontal: 16,
             paddingVertical: 10,
             borderTopWidth: 1,

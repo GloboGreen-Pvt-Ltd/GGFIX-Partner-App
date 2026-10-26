@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 
@@ -67,14 +66,15 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      {/* Keeps the focused field (incl. the reason box) above the keyboard. */}
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={16}>
         <Text style={styles.label}>Start date</Text>
         <TextInput
           style={styles.input}
           value={startDate}
           onChangeText={setStartDate}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
         />
         <Text style={styles.label}>End date</Text>
         <TextInput
@@ -82,7 +82,7 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
           value={endDate}
           onChangeText={setEndDate}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
         />
         <Text style={styles.label}>Reason (optional)</Text>
         <TextInput
@@ -90,7 +90,7 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
           value={reason}
           onChangeText={setReason}
           placeholder="Reason for leave"
-          placeholderTextColor="#8FA08F"
+          placeholderTextColor="#9CA3AF"
           multiline
         />
         <TouchableOpacity
@@ -100,18 +100,18 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>Submit request</Text>}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#172117' },
-  content: { padding: 12, paddingBottom: 24 },
-  label: { fontSize: 13, color: '#8FA08F', marginBottom: 5 },
-  input: { backgroundColor: '#172117', borderWidth: 1, borderColor: '#172117', borderRadius: 8, padding: 11, fontSize: 13, color: '#F7FAF7', marginBottom: 12 },
+  safe: { flex: 1, backgroundColor: '#111111' },
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  label: { fontSize: 13, color: '#9CA3AF', marginBottom: 5 },
+  input: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#111111', borderRadius: 8, padding: 11, fontSize: 13, color: '#F3F4F6', marginBottom: 12 },
   textArea: { minHeight: 70, textAlignVertical: 'top' },
-  submitBtn: { backgroundColor: '#087A0A', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 6 },
+  submitBtn: { backgroundColor: '#035C6C', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 6 },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 });

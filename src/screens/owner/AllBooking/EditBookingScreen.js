@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Smartphone,
@@ -14,34 +15,26 @@ import {
   ChevronRight,
   ChevronLeft,
   Pencil,
-  Clock,
-  Truck,
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
+import { resolveSpecCategory } from '../../../utils/deviceSpecs';
+import { useResponsive } from '../../../theme/responsive';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 10 },
   elevation: 6,
 };
 
-const softShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
-};
-
-function SectionHeader({ icon: Icon, label, tint = '#E6F7E3', accent = BRAND_GREEN_DARK }) {
+function SectionHeader({ icon: Icon, label, tint = '#E5F3F5', accent = BRAND_GREEN_DARK }) {
   return (
     <View className="flex-row items-center mb-3">
       <View
@@ -72,17 +65,17 @@ function GreenInput(props) {
   return (
     <TextInput
       {...props}
-      placeholderTextColor="#8FA08F"
+      placeholderTextColor="#9CA3AF"
       style={[
         {
           borderWidth: 1.5,
-          borderColor: '#E2E8E2',
-          backgroundColor: '#F7FAF7',
+          borderColor: '#E5E7EB',
+          backgroundColor: '#F3F4F6',
           borderRadius: 12,
           paddingHorizontal: 12,
           paddingVertical: 10,
           fontSize: 13,
-          color: '#172117',
+          color: '#111111',
         },
         props.style,
       ]}
@@ -106,13 +99,15 @@ function SubLink({ icon: Icon, tint, accent, label, sub, onPress, divider }) {
         <Text className="text-[13px] font-bold text-gray-900">{label}</Text>
         {sub ? <Text className="text-[11px] text-gray-500 mt-0.5">{sub}</Text> : null}
       </View>
-      <ChevronRight size={16} color="#8FA08F" />
+      <ChevronRight size={16} color="#9CA3AF" />
     </Pressable>
   );
 }
 
 export default function EditBookingScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  const colStyle = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -126,6 +121,7 @@ export default function EditBookingScreen({ route, navigation }) {
   const [approxDuration, setApproxDuration] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [approved, setApproved] = useState(false);
+  const showImei = useImeiApplies(ticket); // mobile phones only
 
   const load = useCallback(async () => {
     if (!ticketId) {
@@ -198,7 +194,7 @@ export default function EditBookingScreen({ route, navigation }) {
           borderBottomLeftRadius: 28,
           borderBottomRightRadius: 28,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center justify-between">
@@ -208,14 +204,14 @@ export default function EditBookingScreen({ route, navigation }) {
             hitSlop={6}
             className="w-9 h-9 rounded-full items-center justify-center bg-surface-muted"
           >
-            <ChevronLeft size={20} color="#172117" />
+            <ChevronLeft size={20} color="#111111" />
           </TouchableOpacity>
           <Text className="text-text text-[13px] font-extrabold">Edit Booking</Text>
           <View
             className="px-3 py-1.5 rounded-full bg-surface-muted"
           >
             <View className="flex-row items-center">
-              <Pencil size={11} color="#172117" />
+              <Pencil size={11} color="#111111" />
               <Text className="ml-1 text-text text-[10.5px] font-bold tracking-wide">EDIT</Text>
             </View>
           </View>
@@ -234,11 +230,14 @@ export default function EditBookingScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
+      {/* KeyboardAwareScrollView lifts the focused field above the keyboard;
+          bottomOffset clears the sticky Save bar. */}
+      <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140, ...colStyle }}
       >
         {error ? (
           <View className="px-4" style={{ marginTop: 12 }}>
@@ -262,7 +261,7 @@ export default function EditBookingScreen({ route, navigation }) {
             >
               <View
                 className="w-14 h-14 rounded-2xl items-center justify-center mr-3"
-                style={{ backgroundColor: '#E6F7E3' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
                 <Smartphone size={26} color={BRAND_GREEN_DARK} />
               </View>
@@ -296,7 +295,7 @@ export default function EditBookingScreen({ route, navigation }) {
                   <View key={item.id || idx} className="flex-row items-center py-1.5">
                     <View
                       className="w-6 h-6 rounded-full items-center justify-center mr-2.5"
-                      style={{ backgroundColor: '#E6F7E3' }}
+                      style={{ backgroundColor: '#E5F3F5' }}
                     >
                       <Text
                         className="text-[10.5px] font-extrabold"
@@ -316,12 +315,12 @@ export default function EditBookingScreen({ route, navigation }) {
 
                 <View
                   className="my-3"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', borderStyle: 'dashed' }}
+                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' }}
                 />
 
                 <View
                   className="p-3 rounded-2xl flex-row items-center justify-between"
-                  style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#C8EEBF' }}
+                  style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
                 >
                   <Text className="text-[12px] font-bold text-gray-700">
                     Estimated Total
@@ -344,15 +343,19 @@ export default function EditBookingScreen({ route, navigation }) {
             className="bg-white rounded-2xl p-3"
             style={cardShadow}
           >
-            <SectionHeader icon={Hash} label="IMEI & NOTES" />
-            <FieldLabel>IMEI Number</FieldLabel>
-            <GreenInput
-              placeholder="Enter IMEI or scan"
-              value={imei}
-              onChangeText={setImei}
-              keyboardType="number-pad"
-            />
-            <View className="h-3" />
+            <SectionHeader icon={Hash} label={showImei ? 'IMEI & NOTES' : 'NOTES'} />
+            {showImei ? (
+              <>
+                <FieldLabel>IMEI Number</FieldLabel>
+                <GreenInput
+                  placeholder="Enter IMEI or scan"
+                  value={imei}
+                  onChangeText={setImei}
+                  keyboardType="number-pad"
+                />
+                <View className="h-3" />
+              </>
+            ) : null}
             <FieldLabel>Complaint Notes</FieldLabel>
             <GreenInput
               placeholder="Describe the issue..."
@@ -415,9 +418,9 @@ export default function EditBookingScreen({ route, navigation }) {
             style={[
               cardShadow,
               {
-                backgroundColor: approved ? '#F0F8EF' : '#FFFFFF',
+                backgroundColor: approved ? '#E5F3F5' : '#FFFFFF',
                 borderWidth: 1.5,
-                borderColor: approved ? BRAND_GREEN : '#E2E8E2',
+                borderColor: approved ? BRAND_GREEN : '#E5E7EB',
               },
             ]}
           >
@@ -427,7 +430,7 @@ export default function EditBookingScreen({ route, navigation }) {
                 style={{
                   backgroundColor: approved ? BRAND_GREEN : '#FFFFFF',
                   borderWidth: 2,
-                  borderColor: approved ? BRAND_GREEN : '#CBD5CB',
+                  borderColor: approved ? BRAND_GREEN : '#D1D5DB',
                 }}
               >
                 {approved ? <Check size={16} color="#FFFFFF" strokeWidth={3.5} /> : null}
@@ -435,7 +438,7 @@ export default function EditBookingScreen({ route, navigation }) {
               <View className="flex-1">
                 <Text
                   className="text-[13px] font-extrabold"
-                  style={{ color: approved ? BRAND_GREEN_DARK : '#172117' }}
+                  style={{ color: approved ? BRAND_GREEN_DARK : '#111111' }}
                 >
                   Customer Repair Approval
                 </Text>
@@ -463,19 +466,22 @@ export default function EditBookingScreen({ route, navigation }) {
             className="bg-white rounded-2xl overflow-hidden"
             style={cardShadow}
           >
-            <SubLink
-              icon={Wrench}
-              tint="#FEE2E2"
-              accent="#B91C1C"
-              label="Device Missing / Damage Parts"
-              sub="Manage parts that are missing or damaged"
-              onPress={() => navigation.navigate('DeviceMissingParts', { ticketId })}
-              divider
-            />
+            {/* Missing / damaged parts is Mobile-only (unknown category keeps it). */}
+            {[null, 'MOBILE'].includes(resolveSpecCategory(ticket?.deviceCategory)) ? (
+              <SubLink
+                icon={Wrench}
+                tint="#FEE2E2"
+                accent="#B91C1C"
+                label="Device Missing / Damage Parts"
+                sub="Manage parts that are missing or damaged"
+                onPress={() => navigation.navigate('DeviceMissingParts', { ticketId })}
+                divider
+              />
+            ) : null}
             <SubLink
               icon={ShieldCheck}
-              tint="#E6F7E3"
-              accent="#087A0A"
+              tint="#E5F3F5"
+              accent="#035C6C"
               label="Device Security"
               sub="PIN, password or pattern lock"
               onPress={() => navigation.navigate('DeviceSecurity', { ticketId })}
@@ -483,31 +489,31 @@ export default function EditBookingScreen({ route, navigation }) {
             />
             <SubLink
               icon={FileText}
-              tint="#F0F8EF"
-              accent="#087A0A"
+              tint="#E5F3F5"
+              accent="#035C6C"
               label="Device Information"
               sub="Photos, video & complaint details"
               onPress={() => navigation.navigate('DeviceInformation', { ticketId })}
             />
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Sticky CTA */}
       <View
         className="absolute left-0 right-0 bottom-0 px-4 pt-3"
         style={{
           paddingBottom: insets.bottom + 12,
-          backgroundColor: 'rgba(240, 248, 239, 0.96)',
+          backgroundColor: 'rgba(229, 243, 245, 0.96)',
           borderTopWidth: 1,
-          borderTopColor: '#E2E8E2',
+          borderTopColor: '#E5E7EB',
         }}
       >
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={saveAndBack}
           disabled={saving}
-          style={cardShadow}
+          style={[cardShadow, colStyle]}
         >
           <LinearGradient
             colors={[BRAND_GREEN, BRAND_GREEN_DARK]}

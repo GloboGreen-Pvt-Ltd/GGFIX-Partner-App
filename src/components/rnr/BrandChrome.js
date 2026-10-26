@@ -5,10 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import Svg, { Path, Circle, G } from 'react-native-svg';
 
-const GREEN = '#087A0A';
+const GREEN = '#035C6C';
 
 const headerShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 8 },
@@ -42,9 +42,9 @@ function CornerWave() {
       style={{ position: 'absolute', top: 0, right: 0 }}
       pointerEvents="none"
     >
-      <Path d="M260,0 L260,150 C205,150 150,118 130,58 C118,22 152,-6 260,0 Z" fill="#C8EEBF" opacity={0.5} />
-      <Path d="M260,0 L260,104 C214,104 176,84 166,50 C158,24 186,0 260,0 Z" fill="#7ED957" opacity={0.5} />
-      <Path d="M260,0 L260,58 C231,58 206,47 201,30 C197,14 216,2 260,0 Z" fill="#7ED957" opacity={0.4} />
+      <Path d="M260,0 L260,150 C205,150 150,118 130,58 C118,22 152,-6 260,0 Z" fill="#C7E6EA" opacity={0.5} />
+      <Path d="M260,0 L260,104 C214,104 176,84 166,50 C158,24 186,0 260,0 Z" fill="#357D89" opacity={0.5} />
+      <Path d="M260,0 L260,58 C231,58 206,47 201,30 C197,14 216,2 260,0 Z" fill="#357D89" opacity={0.4} />
     </Svg>
   );
 }
@@ -59,9 +59,9 @@ function CornerCircles() {
       style={{ position: 'absolute', left: -120, bottom: -92 }}
       pointerEvents="none"
     >
-      <Circle cx={170} cy={170} r={162} fill="#E6F7E3" opacity={0.55} />
-      <Circle cx={170} cy={170} r={112} fill="#C8EEBF" opacity={0.4} />
-      <Circle cx={170} cy={170} r={62} fill="#E6F7E3" opacity={0.55} />
+      <Circle cx={170} cy={170} r={162} fill="#E5F3F5" opacity={0.55} />
+      <Circle cx={170} cy={170} r={112} fill="#C7E6EA" opacity={0.4} />
+      <Circle cx={170} cy={170} r={62} fill="#E5F3F5" opacity={0.55} />
     </Svg>
   );
 }
@@ -79,12 +79,12 @@ function CornerCircles() {
  * Full-bleed brand backdrop for the booking flow.
  *
  * `color` defaults to the mint the component is named for; New Booking passes
- * white. The decorations (wave, circles, dots) are pale greens — #C8EEBF,
- * #E6F7E3, #7ED957 — which were chosen against mint. On white they read
+ * white. The decorations (wave, circles, dots) are pale greens — #C7E6EA,
+ * #E5F3F5, #357D89 — which were chosen against mint. On white they read
  * lighter but still register, so they are kept rather than hidden: dropping
  * them would strip the flow's brand chrome, not just recolour it.
  */
-export function MintBackdrop({ dots = false, circles = false, wave = true, color = '#F0F8EF' }) {
+export function MintBackdrop({ dots = false, circles = false, wave = true, color = '#E5F3F5' }) {
   const { height } = useWindowDimensions();
   return (
     <>
@@ -118,13 +118,13 @@ export function BrandHeader({ title, onBack, right }) {
           className="items-center justify-center active:opacity-70"
           style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: '#FFFFFF', ...headerShadow }}
         >
-          <ChevronLeft size={22} color="#004C40" />
+          <ChevronLeft size={22} color="#035C6C" />
         </Pressable>
       ) : (
         <View style={{ width: 44 }} />
       )}
       <View className="flex-1 items-center">
-        <Text style={{ fontSize: 17, fontWeight: '800', color: '#172117' }}>{title}</Text>
+        <Text numberOfLines={1} style={{ fontSize: 17, fontWeight: '800', color: '#111111' }}>{title}</Text>
       </View>
       <View style={{ width: 44, alignItems: 'flex-end' }}>{right}</View>
     </View>

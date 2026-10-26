@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +21,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 import {
   normalizeScannedIdentifier,
   resolveExactTicket,
@@ -31,6 +34,7 @@ import {
   catalogueMatchesFromText,
 } from '../../utils/scanSearch';
 import { rf, rs } from '../../utils/responsive';
+import ProductScanScreen from './ProductScanScreen';
 
 // @react-native-ml-kit/text-recognition is a NATIVE module (wraps Google ML
 // Kit on Android, Apple's Vision framework on iOS) — it is NOT available in
@@ -41,9 +45,9 @@ import { rf, rs } from '../../utils/responsive';
 
 // GGFIX palette — same values used across the rest of the app's redesigned screens.
 // Brand palette (same swatches as the Customer app's scanner).
-const ACCENT = '#1E1E1E';
-const BRIGHT = '#09AD2A';
-const MINT = 'rgba(9,173,42,0.10)';
+const ACCENT = '#111111';
+const BRIGHT = '#035C6C';
+const MINT = 'rgba(3, 92, 108,0.10)';
 
 // Barcode types both modes can decode — QR plus the common retail/product
 // barcode families (matches what ScanQrCodeScreen / ScanImeiScreen already
@@ -82,7 +86,19 @@ const BARCODE_TYPES = ['qr', 'datamatrix', 'code128', 'code39', 'code93', 'ean13
  * Both modes funnel every result through utils/scanSearch.js, the same
  * ticket/device/pickup sources OwnerSearchScreen's text search already uses.
  */
-export default function ScanSearchScreen({ navigation, route }) {
+export default function ScanSearchScreen(props) {
+  // Lens mode is the live product scanner now (VisionCamera + on-device
+  // detection, ProductScanScreen); QR/barcode mode stays on expo-camera below.
+  if (props.route?.params?.mode === 'lens') return <ProductScanScreen {...props} />;
+  return <ScanSearchQrScreen {...props} />;
+}
+
+function ScanSearchQrScreen({ navigation, route }) {
+  // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
+  const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: bottom sheets are centred and capped instead of spanning the screen.
+  const sheetSide = r.isTablet ? Math.max(0, (r.width - r.maxWidth('form')) / 2) : 0;
   const mode = route?.params?.mode === 'lens' ? 'lens' : 'qr';
   const isLens = mode === 'lens';
 
@@ -93,7 +109,7 @@ export default function ScanSearchScreen({ navigation, route }) {
   const [torchOn, setTorchOn] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState('Searching GGFIX…');
+  const [loadingStage, setLoadingStage] = useState('Searching Near G Fix…');
   const [result, setResult] = useState(null); // { kind: 'ticket'|'pickup'|'device'|'device-found'|'multi'|'visual-matches'|'visual-unavailable'|'none'|'ocr-failed'|'error', ... }
   const [ocrPhotoUri, setOcrPhotoUri] = useState(null); // last lens capture/pick — kept for Retake + result thumbnail
   const [showManualEntry, setShowManualEntry] = useState(false); // fallback-only, see runLensOCR
@@ -101,6 +117,7 @@ export default function ScanSearchScreen({ navigation, route }) {
   const capturingRef = useRef(false); // one lens capture at a time
   const cameraRef = useRef(null);
   const handlingRef = useRef(false); // scan-lock — see PREVENT DUPLICATE SCANS below
+  const navigatedRef = useRef(false); // set once a scan has opened a booking
 
   useEffect(() => {
     // TEMP DEBUG — never logs the payload, just the coarse state.
@@ -112,7 +129,7 @@ export default function ScanSearchScreen({ navigation, route }) {
     handlingRef.current = false;
     setScanned(false);
     setLoading(false);
-    setLoadingStage('Searching GGFIX…');
+    setLoadingStage('Searching Near G Fix…');
     setResult(null);
     setOcrPhotoUri(null);
     setShowManualEntry(false);
@@ -138,8 +155,9 @@ export default function ScanSearchScreen({ navigation, route }) {
       const ticket = await resolveExactTicket(identifier);
       if (ticket) {
         console.log('[QR] lookup success: exact ticket match');
-        setResult({ kind: 'ticket', ticket });
-        setLoading(false);
+        // Straight into the booking's Device Details — no "Open booking" step.
+        // The loader stays up until the screen is replaced.
+        openTicket(ticket);
         return;
       }
 
@@ -150,7 +168,8 @@ export default function ScanSearchScreen({ navigation, route }) {
       if (totalMatches === 0) {
         setResult({ kind: 'none', raw: identifier });
       } else if (tickets.length === 1 && devices.length === 0 && pickups.length === 0) {
-        setResult({ kind: 'ticket', ticket: tickets[0] });
+        openTicket(tickets[0]);
+        return;
       } else if (pickups.length === 1 && devices.length === 0 && tickets.length === 0) {
         setResult({ kind: 'pickup', pickup: pickups[0] });
       } else if (devices.length === 1 && tickets.length === 0 && pickups.length === 0) {
@@ -165,7 +184,8 @@ export default function ScanSearchScreen({ navigation, route }) {
       console.log('[QR] lookup failure:', e?.message || String(e));
       setResult({ kind: 'error', message: e?.message || 'Search failed. Check your connection and try again.' });
     } finally {
-      setLoading(false);
+      // Leaving for Device Details: keep the loader up until the screen is replaced.
+      if (!navigatedRef.current) setLoading(false);
     }
   };
 
@@ -178,7 +198,15 @@ export default function ScanSearchScreen({ navigation, route }) {
     runSearch(data);
   };
 
-  const openTicket = (ticket) => { console.log('[QR] navigation executed -> DeviceDetail'); navigation.replace('DeviceDetail', { ticketId: ticket.id }); };
+  // One navigation per scan: the camera can report the same code several times
+  // before the scanner screen is gone, and the scan lock alone is reset by
+  // "Scan again" — this one is not.
+  const openTicket = (ticket) => {
+    if (navigatedRef.current || !ticket?.id) return;
+    navigatedRef.current = true;
+    console.log('[QR] navigation executed -> DeviceDetail');
+    navigation.replace('DeviceDetail', { ticketId: ticket.id });
+  };
   const openPickup = (pickup) => { console.log('[QR] navigation executed -> OwnerPickupServiceDetail'); navigation.navigate('OwnerPickupServiceDetail', { id: pickup.id, booking: pickup }); };
   const searchManually = (prefillQuery) => navigation.replace('OwnerSearch', prefillQuery ? { prefillQuery } : undefined);
   // A visual match names a catalogue device, not one specific booking, so it
@@ -266,7 +294,7 @@ export default function ScanSearchScreen({ navigation, route }) {
       }
     }
 
-    setLoadingStage('Searching GGFIX image library…');
+    setLoadingStage('Searching Near G Fix image library…');
     console.log('[LENS] visual search started');
     const visual = await runVisualSearch(uri, { ocrText: ocr.ok ? ocr.text : null });
     console.log(`[LENS] visual search ${visual.ok ? `ok, confidence=${visual.confidence}, candidates=${visual.matches.length}` : `unavailable: ${visual.message}`}`);
@@ -296,7 +324,7 @@ export default function ScanSearchScreen({ navigation, route }) {
     //    that brand's models to pick from.
     const readText = ocr.ok ? String(ocr.text || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
     if (readText) {
-      setLoadingStage('Matching the GGFIX catalogue…');
+      setLoadingStage('Matching the Near G Fix catalogue…');
       const fromText = await catalogueMatchesFromText(ocr.text).catch(() => null);
       console.log(`[LENS] catalogue text match: ${fromText?.matchedOn || 'none'}, rows=${fromText?.rows?.length || 0}`);
       if (fromText?.exact) {
@@ -381,7 +409,7 @@ export default function ScanSearchScreen({ navigation, route }) {
     setShowManualEntry(false);
     setScanned(true);
     setLoading(true);
-    setLoadingStage('Searching GGFIX…');
+    setLoadingStage('Searching Near G Fix…');
     runSearch(text);
   };
 
@@ -403,11 +431,11 @@ export default function ScanSearchScreen({ navigation, route }) {
             <CameraIcon size={rf(28)} color="#B45309" />
           </View>
           <Text className="font-extrabold text-center" style={{ fontSize: 15 }}>Camera access is required to scan.</Text>
-          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(8), lineHeight: rf(18) }}>
-            GGFIX needs your camera to scan QR codes, barcodes and devices.
+          <Text className="text-center" style={{ fontSize: 12, color: '#6B7280', marginTop: rs(8), lineHeight: rf(18) }}>
+            Near G Fix needs your camera to scan QR codes, barcodes and devices.
           </Text>
           <View className="flex-row" style={{ marginTop: rs(22) }}>
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: rs(20), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
+            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: rs(20), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
               <Text className="font-bold">Cancel</Text>
             </Pressable>
             <Pressable
@@ -438,7 +466,7 @@ export default function ScanSearchScreen({ navigation, route }) {
       />
 
       {/* Header overlay */}
-      <View className="absolute left-0 right-0 top-0 flex-row items-center" style={{ paddingTop: rs(48), paddingHorizontal: rs(16), paddingBottom: rs(12), backgroundColor: 'rgba(0,0,0,0.35)' }}>
+      <View className="absolute left-0 right-0 top-0 flex-row items-center" style={{ paddingTop: insets.top + rs(10), paddingHorizontal: rs(16), paddingBottom: rs(12), backgroundColor: 'rgba(0,0,0,0.35)' }}>
         <Pressable onPress={() => navigation.goBack()} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: 'rgba(255,255,255,0.15)', marginRight: rs(12) }}>
           <ChevronLeft size={rf(22)} color="#FFFFFF" />
         </Pressable>
@@ -478,7 +506,7 @@ export default function ScanSearchScreen({ navigation, route }) {
           </View>
           <View className="flex-row items-center" style={{ marginTop: rs(20), paddingHorizontal: rs(30) }}>
             {isLens ? <ScanSearch size={rf(15)} color="#FFFFFF" /> : <ScanLine size={rf(15)} color="#FFFFFF" />}
-            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: 12 }}>
+            <Text className="text-white font-extrabold text-center" style={{ flexShrink: 1, marginLeft: rs(7), fontSize: 12 }}>
               {isLens
                 ? 'Point the camera at the device, label, model number or barcode.'
                 : 'Align the QR code or barcode inside the frame'}
@@ -520,15 +548,18 @@ export default function ScanSearchScreen({ navigation, route }) {
       {/* Manual-entry sheet — fallback only: reached from "Search manually" or
           from an ocr-failed/no-match result's "Enter Manually" button. */}
       {showManualEntry ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), padding: rs(18) }}>
+        // Rides up with the keyboard: this sheet autofocuses its input, and under
+        // edge-to-edge the keyboard would otherwise cover the whole sheet.
+        <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }} style={{ position: 'absolute', left: sheetSide, right: sheetSide, bottom: 0 }}>
+        <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), padding: rs(18), paddingBottom: rs(18) + insets.bottom }}>
           <View className="flex-row items-center" style={{ marginBottom: rs(12) }}>
             {ocrPhotoUri ? (
               <Image source={{ uri: ocrPhotoUri }} style={{ width: rs(56), height: rs(56), borderRadius: rs(14), marginRight: rs(12) }} />
             ) : null}
             <View className="flex-1">
               <Text className="font-extrabold" style={{ fontSize: 13 }}>Search manually</Text>
-              <Text style={{ fontSize: 11, color: '#667085', marginTop: rs(2) }}>
-                Type the model, brand, IMEI or tracking ID and it'll search GGFIX for you.
+              <Text style={{ fontSize: 11, color: '#6B7280', marginTop: rs(2) }}>
+                Type the model, brand, IMEI or tracking ID and it'll search Near G Fix for you.
               </Text>
             </View>
           </View>
@@ -536,14 +567,14 @@ export default function ScanSearchScreen({ navigation, route }) {
             value={manualText}
             onChangeText={setManualText}
             autoFocus
-            placeholder="e.g. iPhone 11 Pro A2215, or CSPEN1014799"
-            placeholderTextColor="#8FA08F"
+            placeholder="e.g. iPhone 11 Pro A2215, or GTS-001"
+            placeholderTextColor="#9CA3AF"
             returnKeyType="search"
             onSubmitEditing={confirmManualShot}
-            style={{ borderWidth: 1, borderColor: '#DCE7E2', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: 13 }}
+            style={{ borderWidth: 1, borderColor: '#C7E6EA', borderRadius: rs(14), paddingHorizontal: rs(14), paddingVertical: rs(12), fontSize: 13 }}
           />
           <View className="flex-row" style={{ marginTop: rs(14) }}>
-            <Pressable onPress={reset} style={{ paddingHorizontal: rs(18), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
+            <Pressable onPress={reset} style={{ paddingHorizontal: rs(18), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
               <Text className="font-bold">{ocrPhotoUri ? 'Retake' : 'Cancel'}</Text>
             </Pressable>
             <Pressable
@@ -551,19 +582,20 @@ export default function ScanSearchScreen({ navigation, route }) {
               disabled={!manualText.trim()}
               style={{ flex: 1, alignItems: 'center', paddingVertical: rs(13), borderRadius: rs(14), backgroundColor: ACCENT, opacity: manualText.trim() ? 1 : 0.5 }}
             >
-              <Text className="text-white font-extrabold">Search GGFIX</Text>
+              <Text className="text-white font-extrabold">Search Near G Fix</Text>
             </Pressable>
           </View>
         </View>
+        </KeyboardStickyView>
       ) : null}
 
       {/* Result / loading / no-match sheet */}
       {scanned && !showManualEntry ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), paddingBottom: rs(26), maxHeight: '78%' }}>
+        <View className="absolute left-0 right-0 bottom-0" style={{ left: sheetSide, right: sheetSide, backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), paddingBottom: rs(14) + insets.bottom, maxHeight: '78%' }}>
           {loading ? (
             <View className="items-center justify-center" style={{ paddingVertical: rs(40) }}>
               <ActivityIndicator size="large" color={ACCENT} />
-              <Text className="font-semibold" style={{ color: '#667085', fontSize: 12, marginTop: rs(12) }}>{loadingStage}</Text>
+              <Text className="font-semibold" style={{ color: '#6B7280', fontSize: 12, marginTop: rs(12) }}>{loadingStage}</Text>
             </View>
           ) : (
             <ResultBody
@@ -596,7 +628,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
         <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Possible models</Text>
-        <Text style={{ fontSize: 11, color: '#667085', marginBottom: rs(12) }}>
+        <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: rs(12) }}>
           {byNumber
             ? 'Models carrying the model number read from the photo — pick yours.'
             : result.source === 'google'
@@ -618,7 +650,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
                 <Text className="text-white font-extrabold" style={{ fontSize: 9 }}>BEST MATCH</Text>
               </View>
               <Text className="font-extrabold" style={{ fontSize: 13, marginTop: rs(4) }} numberOfLines={1}>{top.displayName}</Text>
-              <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[top.categoryName, top.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+              <Text style={{ fontSize: 11, color: '#6B7280' }} numberOfLines={1}>{[top.categoryName, top.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
             </View>
             <ChevronRight size={rf(18)} color={ACCENT} />
           </Pressable>
@@ -631,9 +663,9 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             </View>
             <View className="flex-1">
               <Text className="font-bold" style={{ fontSize: 12 }} numberOfLines={1}>{m.displayName}</Text>
-              <Text style={{ fontSize: 10.5, color: '#667085' }} numberOfLines={1}>{[m.categoryName, m.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+              <Text style={{ fontSize: 10.5, color: '#6B7280' }} numberOfLines={1}>{[m.categoryName, m.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
             </View>
-            <ChevronRight size={rf(15)} color="#98A9A2" />
+            <ChevronRight size={rf(15)} color="#9CA3AF" />
           </Pressable>
         ))}
 
@@ -644,16 +676,16 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           </Pressable>
         ) : null}
         {!byNumber ? (
-          <Text className="text-center" style={{ fontSize: 10.5, color: '#667085', marginTop: rs(10), lineHeight: rf(15) }}>
+          <Text className="text-center" style={{ fontSize: 10.5, color: '#6B7280', marginTop: rs(10), lineHeight: rf(15) }}>
             Tip: photograph the model number label (e.g. SM-G950F) for an exact match.
           </Text>
         ) : null}
 
-        <Pressable onPress={onEnterManually} style={{ marginTop: rs(12), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2' }}>
+        <Pressable onPress={onEnterManually} style={{ marginTop: rs(12), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA' }}>
           <Text className="font-bold" style={{ color: ACCENT }}>None of these — search manually</Text>
         </Pressable>
         <Pressable onPress={onScanAgain} style={{ marginTop: rs(6), paddingVertical: rs(10), alignItems: 'center' }}>
-          <Text className="font-bold" style={{ color: '#667085' }}>Scan again</Text>
+          <Text className="font-bold" style={{ color: '#6B7280' }}>Scan again</Text>
         </Pressable>
       </ScrollView>
     );
@@ -670,7 +702,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           </View>
           <Text className="font-extrabold" style={{ fontSize: 13 }}>Device Found</Text>
           {result.label ? (
-            <Text style={{ fontSize: 10.5, color: '#667085', marginTop: rs(2) }} numberOfLines={1}>Recognised as “{result.label}”</Text>
+            <Text style={{ fontSize: 10.5, color: '#6B7280', marginTop: rs(2) }} numberOfLines={1}>Recognised as “{result.label}”</Text>
           ) : null}
         </View>
 
@@ -678,10 +710,10 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           {d.imageUrl ? <Image source={{ uri: d.imageUrl }} style={{ width: '82%', height: '82%' }} resizeMode="contain" /> : <Smartphone size={rf(34)} color={ACCENT} />}
         </View>
 
-        <Text className="font-bold text-center" style={{ fontSize: 12, color: '#667085' }}>{d.brand}</Text>
+        <Text className="font-bold text-center" style={{ fontSize: 12, color: '#6B7280' }}>{d.brand}</Text>
         <Text className="font-extrabold text-center" style={{ fontSize: 15, marginTop: rs(2) }}>{d.modelName}</Text>
         {(d.colors && d.colors.length) || d.modelCode ? (
-          <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6) }}>
+          <Text className="text-center" style={{ fontSize: 12, color: '#6B7280', marginTop: rs(6) }}>
             {[d.colors && d.colors.length ? `Color: ${d.colors.join(', ')}` : null, d.modelCode ? `SKU: ${d.modelCode}` : null].filter(Boolean).join('   ·   ')}
           </Text>
         ) : null}
@@ -696,12 +728,12 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <Text className="text-white font-extrabold">Use This Device</Text>
         </Pressable>
         {hasSimilar ? (
-          <Pressable onPress={() => onViewSimilar(result.matches)} style={{ marginTop: rs(10), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2' }}>
+          <Pressable onPress={() => onViewSimilar(result.matches)} style={{ marginTop: rs(10), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA' }}>
             <Text className="font-bold" style={{ color: ACCENT }}>View Similar Matches</Text>
           </Pressable>
         ) : null}
         <Pressable onPress={onScanAgain} style={{ marginTop: rs(8), paddingVertical: rs(10), alignItems: 'center' }}>
-          <Text className="font-bold" style={{ color: '#667085' }}>Scan Again</Text>
+          <Text className="font-bold" style={{ color: '#6B7280' }}>Scan Again</Text>
         </Pressable>
       </ScrollView>
     );
@@ -712,8 +744,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
         <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Visual matches</Text>
-        <Text style={{ fontSize: 11, color: '#667085', marginBottom: rs(14) }}>
-          {result.label ? `Recognised as “${result.label}”. ` : ''}Closest matches from the GGFIX device catalogue — confirm before opening.
+        <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: rs(14) }}>
+          {result.label ? `Recognised as “${result.label}”. ` : ''}Closest matches from the Near G Fix device catalogue — confirm before opening.
         </Text>
 
         <Pressable
@@ -734,14 +766,14 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
               ) : null}
             </View>
             <Text className="font-extrabold" style={{ fontSize: 13, marginTop: rs(4) }} numberOfLines={1}>{best.displayName}</Text>
-            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text style={{ fontSize: 11, color: '#6B7280' }} numberOfLines={1}>{[best.categoryName, best.modelCode].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
           <ChevronRight size={rf(18)} color={ACCENT} />
         </Pressable>
 
         {rest.length ? (
           <View style={{ marginTop: rs(14) }}>
-            <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
+            <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#6B7280', letterSpacing: 0.5, marginBottom: rs(6) }}>Other possible matches</Text>
             {rest.slice(0, 4).map((m) => (
               <Pressable key={m.id} onPress={() => onOpenVisualMatch(m)} className="flex-row items-center" style={{ paddingVertical: rs(9), borderTopWidth: 1, borderTopColor: '#F0F4F2' }}>
                 <View className="items-center justify-center overflow-hidden" style={{ height: rs(40), width: rs(40), borderRadius: rs(11), backgroundColor: MINT, marginRight: rs(10) }}>
@@ -749,21 +781,21 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
                 </View>
                 <View className="flex-1">
                   <Text className="font-bold" style={{ fontSize: 12 }} numberOfLines={1}>{m.displayName}</Text>
-                  <Text style={{ fontSize: 10.5, color: '#667085' }} numberOfLines={1}>
+                  <Text style={{ fontSize: 10.5, color: '#6B7280' }} numberOfLines={1}>
                     {typeof m.similarity === 'number' ? `${Math.round(m.similarity * 100)}% match` : 'Possible match'}
                   </Text>
                 </View>
-                <ChevronRight size={rf(15)} color="#98A9A2" />
+                <ChevronRight size={rf(15)} color="#9CA3AF" />
               </Pressable>
             ))}
           </View>
         ) : null}
 
-        <Pressable onPress={onEnterManually} style={{ marginTop: rs(16), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#DCE7E2' }}>
+        <Pressable onPress={onEnterManually} style={{ marginTop: rs(16), paddingVertical: rs(12), alignItems: 'center', borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA' }}>
           <Text className="font-bold" style={{ color: ACCENT }}>None of these — search manually</Text>
         </Pressable>
         <Pressable onPress={onScanAgain} style={{ marginTop: rs(6), paddingVertical: rs(10), alignItems: 'center' }}>
-          <Text className="font-bold" style={{ color: '#667085' }}>Scan again</Text>
+          <Text className="font-bold" style={{ color: '#6B7280' }}>Scan again</Text>
         </Pressable>
       </ScrollView>
     );
@@ -778,7 +810,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>
           {result.notConfigured ? "Couldn't identify this device" : 'Device search failed'}
         </Text>
-        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+        <Text className="text-center" style={{ fontSize: 11, color: '#6B7280', marginTop: rs(6), lineHeight: rf(17) }}>
           {result.notConfigured
             ? 'No brand or model number could be read from this photo. Point the camera at the brand name or the model number label (e.g. SM-G950F), or enter it manually.'
             : (result.message || 'Please try again.')}
@@ -788,8 +820,8 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             Read from photo: {result.readText}
           </Text>
         ) : null}
-        <View className="flex-row" style={{ marginTop: rs(18) }}>
-          <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
+        <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
+          <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
             <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Retake</Text>
           </Pressable>
@@ -814,7 +846,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>
               {t.deviceDisplayName || t.deviceModelName || 'Booking found'}
             </Text>
-            <Text style={{ fontSize: 11, color: '#667085' }}>#{t.trackingId || t.id}</Text>
+            <Text style={{ fontSize: 11, color: '#6B7280' }}>#{t.trackingId || t.id}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenTicket(t)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -837,7 +869,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           </View>
           <View className="flex-1">
             <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{p.issueSummary || 'Pickup request'}</Text>
-            <Text style={{ fontSize: 11, color: '#667085' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
+            <Text style={{ fontSize: 11, color: '#6B7280' }}>#{String(p.bookingNumber || p.id || '').replace(/^#+/, '')}</Text>
           </View>
         </View>
         <Pressable onPress={() => onOpenPickup(p)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -860,7 +892,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           </View>
           <View className="flex-1">
             <Text className="font-extrabold" style={{ fontSize: 13 }} numberOfLines={1}>{d.displayName}</Text>
-            <Text style={{ fontSize: 11, color: '#667085' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
+            <Text style={{ fontSize: 11, color: '#6B7280' }} numberOfLines={1}>{[d.categoryName, d.modelNumber].filter(Boolean).join(' · ') || 'Device'}</Text>
           </View>
         </View>
         <Pressable onPress={() => onSearchManually(d.displayName)} style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), alignItems: 'center' }}>
@@ -877,7 +909,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
     return (
       <View style={{ padding: rs(18) }}>
         <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(4) }}>Matches found</Text>
-        <Text style={{ fontSize: 12, color: '#667085', marginBottom: rs(16) }}>
+        <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: rs(16) }}>
           {result.count} records matched — pick the right one.
         </Text>
         <Pressable onPress={() => onSearchManually(result.query)} className="flex-row items-center" style={{ backgroundColor: ACCENT, borderRadius: rs(16), paddingVertical: rs(14), paddingHorizontal: rs(16), justifyContent: 'center' }}>
@@ -898,7 +930,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           <AlertTriangle size={rf(24)} color="#B91C1C" />
         </View>
         <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Search failed</Text>
-        <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6) }}>{result.message}</Text>
+        <Text className="text-center" style={{ fontSize: 11, color: '#6B7280', marginTop: rs(6) }}>{result.message}</Text>
         <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ marginTop: rs(18), backgroundColor: ACCENT, borderRadius: rs(16), paddingHorizontal: rs(24), paddingVertical: rs(13) }}>
           <RotateCcw size={rf(15)} color="#FFFFFF" />
           <Text className="text-white font-extrabold" style={{ marginLeft: rs(8) }}>Try again</Text>
@@ -915,16 +947,16 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
         </View>
         <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>Couldn't read device details</Text>
         {result.devBuildRequired ? (
-          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#6B7280', marginTop: rs(6), lineHeight: rf(17) }}>
             {result.message}
           </Text>
         ) : (
-          <Text className="text-center" style={{ fontSize: 11, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
+          <Text className="text-center" style={{ fontSize: 11, color: '#6B7280', marginTop: rs(6), lineHeight: rf(17) }}>
             Try:{'\n'}• move closer{'\n'}• improve lighting{'\n'}• keep the model label visible
           </Text>
         )}
-        <View className="flex-row" style={{ marginTop: rs(18) }}>
-          <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
+        <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
+          <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
             <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Retake</Text>
           </Pressable>
@@ -946,20 +978,20 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
       <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
         <AlertTriangle size={rf(24)} color="#B91C1C" />
       </View>
-      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching GGFIX record found</Text>
-      <Text className="text-center" style={{ fontSize: 12, color: '#667085', marginTop: rs(6), lineHeight: rf(17) }}>
-        {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in GGFIX.` : "Couldn't match that to anything in GGFIX."}
+      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching Near G Fix record found</Text>
+      <Text className="text-center" style={{ fontSize: 12, color: '#6B7280', marginTop: rs(6), lineHeight: rf(17) }}>
+        {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in Near G Fix.` : "Couldn't match that to anything in Near G Fix."}
       </Text>
       {detectedLines.length ? (
-        <View style={{ marginTop: rs(12), alignSelf: 'stretch', backgroundColor: '#F7FAF7', borderRadius: rs(14), padding: rs(12) }}>
-          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#667085', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
+        <View style={{ marginTop: rs(12), alignSelf: 'stretch', backgroundColor: '#F3F4F6', borderRadius: rs(14), padding: rs(12) }}>
+          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: '#6B7280', letterSpacing: 0.5, marginBottom: rs(4) }}>Detected</Text>
           {detectedLines.slice(0, 4).map((line, i) => (
-            <Text key={i} className="font-extrabold" style={{ fontSize: 13, color: '#111827' }} numberOfLines={1}>{line}</Text>
+            <Text key={i} className="font-extrabold" style={{ fontSize: 13, color: '#111111' }} numberOfLines={1}>{line}</Text>
           ))}
         </View>
       ) : null}
-      <View className="flex-row" style={{ marginTop: rs(18) }}>
-        <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#DCE7E2', marginRight: rs(10) }}>
+      <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
+        <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
           <RotateCcw size={rf(15)} color={ACCENT} />
           <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Scan Again</Text>
         </Pressable>
@@ -973,8 +1005,9 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
 }
 
 function ScanHeader({ title, onBack, light }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View className="flex-row items-center" style={{ paddingTop: rs(48), paddingHorizontal: rs(16), paddingBottom: rs(12), backgroundColor: light ? '#FFFFFF' : 'transparent', borderBottomWidth: light ? 1 : 0, borderBottomColor: '#DCE7E2' }}>
+    <View className="flex-row items-center" style={{ paddingTop: insets.top + rs(10), paddingHorizontal: rs(16), paddingBottom: rs(12), backgroundColor: light ? '#FFFFFF' : 'transparent', borderBottomWidth: light ? 1 : 0, borderBottomColor: '#C7E6EA' }}>
       <Pressable onPress={onBack} className="items-center justify-center" style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: MINT, marginRight: rs(12) }}>
         <ChevronLeft size={rf(20)} color={ACCENT} />
       </Pressable>

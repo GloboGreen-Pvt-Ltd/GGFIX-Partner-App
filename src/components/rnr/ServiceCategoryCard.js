@@ -4,12 +4,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cn } from './cn';
 
 const palettes = {
-  blue: ['#F0F8EF', '#E6F7E3'],
-  emerald: ['#F0F8EF', '#E6F7E3'],
+  blue: ['#E5F3F5', '#E5F3F5'],
+  emerald: ['#E5F3F5', '#E5F3F5'],
   amber: ['#FFFBEB', '#FEF3C7'],
   rose: ['#FEF2F2', '#FEE2E2'],
-  violet: ['#F0F8EF', '#F0F8EF'],
-  sky: ['#F0F8EF', '#F0F8EF'],
+  violet: ['#E5F3F5', '#E5F3F5'],
+  sky: ['#E5F3F5', '#E5F3F5'],
 };
 
 export function ServiceCategoryCard({
@@ -28,7 +28,7 @@ export function ServiceCategoryCard({
     <Pressable
       onPress={onPress}
       className={cn('rounded-2xl overflow-hidden border border-border', className)}
-      style={{ shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+      style={{ shadowColor: '#111111', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
     >
       <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View className={padding}>

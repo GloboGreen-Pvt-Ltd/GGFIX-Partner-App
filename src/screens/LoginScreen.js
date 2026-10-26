@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -14,13 +13,18 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Ellipse, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import { ArrowRight, CalendarClock, Phone, ShieldCheck, ShoppingCart } from 'lucide-react-native';
 import { login, requestOtp, requestShopLoginOtp } from '../api/auth';
 import { clearSession } from '../auth/session';
+import { isPartnerAccount, isPartnerLoginType, PARTNER_ONLY_MESSAGE } from '../auth/accountAccess';
 import { resetOnboardingForTesting } from '../auth/onboarding';
 import { AUTH_BASE } from '../api/config';
+import { notify } from '../components/confirm';
+import LegalAgreement from '../legal/LegalAgreement';
+import { hasDeviceAgreed, setLegalAgreed } from '../legal/legalConsent';
 
 /**
  * Partner sign-in: mobile number → OTP, same design as the Customer app's
@@ -39,13 +43,14 @@ import { AUTH_BASE } from '../api/config';
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 const MOBILE_DIGITS = 10;
+const NOT_REGISTERED_MESSAGE = 'Mobile number not registered with GGFIX Business.';
 
 const PAGE_BG = '#F7F8F7';
-const INK = '#1E1E1E';
-const GREEN_TEXT = '#12A02F';
-const MUTED = '#6B6B6B';
+const INK = '#111111';
+const GREEN_TEXT = '#035C6C';
+const MUTED = '#6B7280';
 const SOFT = '#8C8C8C';
-const LINE = '#E6E6E6';
+const LINE = '#E5E7EB';
 const DANGER = '#F84141';
 const HERO = require('../../assets/login-hero.png');
 const HERO_RATIO = 700 / 546; // height / width of login-hero.png
@@ -60,10 +65,20 @@ export default function LoginScreen({ onLogin, navigation }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Terms/Privacy checkbox: asked unticked the first time; once this device
+  // has agreed to the current versions it shows as a notice instead.
+  const [agreed, setAgreed] = useState(false);
+  const [deviceAgreed, setDeviceAgreed] = useState(false);
   const otpRef = useRef(null);
+
+  useEffect(() => {
+    hasDeviceAgreed().then(setDeviceAgreed);
+  }, []);
   // Guards the auto-submit that fires when the 6th digit lands, so a slow
   // request can't be double-sent by another keystroke (or by paste + tap).
   const verifyingRef = useRef(false);
+  // Same for LOGIN / resend: one OTP request in flight at a time.
+  const sendingRef = useRef(false);
 
   // Resend countdown.
   useEffect(() => {
@@ -95,16 +110,32 @@ export default function LoginScreen({ onLogin, navigation }) {
   };
 
   const sendOtp = async ({ resend = false } = {}) => {
+    if (sendingRef.current) return;
     setError(null);
     setNote(null);
     if (mobile.length !== MOBILE_DIGITS) {
       setError(`Enter your ${MOBILE_DIGITS}-digit mobile number`);
       return;
     }
+    if (!deviceAgreed && !agreed) {
+      setError('Please agree to the Terms & Conditions and Privacy Policy to continue.');
+      return;
+    }
+    setLegalAgreed(agreed);
+    sendingRef.current = true;
     try {
       setLoading(true);
       try {
-        await requestOtp(mobile);
+        const sent = await requestOtp(mobile);
+        // Owners only (and shop logins, below): the server says whose number
+        // this is, so an employee / admin stops here — no OTP step.
+        if (!isPartnerLoginType(sent?.loginType)) {
+          const t = String(sent.loginType).toUpperCase();
+          setError(t === 'SUPER_ADMIN' || t === 'MARKET_PERSON'
+            ? 'Admin accounts must sign in from the admin web app.'
+            : PARTNER_ONLY_MESSAGE);
+          return;
+        }
       } catch (e) {
         // A 400 here means "not a users row" — it may still be a shop's own
         // login mobile, which has a separate issuer. Anything else (network,
@@ -113,11 +144,12 @@ export default function LoginScreen({ onLogin, navigation }) {
         try {
           await requestShopLoginOtp(mobile);
         } catch (e2) {
-          // Unknown to BOTH issuers → the number simply isn't registered.
+          // Unknown to BOTH issuers → the number isn't registered: stay on
+          // this step, no OTP, no navigation.
           if (e2?.status !== 400) throw e2;
-          const notFound = new Error('No account found for that mobile number.');
-          notFound.status = 400;
-          throw notFound;
+          setError(NOT_REGISTERED_MESSAGE);
+          notify(NOT_REGISTERED_MESSAGE, '', { preset: 'error', haptic: 'error' });
+          return;
         }
       }
       setSeconds(RESEND_SECONDS);
@@ -126,6 +158,7 @@ export default function LoginScreen({ onLogin, navigation }) {
     } catch (e) {
       setError(describeError(e, 'Could not send the code.'));
     } finally {
+      sendingRef.current = false;
       setLoading(false);
     }
   };
@@ -143,12 +176,15 @@ export default function LoginScreen({ onLogin, navigation }) {
     try {
       setLoading(true);
       const data = await login(mobile, { otp: entered });
-      // Block SUPER_ADMIN in the mobile shop app — they belong in the admin web.
-      // login() already persisted the session, so clear it here.
-      if (data?.loginType === 'SUPER_ADMIN') {
+      // Shop owners and shop logins only (auth/accountAccess.js). login()
+      // already persisted the session, so an employee's / admin's is cleared
+      // straight away and never reaches the app.
+      if (!isPartnerAccount(data)) {
         await clearSession();
         setOtp('');
-        setError('Super-admin accounts must sign in from the admin web app.');
+        setError(data?.loginType === 'SUPER_ADMIN' || data?.loginType === 'MARKET_PERSON'
+          ? 'Admin accounts must sign in from the admin web app.'
+          : PARTNER_ONLY_MESSAGE);
         return;
       }
       onLogin(data);
@@ -186,7 +222,9 @@ export default function LoginScreen({ onLogin, navigation }) {
   const heroW = 226 * k;
 
   return (
-    <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // keyboard-controller's KAV: edge-to-edge Android no longer resizes the
+    // window, so RN's own KAV left the mobile / OTP field under the keyboard.
+    <KeyboardAvoidingView style={s.page} behavior="padding">
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <Backdrop k={k} />
       {/* Device illustration, top-right — aligned to the logo like the mock. */}
@@ -197,7 +235,8 @@ export default function LoginScreen({ onLogin, navigation }) {
         accessible={false}
       />
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 34 * k, paddingBottom: insets.bottom + 18 * k }}
+        // Tablets: cap and centre the column instead of a full-width card.
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 34 * k, paddingBottom: insets.bottom + 18 * k, width: '100%', maxWidth: width >= 600 ? 560 : undefined, alignSelf: 'center' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -206,14 +245,14 @@ export default function LoginScreen({ onLogin, navigation }) {
             // DEV-ONLY: long-press the logo to see IntroScreen again on reload.
             onLongPress={__DEV__ ? () => { resetOnboardingForTesting(); } : undefined}
             accessibilityRole="image"
-            accessibilityLabel="GGFIX"
+            accessibilityLabel="Near G Fix"
           >
             <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
           </Pressable>
           {step === 'MOBILE' ? (
             <>
               <Text style={s.h1}>Login with{'\n'}<Text style={{ color: GREEN_TEXT }}>mobile number</Text></Text>
-              <Text style={s.sub}>Welcome to GGFIX Partner App</Text>
+              <Text style={s.sub}>Welcome to Near G Fix Partner App</Text>
             </>
           ) : (
             <>
@@ -234,6 +273,10 @@ export default function LoginScreen({ onLogin, navigation }) {
               error={error}
               onSubmit={sendOtp}
               onCreateAccount={() => navigation?.navigate('CreateAccount')}
+              agreed={agreed}
+              deviceAgreed={deviceAgreed}
+              onAgreedChange={(v) => { setAgreed(v); setError(null); }}
+              onOpenLegal={(type) => navigation?.navigate(type === 'PRIVACY' ? 'PrivacyPolicy' : 'Terms')}
             />
           ) : (
             <OtpStep
@@ -255,7 +298,6 @@ export default function LoginScreen({ onLogin, navigation }) {
 
         <Features s={s} k={k} />
         <View style={{ flex: 1 }} />
-        <Text style={s.footnote}>GGFix — book repairs, buy and sell your devices.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -263,7 +305,7 @@ export default function LoginScreen({ onLogin, navigation }) {
 
 /* ------------------------------------------------------------------ step 1 */
 
-function MobileStep({ s, k, mobile, setMobile, loading, error, onSubmit, onCreateAccount }) {
+function MobileStep({ s, k, mobile, setMobile, loading, error, onSubmit, onCreateAccount, agreed, deviceAgreed, onAgreedChange, onOpenLegal }) {
   return (
     <View>
       <Text style={s.label}>Mobile number</Text>
@@ -285,6 +327,15 @@ function MobileStep({ s, k, mobile, setMobile, loading, error, onSubmit, onCreat
       </View>
 
       <ErrorBox s={s} msg={error} />
+
+      <LegalAgreement
+        checked={agreed}
+        accepted={deviceAgreed}
+        onChange={onAgreedChange}
+        onOpen={onOpenLegal}
+        color={GREEN_TEXT}
+        style={{ marginTop: 14 * k }}
+      />
 
       <PillButton s={s} k={k} label="LOGIN" loading={loading} onPress={onSubmit} />
 
@@ -382,7 +433,7 @@ function PillButton({ s, k, label, loading, onPress }) {
       className="active:opacity-90"
       style={s.ctaShadow}
     >
-      <LinearGradient colors={['#22B53D', '#13982C']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.cta}>
+      <LinearGradient colors={['#035C6C', '#035C6C']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.cta}>
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
@@ -407,7 +458,7 @@ function ErrorBox({ s, msg }) {
 
 function Features({ s, k }) {
   const items = [
-    { Icon: CalendarClock, label: 'Book\nrepairs', color: '#1FA33A', bg: '#E2F4E5' },
+    { Icon: CalendarClock, label: 'Book\nrepairs', color: '#035C6C', bg: '#E5F3F5' },
     { Icon: ShoppingCart, label: 'Buy and sell\nyour devices', color: '#E5A50A', bg: '#FCF1D3' },
     { Icon: ShieldCheck, label: 'Trusted\n& secure', color: '#E8323A', bg: '#FCE3E3' },
   ];
@@ -437,26 +488,26 @@ function Backdrop({ k }) {
       <Svg width={W} height={H}>
         <Defs>
           <SvgGradient id="wedge" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#8ED89D" />
-            <Stop offset="1" stopColor="#5BC274" />
+            <Stop offset="0" stopColor="#357D89" />
+            <Stop offset="1" stopColor="#357D89" />
           </SvgGradient>
           <SvgGradient id="deep" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#2DAE5C" />
-            <Stop offset="1" stopColor="#14915A" />
+            <Stop offset="0" stopColor="#035C6C" />
+            <Stop offset="1" stopColor="#035C6C" />
           </SvgGradient>
         </Defs>
         {/* faint washes, top-left and mid-left */}
-        <Circle cx={30 * k} cy={70 * k} r={210 * k} fill="#EFF4F0" fillOpacity={0.7} />
-        <Circle cx={-30 * k} cy={330 * k} r={150 * k} fill="#E6F4E9" fillOpacity={0.8} />
+        <Circle cx={30 * k} cy={70 * k} r={210 * k} fill="#E5F3F5" fillOpacity={0.7} />
+        <Circle cx={-30 * k} cy={330 * k} r={150 * k} fill="#E5F3F5" fillOpacity={0.8} />
         {/* green wedge on the right edge, behind the card's top corner */}
         <Path d={`M${W} ${245 * k} L${W} ${345 * k} L${W - 66 * k} ${310 * k} Z`} fill="url(#wedge)" />
         {/* bottom-left waves */}
-        <Ellipse cx={-6 * k} cy={H + 22 * k} rx={128 * k} ry={140 * k} fill="#CBEED2" />
-        <Ellipse cx={-16 * k} cy={H + 26 * k} rx={104 * k} ry={116 * k} fill="#93DBA7" />
+        <Ellipse cx={-6 * k} cy={H + 22 * k} rx={128 * k} ry={140 * k} fill="#C7E6EA" />
+        <Ellipse cx={-16 * k} cy={H + 26 * k} rx={104 * k} ry={116 * k} fill="#357D89" />
         <Ellipse cx={-28 * k} cy={H + 18 * k} rx={78 * k} ry={86 * k} fill="url(#deep)" />
         {/* bottom-right waves */}
-        <Ellipse cx={W + 8 * k} cy={H + 30 * k} rx={124 * k} ry={128 * k} fill="#CBEED2" />
-        <Ellipse cx={W + 16 * k} cy={H + 34 * k} rx={100 * k} ry={104 * k} fill="#93DBA7" />
+        <Ellipse cx={W + 8 * k} cy={H + 30 * k} rx={124 * k} ry={128 * k} fill="#C7E6EA" />
+        <Ellipse cx={W + 16 * k} cy={H + 34 * k} rx={100 * k} ry={104 * k} fill="#357D89" />
         <Ellipse cx={W + 26 * k} cy={H + 28 * k} rx={80 * k} ry={82 * k} fill="url(#deep)" />
       </Svg>
     </View>
@@ -479,7 +530,7 @@ const makeStyles = (k) => StyleSheet.create({
   changeLink: { fontSize: 12.5 * k, fontWeight: '700', color: GREEN_TEXT },
   inputBox: {
     flexDirection: 'row', alignItems: 'center', height: 46 * k, paddingLeft: 17 * k, borderRadius: 13 * k,
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E9E9E9',
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
     shadowColor: '#000000', shadowOpacity: 0.03, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   inputDivider: { width: 1, height: 22 * k, backgroundColor: '#E3E3E3', marginHorizontal: 14 * k },
@@ -487,7 +538,7 @@ const makeStyles = (k) => StyleSheet.create({
 
   ctaShadow: {
     marginTop: 18 * k, borderRadius: 24 * k,
-    shadowColor: '#13982C', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
+    shadowColor: '#035C6C', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
   },
   cta: { height: 48 * k, borderRadius: 24 * k, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#FFFFFF', fontSize: 13.5 * k, fontWeight: '800', letterSpacing: 2.2 * k },
@@ -502,13 +553,13 @@ const makeStyles = (k) => StyleSheet.create({
   otpWrap: { position: 'relative', height: 50 * k },
   otpRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', height: 50 * k },
   otpBox: {
-    width: 42 * k, height: 50 * k, borderRadius: 12 * k, borderWidth: 1, borderColor: '#E9E9E9', backgroundColor: '#FFFFFF',
+    width: 42 * k, height: 50 * k, borderRadius: 12 * k, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
   },
-  otpBoxActive: { borderColor: '#13982C', borderWidth: 1.5 },
-  otpBoxFilled: { borderColor: '#9ED8AA', backgroundColor: '#F4FBF5' },
+  otpBoxActive: { borderColor: '#035C6C', borderWidth: 1.5 },
+  otpBoxFilled: { borderColor: '#357D89', backgroundColor: '#F3F4F6' },
   otpChar: { fontSize: 20 * k, fontWeight: '800', color: INK },
-  otpCharEmpty: { fontSize: 16 * k, color: '#CFCFCF' },
+  otpCharEmpty: { fontSize: 16 * k, color: '#D1D5DB' },
   // Fixed-size overlay (never part of the row's layout) — invisible, catches typing / paste / SMS autofill.
   otpHiddenInput: { position: 'absolute', left: 0, top: 0, width: '100%', height: 50 * k, padding: 0, margin: 0, opacity: 0, color: 'transparent', backgroundColor: 'transparent' },
   note: { fontSize: 12.5 * k, color: GREEN_TEXT, marginTop: 10 * k, textAlign: 'center' },

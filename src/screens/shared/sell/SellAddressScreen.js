@@ -31,7 +31,7 @@ export default function SellAddressScreen({ navigation, route }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 120, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <View className="mb-2">
           <Text className="text-[13px] font-extrabold text-text">Where should we pick up?</Text>
           <Text className="text-[11px] text-text-muted mt-0.5">Free doorstep pickup across serviceable areas.</Text>
@@ -41,13 +41,13 @@ export default function SellAddressScreen({ navigation, route }) {
           onPress={() => navigation.navigate('AddressForm', {})}
           className="bg-primary/5 border border-dashed border-primary/40 rounded-xl p-2.5 flex-row items-center justify-center mb-3 active:opacity-80"
         >
-          <Plus size={14} color="#087A0A" />
+          <Plus size={14} color="#035C6C" />
           <Text className="text-[12px] font-extrabold text-primary ml-1.5">Add new address</Text>
         </Pressable>
 
         {items.length === 0 ? (
           <EmptyState
-            icon={<MapPin size={26} color="#087A0A" />}
+            icon={<MapPin size={26} color="#035C6C" />}
             title="No saved addresses"
             description="Add one to schedule pickup."
             actionLabel="Add address"
@@ -65,7 +65,7 @@ export default function SellAddressScreen({ navigation, route }) {
               >
                 <View className="flex-row items-start">
                   <View className={`h-9 w-9 rounded-full items-center justify-center mr-2.5 ${active ? 'bg-primary' : 'bg-primary/10'}`}>
-                    <Icon size={15} color={active ? '#fff' : '#087A0A'} />
+                    <Icon size={15} color={active ? '#fff' : '#035C6C'} />
                   </View>
                   <View className="flex-1">
                     <View className="flex-row items-center">

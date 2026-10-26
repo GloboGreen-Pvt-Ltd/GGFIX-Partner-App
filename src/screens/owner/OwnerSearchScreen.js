@@ -20,6 +20,7 @@ import { listShopRepairBookings } from '../../api/orders';
 import { pickupsOnly } from './AllBooking/bookingScopes';
 import { loadSearchableModels, searchModels } from '../../utils/deviceSearch';
 import { navigateDeviceAction } from '../../utils/deviceActions';
+import { sendDeviceIdentifyFeedback } from '../../api/masterData';
 import DeviceActionSheet from '../../components/DeviceActionSheet';
 import { useResponsive } from '../../theme/responsive';
 
@@ -50,8 +51,8 @@ import { useResponsive } from '../../theme/responsive';
  * or a model.
  */
 
-const GREEN = '#087A0A';
-const GREEN_DARK = '#087A0A';
+const GREEN = '#035C6C';
+const GREEN_DARK = '#035C6C';
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 350;
 const RECENTS_KEY = 'owner.search.recents';
@@ -90,6 +91,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
   // Guards against an older, slower response overwriting a newer one — typing
   // fast fires several requests and they do not necessarily land in order.
   const reqRef = useRef(0);
+  const scanFeedbackRef = useRef(null);
 
   const inputRef = useRef(null);
   const recRef = useRef(null);
@@ -265,6 +267,13 @@ export default function OwnerSearchScreen({ navigation, route }) {
     setSheetFor(null);
     pushRecent(query);
     navigateDeviceAction(navigation, key, device);
+    // Opened from a camera scan whose matches the user skipped: report the
+    // manually searched model for that scan (rank -1). Fire-and-forget.
+    const scanId = route?.params?.scanId;
+    if (scanId && scanFeedbackRef.current !== scanId) {
+      scanFeedbackRef.current = scanId;
+      sendDeviceIdentifyFeedback(scanId, { modelId: device.modelId, rank: -1 });
+    }
   };
 
   const openWorkRecord = (item) => {
@@ -297,16 +306,16 @@ export default function OwnerSearchScreen({ navigation, route }) {
       accessibilityRole="button"
       accessibilityLabel={`${d.brandName} ${d.modelName}, choose an action`}
       className="bg-white rounded-2xl px-3.5 py-3 mb-2 active:opacity-80"
-      style={{ borderWidth: 1, borderColor: '#EFF5EE' }}
+      style={{ borderWidth: 1, borderColor: '#E5F3F5' }}
     >
       <View className="flex-row items-center">
         <View
           className="h-11 w-11 rounded-xl items-center justify-center mr-3 overflow-hidden"
-          style={{ backgroundColor: '#F8F8F8' }}
+          style={{ backgroundColor: '#F3F4F6' }}
         >
           {d.modelImageUrl
             ? <Image source={{ uri: d.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" />
-            : <Smartphone size={20} color="#8FA08F" strokeWidth={2} />}
+            : <Smartphone size={20} color="#9CA3AF" strokeWidth={2} />}
         </View>
         <View className="flex-1">
           <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
@@ -336,10 +345,10 @@ export default function OwnerSearchScreen({ navigation, route }) {
       <Pressable
         onPress={() => openWorkRecord(item)}
         className="bg-white rounded-2xl px-3.5 py-3 mb-2 active:opacity-80"
-        style={{ borderWidth: 1, borderColor: '#EFF5EE' }}
+        style={{ borderWidth: 1, borderColor: '#E5F3F5' }}
       >
         <View className="flex-row items-center">
-          <View className="h-9 w-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#F0F8EF' }}>
+          <View className="h-9 w-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
             {isPickup ? <Truck size={17} color={GREEN_DARK} strokeWidth={2} /> : <Package size={17} color={GREEN_DARK} strokeWidth={2} />}
           </View>
           <View className="flex-1">
@@ -349,11 +358,11 @@ export default function OwnerSearchScreen({ navigation, route }) {
             </View>
             <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>{title}</Text>
             <View className="flex-row items-center mt-1">
-              <User size={11} color="#667066" strokeWidth={2} />
-              <Text className="text-[11px] text-gray-600 ml-1" numberOfLines={1}>{name}</Text>
+              <User size={11} color="#6B7280" strokeWidth={2} />
+              <Text className="text-[11px] text-gray-600 ml-1 flex-shrink" numberOfLines={1}>{name}</Text>
               {phone ? (
                 <>
-                  <Phone size={11} color="#667066" strokeWidth={2} style={{ marginLeft: 10 }} />
+                  <Phone size={11} color="#6B7280" strokeWidth={2} style={{ marginLeft: 10 }} />
                   <Text className="text-[11px] text-gray-600 ml-1">{phone}</Text>
                 </>
               ) : null}
@@ -385,7 +394,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
             paddingBottom: r.spacing.lg,
             paddingHorizontal: r.spacing.md,
             borderBottomWidth: 1,
-            borderBottomColor: '#E2E8E2',
+            borderBottomColor: '#E5E7EB',
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
@@ -393,13 +402,13 @@ export default function OwnerSearchScreen({ navigation, route }) {
               onPress={() => navigation.goBack()}
               hitSlop={10}
               className="h-9 w-9 rounded-full items-center justify-center mr-1"
-              style={{ backgroundColor: '#EFF5EE' }}
+              style={{ backgroundColor: '#E5F3F5' }}
             >
-              <ChevronLeft size={20} color="#172117" strokeWidth={2} />
+              <ChevronLeft size={20} color="#111111" strokeWidth={2} />
             </Pressable>
             <View
               className="flex-1 flex-row items-center bg-white rounded-2xl px-3.5 py-2.5"
-              style={{ shadowColor: '#172117', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 }}
+              style={{ shadowColor: '#111111', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 }}
             >
               <Search size={16} color={GREEN} strokeWidth={2} />
               <TextInput
@@ -412,12 +421,12 @@ export default function OwnerSearchScreen({ navigation, route }) {
                 autoCapitalize="none"
                 autoCorrect={false}
                 placeholder="Device, ticket or customer"
-                placeholderTextColor="#8FA08F"
-                style={{ flex: 1, marginLeft: 8, color: '#172117', fontSize: 13, padding: 0 }}
+                placeholderTextColor="#9CA3AF"
+                style={{ flex: 1, marginLeft: 8, color: '#111111', fontSize: 13, padding: 0 }}
               />
               {query ? (
-                <Pressable onPress={() => setQuery('')} hitSlop={6} className="w-6 h-6 rounded-full items-center justify-center mr-1" style={{ backgroundColor: '#EFF5EE' }}>
-                  <X size={13} color="#667066" strokeWidth={2} />
+                <Pressable onPress={() => setQuery('')} hitSlop={6} className="w-6 h-6 rounded-full items-center justify-center mr-1" style={{ backgroundColor: '#E5F3F5' }}>
+                  <X size={13} color="#6B7280" strokeWidth={2} />
                 </Pressable>
               ) : null}
               <Pressable
@@ -426,7 +435,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
                 accessibilityLabel={listening ? 'Stop voice search' : 'Voice search'}
                 hitSlop={6}
                 className="w-7 h-7 rounded-full items-center justify-center mr-1"
-                style={{ backgroundColor: '#F0F8EF' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
                 {listening
                   ? <MicOff size={15} color={GREEN_DARK} strokeWidth={2} />
@@ -438,7 +447,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
                 accessibilityLabel="Product scanner"
                 hitSlop={6}
                 className="w-7 h-7 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#F0F8EF' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
                 <Camera size={15} color={GREEN_DARK} strokeWidth={2} />
               </Pressable>
@@ -491,9 +500,9 @@ export default function OwnerSearchScreen({ navigation, route }) {
                   key={t}
                   onPress={() => setQuery(t)}
                   className="flex-row items-center bg-white rounded-xl px-3.5 py-3 mb-2 active:opacity-80"
-                  style={{ borderWidth: 1, borderColor: '#EFF5EE' }}
+                  style={{ borderWidth: 1, borderColor: '#E5F3F5' }}
                 >
-                  <Clock size={14} color="#8FA08F" strokeWidth={2} />
+                  <Clock size={14} color="#9CA3AF" strokeWidth={2} />
                   <Text className="ml-2.5 text-[13px] text-gray-700 flex-1" numberOfLines={1}>{t}</Text>
                 </Pressable>
               ))}

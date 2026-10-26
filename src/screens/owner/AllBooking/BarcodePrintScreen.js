@@ -30,20 +30,19 @@ import { useLabelPreset } from '../../../services/printer/useLabelPreset';
 import { presetSizeText } from '../../../services/printer/labelPresets';
 import { specDisplayParts } from '../../../utils/deviceSpecs';
 
-// GGFIX palette — green #09AD2A, ink #1E1E1E, white, neutrals #F8F8F8/#F3F3F3
+// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6
 // (same as Home / Buy and the Print QR Label sheet).
-const ACCENT = '#09AD2A';       // GGFIX green — icons, chips, accents
-const PRIMARY = '#078F23';      // deeper green — gradient partner on Print QR Slip
-const MINT = '#EAF8EC';         // light green tint
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const ACCENT = '#035C6C';       // GGFIX green — icons, chips, accents
+const PRIMARY = '#035C6C';      // deeper green — gradient partner on Print QR Slip
+const MINT = '#E5F3F5';         // light tint
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
@@ -55,7 +54,7 @@ const card = {
   borderRadius: 18,
   padding: 12,
   borderWidth: 1,
-  borderColor: '#F3F3F3',
+  borderColor: '#F3F4F6',
   ...cardShadow,
 };
 
@@ -65,7 +64,7 @@ function DetailRow({ icon: Icon, label, children, isLast }) {
   return (
     <View
       className="flex-row items-center"
-      style={{ paddingVertical: 7, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F3F3' }}
+      style={{ paddingVertical: 7, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F4F6' }}
     >
       <View className="items-center justify-center" style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: MINT, marginRight: 8 }}>
         <Icon size={11} color={ACCENT} />
@@ -87,8 +86,11 @@ function formatSecurity(type, value) {
     : t === 'PASSWORD' ? 'Password'
     : t === 'PATTERN' ? 'Pattern'
     : t.charAt(0) + t.slice(1).toLowerCase();
-  const v = value == null ? '' : String(value).trim();
-  return v ? `${label} · ${v}` : label;
+  let v = value == null ? '' : String(value).trim();
+  // Pattern dots comma-separated, e.g. "7,4,9,5" (the stored form, tidied).
+  if (t === 'PATTERN') v = v.split(',').map((d) => d.trim()).filter(Boolean).join(',');
+  // Just the value (PIN digits / pattern / password) — no "Pattern ·" prefix.
+  return v || label;
 }
 
 // Splits a tracking id into its letter prefix and trailing digits so the header
@@ -412,7 +414,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
   const previewW = Math.min(250, r.width - 80);
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+    <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
@@ -459,8 +461,10 @@ export default function BarcodePrintScreen({ navigation, route }) {
         </View>
       </View>
 
+      {/* Inline flex (not className) so the scroller is always height-bounded —
+          without a bounded height it grows to its content and never scrolls. */}
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 90 }}
       >
@@ -472,7 +476,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
               <View
                 style={{
                   height: 64, width: 60, borderRadius: 14, marginRight: 12, backgroundColor: '#FFFFFF',
-                  borderWidth: 1, borderColor: '#F3F3F3', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                  borderWidth: 1, borderColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}
               >
                 {deviceImageUrl ? (
@@ -500,7 +504,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
               </View>
             </View>
 
-            <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F3F3' }}>
+            <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
               <DetailRow icon={Hash} label="Tracking ID">
                 <View className="flex-row items-center">
                   <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 0.2 }}>

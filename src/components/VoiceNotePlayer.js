@@ -16,12 +16,12 @@ import { Pause, Play } from 'lucide-react-native';
  * scroll starts stuttering on the cheap Android hardware these shops run.
  */
 
-const INK = '#172117';
+const INK = '#111111';
 
 const mmss = (total) =>
   `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 
-export default function VoiceNotePlayer({ url, seconds, tint = '#087A0A', compact = false, label }) {
+export default function VoiceNotePlayer({ url, seconds, tint = '#035C6C', compact = false, label }) {
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
   const soundRef = useRef(null);

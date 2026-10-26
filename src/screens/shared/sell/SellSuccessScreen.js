@@ -1,23 +1,24 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircle2, Home, ListChecks, Sparkles } from 'lucide-react-native';
 import { Button } from '../../../components/rnr';
 
 export default function SellSuccessScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   return (
     <View className="flex-1 bg-background">
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#16BB05' }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#035C6C' }}>
         <LinearGradient
-          colors={['#16BB05', '#087A0A']}
+          colors={['#035C6C', '#035C6C']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{ paddingTop: 24, paddingBottom: 36, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, alignItems: 'center' }}
         >
           <View className="h-16 w-16 rounded-full bg-white/20 items-center justify-center mb-2">
             <View className="h-12 w-12 rounded-full bg-white items-center justify-center">
-              <CheckCircle2 size={26} color="#16BB05" />
+              <CheckCircle2 size={26} color="#035C6C" />
             </View>
           </View>
           <Text className="text-white text-[17px] font-extrabold">Sale Request Submitted!</Text>
@@ -29,11 +30,11 @@ export default function SellSuccessScreen({ navigation }) {
 
       <View className="flex-1 px-4 -mt-4">
         <View className="bg-card border border-border rounded-2xl p-3"
-              style={{ shadowColor: '#172117', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 }}>
+              style={{ shadowColor: '#111111', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 }}>
           {[
-            { icon: ListChecks, color: '#087A0A', bg: 'bg-primary/10', title: 'Request created', sub: 'Shops have been notified' },
+            { icon: ListChecks, color: '#035C6C', bg: 'bg-primary/10', title: 'Request created', sub: 'Shops have been notified' },
             { icon: Sparkles,    color: '#F59E0B', bg: 'bg-warning/10', title: 'Awaiting quotes', sub: 'Usually within 15 mins' },
-            { icon: CheckCircle2,color: '#16BB05', bg: 'bg-success/10', title: 'Pick your best offer', sub: 'Then schedule free pickup' },
+            { icon: CheckCircle2,color: '#035C6C', bg: 'bg-success/10', title: 'Pick your best offer', sub: 'Then schedule free pickup' },
           ].map((s, i, arr) => {
             const Icon = s.icon;
             return (
@@ -52,12 +53,12 @@ export default function SellSuccessScreen({ navigation }) {
       </View>
 
       <View className="px-4 pb-6 pt-3 bg-card border-t border-border flex-row"
-            style={{ shadowColor: '#172117', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+            style={{ paddingBottom: Math.max(24, insets.bottom + 8), shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
         <Button
           variant="outline"
           className="flex-1 mr-2"
           onPress={() => navigation.popToTop()}
-          leftIcon={<Home size={14} color="#087A0A" />}
+          leftIcon={<Home size={14} color="#035C6C" />}
         >
           Home
         </Button>

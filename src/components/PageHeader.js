@@ -9,11 +9,11 @@ import { rf } from '../utils/responsive';
 // right. Title/subtitle use Inter (loaded in App.js; system font until then).
 export const HEADER = {
   bg: '#FFFFFF',
-  border: '#DCE7E2',
-  title: '#111827',
-  subtitle: '#667085',
-  button: '#F4FBF8',
-  action: '#09AD2A',
+  border: '#C7E6EA',
+  title: '#111111',
+  subtitle: '#6B7280',
+  button: '#F3F4F6',
+  action: '#035C6C',
 };
 export const HEADER_FONT = { title: 'Inter_800ExtraBold', subtitle: 'Inter_400Regular' };
 const BTN = 36;

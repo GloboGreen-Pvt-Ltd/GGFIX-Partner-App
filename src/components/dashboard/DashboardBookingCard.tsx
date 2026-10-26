@@ -34,8 +34,8 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         paddingHorizontal: 10,
         paddingVertical: 10,
         borderWidth: 1,
-        borderColor: '#F3F3F3',
-        shadowColor: '#1E1E1E',
+        borderColor: '#F3F4F6',
+        shadowColor: '#111111',
         shadowOpacity: 0.05,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
@@ -101,7 +101,7 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         </View>
       </View>
 
-      <ChevronRight size={18} color="#16A34A" strokeWidth={ICON_STROKE} style={{ marginLeft: 2 }} />
+      <ChevronRight size={18} color="#035C6C" strokeWidth={ICON_STROKE} style={{ marginLeft: 2 }} />
     </Touchable>
   );
 }

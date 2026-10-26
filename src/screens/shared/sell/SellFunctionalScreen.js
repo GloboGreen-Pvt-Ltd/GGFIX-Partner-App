@@ -59,7 +59,7 @@ export default function SellFunctionalScreen({ navigation, route }) {
   const count = selected.length;
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {isEditing ? <EditingBanner text="Previously reported issues are pre-selected." /> : null}
         <SellIntro title="Functionality issues" caption="Tap every issue the device has. Leave all unselected if it works fine." />
         <SellCard>

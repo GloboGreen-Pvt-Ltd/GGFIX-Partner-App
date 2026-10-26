@@ -18,21 +18,21 @@ import { rs, isNarrow } from '../../theme/metrics';
    ══════════════════════════════════════════════════════════════════════════ */
 
 export const C = {
-  green: '#087A0A',
-  greenSoft: '#E6F7E3',
-  greenLine: '#E6F7E3',
+  green: '#035C6C',
+  greenSoft: '#E5F3F5',
+  greenLine: '#E5F3F5',
   red: '#DC2626',
   redSoft: '#FEE2E2',
   redLine: '#FEE2E2',
-  ink: '#172117',
-  body: '#667066',
-  muted: '#667066',
-  hairline: '#EFF5EE',
-  field: '#F0F8EF',
-  border: '#E2E8E2',
-  placeholder: '#8FA08F',
-  chipBg: '#E2E8E2',
-  chipInk: '#667066',
+  ink: '#111111',
+  body: '#6B7280',
+  muted: '#6B7280',
+  hairline: '#E5F3F5',
+  field: '#E5F3F5',
+  border: '#E5E7EB',
+  placeholder: '#9CA3AF',
+  chipBg: '#E5E7EB',
+  chipInk: '#6B7280',
 };
 
 /**
@@ -95,19 +95,19 @@ export const avatarInitialSize = (diameter) => Math.round(diameter * 0.44 * 10) 
  * changed on every reload would be worse than none.
  *
  * TINTED, not solid. The palette only has two greens dark enough to carry a
- * white letter (#087A0A and the error red), so a solid ramp would be two
+ * white letter (#035C6C and the error red), so a solid ramp would be two
  * colours repeated — no recognition value at all. Light fills with a dark
  * monogram give six distinguishable tiles and read better anyway: white on
- * #7ED957 is 1.9:1 and on #F59E0B is 2.1:1, whereas every pairing below is
+ * #357D89 is 1.9:1 and on #F59E0B is 2.1:1, whereas every pairing below is
  * above 4.5:1.
  */
 const AVATAR_TONES = [
-  { bg: '#E6F7E3', ink: '#087A0A' },  // green
+  { bg: '#E5F3F5', ink: '#035C6C' },  // green
   { bg: '#FEF3C7', ink: '#B45309' },  // amber
   { bg: '#FEE2E2', ink: '#B91C1C' },  // red
-  { bg: '#F0F8EF', ink: '#16BB05' },  // pale green
-  { bg: '#C8EEBF', ink: '#087A0A' },  // lime
-  { bg: '#E2E8E2', ink: '#172117' },  // slate
+  { bg: '#E5F3F5', ink: '#035C6C' },  // pale green
+  { bg: '#C7E6EA', ink: '#035C6C' },  // lime
+  { bg: '#E5E7EB', ink: '#111111' },  // slate
 ];
 
 export function avatarFor(name) {

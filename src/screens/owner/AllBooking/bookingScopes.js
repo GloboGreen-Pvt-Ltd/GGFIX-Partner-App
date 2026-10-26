@@ -1,6 +1,6 @@
 import {
   CheckCircle2, Clock, ClipboardCheck, FileText, PackageCheck, Pencil,
-  ReceiptIndianRupee, Truck,
+  ReceiptIndianRupee, Truck, Undo2, XCircle,
 } from 'lucide-react-native';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -25,7 +25,7 @@ import {
 // ════════════════════════════════════════════════════════════════════════════
 
 // A ticket in one of these has left the pipeline.
-const TICKET_TERMINAL = ['DELIVERED', 'CANCELLED'];
+const TICKET_TERMINAL = ['DELIVERED', 'CANCELLED', 'RETURNED'];
 
 // A pickup awaiting the shop's first action.
 const PICKUP_REQUESTED = ['ORDER_PLACED', 'PICKUP_REQUESTED'];
@@ -57,13 +57,14 @@ export const SCOPES = {
   ALL: {
     key: 'ALL',
     label: 'Bookings',
+    chipLabel: 'All', // short label on the scope tile
     eyebrow: 'BOOKINGS',
     noun: 'Booking',
     source: 'TICKET',
     match: () => true,
     icon: FileText,
-    color: '#087A0A',
-    bg: '#E6F7E3',
+    color: '#035C6C',
+    bg: '#E5F3F5',
     emptyTitle: 'No bookings found',
     emptyDescription: 'Bookings will appear here as they are created.',
   },
@@ -89,8 +90,8 @@ export const SCOPES = {
     source: 'TICKET',
     match: (s) => s === 'QUOTED',
     icon: Pencil,
-    color: '#16BB05',
-    bg: '#E6F7E3',
+    color: '#7C3AED',
+    bg: '#F2ECFF',
     emptyTitle: 'No re-estimated bookings',
     emptyDescription: 'A booking appears here once it has been re-estimated.',
   },
@@ -104,40 +105,43 @@ export const SCOPES = {
     // (READY, INVOICE_*, QUOTED …) can't silently fall out of the count.
     match: (status) => !TICKET_TERMINAL.includes(status),
     icon: Clock,
-    color: '#16BB05',
-    bg: '#E6F7E3',
+    color: '#2563EB',
+    bg: '#E8F1FE',
     emptyTitle: 'No active bookings',
     emptyDescription: 'Bookings still in the service pipeline will appear here.',
   },
   PICKUP_ALL: {
     key: 'PICKUP_ALL',
     label: 'All Pickups',
+    chipLabel: 'All', // short label on the scope tile
     eyebrow: 'ALL PICKUPS',
     noun: 'Pickup',
     source: 'PICKUP',
     match: () => true,
     icon: Truck,
-    color: '#087A0A',
-    bg: '#E6F7E3',
+    color: '#4C5BD4',
+    bg: '#DBDEF6',
     emptyTitle: 'No pickups yet',
     emptyDescription: 'Doorstep pickups for this shop will appear here.',
   },
   PICKUP_REQUEST: {
     key: 'PICKUP_REQUEST',
     label: 'Pickup Request',
+    chipLabel: 'Request', // short label on the scope tile
     eyebrow: 'PICKUP REQUESTS',
     noun: 'Pickup Request',
     source: 'PICKUP',
     match: (status) => PICKUP_REQUESTED.includes(status),
     icon: Truck,
-    color: '#16BB05',
-    bg: '#F0F8EF',
+    color: '#EA580C',
+    bg: '#FBDECE',
     emptyTitle: 'No pickup requests',
     emptyDescription: 'New doorstep pickup requests will appear here.',
   },
   PICKUP_ACCEPTED: {
     key: 'PICKUP_ACCEPTED',
     label: 'Pickup Accepted',
+    chipLabel: 'Accepted', // short label on the scope tile
     eyebrow: 'ACCEPTED PICKUPS',
     noun: 'Accepted Pickup',
     source: 'PICKUP',
@@ -145,8 +149,8 @@ export const SCOPES = {
     // assigned, on the way, picked up, reached shop.
     match: (status) => !PICKUP_REQUESTED.includes(status) && !PICKUP_CLOSED.includes(status),
     icon: ClipboardCheck,
-    color: '#087A0A',
-    bg: '#E6F7E3',
+    color: '#0891B2',
+    bg: '#CEE9F0',
     emptyTitle: 'No accepted pickups',
     emptyDescription: 'Pickups you have accepted will appear here until they reach the shop.',
   },
@@ -166,13 +170,14 @@ export const SCOPES = {
   READY_FOR_DELIVERY: {
     key: 'READY_FOR_DELIVERY',
     label: 'Ready for Delivery',
+    chipLabel: 'Ready', // short label on the scope tile
     eyebrow: 'READY FOR DELIVERY',
     noun: 'Booking Ready for Delivery',
     source: 'TICKET',
     match: (status) => READY_BAND.includes(status),
     icon: CheckCircle2,
     color: '#D97706',
-    bg: '#FEF3C7',
+    bg: '#F7E4CD',
     emptyTitle: 'Nothing ready for delivery',
     emptyDescription: 'Repaired devices waiting to be handed back to the customer will appear here.',
   },
@@ -196,8 +201,8 @@ export const SCOPES = {
     source: 'TICKET',
     matchRow: (row) => hasInvoice(row),
     icon: ReceiptIndianRupee,
-    color: '#B45309',
-    bg: '#FEF3C7',
+    color: '#DB2777',
+    bg: '#FDECF5',
     emptyTitle: 'No invoices yet',
     emptyDescription: 'A booking appears here once its invoice has been generated.',
   },
@@ -209,10 +214,41 @@ export const SCOPES = {
     source: 'TICKET',
     match: (status) => status === 'DELIVERED',
     icon: PackageCheck,
-    color: '#087A0A',
-    bg: '#E6F7E3',
+    color: '#609138',
+    bg: '#EFF4EB',
     emptyTitle: 'No delivered bookings',
     emptyDescription: 'Bookings handed back to the customer will appear here.',
+  },
+  CANCELLED: {
+    key: 'CANCELLED',
+    label: 'Cancelled',
+    eyebrow: 'CANCELLED BOOKINGS',
+    noun: 'Cancelled Booking',
+    source: 'TICKET',
+    match: (status) => status === 'CANCELLED',
+    icon: XCircle,
+    color: '#DC2626',
+    bg: '#FDECEC',
+    emptyTitle: 'No cancelled bookings',
+    emptyDescription: 'Bookings that were called off will appear here.',
+  },
+  /**
+   * Ticket status RETURNED, as the backend's lifecycle names it (a terminal
+   * status next to CANCELLED). A device that goes back unrepaired through the
+   * Return Device steps still ends on DELIVERED today, so it isn't counted here.
+   */
+  RETURNED: {
+    key: 'RETURNED',
+    label: 'Returned',
+    eyebrow: 'RETURNED BOOKINGS',
+    noun: 'Returned Booking',
+    source: 'TICKET',
+    match: (status) => status === 'RETURNED',
+    icon: Undo2,
+    color: '#B45309',
+    bg: '#FEF3C7',
+    emptyTitle: 'No returned bookings',
+    emptyDescription: 'Bookings marked returned will appear here.',
   },
 };
 
@@ -229,6 +265,8 @@ export const SCOPE_ORDER = [
   'ACTIVE',
   'READY_FOR_DELIVERY',
   'DELIVERED',
+  'CANCELLED',
+  'RETURNED',
 ];
 
 export const SCOPE_LIST = SCOPE_ORDER.map((k) => SCOPES[k]);

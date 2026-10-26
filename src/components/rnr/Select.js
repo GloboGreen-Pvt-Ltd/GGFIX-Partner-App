@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cn } from './cn';
+import SafeModal from '../SafeModal';
 
 /** Row height in compact mode — fixed, so the list can scroll to the selection. */
 const ROW = 44;
@@ -92,7 +93,7 @@ export function Select({
         {/* One line, shrinking before the chevron: a long value ("Andhra
             Pradesh") in a half-width field must not wrap past the box. */}
         <Text numberOfLines={1} style={{ flexShrink: 1, marginRight: 6 }} className={cn('text-base', selected ? 'text-text' : 'text-text-muted')}>{label}</Text>
-        <Ionicons name="chevron-down" size={16} color="#667066" />
+        <Ionicons name="chevron-down" size={16} color="#6B7280" />
       </Pressable>
 
       {/* Only mount the Modal while open. Keeping it permanently mounted made
@@ -100,14 +101,14 @@ export function Select({
           on a text-heavy form that per-keystroke cost was enough to stall the
           focused input's caret. */}
       {open && (
-        <Modal visible transparent animationType="fade" onRequestClose={close}>
+        <SafeModal visible transparent animationType="fade" onRequestClose={close}>
           <Pressable
             className={cn('flex-1 bg-black/50 justify-center px-6', compact && 'items-center')}
             onPress={close}
           >
             <Pressable
               className="bg-card rounded-2xl max-h-80 overflow-hidden"
-              style={compact ? { width: menuWidth } : null}
+              style={compact ? { width: menuWidth, maxWidth: '100%' } : { width: '100%', maxWidth: 560, alignSelf: 'center' }}
               onPress={(e) => e.stopPropagation()}
             >
               {menuTitle ? (
@@ -120,7 +121,7 @@ export function Select({
               {renderRows()}
             </Pressable>
           </Pressable>
-        </Modal>
+        </SafeModal>
       )}
     </>
   );

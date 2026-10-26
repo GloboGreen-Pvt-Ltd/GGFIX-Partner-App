@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -45,30 +46,30 @@ import { getSession } from '../../auth/session';
 import { uploadMedia } from '../../api/masterData';
 import { confirm, notify } from '../../components/confirm';
 import { rs } from '../../utils/responsive';
+import ImageViewerModal from '../../components/ImageViewerModal';
+import { ResponsiveModal } from '../../components/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — green #09AD2A, red #F84141, ink #1E1E1E, neutrals
-// #F8F8F8 / #F3F3F3, yellow #F3BF23. One palette for view AND edit mode.
-const BRAND_GREEN      = '#09AD2A';
-const BRAND_GREEN_DARK = '#078F23';
-const ACCENT_GREEN     = '#078F23';
+// GGFIX palette — green #035C6C, red #F84141, ink #111111, neutrals
+// #F3F4F6 / #F3F4F6, yellow #F3BF23. One palette for view AND edit mode.
+const BRAND_GREEN      = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
 
-const ACCENT = '#09AD2A';
-const PRIMARY = '#078F23';
-const BRIGHT = '#09AD2A';
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const ACCENT = '#035C6C';
+const PRIMARY = '#035C6C';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const DANGER = '#F84141';
 const DANGER_TINT = '#FEECEC';
 const STAR = '#F3BF23';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 14,
   shadowOffset: { width: 0, height: 6 },
@@ -76,7 +77,7 @@ const cardShadow = {
 };
 
 const softShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 3 },
@@ -193,10 +194,8 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
   const isCreate = route?.params?.mode === 'create';
   const r = useResponsive();
   const insets = useSafeAreaInsets();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 1080), alignSelf: 'center' } : null;
-  // Android / Apple repair cards sit side by side once there is room; the
-  // service tiles inside go 2 across (3 on a wide tablet).
-  const wideCategories = r.width >= 640;
+  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), r.maxWidth('wide')), alignSelf: 'center' } : null;
+  // Service tiles in the "all services" sheet go 2 across (3 on a wide tablet).
   const serviceCols = r.width >= 900 ? 3 : 2;
   const [ownerId, setOwnerId] = useState(null);
   const [shopId, setShopId] = useState(null);
@@ -536,6 +535,12 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
     Object.fromEntries(APPLE_SERVICES.map((s) => [s, true])),
   );
 
+  // View mode keeps the screen short by moving the long parts into sheets:
+  // every service of a category, a document's details, full-size photos.
+  const [serviceSheet, setServiceSheet] = useState(null); // 'ANDROID' | 'APPLE' | null
+  const [docSheet, setDocSheet] = useState(null);         // 'GST' | 'UDYAM' | null
+  const [viewer, setViewer] = useState(null);             // { images: [{ uri, label }], index }
+
   const toggleAndroid = (key) =>
     setAndroidSelected((prev) => ({ ...prev, [key]: !prev[key] }));
   const toggleApple = (key) =>
@@ -549,6 +554,42 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
   const activeAndroid = ANDROID_SERVICES.filter((s) => androidSelected[s]);
   const activeApple = APPLE_SERVICES.filter((s) => appleSelected[s]);
 
+  // Same two categories, wording and saved service lists as before — the
+  // compact card and the "all services" sheet both read from here.
+  const repairCategories = [
+    {
+      id: 'ANDROID', title: 'Android Repair', sub: 'Mobile / Tablet', Icon: Smartphone,
+      badge: 'All Major Brands Supported', items: activeAndroid, tone: 'green',
+      footerIcon: Phone, footerTitle: 'Fast. Reliable. Affordable.', footerBody: 'Keep your Android devices running like new!',
+    },
+    {
+      id: 'APPLE', title: 'Apple Repair', sub: 'iPhone / Tablet', Icon: Apple,
+      badge: 'Genuine Care Expertise', items: activeApple, tone: 'dark',
+      footerIcon: ShieldCheck, footerTitle: 'Premium Service. Peace of Mind.', footerBody: 'Expert care for your Apple devices!',
+    },
+  ];
+  const shopPhotos = [
+    { label: 'Front View', uri: frontImageUrl },
+    { label: 'Banner / Visiting Card', uri: bannerImageUrl },
+  ];
+  const shopDocs = [
+    { id: 'GST', label: 'GST Certificate', uri: gstCertificateUrl, numberLabel: 'GST Number', number: gstNumber },
+    { id: 'UDYAM', label: 'Udyam Certificate', uri: udyamCertificateUrl },
+  ];
+  const sheetCategory = repairCategories.find((c) => c.id === serviceSheet) || null;
+  const sheetDocIndex = shopDocs.findIndex((d) => d.id === docSheet);
+  const sheetDoc = sheetDocIndex >= 0 ? shopDocs[sheetDocIndex] : null;
+
+  // Full-screen viewer over the uploaded images of one group, opened on the
+  // tapped one.
+  const openViewer = (list, index) => {
+    const withUri = list.filter((x) => x.uri);
+    setViewer({
+      images: withUri.map((x) => ({ uri: x.uri, label: x.label })),
+      index: Math.max(0, withUri.indexOf(list[index])),
+    });
+  };
+
   if (!hydrated) {
     return (
       <View className="flex-1 items-center justify-center" style={{ backgroundColor: PAGE_BG }}>
@@ -556,6 +597,65 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       </View>
     );
   }
+
+  // Shop photo, name, since / location, trust badge and tagline — one row.
+  const renderIdentity = () => (
+    <View className="flex-row items-center" style={{ marginTop: rs(10) }}>
+      <View style={{ position: 'relative' }}>
+        <View className="items-center justify-center overflow-hidden" style={{ width: 52, height: 52, borderRadius: 15, backgroundColor: MINT }}>
+          {frontImageUrl ? (
+            <Image source={{ uri: frontImageUrl }} style={{ width: 52, height: 52 }} resizeMode="cover" />
+          ) : (
+            <Store size={21} color={ACCENT} />
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={() => setEditing(true)}
+          activeOpacity={0.85}
+          accessibilityLabel="Change shop photo"
+          style={{
+            position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11,
+            backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF',
+          }}
+        >
+          <Camera size={11} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+        <View className="flex-row items-center">
+          <Text className="font-extrabold" style={{ flexShrink: 1, fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>
+            {shopName || '—'}
+          </Text>
+          <View className="rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: MINT }}>
+            <Text className="font-extrabold" style={{ fontSize: 9, color: PRIMARY, letterSpacing: 0.8 }}>SHOP</Text>
+          </View>
+        </View>
+        {(shopSince || district || state) ? (
+          <View className="flex-row items-center flex-wrap" style={{ marginTop: 2 }}>
+            {shopSince ? (
+              <View className="flex-row items-center" style={{ marginRight: 10 }}>
+                <CalendarDays size={11} color={TEXT_SECONDARY} />
+                <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }}>Since {shopSince}</Text>
+              </View>
+            ) : null}
+            {(district || state) ? (
+              <View className="flex-row items-center" style={{ flexShrink: 1 }}>
+                <MapPin size={11} color={TEXT_SECONDARY} />
+                <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
+                  {[district, state].filter(Boolean).join(', ')}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        <View className="flex-row items-center rounded-full" style={{ alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: MINT }}>
+          <ShieldCheck size={11} color={PRIMARY} />
+          <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }} numberOfLines={1}>Your Trusted Device Service Partner</Text>
+        </View>
+        <Text className="italic" style={{ marginTop: 2, fontSize: 10.5, color: TEXT_SECONDARY }} numberOfLines={1}>Fix Today, A Greener Tomorrow</Text>
+      </View>
+    </View>
+  );
 
   // Shared hero — decorative mint leaf shapes (same low-risk plain-View
   // approximation used elsewhere in this app), title/subtitle + edit/view chip.
@@ -610,6 +710,8 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </Pressable>
           )}
         </View>
+        {/* View mode: the shop's identity rides in the same compact header. */}
+        {!editing && !isCreate ? <View style={capStyle}>{renderIdentity()}</View> : null}
       </View>
     </SafeAreaView>
   );
@@ -621,190 +723,89 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
 
       {!editing ? (
         <>
+        {/* View mode is sized to fit one phone screen: compact cards, with the
+            long lists and big previews moved into sheets. It still scrolls on
+            a very small screen rather than clip anything. */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           style={{ backgroundColor: PAGE_BG }}
-          contentContainerStyle={{ paddingBottom: 96 + insets.bottom }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 72 + Math.max(insets.bottom, 10) }}
         >
-          {/* One white surface; sections are separated by hairlines rather than
-              stacked as separate cards. Every detail from before is kept. */}
-          <View style={[{ backgroundColor: CARD_BG, borderBottomWidth: 1, borderBottomColor: BORDER }, capStyle]}>
-
-          {/* ── Shop identity ── */}
-          <View className="flex-row items-center" style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-            <View style={{ position: 'relative' }}>
-              <View className="items-center justify-center overflow-hidden" style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: MINT }}>
-                {frontImageUrl ? (
-                  <Image source={{ uri: frontImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-                ) : (
-                  <Store size={22} color={ACCENT} />
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => setEditing(true)}
-                activeOpacity={0.85}
-                accessibilityLabel="Change shop photo"
-                style={{
-                  position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11,
-                  backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF',
-                }}
-              >
-                <Camera size={11} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-              <View className="flex-row items-center">
-                <Text className="font-extrabold" style={{ flexShrink: 1, fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>
-                  {shopName || '—'}
-                </Text>
-                <View className="rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: MINT }}>
-                  <Text className="font-extrabold" style={{ fontSize: 9, color: PRIMARY, letterSpacing: 0.8 }}>SHOP</Text>
+          <View style={[{ gap: 10 }, capStyle]}>
+            {/* ── Repair service categories: two compact cards; tap for every service ── */}
+            <View>
+              <View className="flex-row items-center" style={{ marginBottom: 8 }}>
+                <View className="items-center justify-center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: MINT, marginRight: 8 }}>
+                  <Wrench size={13} color={ACCENT} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>Repair Service Categories</Text>
+                  <Text style={{ fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>Devices we service at our shop</Text>
+                </View>
+                <View className="flex-row items-center rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: '#FFF8E1' }}>
+                  <Award size={10} color={STAR} />
+                  <Text className="font-extrabold" style={{ marginLeft: 3, fontSize: 10, color: TEXT_PRIMARY }} numberOfLines={1}>Wide Range · Trusted</Text>
                 </View>
               </View>
-              <View className="flex-row items-center flex-wrap" style={{ marginTop: 3 }}>
-                {shopSince ? (
-                  <View className="flex-row items-center" style={{ marginRight: 10 }}>
-                    <CalendarDays size={11} color={TEXT_SECONDARY} />
-                    <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }}>Since {shopSince}</Text>
-                  </View>
-                ) : null}
-                {(district || state) ? (
-                  <View className="flex-row items-center" style={{ flexShrink: 1 }}>
-                    <MapPin size={11} color={TEXT_SECONDARY} />
-                    <Text style={{ marginLeft: 4, fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>
-                      {[district, state].filter(Boolean).join(', ')}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-              <View className="flex-row items-center rounded-full" style={{ alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: MINT }}>
-                <ShieldCheck size={11} color={PRIMARY} />
-                <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }} numberOfLines={1}>Your Trusted Device Service Partner</Text>
-              </View>
-              <Text className="italic" style={{ marginTop: 3, fontSize: 10.5, color: TEXT_SECONDARY }} numberOfLines={1}>Fix Today, A Greener Tomorrow</Text>
-            </View>
-          </View>
-
-          <Divider />
-
-          {/* ── Repair service categories: one card each, on a light band ── */}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 14, backgroundColor: PAGE_BG }}>
-            <View className="flex-row items-center" style={{ marginBottom: 12 }}>
-              <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: MINT, marginRight: 9 }}>
-                <Wrench size={15} color={ACCENT} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>Repair Service Categories</Text>
-                <View className="flex-row items-center" style={{ marginTop: 2 }}>
-                  <Text style={{ flex: 1, fontSize: 11, color: TEXT_SECONDARY }} numberOfLines={1}>Devices we service at our shop</Text>
-                  <View className="flex-row items-center rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: '#FFF8E1' }}>
-                    <Award size={10} color={STAR} />
-                    <Text className="font-extrabold" style={{ marginLeft: 3, fontSize: 9.5, color: TEXT_PRIMARY }} numberOfLines={1}>Wide Range · Trusted</Text>
-                  </View>
-                </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {repairCategories.map((cat) => (
+                  <RepairCategoryTile key={cat.id} cat={cat} onPress={() => setServiceSheet(cat.id)} />
+                ))}
               </View>
             </View>
-            <View style={{ flexDirection: wideCategories ? 'row' : 'column', gap: 12 }}>
-              <RepairCategoryCard
-                title="Android Repair"
-                sub="Mobile / Tablet"
-                Icon={Smartphone}
-                badge="All Major Brands Supported"
-                items={activeAndroid}
-                tone="green"
-                cols={serviceCols}
-                footerIcon={Phone}
-                footerTitle="Fast. Reliable. Affordable."
-                footerBody="Keep your Android devices running like new!"
-              />
-              <RepairCategoryCard
-                title="Apple Repair"
-                sub="iPhone / Tablet"
-                Icon={Apple}
-                badge="Genuine Care Expertise"
-                items={activeApple}
-                tone="dark"
-                cols={serviceCols}
-                footerIcon={ShieldCheck}
-                footerTitle="Premium Service. Peace of Mind."
-                footerBody="Expert care for your Apple devices!"
-              />
-            </View>
-          </View>
 
-          <Divider />
-
-          {/* ── Address + contact ── */}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-            <SectionHeader Icon={MapPin} label="SHOP ADDRESS" />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY, lineHeight: 19 }} numberOfLines={5}>
-              {fullAddress || '—'}
-            </Text>
-            {(mobile || openingTime || closingTime || workingDaysLabel(workingDays)) ? (
-              <View className="flex-row items-center flex-wrap" style={{ marginTop: 10, rowGap: 6, columnGap: 14 }}>
-                {mobile ? (
-                  <View className="flex-row items-center">
-                    <Phone size={13} color={PRIMARY} />
-                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>{mobile}</Text>
-                  </View>
-                ) : null}
-                {(openingTime || closingTime) ? (
-                  <View className="flex-row items-center">
-                    <Clock size={13} color={PRIMARY} />
-                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>
-                      {[openingTime, closingTime].filter(Boolean).join(' - ')}
-                    </Text>
-                  </View>
-                ) : null}
-                {workingDaysLabel(workingDays) ? (
-                  <View className="flex-row items-center">
-                    <CalendarDays size={13} color={PRIMARY} />
-                    <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }} numberOfLines={1}>{workingDaysLabel(workingDays)}</Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-
-          <Divider />
-
-          {/* ── Photos ── */}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-            <View className="flex-row items-center justify-between">
-              <SectionHeader Icon={Camera} label="SHOP PHOTOS" required />
-              {(!frontImageUrl || !bannerImageUrl) ? (
-                <View className="rounded-full" style={{ marginBottom: 10, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: DANGER_TINT }}>
-                  <Text className="font-extrabold" style={{ fontSize: 9.5, color: DANGER }}>Both required</Text>
+            {/* ── Address + contact ── */}
+            <View style={{ backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 12 }}>
+              <SectionHeader compact Icon={MapPin} label="SHOP ADDRESS" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY, lineHeight: 18 }}>
+                {fullAddress || '—'}
+              </Text>
+              {(mobile || openingTime || closingTime || workingDaysLabel(workingDays)) ? (
+                <View className="flex-row flex-wrap" style={{ marginTop: 8, gap: 6 }}>
+                  {mobile ? <InfoChip Icon={Phone} text={mobile} /> : null}
+                  {(openingTime || closingTime) ? (
+                    <InfoChip Icon={Clock} text={[openingTime, closingTime].filter(Boolean).join(' - ')} />
+                  ) : null}
+                  {workingDaysLabel(workingDays) ? <InfoChip Icon={CalendarDays} text={workingDaysLabel(workingDays)} /> : null}
                 </View>
               ) : null}
             </View>
-            <View className="flex-row" style={{ marginHorizontal: -4 }}>
-              <PhotoPreview label="Front View" uri={frontImageUrl} />
-              <PhotoPreview label="Banner / Visiting Card" uri={bannerImageUrl} />
-            </View>
-          </View>
 
-          <Divider />
-
-          {/* ── Documents — GST & Udyam certificates ── */}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-            <SectionHeader Icon={FileText} label="SHOP DOCUMENTS" />
-            <View className="flex-row" style={{ marginHorizontal: -4 }}>
-              <PhotoPreview label="GST Certificate" uri={gstCertificateUrl} />
-              <PhotoPreview label="Udyam Certificate" uri={udyamCertificateUrl} />
+            {/* ── Photos | Documents — 2-column grid; tap to preview ── */}
+            <View style={{ flexDirection: 'row', backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 12 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <SectionHeader compact Icon={Camera} label="SHOP PHOTOS" required />
+                <View className="flex-row" style={{ gap: 6 }}>
+                  {shopPhotos.map((p, i) => (
+                    <ThumbTile key={p.label} label={p.label} uri={p.uri} onPress={p.uri ? () => openViewer(shopPhotos, i) : undefined} />
+                  ))}
+                </View>
+                {(!frontImageUrl || !bannerImageUrl) ? (
+                  <View className="rounded-full" style={{ alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: DANGER_TINT }}>
+                    <Text className="font-extrabold" style={{ fontSize: 10, color: DANGER }}>Both required</Text>
+                  </View>
+                ) : null}
+              </View>
+              <View style={{ width: 1, backgroundColor: BORDER, marginHorizontal: 10 }} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <SectionHeader compact Icon={FileText} label="SHOP DOCUMENTS" />
+                <View className="flex-row" style={{ gap: 6 }}>
+                  {shopDocs.map((d) => (
+                    <ThumbTile key={d.id} label={d.label} uri={d.uri} placeholderIcon={FileText} onPress={() => setDocSheet(d.id)} />
+                  ))}
+                </View>
+              </View>
             </View>
-          </View>
           </View>
         </ScrollView>
 
         {/* Sticky Edit bar. The gradient's row layout is set in `style`:
-            LinearGradient isn't wired to NativeWind, so the old className
-            ("flex-row items-center justify-center") was ignored and the icon,
-            label and arrow stacked down the left edge. */}
+            LinearGradient isn't wired to NativeWind, so a className there is
+            ignored. */}
         <View
           style={{
             position: 'absolute', left: 0, right: 0, bottom: 0,
-            paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6,
+            paddingHorizontal: 16, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 10) + 4,
             backgroundColor: 'rgba(255,255,255,0.97)', borderTopWidth: 1, borderTopColor: BORDER,
           }}
         >
@@ -820,7 +821,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 colors={[ACCENT, PRIMARY]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={{ borderRadius: 999, minHeight: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                style={{ borderRadius: 999, minHeight: 46, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Pencil size={16} color="#FFFFFF" />
                 <Text className="text-white font-extrabold" style={{ marginLeft: 8, fontSize: 13 }}>Edit Shop Information</Text>
@@ -829,10 +830,95 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Every service of one category — the full card the screen used to show. */}
+        <ResponsiveModal visible={!!sheetCategory} onClose={() => setServiceSheet(null)} maxWidth={620}>
+          <SheetHandle />
+          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            {sheetCategory ? (
+              <RepairCategoryCard
+                title={sheetCategory.title}
+                sub={sheetCategory.sub}
+                Icon={sheetCategory.Icon}
+                badge={sheetCategory.badge}
+                items={sheetCategory.items}
+                tone={sheetCategory.tone}
+                cols={serviceCols}
+                footerIcon={sheetCategory.footerIcon}
+                footerTitle={sheetCategory.footerTitle}
+                footerBody={sheetCategory.footerBody}
+                style={{ flex: 0 }}
+              />
+            ) : null}
+          </ScrollView>
+          <SheetCloseButton onPress={() => setServiceSheet(null)} />
+        </ResponsiveModal>
+
+        {/* Document details — status, number (GST) and the certificate itself. */}
+        <ResponsiveModal visible={!!sheetDoc} onClose={() => setDocSheet(null)} maxWidth={480}>
+          <SheetHandle />
+          {sheetDoc ? (
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+              <View className="flex-row items-center" style={{ marginBottom: 12 }}>
+                <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: MINT }}>
+                  <FileText size={18} color={ACCENT} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+                  <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{sheetDoc.label}</Text>
+                  <Text className="font-extrabold" style={{ marginTop: 1, fontSize: 11.5, color: sheetDoc.uri ? ACCENT : DANGER }}>
+                    {sheetDoc.uri ? 'Uploaded' : 'Not uploaded'}
+                  </Text>
+                </View>
+              </View>
+              {sheetDoc.numberLabel ? (
+                <View className="flex-row items-center" style={{ paddingVertical: 10, marginBottom: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: BORDER }}>
+                  <Text style={{ flex: 1, fontSize: 12, color: TEXT_SECONDARY }}>{sheetDoc.numberLabel}</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 13, color: sheetDoc.number ? TEXT_PRIMARY : TEXT_SECONDARY }}>
+                    {sheetDoc.number || 'Not added'}
+                  </Text>
+                </View>
+              ) : null}
+              {sheetDoc.uri ? (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${sheetDoc.label} full screen`}
+                  onPress={() => {
+                    // Close the sheet first: iOS won't present a second modal
+                    // while this one is still sliding out.
+                    setDocSheet(null);
+                    setTimeout(() => openViewer(shopDocs, sheetDocIndex), 320);
+                  }}
+                >
+                  <Image source={{ uri: sheetDoc.uri }} style={{ width: '100%', height: 220, borderRadius: 12, backgroundColor: PAGE_BG }} resizeMode="contain" />
+                  <Text style={{ marginTop: 6, fontSize: 11, color: TEXT_SECONDARY, textAlign: 'center' }}>Tap to view full screen</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ alignItems: 'center', paddingVertical: 22, borderRadius: 12, backgroundColor: MINT, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C7E6EA' }}>
+                  <ImageIcon size={24} color={BRAND_GREEN_DARK} />
+                  <Text style={{ marginTop: 6, fontSize: 12, color: TEXT_SECONDARY, textAlign: 'center' }}>
+                    Upload it from Edit Shop Information.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          ) : null}
+          <SheetCloseButton onPress={() => setDocSheet(null)} />
+        </ResponsiveModal>
+
+        <ImageViewerModal
+          visible={!!viewer}
+          images={viewer?.images || []}
+          index={viewer?.index || 0}
+          onClose={() => setViewer(null)}
+        />
         </>
       ) : (
         <>
-          <ScrollView
+          {/* Keyboard-aware: the focused field scrolls clear of the keyboard and
+              the sticky save bar (lower address / time fields sat under it). */}
+          <KeyboardAwareScrollView
+            bottomOffset={90}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             style={{ backgroundColor: PAGE_BG }}
@@ -936,7 +1022,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                   value={locSearch}
                   onChangeText={onSearchChange}
                   placeholder="Type shop name, area or pincode"
-                  placeholderTextColor="#8E8E8E"
+                  placeholderTextColor="#9CA3AF"
                   autoCorrect={false}
                   style={{
                     flex: 1,
@@ -1005,7 +1091,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                   justifyContent: 'center',
                   backgroundColor: MINT,
                   borderWidth: 1.5,
-                  borderColor: '#CDEFD5',
+                  borderColor: '#C7E6EA',
                   borderRadius: 12,
                   paddingVertical: 11,
                 }}
@@ -1173,7 +1259,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               </View>
             </View>
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Sticky save bar */}
           <View
@@ -1229,13 +1315,14 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function SectionHeader({ Icon, label, required }) {
+function SectionHeader({ Icon, label, required, compact }) {
+  const d = compact ? 22 : 26;
   return (
-    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
-      <View className="items-center justify-center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: MINT, marginRight: 8 }}>
-        <Icon size={13} color={BRAND_GREEN_DARK} />
+    <View className="flex-row items-center" style={{ marginBottom: compact ? 8 : 10 }}>
+      <View className="items-center justify-center" style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: MINT, marginRight: compact ? 6 : 8 }}>
+        <Icon size={compact ? 12 : 13} color={BRAND_GREEN_DARK} />
       </View>
-      <Text className="font-extrabold" style={{ fontSize: 11, color: BRAND_GREEN_DARK, letterSpacing: 1.2 }}>
+      <Text className="font-extrabold" style={{ flexShrink: 1, fontSize: 11, color: BRAND_GREEN_DARK, letterSpacing: compact ? 0.8 : 1.2 }}>
         {label}
       </Text>
       {required ? <Text style={{ marginLeft: 3, fontSize: 12, color: DANGER }}>*</Text> : null}
@@ -1243,20 +1330,15 @@ function SectionHeader({ Icon, label, required }) {
   );
 }
 
-/** Full-width hairline between view-mode sections. */
-function Divider() {
-  return <View style={{ height: 1, backgroundColor: BORDER }} />;
-}
-
 // View-mode repair category card: gradient header (icon, title, device types,
 // badge), the owner's selected services as a grid of identical fixed-size
 // tiles (the SAME activeAndroid / activeApple lists from the saved toggles —
 // nothing fabricated), and a tagline panel. Android = green, Apple = dark.
 // The gradient's row layout lives in `style` (LinearGradient ignores className).
-function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, footerIcon: FooterIcon, footerTitle, footerBody }) {
+function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, footerIcon: FooterIcon, footerTitle, footerBody, style }) {
   const dark = tone === 'dark';
   return (
-    <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
+    <View style={[{ flex: 1, borderRadius: 18, overflow: 'hidden', backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, ...softShadow }, style]}>
       <LinearGradient
         colors={dark ? ['#363636', TEXT_PRIMARY] : [ACCENT, PRIMARY]}
         start={{ x: 0, y: 0 }}
@@ -1286,7 +1368,7 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, fo
           <View className="flex-row flex-wrap" style={{ marginHorizontal: -3 }}>
             {items.map((svc) => (
               <View key={svc} style={{ width: `${100 / cols}%`, padding: 3 }}>
-                <View className="flex-row items-center" style={{ height: 38, borderRadius: 10, paddingHorizontal: 9, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: SOFT_MINT }}>
+                <View className="flex-row items-center" style={{ minHeight: 38, borderRadius: 10, paddingHorizontal: 9, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: SOFT_MINT }}>
                   <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: dark ? TEXT_PRIMARY : ACCENT, alignItems: 'center', justifyContent: 'center' }}>
                     <CheckCircle2 size={11} color="#FFFFFF" />
                   </View>
@@ -1318,6 +1400,103 @@ function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, fo
   );
 }
 
+// Compact view-mode category card: title, device types, service count and
+// badge. Tapping it opens the full RepairCategoryCard in a sheet.
+function RepairCategoryTile({ cat, onPress }) {
+  const dark = cat.tone === 'dark';
+  const { Icon } = cat;
+  const tint = dark ? TEXT_PRIMARY : ACCENT;
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${cat.title}, ${cat.items.length} services. Show all services`}
+      style={{ flex: 1, minWidth: 0, borderRadius: 16, overflow: 'hidden', backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, ...softShadow }}
+    >
+      <LinearGradient
+        colors={dark ? ['#363636', TEXT_PRIMARY] : [ACCENT, PRIMARY]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingHorizontal: 10, paddingVertical: 9, flexDirection: 'row', alignItems: 'center' }}
+      >
+        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={17} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
+          <Text className="font-extrabold" style={{ fontSize: 13.5, color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+            {cat.title}
+          </Text>
+          <Text style={{ marginTop: 1, fontSize: 10.5, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>{cat.sub}</Text>
+        </View>
+      </LinearGradient>
+      <View style={{ paddingHorizontal: 10, paddingTop: 7, paddingBottom: 9 }}>
+        <View className="flex-row items-end">
+          <Text className="font-extrabold" style={{ fontSize: 20, lineHeight: 24, color: tint }}>{cat.items.length}</Text>
+          <Text style={{ marginLeft: 4, marginBottom: 3, fontSize: 11, fontWeight: '600', color: TEXT_SECONDARY }}>
+            {cat.items.length === 1 ? 'service' : 'services'}
+          </Text>
+        </View>
+        <Text style={{ marginTop: 1, fontSize: 10.5, lineHeight: 14, color: TEXT_SECONDARY }} numberOfLines={2}>{cat.badge}</Text>
+        <View className="flex-row items-center" style={{ marginTop: 7 }}>
+          <Text className="font-extrabold" style={{ fontSize: 11.5, color: tint }}>View all</Text>
+          <ChevronRight size={14} color={tint} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// Phone / hours / working days pill on the address card.
+function InfoChip({ Icon, text }) {
+  return (
+    <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 9, paddingVertical: 4, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: BORDER }}>
+      <Icon size={12} color={PRIMARY} />
+      <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '600', color: TEXT_PRIMARY }}>{text}</Text>
+    </View>
+  );
+}
+
+// One small preview in the Photos / Documents grid; tap opens it.
+function ThumbTile({ label, uri, onPress, placeholderIcon: PlaceholderIcon = ImageIcon }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={uri ? label : `${label}, not uploaded`}
+      style={{ flex: 1, minWidth: 0 }}
+    >
+      {uri ? (
+        <Image source={{ uri }} style={{ width: '100%', height: 64, borderRadius: 10, backgroundColor: MINT }} resizeMode="cover" />
+      ) : (
+        <View style={{ width: '100%', height: 64, borderRadius: 10, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C7E6EA', paddingHorizontal: 2 }}>
+          <PlaceholderIcon size={18} color={BRAND_GREEN_DARK} />
+          <Text style={{ marginTop: 2, fontSize: 10, color: TEXT_SECONDARY, textAlign: 'center' }}>Not uploaded</Text>
+        </View>
+      )}
+      <Text style={{ marginTop: 4, fontSize: 10.5, lineHeight: 13, color: TEXT_SECONDARY, textAlign: 'center' }} numberOfLines={2}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function SheetHandle() {
+  return <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, marginBottom: 12 }} />;
+}
+
+function SheetCloseButton({ onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      style={{ marginTop: 12, height: 46, borderRadius: 12, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }}>Close</Text>
+    </TouchableOpacity>
+  );
+}
+
 function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
   return (
     <View
@@ -1346,7 +1525,7 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
                 style={{
                   width: 16, height: 16, borderRadius: 8,
                   borderWidth: 1.5,
-                  borderColor: active ? BRAND_GREEN_DARK : '#D6D6D6',
+                  borderColor: active ? BRAND_GREEN_DARK : '#D1D5DB',
                   backgroundColor: active ? BRAND_GREEN_DARK : '#FFFFFF',
                   alignItems: 'center', justifyContent: 'center',
                   marginRight: 6,
@@ -1356,7 +1535,7 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
               </View>
               <Text
                 className="text-[11px] flex-1"
-                style={{ color: active ? TEXT_PRIMARY : '#8E8E8E' }}
+                style={{ color: active ? TEXT_PRIMARY : '#9CA3AF' }}
                 numberOfLines={1}
               >
                 {name}
@@ -1365,37 +1544,6 @@ function CategoryColumnEdit({ title, sub, Icon, items, selected, onToggle }) {
           );
         })}
       </View>
-    </View>
-  );
-}
-
-function PhotoPreview({ label, uri }) {
-  return (
-    <View style={{ flex: 1, marginHorizontal: 4 }}>
-      <Text className="text-[10.5px] text-gray-500 mb-1.5" numberOfLines={1}>
-        {label}
-      </Text>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={{ width: '100%', height: 96, borderRadius: 12, backgroundColor: MINT }}
-          resizeMode="cover"
-        />
-      ) : (
-        <View
-          style={{
-            width: '100%', height: 96, borderRadius: 12,
-            backgroundColor: MINT,
-            alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1.5,
-            borderStyle: 'dashed',
-            borderColor: '#CDEFD5',
-          }}
-        >
-          <ImageIcon size={22} color={BRAND_GREEN_DARK} />
-          <Text className="text-[10px] text-gray-500 mt-1">Not uploaded</Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -1415,7 +1563,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
           backgroundColor: MINT,
           borderWidth: 1.5,
           borderStyle: 'dashed',
-          borderColor: '#CDEFD5',
+          borderColor: '#C7E6EA',
           alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden',
         }}
@@ -1427,7 +1575,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
               <View
                 style={{
                   position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(30, 30, 30, 0.45)',
+                  backgroundColor: 'rgba(17, 17, 17, 0.45)',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
@@ -1439,7 +1587,7 @@ function PhotoUpload({ label, url, busy, onPress }) {
                   position: 'absolute', bottom: 6, right: 6,
                   paddingHorizontal: 8, paddingVertical: 3,
                   borderRadius: 999,
-                  backgroundColor: 'rgba(30, 30, 30, 0.7)',
+                  backgroundColor: 'rgba(17, 17, 17, 0.7)',
                   flexDirection: 'row', alignItems: 'center',
                 }}
               >
@@ -1490,7 +1638,7 @@ function Field({ label, small, last, ...inputProps }) {
         {label}
       </Text>
       <TextInput
-        placeholderTextColor="#8E8E8E"
+        placeholderTextColor="#9CA3AF"
         {...inputProps}
         style={{
           backgroundColor: PAGE_BG,

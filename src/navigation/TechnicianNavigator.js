@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import colors from '../theme/colors';
 import BackButton from '../components/BackButton';
@@ -12,6 +13,7 @@ import AddRepairNotesScreen from '../screens/owner/technician/AddRepairNotesScre
 import UploadRepairImagesScreen from '../screens/owner/technician/UploadRepairImagesScreen';
 import TechnicianApplyLeaveScreen from '../screens/owner/technician/TechnicianApplyLeaveScreen';
 import TechnicianKycUploadScreen from '../screens/owner/technician/TechnicianKycUploadScreen';
+import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,7 +38,21 @@ export default function TechnicianNavigator({ session, onLogout }) {
       <Stack.Screen
         name="TechnicianProfile"
         component={TechnicianProfileScreen}
-        options={{ title: 'My Profile', headerRight: () => <Button onPress={onLogout} title="Log out" color={colors.primary} /> }}
+        options={{
+          title: 'My Profile',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={onLogout}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Log out"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#F8C9C9', backgroundColor: '#FEECEC' }}
+            >
+              <Ionicons name="log-out-outline" size={16} color="#F84141" />
+              <Text style={{ color: '#F84141', fontSize: 12, fontWeight: '800' }}>Log out</Text>
+            </TouchableOpacity>
+          ),
+        }}
       />
       <Stack.Screen name="TechnicianDashboard" component={TechnicianDashboardScreen} options={{ title: 'Dashboard' }} />
       <Stack.Screen name="AssignedTickets" component={AssignedTicketsScreen} options={{ title: 'My Tickets' }} />
@@ -46,6 +62,8 @@ export default function TechnicianNavigator({ session, onLogout }) {
       <Stack.Screen name="UploadRepairImages" component={UploadRepairImagesScreen} options={{ title: 'Upload Images' }} />
       <Stack.Screen name="TechnicianApplyLeave" component={TechnicianApplyLeaveScreen} options={{ title: 'Apply for leave' }} />
       <Stack.Screen name="TechnicianKycUpload" component={TechnicianKycUploadScreen} options={{ title: 'My KYC' }} />
+      <Stack.Screen name="Terms" component={LegalDocumentScreen} initialParams={{ type: 'TERMS' }} options={{ headerShown: false }} />
+      <Stack.Screen name="PrivacyPolicy" component={LegalDocumentScreen} initialParams={{ type: 'PRIVACY' }} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

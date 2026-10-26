@@ -28,17 +28,17 @@ import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const PAGE_BG = '#F8F8F8';
+const GREEN = '#035C6C';
+const GREEN_DEEP = '#035C6C';
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const HAIR = '#F3F3F3';
-const BORDER = '#E6E6E6';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const SUBTLE = '#8A8A8A';
+const HAIR = '#F3F4F6';
+const BORDER = '#E5E7EB';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const SUBTLE = '#9CA3AF';
 const RED = '#F84141';
 const RED_TINT = '#FEECEC';
 const RED_TEXT = '#D63232';
@@ -63,9 +63,9 @@ const cardShadow = {
 // `reportBg` — the tint handed to BookingStatusReportScreen's `bg` param —
 // is kept at its exact pre-redesign value (every one of these tiles used the
 // iOS theme's C.blue/green/teal/cyan/indigo, which all resolve to the same
-// '#16BB05') even though the tile itself no longer shows that colour here;
+// '#035C6C') even though the tile itself no longer shows that colour here;
 // this screen's own colours are a separate, purely visual change.
-const REPORT_BG_BRAND = '#16BB05';
+const REPORT_BG_BRAND = '#035C6C';
 
 const TOTAL_TILE = {
   key: 'TOTAL_BOOKING',
@@ -303,6 +303,8 @@ export default function BookingStatusScreen({ navigation }) {
                 label={t.label}
                 value={pad2(countFor(t))}
                 onPress={() => openReport(t)}
+                // 2 per row on phones, all 4 in one row on tablets.
+                basis={r.isTablet ? '22%' : '45%'}
               />
             ))}
           </View>
@@ -349,7 +351,7 @@ function SectionHeader({ title, subtitle }) {
 
 // One of the 2x2 metric cards — small mint icon well beside the count and
 // label (colour-coding lives on the Working Pending rows below, not here).
-function MetricCard({ icon: Icon, label, value, onPress }) {
+function MetricCard({ icon: Icon, label, value, onPress, basis = '45%' }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -357,7 +359,7 @@ function MetricCard({ icon: Icon, label, value, onPress }) {
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
       style={{
-        flexGrow: 1, flexBasis: '45%',
+        flexGrow: 1, flexBasis: basis,
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: CARD_BG, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9,
         borderWidth: 1, borderColor: HAIR, ...cardShadow,

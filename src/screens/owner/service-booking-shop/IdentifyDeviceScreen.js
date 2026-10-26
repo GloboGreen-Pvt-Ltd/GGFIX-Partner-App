@@ -2,12 +2,13 @@ import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { ScanLine, Search, Smartphone, Sparkles, ChevronRight, Hash } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/rnr';
+import { ResponsiveContainer } from '../../../components/responsive';
 import { notify } from '../../../components/confirm';
 import { lookupImei } from '../../../api/imei';
 import { resolveDeviceImageSource } from '../../../utils/images';
 
-const ACCENT = '#087A0A';
-const ACCENT_DARK = '#087A0A';
+const ACCENT = '#035C6C';
+const ACCENT_DARK = '#035C6C';
 
 // IMEI is 14–17 digits; 15 is the standard IMEI. Keep only digits, cap length.
 function cleanImei(raw) {
@@ -111,6 +112,8 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
       <ScreenHeader title="Identify Device" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        {/* Capped + centred on tablets; phones keep full width. */}
+        <ResponsiveContainer kind="form" pad={false}>
         {/* Hero */}
         <View className="items-center mt-2 mb-4">
           <View className="h-14 w-14 rounded-3xl bg-success/10 items-center justify-center mb-2.5">
@@ -129,8 +132,8 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           className="rounded-2xl overflow-hidden active:opacity-90 mb-3"
           style={{
             borderWidth: 1.5,
-            borderColor: 'rgba(8, 122, 10, 0.35)',
-            backgroundColor: 'rgba(8, 122, 10, 0.06)',
+            borderColor: 'rgba(3, 92, 108, 0.35)',
+            backgroundColor: 'rgba(3, 92, 108, 0.06)',
           }}
         >
           <View className="flex-row items-center p-3">
@@ -160,14 +163,14 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           </View>
           <View
             className="flex-row items-center rounded-xl px-3"
-            style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF' }}
+            style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
           >
-            <Smartphone size={16} color="#8FA08F" />
+            <Smartphone size={16} color="#9CA3AF" />
             <TextInput
               className="flex-1 py-3 ml-2 text-text text-[13px]"
               style={{ letterSpacing: 1 }}
               placeholder="e.g. 356938035643809"
-              placeholderTextColor="#8FA08F"
+              placeholderTextColor="#9CA3AF"
               keyboardType="number-pad"
               value={imei}
               onChangeText={(v) => setImei(cleanImei(v))}
@@ -191,7 +194,7 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
           disabled={!valid || loading}
           className="rounded-2xl overflow-hidden active:opacity-90"
           style={{
-            backgroundColor: valid && !loading ? ACCENT : '#8FA08F',
+            backgroundColor: valid && !loading ? ACCENT : '#9CA3AF',
             opacity: valid && !loading ? 1 : 0.7,
           }}
         >
@@ -216,9 +219,10 @@ export default function IdentifyDeviceScreen({ navigation, route }) {
 
         {/* Trust strip */}
         <View className="flex-row items-center justify-center mt-5">
-          <Sparkles size={13} color="#8FA08F" />
+          <Sparkles size={13} color="#9CA3AF" />
           <Text className="text-[11px] text-text-muted ml-1.5">Powered by IMEI database lookup</Text>
         </View>
+        </ResponsiveContainer>
       </ScrollView>
     </View>
   );

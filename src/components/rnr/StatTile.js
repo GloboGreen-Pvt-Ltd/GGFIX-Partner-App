@@ -17,7 +17,7 @@ export function StatTile({ icon, label, value, palette = 'primary', onPress, cla
     <Wrapper
       onPress={onPress}
       className={cn('flex-1 bg-card rounded-2xl border border-border p-3', className)}
-      style={{ shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+      style={{ shadowColor: '#111111', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
     >
       <View className={cn('h-9 w-9 rounded-full items-center justify-center mb-2', p.bg)}>
         {icon}

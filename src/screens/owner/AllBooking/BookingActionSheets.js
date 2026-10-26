@@ -18,7 +18,7 @@
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, TextInput, View,
   useWindowDimensions,
   // Aliased: `Keyboard` below is the lucide GLYPH used on the "Enter IMEI" row.
   Keyboard as RNKeyboard,
@@ -27,7 +27,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot from 'react-native-view-shot';
 import {
-  Share2,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
@@ -44,22 +43,23 @@ import {
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { Select } from '../../../components/rnr';
-import { stepBlockedBy } from '../../common/serviceHistoryPhases';
+import { stepBlockedBy, withoutSupersededVerdicts } from '../../common/serviceHistoryPhases';
 import {
   assignPickupPerson,
   confirmShopRepairBooking,
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
+import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ReceiptCard, buildReceiptMessage, receiptShopFromSession } from './ReceiptCard';
 import { getSession } from '../../../auth/session';
 import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 
-const BRAND_GREEN_DARK = '#087A0A';
+const BRAND_GREEN_DARK = '#035C6C';
 // The currently-assigned pickup person is marked in red so the owner can see
 // at a glance who is already on the job before picking a replacement.
 const ASSIGNED_RED = '#DC2626';
-const TEXT_DARK = '#172117';
+const TEXT_DARK = '#111111';
 
 // Employees eligible to carry a pickup. Matches OwnerEmployeeListScreen's
 // PICKUP_ROLE — the roleLabel is the only thing separating a pickup person
@@ -100,10 +100,24 @@ function useKeyboardHeight() {
   return height;
 }
 
-function SheetShell({ visible, onClose, title, subtitle, children, maxHeightRatio }) {
+function SheetShell({ visible, onClose, ...rest }) {
+  // A Modal is its own edge-to-edge window, so its insets (and the keyboard
+  // maths built on them) are measured by the body, rendered inside it.
+  return (
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <SheetShellBody onClose={onClose} {...rest} />
+    </SafeModal>
+  );
+}
+
+function SheetShellBody({ onClose, title, subtitle, children, maxHeightRatio }) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
-  const kb = useKeyboardHeight();
+  const rawKb = useKeyboardHeight();
+  // Android reports the keyboard as ime − systemBars, but this Modal window is
+  // edge-to-edge (RN forces it), so the bar under the keyboard is added back —
+  // otherwise the sheet's last row sits that far behind the keys.
+  const kb = rawKb > 0 ? rawKb + (Platform.OS === 'android' ? insets.bottom : 0) : 0;
 
   // With the keyboard up the gesture bar / nav buttons are behind it, so the
   // safe-area inset would be padding on top of padding. It is one or the other.
@@ -117,45 +131,47 @@ function SheetShell({ visible, onClose, title, subtitle, children, maxHeightRati
   const ratioCap = maxHeightRatio ? winH * maxHeightRatio : Infinity;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Pressable
+      style={{
+        flex: 1,
+        backgroundColor: 'rgba(17, 17, 17, 0.5)',
+        justifyContent: 'flex-end',
+        // What actually lifts the sheet clear of the keys.
+        paddingBottom: kb,
+      }}
+      onPress={onClose}
+    >
       <Pressable
+        onPress={(e) => e.stopPropagation()}
         style={{
-          flex: 1,
-          backgroundColor: 'rgba(23, 33, 23, 0.5)',
-          justifyContent: 'flex-end',
-          // What actually lifts the sheet clear of the keys.
-          paddingBottom: kb,
+          backgroundColor: '#FFFFFF',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: bottomPad,
+          maxHeight: Math.min(available, ratioCap),
+          // Tablets: a centred sheet, not a full-width strip.
+          width: '100%',
+          maxWidth: 560,
+          alignSelf: 'center',
         }}
-        onPress={onClose}
       >
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
+        <View
           style={{
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            paddingBottom: bottomPad,
-            maxHeight: Math.min(available, ratioCap),
+            alignSelf: 'center', width: 44, height: 5, borderRadius: 999,
+            backgroundColor: '#E5E7EB', marginBottom: 14,
           }}
-        >
-          <View
-            style={{
-              alignSelf: 'center', width: 44, height: 5, borderRadius: 999,
-              backgroundColor: '#E2E8E2', marginBottom: 14,
-            }}
-          />
-          <Text className="text-[13px] font-extrabold text-gray-900">{title}</Text>
-          {subtitle ? (
-            <Text className="text-[11px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
-          ) : (
-            <View style={{ height: 12 }} />
-          )}
-          {children}
-        </Pressable>
+        />
+        <Text className="text-[13px] font-extrabold text-gray-900">{title}</Text>
+        {subtitle ? (
+          <Text className="text-[11px] text-gray-500 mt-0.5 mb-3" numberOfLines={1}>{subtitle}</Text>
+        ) : (
+          <View style={{ height: 12 }} />
+        )}
+        {children}
       </Pressable>
-    </Modal>
+    </Pressable>
   );
 }
 
@@ -168,22 +184,22 @@ function ActionRow({ icon, tint, title, onPress, disabled }) {
       onPress={onPress}
       disabled={disabled}
       className="flex-row items-center rounded-2xl px-3 py-2.5 mb-2 active:opacity-80"
-      style={{ borderWidth: 1, borderColor: '#E2E8E2', opacity: disabled ? 0.5 : 1 }}
+      style={{ borderWidth: 1, borderColor: '#E5E7EB', opacity: disabled ? 0.5 : 1 }}
     >
       <View className="w-9 h-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: tint.bg }}>
         {icon}
       </View>
       <Text className="flex-1 text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{title}</Text>
-      <ChevronRight size={16} color="#CBD5CB" />
+      <ChevronRight size={16} color="#D1D5DB" />
     </Pressable>
   );
 }
 
 const TINT = {
-  green: { bg: '#E6F7E3', fg: BRAND_GREEN_DARK },
-  blue:  { bg: '#E6F7E3', fg: '#16BB05' },
+  green: { bg: '#E5F3F5', fg: BRAND_GREEN_DARK },
+  blue:  { bg: '#E5F3F5', fg: '#035C6C' },
   amber: { bg: '#FEF3C7', fg: '#B45309' },
-  slate: { bg: '#EFF5EE', fg: '#667066' },
+  slate: { bg: '#E5F3F5', fg: '#6B7280' },
 };
 
 // ── Service status: type first, then the statuses that type allows ───
@@ -315,7 +331,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
         className="flex-row items-center rounded-2xl px-3 py-3"
         style={{
           borderWidth: 1,
-          borderColor: open ? BRAND_GREEN_DARK : '#E2E8E2',
+          borderColor: open ? BRAND_GREEN_DARK : '#E5E7EB',
           backgroundColor: '#FFFFFF',
           opacity: disabled ? 0.5 : 1,
         }}
@@ -325,7 +341,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
         </Text>
         <ChevronDown
           size={18}
-          color={open ? BRAND_GREEN_DARK : '#8FA08F'}
+          color={open ? BRAND_GREEN_DARK : '#9CA3AF'}
           style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}
         />
       </Pressable>
@@ -333,7 +349,7 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
       {open ? (
         <View
           className="rounded-2xl mt-1.5 overflow-hidden"
-          style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#F7FAF7' }}
+          style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F3F4F6' }}
         >
           {options.map((opt, i) => {
             const selected = opt.key === value?.key;
@@ -344,8 +360,8 @@ function StatusDropdown({ label, value, options, onSelect, open, onToggle, disab
                 className="flex-row items-center px-3 py-3 active:opacity-70"
                 style={{
                   borderTopWidth: i === 0 ? 0 : 1,
-                  borderTopColor: '#E2E8E2',
-                  backgroundColor: selected ? '#E6F7E3' : 'transparent',
+                  borderTopColor: '#E5E7EB',
+                  backgroundColor: selected ? '#E5F3F5' : 'transparent',
                 }}
               >
                 <View className="flex-1">
@@ -404,8 +420,10 @@ export function ServiceStatusSheet({
     (async () => {
       try {
         const rows = await ticketApi.get(`/tickets/${booking.id}/events`);
+        // A Customer Approved / Rejected older than the latest re-estimate no
+        // longer counts — the latest record leads (see withoutSupersededVerdicts).
         const keys = new Set(
-          (Array.isArray(rows) ? rows : []).map((e) => String(e.status || '').toUpperCase()),
+          withoutSupersededVerdicts(rows).map((e) => String(e.status || '').toUpperCase()),
         );
         // The booking's own lifecycle status counts as a recorded step too.
         // Both terminals are also what the server refuses to move past, so a
@@ -484,7 +502,7 @@ export function ServiceStatusSheet({
         {doneLabel ? (
           <View
             className="rounded-2xl px-3 py-2.5 mb-4"
-            style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
+            style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' }}
           >
             <Text className="text-[10px] text-gray-500">Current status</Text>
             <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
@@ -588,7 +606,7 @@ const RS_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const RS_HOURS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1).padStart(2, '0') }));
 const RS_MINUTES = Array.from({ length: 60 }, (_, m) => ({ value: m, label: String(m).padStart(2, '0') }));
 const RS_MERIDIEM = [{ value: 'AM', label: 'AM' }, { value: 'PM', label: 'PM' }];
-const RS_GREEN = '#09AD2A';
+const RS_GREEN = '#035C6C';
 
 const rsStartOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const rsStartOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -665,7 +683,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
     }
   };
 
-  const timeWell = { height: 42, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F3F3F3', justifyContent: 'center' };
+  const timeWell = { height: 42, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F3F4F6', justifyContent: 'center' };
   const fieldLabel = (text) => (
     <Text className="text-[10px] font-extrabold uppercase text-gray-400 mb-1.5" style={{ letterSpacing: 0.7 }}>{text}</Text>
   );
@@ -681,7 +699,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
       <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View
           className="rounded-2xl px-3 py-2.5 mb-3"
-          style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' }}
         >
           <Text className="text-[10px] text-gray-500">Current delivery</Text>
           <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
@@ -695,7 +713,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
             onPress={() => setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
             disabled={!canPrev}
             className="w-8 h-8 rounded-xl items-center justify-center active:opacity-70"
-            style={{ backgroundColor: '#F3F3F3', opacity: canPrev ? 1 : 0.35 }}
+            style={{ backgroundColor: '#F3F4F6', opacity: canPrev ? 1 : 0.35 }}
             accessibilityRole="button"
             accessibilityLabel="Previous month"
           >
@@ -707,7 +725,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
           <Pressable
             onPress={() => setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
             className="w-8 h-8 rounded-xl items-center justify-center active:opacity-70"
-            style={{ backgroundColor: '#F3F3F3' }}
+            style={{ backgroundColor: '#F3F4F6' }}
             accessibilityRole="button"
             accessibilityLabel="Next month"
           >
@@ -744,7 +762,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
                       style={{
                         fontSize: 12,
                         fontWeight: sel ? '700' : '500',
-                        color: sel ? '#FFFFFF' : past ? '#C7CFC7' : outside ? '#8FA08F' : TEXT_DARK,
+                        color: sel ? '#FFFFFF' : past ? '#C7CFC7' : outside ? '#9CA3AF' : TEXT_DARK,
                       }}
                     >
                       {String(d.getDate()).padStart(2, '0')}
@@ -781,7 +799,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
 
       <View
         className="rounded-2xl px-3 py-2.5 mt-3"
-        style={{ backgroundColor: valid ? '#EAF8EC' : 'rgba(220, 38, 38, 0.08)' }}
+        style={{ backgroundColor: valid ? '#E5F3F5' : 'rgba(220, 38, 38, 0.08)' }}
       >
         <Text className="text-[13px] font-extrabold" style={{ color: valid ? BRAND_GREEN_DARK : '#DC2626' }} numberOfLines={1}>
           {rsFormat(picked)}
@@ -810,10 +828,9 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
 // An invoice is the document that ties a repair to a physical handset, so it
 // must not be raised against a missing IMEI. The gate is only opened for a
 // booking that HAS no number (BookingHistoryScreen sends one that already has
-// an IMEI straight to the generator), so it has two faces:
-//
-//   choose  — enter the IMEI, or scan the barcode.
-//   entry   — the keypad, pre-filled by the scanner when one was used.
+// an IMEI straight to the generator). It opens straight on the IMEI field —
+// type it, or SCAN from the button inside the field (the scanner hands the
+// number back pre-filled for review) — plus "Customer didn't provide IMEI".
 //
 // There is no "confirm the number already on file" face any more: the number
 // was checked when it was entered, and re-confirming it on every invoice was a
@@ -843,7 +860,6 @@ function imeiAlreadyUsedAlert(conflictTrackingId) {
 export function ImeiGateSheet({
   visible, booking, onClose, onVerified, onScanRequest, scannedImei,
 }) {
-  const [mode, setMode] = useState('choose');    // 'choose' | 'entry'
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -856,11 +872,9 @@ export function ImeiGateSheet({
     // owner can eyeball it before it is saved — scanners do misread.
     if (scannedImei) {
       setInput(String(scannedImei));
-      setMode('entry');
       return;
     }
     setInput('');
-    setMode('choose');
   }, [visible, booking?.id, scannedImei]);
 
   // Save the entered/scanned number, then continue. The PATCH is the
@@ -903,91 +917,87 @@ export function ImeiGateSheet({
       title="IMEI Number Required"
       subtitle={ref ? `Booking #${ref}` : null}
     >
-      {mode === 'choose' ? (
-        <>
-          <Text className="text-[12px] text-gray-500 mb-4">
-            IMEI number is not available for this device. Please enter or scan the IMEI number.
-          </Text>
-          <ActionRow
-            icon={<Keyboard size={18} color={TINT.green.fg} />}
-            tint={TINT.green}
-            title="Enter IMEI"
-            onPress={() => { setInput(''); setMode('entry'); }}
-          />
-          <ActionRow
-            icon={<ScanLine size={18} color={TINT.green.fg} />}
-            tint={TINT.green}
-            title="Scan IMEI"
-            onPress={() => { onClose?.(); onScanRequest?.(booking); }}
-          />
-          {/* Customer couldn't / wouldn't share the IMEI — continue without it. */}
-          <ActionRow
-            icon={<SkipForward size={18} color={TINT.amber.fg} />}
-            tint={TINT.amber}
-            title="Customer didn't provide IMEI"
-            onPress={() => Alert.alert(
-              'Continue without IMEI?',
-              'The invoice will be generated without an IMEI number.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Continue', onPress: () => { onClose?.(); onVerified?.(booking); } },
-              ],
-            )}
-          />
-        </>
-      ) : (
-        <>
-          <Text className="text-[10.5px] font-extrabold uppercase text-gray-400 mb-1.5" style={{ letterSpacing: 0.7 }}>
-            IMEI
-          </Text>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            keyboardType="number-pad"
-            maxLength={20}
-            autoFocus
-            placeholder="356xxxxxxxxxxxx"
-            placeholderTextColor="#9CA79C"
-            editable={!busy}
-            className="text-gray-900"
-            style={{
-              fontSize: 15, fontWeight: '800', letterSpacing: 1.5,
-              borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF',
-              borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
-            }}
-          />
-          <View className="flex-row items-center mt-2 mb-4">
-            <Text className="text-[10.5px] text-gray-500 flex-1">
-              {IMEI_MIN}–{IMEI_MAX} digits. Dial *#06# on the device to display it.
-            </Text>
-            <Pressable onPress={() => { onClose?.(); onScanRequest?.(booking); }} disabled={busy} hitSlop={8}>
-              <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-                Scan instead
-              </Text>
-            </Pressable>
-          </View>
-          <View className="flex-row">
-            <Pressable
-              onPress={onClose}
-              disabled={busy}
-              className="rounded-2xl items-center justify-center px-5 py-3 mr-2"
-              style={{ borderWidth: 1, borderColor: '#E2E8E2', backgroundColor: '#FFFFFF' }}
-            >
-              <Text className="text-[13px] font-extrabold text-gray-600">Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={saveAndContinue}
-              disabled={busy}
-              className="flex-1 rounded-2xl items-center justify-center py-3 active:opacity-90"
-              style={{ backgroundColor: BRAND_GREEN_DARK, opacity: busy ? 0.6 : 1 }}
-            >
-              {busy
-                ? <ActivityIndicator color="#FFFFFF" />
-                : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
-            </Pressable>
-          </View>
-        </>
-      )}
+      {/* Straight to the field, like the booking screen: heading, then the
+          number with the scanner on its right. */}
+      <Text className="text-[13px] font-extrabold text-gray-900 mb-1.5">Enter or Scan IMEI</Text>
+      <View
+        className="flex-row items-center"
+        style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', borderRadius: 12, paddingLeft: 12, paddingRight: 4 }}
+      >
+        <Keyboard size={16} color={TINT.green.fg} />
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          keyboardType="number-pad"
+          maxLength={20}
+          placeholder="Enter 15-digit IMEI"
+          placeholderTextColor="#9CA79C"
+          editable={!busy}
+          className="text-gray-900"
+          style={{ flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '800', letterSpacing: 1.2, paddingVertical: 9 }}
+        />
+        <Pressable
+          onPress={() => { onClose?.(); onScanRequest?.(booking); }}
+          disabled={busy}
+          hitSlop={8}
+          className="items-center justify-center ml-1 active:opacity-70"
+          style={{ height: 36, width: 36 }}
+          accessibilityRole="button"
+          accessibilityLabel="Scan IMEI"
+        >
+          <ScanLine size={20} color={BRAND_GREEN_DARK} />
+        </Pressable>
+      </View>
+      <Text className="text-[10.5px] text-gray-500 mt-1 mb-2">
+        {IMEI_MIN}–{IMEI_MAX} digits · dial *#06# to see it.
+      </Text>
+
+      {/* Customer couldn't / wouldn't share the IMEI — continue without it. */}
+      <Pressable
+        disabled={busy}
+        className="flex-row items-center rounded-xl px-3 py-2 mb-2 active:opacity-80"
+        style={{ backgroundColor: TINT.amber.bg, borderWidth: 1, borderColor: '#FDE68A', opacity: busy ? 0.5 : 1 }}
+        accessibilityRole="button"
+        accessibilityLabel="Customer didn't provide IMEI"
+        onPress={() => Alert.alert(
+          'Continue without IMEI?',
+          'The invoice will be generated without an IMEI number.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Continue', onPress: () => { onClose?.(); onVerified?.(booking); } },
+          ],
+        )}
+      >
+        <View className="w-8 h-8 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#FFFFFF' }}>
+          <SkipForward size={16} color={TINT.amber.fg} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text className="text-[13px] font-extrabold" style={{ color: '#92400E' }} numberOfLines={1}>Customer didn't provide IMEI</Text>
+          <Text className="text-[10.5px]" style={{ color: TINT.amber.fg, marginTop: 1 }} numberOfLines={1}>Continue the invoice without IMEI</Text>
+        </View>
+        <ChevronRight size={16} color={TINT.amber.fg} />
+      </Pressable>
+
+      <View className="flex-row mt-1">
+        <Pressable
+          onPress={onClose}
+          disabled={busy}
+          className="rounded-xl items-center justify-center px-5 py-2.5 mr-2"
+          style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+        >
+          <Text className="text-[13px] font-extrabold text-gray-600">Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={saveAndContinue}
+          disabled={busy}
+          className="flex-1 rounded-xl items-center justify-center py-2.5 active:opacity-90"
+          style={{ backgroundColor: BRAND_GREEN_DARK, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy
+            ? <ActivityIndicator color="#FFFFFF" />
+            : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
+        </Pressable>
+      </View>
     </SheetShell>
   );
 }
@@ -1198,16 +1208,16 @@ export function TechnicianPickerSheet({
                   className="flex-row items-center rounded-2xl p-3 mb-2.5 active:opacity-80"
                   style={{
                     borderWidth: 1,
-                    borderColor: isAssigned ? '#C8EEBF' : '#E2E8E2',
-                    backgroundColor: isAssigned ? '#F0F8EF' : '#FFFFFF',
+                    borderColor: isAssigned ? '#C7E6EA' : '#E5E7EB',
+                    backgroundColor: isAssigned ? '#E5F3F5' : '#FFFFFF',
                     opacity: assigningId != null && !busy ? 0.5 : 1,
                   }}
                 >
                   <View
                     className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: '#EFF5EE' }}
+                    style={{ backgroundColor: '#E5F3F5' }}
                   >
-                    <UserRound size={18} color="#667066" />
+                    <UserRound size={18} color="#6B7280" />
                   </View>
                   <View className="flex-1 pr-2">
                     <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
@@ -1261,11 +1271,11 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
     <View>
       <View
         className="flex-row items-center rounded-2xl p-3 mb-2.5"
-        style={{ borderWidth: 1, borderColor: '#C8EEBF', backgroundColor: '#F0F8EF' }}
+        style={{ borderWidth: 1, borderColor: '#C7E6EA', backgroundColor: '#E5F3F5' }}
       >
         <View
           className="w-10 h-10 rounded-full items-center justify-center mr-3"
-          style={{ backgroundColor: '#E6F7E3' }}
+          style={{ backgroundColor: '#E5F3F5' }}
         >
           <UserRound size={18} color={BRAND_GREEN_DARK} />
         </View>
@@ -1316,16 +1326,15 @@ function AssignedTechnicianCard({ tech, acceptedAt, onReassign }) {
 //
 // GGFIX palette — same values used across the rest of the app's redesigned
 // screens this pass.
-const SHARE_ACCENT = '#09AD2A';
-const SHARE_SOFT_MINT = '#F8F8F8';
-const SHARE_BORDER = '#E6E6E6';
-const SHARE_TEXT_SECONDARY = '#6B6B6B';
+const SHARE_ACCENT = '#035C6C';
+const SHARE_SOFT_MINT = '#F3F4F6';
+const SHARE_BORDER = '#E5E7EB';
+const SHARE_TEXT_SECONDARY = '#6B7280';
 
 // One action: Share to WhatsApp (lib/whatsappShare) — the receipt image goes
 // straight into WhatsApp / WhatsApp Business, never the system share sheet or
 // any other app.
 export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
-  const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
   // Receipt preview: most of a phone's width, capped so it stays a receipt
   // (not a poster) on tablets. The sheet's content column is capped too.
@@ -1362,95 +1371,100 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
   }, [ticket, sharing, shop]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(30, 30, 30, 0.55)', justifyContent: 'flex-end' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 30,
-            borderTopRightRadius: 30,
-            maxHeight: winH - insets.top - 24,
-            paddingBottom: insets.bottom + 12,
-          }}
-        >
-          <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: SHARE_BORDER, marginTop: 10, marginBottom: 4 }} />
-
-          <View style={[columnStyle, { flexShrink: 1 }]}>
-          {/* Header */}
-          <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
-            <View style={{ flex: 1 }}>
-              <Text className="font-extrabold" style={{ fontSize: 17, color: '#1E1E1E' }}>Share image</Text>
-              <Text style={{ fontSize: 11, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
-                Share this booking receipt on WhatsApp
-              </Text>
-            </View>
-            <Pressable
-              onPress={onClose}
-              hitSlop={8}
-              className="items-center justify-center"
-              style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* The modal window's own insets — the screen's don't reach it. */}
+      <ModalInsets>
+        {({ insets }) => (
+          <View style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.55)', justifyContent: 'flex-end' }}>
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderTopLeftRadius: 30,
+                borderTopRightRadius: 30,
+                maxHeight: winH - insets.top - 24,
+                paddingBottom: insets.bottom + 12,
+              }}
             >
-              <X size={18} color="#1E1E1E" />
-            </Pressable>
-          </View>
+              <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: SHARE_BORDER, marginTop: 10, marginBottom: 4 }} />
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
-            {/* Receipt preview — ONLY the ViewShot is captured for the shared image. */}
-            <View className="items-center" style={{ marginTop: 14 }}>
-              <View style={{ width: previewWidth }}>
-                {!ticket ? (
-                  <View
-                    className="items-center justify-center"
-                    style={{ height: 320, borderRadius: 22, borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: SHARE_SOFT_MINT }}
-                  >
-                    <ActivityIndicator color={SHARE_ACCENT} />
+              <View style={[columnStyle, { flexShrink: 1 }]}>
+              {/* Header */}
+              <View className="flex-row items-start" style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 }}>
+                <View style={{ flex: 1 }}>
+                  <Text className="font-extrabold" style={{ fontSize: 17, color: '#111111' }}>Share image</Text>
+                  <Text style={{ fontSize: 11, color: SHARE_TEXT_SECONDARY, marginTop: 2 }}>
+                    Share this booking receipt on WhatsApp
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={8}
+                  className="items-center justify-center"
+                  style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SHARE_SOFT_MINT, borderWidth: 1, borderColor: SHARE_BORDER }}
+                >
+                  <X size={18} color="#111111" />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                {/* Receipt preview — ONLY the ViewShot is captured for the shared image. */}
+                <View className="items-center" style={{ marginTop: 14 }}>
+                  <View style={{ width: previewWidth }}>
+                    {!ticket ? (
+                      <View
+                        className="items-center justify-center"
+                        style={{ height: 320, borderRadius: 22, borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: SHARE_SOFT_MINT }}
+                      >
+                        <ActivityIndicator color={SHARE_ACCENT} />
+                      </View>
+                    ) : (
+                      <View
+                        style={{
+                          borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: '#FFFFFF',
+                          shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+                        }}
+                      >
+                        <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
+                          <ReceiptCard ticket={ticket} shop={shop} />
+                        </ViewShot>
+                      </View>
+                    )}
                   </View>
-                ) : (
-                  <View
+                </View>
+
+                <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 18, marginHorizontal: 18 }} />
+
+                {/* Share to WhatsApp — the only share action. */}
+                <View style={{ marginTop: 16, marginHorizontal: 18 }}>
+                  <Pressable
+                    onPress={doShareWhatsApp}
+                    disabled={!ticket || sharing}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share to WhatsApp"
                     style={{
-                      borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: '#FFFFFF',
-                      shadowColor: '#1E1E1E', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+                      height: 48, borderRadius: 14, backgroundColor: SHARE_ACCENT,
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                      opacity: !ticket ? 0.5 : sharing ? 0.8 : 1,
+                      shadowColor: SHARE_ACCENT, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
                     }}
                   >
-                    <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-                      <ReceiptCard ticket={ticket} shop={shop} />
-                    </ViewShot>
-                  </View>
-                )}
+                    {sharing ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                        <Text style={{ marginLeft: 8, fontSize: 15, fontWeight: '800', color: '#FFFFFF' }}>Share to WhatsApp</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </ScrollView>
               </View>
             </View>
-
-            <View style={{ height: 1, backgroundColor: SHARE_BORDER, marginTop: 18, marginHorizontal: 18 }} />
-
-            {/* Share to WhatsApp — the only share action. */}
-            <View style={{ marginTop: 16, marginHorizontal: 18 }}>
-              <Pressable
-                onPress={doShareWhatsApp}
-                disabled={!ticket || sharing}
-                accessibilityRole="button"
-                accessibilityLabel="Share to WhatsApp"
-                style={{
-                  height: 48, borderRadius: 14, backgroundColor: SHARE_ACCENT,
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                  opacity: !ticket ? 0.5 : sharing ? 0.8 : 1,
-                  shadowColor: SHARE_ACCENT, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
-                }}
-              >
-                {sharing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-                    <Text style={{ marginLeft: 8, fontSize: 15, fontWeight: '800', color: '#FFFFFF' }}>Share to WhatsApp</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-          </ScrollView>
           </View>
-        </View>
-      </View>
-    </Modal>
+        )}
+      </ModalInsets>
+    </SafeModal>
   );
 }
 
@@ -1505,7 +1519,7 @@ export function PickupStatusSheet({ visible, booking, statusLabel, onClose, onUp
     >
       <View
         className="rounded-2xl px-3 py-2.5 mb-3"
-        style={{ backgroundColor: '#F7FAF7', borderWidth: 1, borderColor: '#E2E8E2' }}
+        style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' }}
       >
         <Text className="text-[10px] text-gray-500">Current status</Text>
         <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
@@ -1700,7 +1714,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
                   className="flex-row items-center rounded-2xl p-3 mb-2.5 active:opacity-80"
                   style={{
                     borderWidth: 1,
-                    borderColor: isAssigned ? '#FECACA' : '#E2E8E2',
+                    borderColor: isAssigned ? '#FECACA' : '#E5E7EB',
                     backgroundColor: isAssigned ? '#FEF2F2' : '#FFFFFF',
                     opacity: assigningId != null && !busy ? 0.5 : 1,
                   }}

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
-import { Smartphone, Skull, Cpu, HardDrive, Palette, ChevronRight } from 'lucide-react-native';
+import { Smartphone, Skull, Cpu, HardDrive, Palette } from 'lucide-react-native';
 import { BottomActionBar, Input, Label, Badge } from '../../../components/rnr';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 const OPTIONS = [
-  { key: 'WORKING', label: 'Working Phone', sub: 'Turns on · Calls · No major issues', icon: Smartphone, color: '#16BB05', bg: 'bg-success/10', activeBg: 'bg-success/15', border: 'border-success' },
+  { key: 'WORKING', label: 'Working Phone', sub: 'Turns on · Calls · No major issues', icon: Smartphone, color: '#035C6C', bg: 'bg-success/10', activeBg: 'bg-success/15', border: 'border-success' },
   { key: 'DEAD',    label: 'Phone Dead / Unknown', sub: "Won't turn on · Not sure",       icon: Skull,      color: '#DC2626', bg: 'bg-danger/10',  activeBg: 'bg-danger/15',  border: 'border-danger' },
 ];
 
@@ -12,21 +13,22 @@ export default function SellConditionScreen({ navigation, route }) {
   const device = route?.params?.device || {};
   const [condition, setCondition] = useState('WORKING');
   const [imei, setImei] = useState(device.imei || '');
+  const showImei = useImeiApplies(device); // mobile phones only
 
   const onContinue = () => {
-    navigation.navigate('SellScreening', { device: { ...device, imei }, workingCondition: condition });
+    navigation.navigate('SellScreening', { device: { ...device, imei: showImei ? imei : undefined }, workingCondition: condition });
   };
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, paddingBottom: 120 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, paddingBottom: 120, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {/* Device summary */}
         <View className="bg-card border border-border rounded-xl p-2.5 mb-2.5 flex-row items-center">
           <View className="h-11 w-11 rounded-xl bg-primary/10 items-center justify-center mr-2.5 overflow-hidden">
             {device.imageUrl ? (
               <Image source={{ uri: device.imageUrl }} style={{ width: 44, height: 44 }} resizeMode="cover" />
             ) : (
-              <Smartphone size={20} color="#087A0A" />
+              <Smartphone size={20} color="#035C6C" />
             )}
           </View>
           <View className="flex-1">
@@ -38,19 +40,19 @@ export default function SellConditionScreen({ navigation, route }) {
               <View className="flex-row items-center mt-1 flex-wrap">
                 {device.ramLabel ? (
                   <View className="flex-row items-center mr-1.5">
-                    <Cpu size={9} color="#667066" />
+                    <Cpu size={9} color="#6B7280" />
                     <Text className="text-[10px] text-text-muted ml-0.5">{device.ramLabel}</Text>
                   </View>
                 ) : null}
                 {device.storageLabel ? (
                   <View className="flex-row items-center mr-1.5">
-                    <HardDrive size={9} color="#667066" />
+                    <HardDrive size={9} color="#6B7280" />
                     <Text className="text-[10px] text-text-muted ml-0.5">{device.storageLabel}</Text>
                   </View>
                 ) : null}
                 {device.color ? (
                   <View className="flex-row items-center">
-                    <Palette size={9} color="#667066" />
+                    <Palette size={9} color="#6B7280" />
                     <Text className="text-[10px] text-text-muted ml-0.5">{device.color}</Text>
                   </View>
                 ) : null}
@@ -59,17 +61,19 @@ export default function SellConditionScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* IMEI */}
-        <View className="bg-card border border-border rounded-xl p-2.5 mb-2.5">
-          <Label className="text-[11px] mb-1">IMEI Number</Label>
-          <Input
-            placeholder="15-digit IMEI (dial *#06# on phone)"
-            value={imei}
-            onChangeText={setImei}
-            keyboardType="number-pad"
-            className="py-2 text-[13px]"
-          />
-        </View>
+        {/* IMEI — mobile phones only */}
+        {showImei ? (
+          <View className="bg-card border border-border rounded-xl p-2.5 mb-2.5">
+            <Label className="text-[11px] mb-1">IMEI Number</Label>
+            <Input
+              placeholder="15-digit IMEI (dial *#06# on phone)"
+              value={imei}
+              onChangeText={setImei}
+              keyboardType="number-pad"
+              className="py-2 text-[13px]"
+            />
+          </View>
+        ) : null}
 
         {/* Condition picker */}
         <Text className="text-[11px] font-extrabold text-text-muted tracking-widest mb-2 px-1">PHONE CONDITION</Text>

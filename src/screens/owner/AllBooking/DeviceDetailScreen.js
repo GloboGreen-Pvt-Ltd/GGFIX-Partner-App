@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,9 @@ import {
   IndianRupee,
   ReceiptText,
   FileText,
+  Pencil,
   Clock,
+  Images,
   ScanLine,
   Store,
   User,
@@ -30,24 +32,28 @@ import { hasInvoice } from './bookingScopes';
 import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
+import BookingActionsMenu from './BookingActionsMenu';
+import ImageViewerModal from '../../../components/ImageViewerModal';
+import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 
 // GGFIX palette — same values used across the rest of the booking flow.
-const ACCENT = '#09AD2A';       // GGFIX green
-const PRIMARY = '#078F23';      // deeper GGFIX green
-const MINT = '#EAF8EC';
-const SOFT_MINT = '#F8F8F8';
-const PAGE_BG = '#F8F8F8';
+const ACCENT = '#035C6C';       // GGFIX green
+const PRIMARY = '#035C6C';      // deeper GGFIX green
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#E6E6E6';
-const TEXT_PRIMARY = '#1E1E1E';
-const TEXT_SECONDARY = '#6B6B6B';
-const SUCCESS = '#09AD2A';
+const BORDER = '#E5E7EB';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
+const SUCCESS = '#035C6C';
 const CREATED_BG = '#FFF3E8';
 const CREATED_FG = '#B45309';
 const CREATED_BORDER = '#F3D9BC';
 
 const cardShadow = {
-  shadowColor: '#1E1E1E',
+  shadowColor: '#111111',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 3 },
@@ -59,7 +65,7 @@ const card = {
   borderRadius: 18,
   padding: 12,
   borderWidth: 1,
-  borderColor: '#F3F3F3',
+  borderColor: '#F3F4F6',
   ...cardShadow,
 };
 
@@ -81,30 +87,30 @@ const STATUS_VARIANT = {
 
 const TONE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.14)', fg: '#B45309', border: 'rgba(245, 158, 11, 0.35)' },
-  blue:   { bg: 'rgba(9, 173, 42, 0.10)',    fg: ACCENT,    border: 'rgba(9, 173, 42, 0.28)' },
-  purple: { bg: 'rgba(7, 143, 35, 0.12)',   fg: PRIMARY,   border: 'rgba(7, 143, 35, 0.30)' },
-  green:  { bg: 'rgba(9, 173, 42, 0.12)',  fg: SUCCESS,   border: 'rgba(9, 173, 42, 0.32)' },
+  blue:   { bg: 'rgba(3, 92, 108, 0.10)',    fg: ACCENT,    border: 'rgba(3, 92, 108, 0.28)' },
+  purple: { bg: 'rgba(3, 92, 108, 0.12)',   fg: PRIMARY,   border: 'rgba(3, 92, 108, 0.30)' },
+  green:  { bg: 'rgba(3, 92, 108, 0.12)',  fg: SUCCESS,   border: 'rgba(3, 92, 108, 0.32)' },
   red:    { bg: 'rgba(220, 38, 38, 0.12)',  fg: '#B91C1C', border: 'rgba(220, 38, 38, 0.32)' },
 };
 
 // Best-effort device-colour → swatch hex so the hero can show a real colour dot
 // next to the colour name. Falls back to a neutral grey for anything unmapped.
 const COLOR_HEX = {
-  black: '#172117', white: '#EFF5EE', silver: '#CBD5CB', gray: '#8FA08F', grey: '#8FA08F',
-  gold: '#D97706', rosegold: '#FECACA', beige: '#FDE68A', cream: '#FEF3C7', graphite: '#667066',
-  blue: '#2563EB', navy: '#1E3A8A', red: '#DC2626', green: '#16A34A', yellow: '#F59E0B',
+  black: '#111111', white: '#E5F3F5', silver: '#D1D5DB', gray: '#9CA3AF', grey: '#9CA3AF',
+  gold: '#D97706', rosegold: '#FECACA', beige: '#FDE68A', cream: '#FEF3C7', graphite: '#6B7280',
+  blue: '#2563EB', navy: '#1E3A8A', red: '#DC2626', green: '#609138', yellow: '#F59E0B',
   purple: '#7C3AED', violet: '#7C3AED', pink: '#EC4899', orange: '#EA580C', brown: '#92400E',
-  midnight: '#172117', starlight: '#FFFBEB', cosmicorange: '#EA580C',
+  midnight: '#111111', starlight: '#FFFBEB', cosmicorange: '#EA580C',
 };
 
 function colorToHex(name) {
-  if (!name) return '#D6D6D6';
+  if (!name) return '#D1D5DB';
   const k = String(name).trim().toLowerCase().replace(/\s+/g, '');
   if (COLOR_HEX[k]) return COLOR_HEX[k];
   // Marketing names ("Amazonian Red", "Deep Sea Blue") — match the longest
   // known colour word they contain.
   const hit = Object.keys(COLOR_HEX).sort((a, b) => b.length - a.length).find((c) => k.includes(c));
-  return hit ? COLOR_HEX[hit] : '#D6D6D6';
+  return hit ? COLOR_HEX[hit] : '#D1D5DB';
 }
 
 // Splits a tracking id into its letter prefix and trailing digits so the header
@@ -172,7 +178,7 @@ function DetailRow({ icon: Icon, label, children, isLast }) {
   return (
     <View
       className="flex-row items-center"
-      style={{ paddingVertical: 6, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F3F3' }}
+      style={{ paddingVertical: 6, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: '#F3F4F6' }}
     >
       <View className="items-center justify-center" style={{ width: 20, height: 20, borderRadius: 6, backgroundColor: MINT, marginRight: 7 }}>
         <Icon size={11} color={ACCENT} />
@@ -208,18 +214,30 @@ function TimelineRow({ icon: Icon, label, value, sub, done, isLast }) {
 
 const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// "Apple iPhone 11 · A2221 (64 GB / Black)" → { name: "Apple iPhone 11", modelNumber: "A2221" }.
+export function splitDisplayName(raw) {
+  const str = String(raw || '').trim();
+  const m = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(str);
+  return { name: (m?.[1] || str).trim(), modelNumber: m?.[2]?.trim() || null };
+}
+
 export default function DeviceDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const r = useResponsive();
   const colStyle = r.isTablet ? { width: Math.min(r.width - rs(48), 960), alignSelf: 'center' } : null;
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
+  const showImei = useImeiApplies(ticket); // mobile phones only
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // The model's catalogue photo, for bookings that carry no deviceImageUrl —
   // the same fallback the Home "Recent Bookings" cards use.
   const [modelImage, setModelImage] = useState(null);
+  // Device card tap → the booking action sheet (same actions as the list's).
+  const [actionsOpen, setActionsOpen] = useState(false);
+  // Booking Photos: index of the photo open full screen, or null.
+  const [photoViewer, setPhotoViewer] = useState(null);
 
   const load = useCallback(async () => {
     console.log('[DeviceDetail][DEBUG] load() start, ticketId =', ticketId);
@@ -275,7 +293,12 @@ export default function DeviceDetailScreen({ route, navigation }) {
 
   const trackingId = ticket.trackingId || ticket.id;
   const tid = splitTrackingId(trackingId);
-  const deviceName = ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || 'Device';
+  // deviceDisplayName is saved as "Model · Model No. (Storage / Colour)". The
+  // title shows the model name alone; model number joins storage / colour on
+  // the line under it (they were being printed twice).
+  const shownName = splitDisplayName(ticket.deviceDisplayName);
+  const deviceName = shownName.name || ticket.deviceModelName || ticket.modelName || 'Device';
+  const modelNumber = ticket.modelNumber || shownName.modelNumber;
   const storageLabel = hasCategorySpecs(ticket)
     ? specDisplayParts(ticket).join(' · ')
     : (ticket.storageLabel || ticket.ramLabel || null);
@@ -286,7 +309,16 @@ export default function DeviceDetailScreen({ route, navigation }) {
     : lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
   const payment = paymentFromTicket(ticket, estimatedTotal);
   const readyAtText = formatDateTime(ticket.estimatedReadyAt);
+  // Latest re-estimate step (emit-or-update on the server; last one wins).
+  const reEstimated = (Array.isArray(events) ? events : [])
+    .filter((e) => String(e?.status || '').toUpperCase() === 'RE_ESTIMATED_CONFIRMED')
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+    .pop() || null;
   const deliveryAtText = formatDateTime(ticket.estimatedDeliveryAt);
+  // Service Schedule keeps the booking's ORIGINAL delivery once re-estimated
+  // (server keeps it in originalEstimatedDeliveryAt); the revised one is shown
+  // in Re-Estimated Summary.
+  const scheduleDeliveryText = formatDateTime(ticket.originalEstimatedDeliveryAt || ticket.estimatedDeliveryAt);
   const imeiText = String(ticket.imei || '').trim() || null;
   const bookedLine = fmtBookedLine(ticket.createdAt);
   const deviceImage = ticket.deviceImageUrl || modelImage || null;
@@ -297,6 +329,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
   const statusTone = TONE[statusMeta.tone] || TONE.amber;
   const currentStatusLabel = getCurrentPhaseLabel(events, ticket.status) || statusMeta.label;
   const canViewInvoice = hasInvoice(ticket);
+  const photos = bookingPhotoUrls(ticket);
 
   const copyTrackingId = async () => {
     try {
@@ -357,10 +390,19 @@ export default function DeviceDetailScreen({ route, navigation }) {
       >
         <View style={colStyle}>
           {/* ── Device card: photo, full name, variant, colour, status, and the
-              booked date · time + who created the booking on one line. ── */}
-          <View style={[card, { padding: 11 }]}>
+              booked date · time + who created the booking on one line. The
+              whole card opens the booking's action sheet; the tracking-ID pill
+              inside still copies. ── */}
+          <TouchableOpacity
+            onPress={() => setActionsOpen(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Booking actions"
+            accessibilityHint="Opens the actions for this booking"
+            style={[card, { padding: 11 }]}
+          >
             <View className="flex-row items-center">
-              <View style={{ width: 58, height: 62, borderRadius: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: '#F3F3F3', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
+              <View style={{ width: 58, height: 62, borderRadius: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
                 {deviceImage ? (
                   <Image source={{ uri: deviceImage }} style={{ width: 50, height: 56 }} resizeMode="contain" />
                 ) : (
@@ -390,6 +432,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
                 </Text>
                 <View className="flex-row items-center flex-wrap" style={{ marginTop: 3, rowGap: 4 }}>
                   {storageLabel ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginRight: 8 }} numberOfLines={1}>{storageLabel}</Text> : null}
+                  {modelNumber ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginRight: 8 }} numberOfLines={1}>{modelNumber}</Text> : null}
                   {colorName ? (
                     <View className="flex-row items-center" style={{ marginRight: 8 }}>
                       <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colorToHex(colorName), borderWidth: 1, borderColor: BORDER }} />
@@ -407,7 +450,7 @@ export default function DeviceDetailScreen({ route, navigation }) {
               </View>
             </View>
 
-            <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: '#F3F3F3' }}>
+            <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
               <DetailRow icon={Calendar} label="Booked on">
                 <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'right' }}>{bookedLine || '—'}</Text>
               </DetailRow>
@@ -430,6 +473,40 @@ export default function DeviceDetailScreen({ route, navigation }) {
                 </View>
               </DetailRow>
             </View>
+          </TouchableOpacity>
+
+          {/* ── Booking Photos: the device photos taken when it was booked in
+              (front, back, up to 5). Tap one to view it full screen. ── */}
+          <View style={[card, { marginTop: 10 }]}>
+            <SectionHeader
+              icon={Images}
+              label="Booking Photos"
+              subtitle={photos.length
+                ? `Taken at booking · ${photos.length} photo${photos.length === 1 ? '' : 's'}`
+                : 'Taken when the device was booked in'}
+            />
+            {photos.length ? (
+              <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
+                {photos.map((uri, i) => (
+                  <TouchableOpacity
+                    key={uri}
+                    onPress={() => setPhotoViewer(i)}
+                    activeOpacity={0.85}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={`Booking photo ${i + 1} of ${photos.length}`}
+                    style={{ width: r.isTablet ? '20%' : '33.333%', padding: 4 }}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={{ width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>No photos were added when this booking was created.</Text>
+            )}
           </View>
 
           {/* ── Price Summary ── */}
@@ -503,15 +580,26 @@ export default function DeviceDetailScreen({ route, navigation }) {
           {/* ── Service Schedule (read-only) ── */}
           <View style={[card, { marginTop: 10 }]}>
             <SectionHeader icon={CalendarClock} label="Service Schedule" />
-            <TimelineRow icon={Clock} label="Approx. Ready" value={readyAtText || 'Not yet set'} sub="Expected completion time" done={!!readyAtText} />
-            <TimelineRow icon={CalendarClock} label="Delivery" value={deliveryAtText || 'Not yet set'} sub="Estimated handover time" done={!!deliveryAtText} />
+            {/* estimatedReadyAt is the service START (set when the estimate is
+                given; a re-estimate keeps it) — the ready-by is the Delivery row. */}
+            <TimelineRow icon={Clock} label="Service Start" value={readyAtText || 'Not yet set'} sub="When the service was booked in" done={!!readyAtText} />
             <TimelineRow
-              icon={ScanLine}
-              label="IMEI"
-              value={imeiText || 'Not captured yet'}
-              done={!!imeiText}
-              isLast={ticket.customerApproval == null}
+              icon={CalendarClock}
+              label="Delivery"
+              value={scheduleDeliveryText || 'Not yet set'}
+              sub="Estimated handover time"
+              done={!!scheduleDeliveryText}
+              isLast={!showImei && ticket.customerApproval == null}
             />
+            {showImei ? (
+              <TimelineRow
+                icon={ScanLine}
+                label="IMEI"
+                value={imeiText || 'Not captured yet'}
+                done={!!imeiText}
+                isLast={ticket.customerApproval == null}
+              />
+            ) : null}
             {/* Real ticket.customerApproval data, as before. */}
             {ticket.customerApproval != null ? (
               <TimelineRow
@@ -523,8 +611,60 @@ export default function DeviceDetailScreen({ route, navigation }) {
               />
             ) : null}
           </View>
+
+          {/* ── Re-Estimated Summary — its own card, only once re-estimated ── */}
+          {reEstimated ? (
+            <View style={[card, { marginTop: 10 }]}>
+              <SectionHeader icon={Pencil} label="Re-Estimated Summary" subtitle="Revised services and cost" />
+              <TimelineRow
+                icon={Clock}
+                label="Re-Estimated On"
+                value={formatDateTime(reEstimated.createdAt) || 'Date not recorded'}
+                done
+              />
+              <TimelineRow
+                icon={IndianRupee}
+                label="Revised Estimate"
+                value={money(estimatedTotal)}
+                sub={lineItems.map((i) => i.label).filter(Boolean).join(', ') || null}
+                done
+              />
+              <TimelineRow
+                icon={CalendarClock}
+                label="Revised Delivery"
+                value={deliveryAtText || 'Not yet set'}
+                sub="New estimated handover time"
+                done={!!deliveryAtText}
+              />
+              <TimelineRow
+                icon={CheckCircle2}
+                label="Customer Re-Estimate Approval"
+                value={ticket.customerApproval === true ? 'Approved' : 'Pending'}
+                sub={ticket.customerApproval === true ? 'Customer approved the revised cost' : 'Waiting for the customer to approve the revised cost'}
+                done={ticket.customerApproval === true}
+                isLast
+              />
+            </View>
+          ) : null}
         </View>
       </ScrollView>
+
+      <ImageViewerModal
+        visible={photoViewer != null}
+        images={photos.map((uri, i) => ({ uri, label: `Booking photo ${i + 1} of ${photos.length}` }))}
+        index={photoViewer || 0}
+        onClose={() => setPhotoViewer(null)}
+      />
+
+      <BookingActionsMenu
+        visible={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        booking={ticket}
+        title={deviceName}
+        statusLabel={statusMeta.label}
+        onChanged={load}
+        navigation={navigation}
+      />
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { CalendarDays, User, MessageSquare, Info, ChevronRight } from 'lucide-react-native';
 import {
   Card, Input, FormField, BottomActionBar, ScreenContainer,
@@ -8,6 +9,7 @@ import {
 import { tokens } from '../../theme/colors';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,6 +20,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const insetBottom = useBottomBarInset();
+  const r = useResponsive();
 
   const validate = () => {
     if (!startDate.trim() || !endDate.trim()) {
@@ -63,7 +66,11 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 110 }}>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 110, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
+      >
         <Card>
           <View className="flex-row items-center">
             <View className="h-12 w-12 rounded-full bg-primary-soft items-center justify-center mr-3">
@@ -123,17 +130,17 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
         {/* Note */}
         <View
           className="flex-row items-start mt-4 rounded-2xl p-3.5"
-          style={{ backgroundColor: '#F0F8EF', borderWidth: 1, borderColor: '#E6F7E3' }}
+          style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#E5F3F5' }}
         >
           <Info size={18} color={tokens.primary} style={{ marginTop: 1 }} />
           <View className="flex-1 ml-2.5">
-            <Text className="text-[13px] font-extrabold" style={{ color: '#087A0A' }}>Note</Text>
+            <Text className="text-[13px] font-extrabold" style={{ color: '#035C6C' }}>Note</Text>
             <Text className="text-[12px] text-text-muted mt-0.5 leading-4">
               Leave request will be sent to your manager for approval.
             </Text>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomActionBar insetBottom={insetBottom}>
         <TouchableOpacity
@@ -141,13 +148,13 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
           disabled={!canSubmit}
           activeOpacity={0.9}
           className="flex-row items-center justify-center rounded-2xl py-4"
-          style={{ backgroundColor: canSubmit ? '#087A0A' : '#8FA08F' }}
+          style={{ backgroundColor: canSubmit ? '#035C6C' : '#9CA3AF' }}
         >
           {saving ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Text className="text-white text-[13px] font-extrabold">Submit Leave Request</Text>
+              <Text className="text-white text-[13px] font-extrabold" numberOfLines={1}>Submit Leave Request</Text>
               <ChevronRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </>
           )}

@@ -18,11 +18,11 @@ const INTRO_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Intro-image.pn
 ExpoImage.prefetch(INTRO_IMAGE_URL, 'disk').catch(() => {});
 
 // GGFIX brand sheet (see theme/colors.js).
-const PAGE_BG = '#F8F8F8';
-const MINT = '#EAF8EC';       // soft green fills — blobs, icon circles
-const MINT_LINE = '#CDEFD4';  // slightly stronger mint for the middle blob
-const GREEN = '#09AD2A';      // brand green — headline accent, icons, CTA
-const DOT = '#D6D6D6';        // inactive pagination dot
+const PAGE_BG = '#F3F4F6';
+const MINT = '#E5F3F5';       // soft green fills — blobs, icon circles
+const MINT_LINE = '#C7E6EA';  // slightly stronger mint for the middle blob
+const GREEN = '#035C6C';      // brand green — headline accent, icons, CTA
+const DOT = '#D1D5DB';        // inactive pagination dot
 const DARK_TEXT = tokens.text;
 const MUTED_TEXT = tokens.textMuted;
 
@@ -144,7 +144,7 @@ export default function IntroScreen({ navigation, onDone }) {
           </Text>
 
           <Text style={[styles.description, isTablet && { fontSize: 15, lineHeight: rf(24), marginTop: rs(18) }]}>
-            Grow your business with GGFIX. Handle service orders, manage pickups, buy and sell devices, and serve more
+            Grow your business with Near G Fix. Handle service orders, manage pickups, buy and sell devices, and serve more
             customers — faster and easier.
           </Text>
 

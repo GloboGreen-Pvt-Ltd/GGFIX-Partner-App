@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, Image, StatusBar, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsive } from '../../theme/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Smartphone,
@@ -35,6 +36,7 @@ const ICONS_BY_CODE = {
 
 export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }) {
   const params = route?.params || {};
+  const r = useResponsive();
   const { categoryCode, categoryName, modelName, modelImageUrl } = params;
   const DeviceIcon = ICONS_BY_CODE[(categoryCode || '').toUpperCase()] || Smartphone;
 
@@ -138,7 +140,7 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
         </View>
       </View>
 
-      <ScrollView style={{ backgroundColor: PAGE_BG }} contentContainerStyle={{ padding: 12, paddingTop: 14 }}>
+      <ScrollView style={{ backgroundColor: PAGE_BG }} contentContainerStyle={{ padding: 12, paddingTop: 14, paddingBottom: 12 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
         {modelName ? (
           <Pressable
             onPress={() => navigation.goBack()}

@@ -7,8 +7,10 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
   ChevronLeft,
   Phone,
@@ -35,8 +37,8 @@ import {
 } from '../../../api/chat';
 import { uploadMedia } from '../../../api/masterData';
 
-const GREEN_DARK = '#087A0A';
-const GREEN      = '#087A0A';
+const GREEN_DARK = '#035C6C';
+const GREEN      = '#035C6C';
 
 // ─────────────────────────────────────── helpers
 
@@ -132,10 +134,13 @@ function useVoiceRecorder() {
 // ─────────────────────────────────────── bubble renderer
 
 function MessageBubble({ m, mine }) {
+  // Image attachments: 220 wide, but never wider than the bubble on a 320pt phone.
+  const { width: winW } = useWindowDimensions();
+  const imgW = Math.min(220, Math.floor((winW - 24) * 0.82) - 28);
   const bubbleBg = m.failed
     ? 'bg-red-100 border border-red-300 rounded-2xl rounded-br-sm'
     : mine
-      ? `${m.pending ? 'bg-emerald-400' : 'bg-emerald-600'} rounded-2xl rounded-br-sm`
+      ? `${m.pending ? 'bg-primary-400' : 'bg-primary'} rounded-2xl rounded-br-sm`
       : 'bg-card border border-border rounded-2xl rounded-bl-sm';
   const txtColor = m.failed ? 'text-red-700' : mine ? 'text-white' : 'text-text';
   const metaColor = m.failed ? 'text-red-600' : mine ? 'text-white/75' : 'text-text-muted';
@@ -148,7 +153,7 @@ function MessageBubble({ m, mine }) {
         {isImage ? (
           <Image
             source={{ uri: m.attachmentUrl }}
-            style={{ width: 220, height: 160, borderRadius: 10, marginBottom: m.body ? 6 : 0 }}
+            style={{ width: imgW, height: Math.round(imgW * 160 / 220), borderRadius: 10, marginBottom: m.body ? 6 : 0 }}
             resizeMode="cover"
           />
         ) : null}
@@ -164,7 +169,7 @@ function MessageBubble({ m, mine }) {
           </Text>
           {mine && !m.pending && !m.failed ? (
             m.read || m.readAt
-              ? <CheckCheck size={11} color="#C8EEBF" style={{ marginLeft: 4 }} />
+              ? <CheckCheck size={11} color="#C7E6EA" style={{ marginLeft: 4 }} />
               : <Check size={11} color="rgba(255,255,255,0.85)" style={{ marginLeft: 4 }} />
           ) : null}
         </View>
@@ -203,7 +208,7 @@ function AudioRow({ url, mine }) {
   return (
     <View className="flex-row items-center px-1 py-1 min-w-[160px]">
       <Pressable onPress={toggle} className="h-8 w-8 rounded-full items-center justify-center"
-                 style={{ backgroundColor: mine ? 'rgba(255,255,255,0.25)' : '#E6F7E3' }}>
+                 style={{ backgroundColor: mine ? 'rgba(255,255,255,0.25)' : '#E5F3F5' }}>
         {playing
           ? <StopCircle size={18} color={mine ? '#fff' : GREEN_DARK} />
           : <Mic size={16} color={mine ? '#fff' : GREEN_DARK} />}
@@ -262,10 +267,9 @@ export default function ShopChatThreadScreen({ navigation, route }) {
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
-  // The Android window resizes when the keyboard opens (adjustResize), so the OS
-  // itself lifts the composer above the keyboard — no KeyboardAvoidingView or
-  // manual padding needed (either would double-lift or leave a residual gap on
-  // dismiss). We only track whether the keyboard is open, to switch the
+  // The composer is lifted by keyboard-controller's KeyboardAvoidingView below
+  // (edge-to-edge Android no longer resizes the window, and iOS never did). It
+  // measures the overlap itself, so it cannot double-lift. Here we only track whether the keyboard is open, to switch the
   // composer's bottom padding (small while typing vs. nav-bar clearance closed).
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
@@ -380,11 +384,11 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             onPress={() => navigation.goBack()}
             hitSlop={6}
             className="h-9 w-9 rounded-full items-center justify-center active:opacity-80"
-            style={{ backgroundColor: '#EFF5EE' }}
+            style={{ backgroundColor: '#E5F3F5' }}
           >
-            <ChevronLeft size={19} color="#172117" />
+            <ChevronLeft size={19} color="#111111" />
           </Pressable>
-          <View className="h-10 w-10 rounded-full items-center justify-center ml-2" style={{ backgroundColor: '#E6F7E3' }}>
+          <View className="h-10 w-10 rounded-full items-center justify-center ml-2" style={{ backgroundColor: '#E5F3F5' }}>
             {head?.counterpartAvatarUrl ? (
               <Image source={{ uri: head.counterpartAvatarUrl }} style={{ height: 40, width: 40, borderRadius: 20 }} />
             ) : (
@@ -401,14 +405,14 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             </View>
           </View>
           {head?.counterpartPhone ? (
-            <View className="h-10 w-10 rounded-full items-center justify-center ml-1" style={{ backgroundColor: '#EFF5EE' }}>
-              <Phone size={16} color="#087A0A" />
+            <View className="h-10 w-10 rounded-full items-center justify-center ml-1" style={{ backgroundColor: '#E5F3F5' }}>
+              <Phone size={16} color="#035C6C" />
             </View>
           ) : null}
         </View>
       </SafeAreaView>
 
-      <View className="flex-1">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           className="flex-1"
@@ -474,11 +478,11 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             <View className="flex-row items-end">
               <View className="flex-1 bg-background border border-border rounded-3xl flex-row items-center px-2 py-1">
                 <Pressable onPress={() => pickImage(false)} disabled={attaching} className="h-9 w-9 items-center justify-center active:opacity-70">
-                  <Paperclip size={18} color="#667066" />
+                  <Paperclip size={18} color="#6B7280" />
                 </Pressable>
                 <TextInput
                   placeholder="Type a message…"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#9CA3AF"
                   value={text}
                   onChangeText={onChangeText}
                   multiline
@@ -487,10 +491,10 @@ export default function ShopChatThreadScreen({ navigation, route }) {
                   style={{ maxHeight: 100 }}
                 />
                 <Pressable onPress={() => setText((t) => `${t || ''}😊`)} className="h-9 w-9 items-center justify-center active:opacity-70">
-                  <Smile size={18} color="#667066" />
+                  <Smile size={18} color="#6B7280" />
                 </Pressable>
                 <Pressable onPress={() => pickImage(true)} disabled={attaching} className="h-9 w-9 items-center justify-center active:opacity-70">
-                  <Camera size={18} color="#667066" />
+                  <Camera size={18} color="#6B7280" />
                 </Pressable>
               </View>
               {text.trim() ? (
@@ -514,7 +518,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             </View>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

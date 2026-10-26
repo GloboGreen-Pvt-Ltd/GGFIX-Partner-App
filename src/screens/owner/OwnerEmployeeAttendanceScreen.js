@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ticketApi } from '../../api/client';
 import { useResponsive } from '../../theme/responsive';
-import { rf, rs } from '../../utils/responsive';
+import { rs } from '../../utils/responsive';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -22,22 +22,22 @@ const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // GGFIX brand sheet (theme/colors.js) — the same greens, mint and greys as the
-// Employee Details screen this one opens from. Replaces the old #004C40 teal
+// Employee Details screen this one opens from. Replaces the old #035C6C teal
 // theme, which no other screen used.
-const GREEN = '#09AD2A';       // fills, rings, icons
-const GREEN_TEXT = '#078F23';  // green copy on white / mint
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const BORDER = '#E6E6E6';
-const HAIR = '#F3F3F3';
-const PAGE_BG = '#F8F8F8';
+const GREEN = '#035C6C';       // fills, rings, icons
+const GREEN_TEXT = '#035C6C';  // green copy on white / mint
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const BORDER = '#E5E7EB';
+const HAIR = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const RED = '#F84141';
 const YELLOW = '#F3BF23';
 const YELLOW_TEXT = '#8A6A00'; // yellow takes dark text only — white on it is under 2:1
 const YELLOW_SOFT = '#FFF8E1';
-const GREY = '#8A8A8A';
+const GREY = '#9CA3AF';
 
 // Dot legend + stat rings, from the brand sheet alone. Five statuses, five
 // marks that stay tellable apart at 6px: Late is red like the late check-in
@@ -267,9 +267,9 @@ function StatRing({ value, label, color }) {
   return (
     <View style={styles.statRingWrap}>
       <View style={[styles.statRing, { borderColor: color.ring }]}>
-        <Text style={styles.statRingValue}>{value}</Text>
+        <Text style={styles.statRingValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       </View>
-      <Text style={[styles.statRingLabel, { color: color.text }]}>{label}</Text>
+      <Text style={[styles.statRingLabel, { color: color.text }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
     </View>
   );
 }
@@ -324,7 +324,7 @@ function DayCard({ day }) {
             </View>
             {isPermission ? (
               <View style={[styles.dayPill, styles.dayPillPermission]}>
-                <Text style={[styles.dayPillText, { color: YELLOW_TEXT }]}>{day.notes || 'Permission'}</Text>
+                <Text style={[styles.dayPillText, { color: YELLOW_TEXT }]} numberOfLines={1}>{day.notes || 'Permission'}</Text>
               </View>
             ) : null}
           </View>
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     shadowColor: INK, shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: rs(8) },
-  cardTitle: { fontSize: 13, fontWeight: '800', color: INK },
+  cardTitle: { fontSize: 13, fontWeight: '800', color: INK, flexShrink: 1, marginRight: rs(8) },
 
   // Mint pill with green text — the same month pill as Employee Details.
   monthPill: {
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  statRingValue: { fontSize: 11.5, fontWeight: '800', color: INK },
+  statRingValue: { fontSize: 11.5, fontWeight: '800', color: INK, paddingHorizontal: rs(2) },
   statRingLabel: { fontSize: 10, fontWeight: '700', marginTop: rs(4) },
 
   calendar: { marginTop: rs(2), marginBottom: rs(4) },
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   dayInner: { flex: 1, paddingHorizontal: rs(10), paddingVertical: rs(8) },
   dayTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayDateRow: { flexDirection: 'row', alignItems: 'center', gap: rs(6) },
-  dayTopRight: { flexDirection: 'row', gap: rs(6) },
+  dayTopRight: { flexDirection: 'row', gap: rs(6), flexShrink: 1, marginLeft: rs(6) },
   dayDate: { fontSize: 12, fontWeight: '800', color: INK },
   dayPill: {
     paddingHorizontal: rs(10),

@@ -45,6 +45,7 @@ export interface DashboardSummary {
   readyForDelivery: number;
   delivered: number;
   cancelled: number;
+  returned: number;
   workPending: number;
   total: number;
   revenue: number;

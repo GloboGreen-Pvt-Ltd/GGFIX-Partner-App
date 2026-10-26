@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  BarChart3,
   CheckCircle2,
   XCircle,
   User,
@@ -17,7 +18,6 @@ import {
   ChevronLeft,
   Clock,
   ClipboardList,
-  UserPlus,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
@@ -25,14 +25,14 @@ import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const PAGE_BG = '#F8F8F8';
-const NEUTRAL = '#F3F3F3';
-const BORDER = '#E6E6E6';
+const GREEN = '#035C6C';
+const GREEN_DEEP = '#035C6C';
+const MINT = '#E5F3F5';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const PAGE_BG = '#F3F4F6';
+const NEUTRAL = '#F3F4F6';
+const BORDER = '#E5E7EB';
 const RED = '#F84141';
 
 const cardShadow = {
@@ -62,7 +62,25 @@ function initials(name) {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
-export default function OwnerLeaveRequestsScreen({ navigation }) {
+// Permission requests are leave rows with leaveType PERMISSION (the Employee
+// App files them that way, the time window in the reason). One screen serves
+// both lists: `route.params.kind` picks which rows it shows, and each list
+// leaves out the other's rows so nothing appears twice.
+const KINDS = {
+  LEAVE: {
+    title: 'Leave Requests', sub: "Review and manage your team's leave", noun: 'leaves',
+    emptyPending: 'New leave requests from your team will appear here.',
+  },
+  PERMISSION: {
+    title: 'Permission Requests', sub: "Review and manage your team's permissions", noun: 'permissions',
+    emptyPending: 'New permission requests from your team will appear here.',
+  },
+};
+const isPermission = (l) => String(l?.leaveType || '').toUpperCase() === 'PERMISSION';
+
+export default function OwnerLeaveRequestsScreen({ navigation, route }) {
+  const kind = route?.params?.kind === 'PERMISSION' ? 'PERMISSION' : 'LEAVE';
+  const copy = KINDS[kind];
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,15 +96,15 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
         ? '/technicians/leaves/pending'
         : `/technicians/leaves?status=${status}`;
       const res = await ticketApi.get(endpoint);
-      setList(Array.isArray(res) ? res : []);
+      setList((Array.isArray(res) ? res : []).filter((l) => isPermission(l) === (kind === 'PERMISSION')));
     } catch (e) {
-      setError(e?.message || 'Failed to load leave requests');
+      setError(e?.message || `Failed to load ${copy.title.toLowerCase()}`);
       setList([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [status]);
+  }, [status, kind, copy]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -131,12 +149,25 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             </TouchableOpacity>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
-                Leave Requests
+                {copy.title}
               </Text>
               <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }} numberOfLines={1}>
-                Review and manage your team's leave
+                {copy.sub}
               </Text>
             </View>
+            {/* The month-wise permission report the Permissions tile used to
+                open — still one tap away. */}
+            {kind === 'PERMISSION' ? (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('OwnerStaffReport', { mode: 'permission' })}
+                activeOpacity={0.7}
+                hitSlop={6}
+                accessibilityLabel="Permission report"
+                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: MINT }}
+              >
+                <BarChart3 size={15} color={GREEN_DEEP} />
+              </TouchableOpacity>
+            ) : null}
             <View
               className="flex-row items-center"
               style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: activeMeta?.tint || MINT }}
@@ -166,7 +197,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
               >
                 <ChipIcon size={13} color={active ? opt.accent : MUTED} />
                 <Text
-                  style={{ marginLeft: 5, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? opt.text : MUTED }}
+                  style={{ marginLeft: 5, fontSize: 12, fontWeight: active ? '800' : '600', color: active ? opt.text : MUTED, flexShrink: 1 }}
                   numberOfLines={1}
                 >
                   {opt.label}
@@ -224,25 +255,13 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
             </View>
 
             <Text className="font-extrabold" style={{ marginTop: 12, fontSize: 15, color: INK }}>
-              No {activeMeta?.label.toLowerCase() || 'matching'} leaves
+              No {activeMeta?.label.toLowerCase() || 'matching'} {copy.noun}
             </Text>
             <Text style={{ marginTop: 4, fontSize: 12, lineHeight: 17, color: MUTED, textAlign: 'center' }}>
               {status === 'PENDING'
-                ? 'New leave requests from your team will appear here.'
-                : `No ${activeMeta?.label.toLowerCase()} leaves to show.`}
+                ? copy.emptyPending
+                : `No ${activeMeta?.label.toLowerCase()} ${copy.noun} to show.`}
             </Text>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('OwnerEmployeeAdd')}
-              className="flex-row items-center justify-center"
-              style={{ marginTop: 16, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12, backgroundColor: GREEN }}
-            >
-              <UserPlus size={15} color="#FFFFFF" />
-              <Text className="font-extrabold" style={{ marginLeft: 7, fontSize: 13, color: '#FFFFFF' }}>
-                Add Employee
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       ) : (
@@ -282,7 +301,9 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                     <View className="flex-row items-center" style={{ marginTop: 3 }}>
                       <CalendarDays size={12} color={MUTED} />
                       <Text style={{ marginLeft: 5, fontSize: 11, color: MUTED }} numberOfLines={1}>
-                        {formatDate(item.startDate)} – {formatDate(item.endDate)}
+                        {!item.endDate || item.endDate === item.startDate
+                          ? formatDate(item.startDate)
+                          : `${formatDate(item.startDate)} – ${formatDate(item.endDate)}`}
                       </Text>
                     </View>
                   </View>
@@ -294,9 +315,11 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                   </View>
                 </View>
 
-                {item.appliedDaysLabel || item.reason ? (
+                {/* A permission is part of a day (totalDays 0) — its window is
+                    in the reason, so the day count would only read "0". */}
+                {(item.appliedDaysLabel && kind !== 'PERMISSION') || item.reason ? (
                   <View style={{ marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: NEUTRAL }}>
-                    {item.appliedDaysLabel ? (
+                    {item.appliedDaysLabel && kind !== 'PERMISSION' ? (
                       <View className="flex-row items-center" style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: PAGE_BG }}>
                         <Clock size={11} color={MUTED} />
                         <Text className="font-bold" style={{ marginLeft: 5, fontSize: 11, color: INK }}>
@@ -305,7 +328,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                       </View>
                     ) : null}
                     {item.reason ? (
-                      <View style={{ marginTop: item.appliedDaysLabel ? 8 : 0 }}>
+                      <View style={{ marginTop: item.appliedDaysLabel && kind !== 'PERMISSION' ? 8 : 0 }}>
                         <Text className="uppercase font-extrabold" style={{ fontSize: 10, letterSpacing: 0.6, color: MUTED }}>
                           Reason
                         </Text>
@@ -322,6 +345,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'REJECTED')}
+                      hitSlop={{ top: 6, bottom: 6 }}
                       disabled={actionId != null}
                       className="flex-row items-center justify-center"
                       style={{
@@ -338,6 +362,7 @@ export default function OwnerLeaveRequestsScreen({ navigation }) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => respond(item, 'APPROVED')}
+                      hitSlop={{ top: 6, bottom: 6 }}
                       disabled={actionId != null}
                       className="flex-row items-center justify-center"
                       style={{

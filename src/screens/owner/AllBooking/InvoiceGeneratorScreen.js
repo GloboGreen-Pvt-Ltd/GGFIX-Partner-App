@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -11,25 +10,26 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useResponsive } from '../../../theme/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ChevronLeft,
   ChevronDown,
-  Wrench,
   Package,
   ReceiptText,
   Percent,
   IndianRupee,
   CheckCircle2,
   FileText,
-  ShieldCheck,
   Wallet,
   BookText,
   AlertTriangle,
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
+import SafeModal from '../../../components/SafeModal';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 // The same validator the Cash Book uses, and deliberately the same rule as
@@ -38,24 +38,16 @@ import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 // question with one answer on both sides.
 import { formatPhone, isValidPhone } from '../../../api/ledgerParties';
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
-const ACCENT_GREEN = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
+const ACCENT_GREEN = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 10 },
   elevation: 6,
-};
-
-const softShadow = {
-  shadowColor: '#172117',
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
 };
 
 const TAX_MODES = [
@@ -115,7 +107,7 @@ function numberToIndianWords(num) {
   return s.trim();
 }
 
-function SectionHeader({ icon: Icon, label, tint = '#E6F7E3', accent = BRAND_GREEN_DARK }) {
+function SectionHeader({ icon: Icon, label, tint = '#E5F3F5', accent = BRAND_GREEN_DARK }) {
   return (
     <View className="flex-row items-center mb-3">
       <View
@@ -134,39 +126,6 @@ function SectionHeader({ icon: Icon, label, tint = '#E6F7E3', accent = BRAND_GRE
   );
 }
 
-// Inline picker — renders the options as a row of pills. Avoids the heavy
-// native picker which doesn't theme well and isn't needed for 3-6 fixed values.
-function PillPicker({ value, options, onChange, formatLabel }) {
-  return (
-    <View className="flex-row flex-wrap -mx-1">
-      {options.map((opt) => {
-        const v = typeof opt === 'object' ? opt.value : opt;
-        const label = typeof opt === 'object' ? opt.label : (formatLabel ? formatLabel(opt) : String(opt));
-        const active = value === v;
-        return (
-          <Pressable
-            key={String(v)}
-            onPress={() => onChange(v)}
-            className="px-3 py-2 rounded-full m-1"
-            style={{
-              backgroundColor: active ? BRAND_GREEN : '#EFF5EE',
-              borderWidth: 1,
-              borderColor: active ? BRAND_GREEN_DARK : '#E2E8E2',
-            }}
-          >
-            <Text
-              className="text-[12px] font-extrabold"
-              style={{ color: active ? '#FFFFFF' : '#172117' }}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 function priceItemsFromTicket(ticket) {
   if (Array.isArray(ticket?.priceItems)) return ticket.priceItems;
   if (ticket?.priceItemsJson) {
@@ -175,11 +134,15 @@ function priceItemsFromTicket(ticket) {
       if (Array.isArray(parsed)) return parsed;
     } catch (_) {}
   }
-  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price, warranty: s.warranty })) || [];
 }
 
 export default function InvoiceGeneratorScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: cap the form column and centre it (sticky bar matches via padding).
+  const formW = r.maxWidth('form');
+  const barPadX = Math.max(16, (r.width - formW) / 2);
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [existing, setExisting] = useState(null);
@@ -524,7 +487,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
           paddingBottom: 14,
           paddingHorizontal: 16,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center">
@@ -533,7 +496,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             activeOpacity={0.7}
             className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={22} color="#111111" />
           </TouchableOpacity>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Invoice Generator
@@ -551,25 +514,28 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
+      {/* KeyboardAwareScrollView lifts the focused field above the keyboard;
+          bottomOffset clears the sticky total/CTA bar. */}
+      <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
+        bottomOffset={120}
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 130, width: '100%', maxWidth: formW, alignSelf: 'center' }}
       >
         {/* (A) Service Charges — single row matching the reference:
             label on the left, narrow input on the right. */}
         <View className="px-4" style={{ marginTop: 12 }}>
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13px] font-bold text-gray-900">
+              <Text className="flex-1 mr-2 text-[13px] font-bold text-gray-900">
                 (A) Service Charges
               </Text>
               <View
                 className="flex-row items-center px-3 py-1.5 rounded-lg"
                 style={{
                   borderWidth: 1,
-                  borderColor: '#E2E8E2',
+                  borderColor: '#E5E7EB',
                   backgroundColor: '#FFFFFF',
                   minWidth: 130,
                 }}
@@ -580,12 +546,12 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   onChangeText={(v) => setServiceChargesStr(v.replace(/[^0-9.]/g, ''))}
                   keyboardType="decimal-pad"
                   placeholder="0.00"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#9CA3AF"
                   style={{
                     flex: 1,
                     fontSize: 13,
                     fontWeight: '700',
-                    color: '#172117',
+                    color: '#111111',
                     padding: 0,
                     textAlign: 'right',
                   }}
@@ -617,7 +583,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                 <View
                   style={{
                     borderWidth: 1,
-                    borderColor: '#E2E8E2',
+                    borderColor: '#E5E7EB',
                     borderRadius: 6,
                     overflow: 'hidden',
                   }}
@@ -626,9 +592,9 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   <View
                     className="flex-row"
                     style={{
-                      backgroundColor: '#F7FAF7',
+                      backgroundColor: '#F3F4F6',
                       borderBottomWidth: 1,
-                      borderBottomColor: '#E2E8E2',
+                      borderBottomColor: '#E5E7EB',
                     }}
                   >
                     <SpareHeadCell w={44}>Sl.No</SpareHeadCell>
@@ -647,7 +613,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                         className="flex-row"
                         style={{
                           borderBottomWidth: isLast ? 0 : 1,
-                          borderBottomColor: '#E2E8E2',
+                          borderBottomColor: '#E5E7EB',
                         }}
                       >
                         <SpareReadCell w={44}>
@@ -716,7 +682,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                 className="flex-row items-center px-3 py-1.5 rounded-lg"
                 style={{
                   borderWidth: 1,
-                  borderColor: '#E2E8E2',
+                  borderColor: '#E5E7EB',
                   backgroundColor: '#FFFFFF',
                   minWidth: 130,
                 }}
@@ -727,12 +693,12 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   onChangeText={(v) => setDiscountStr(v.replace(/[^0-9.]/g, ''))}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#9CA3AF"
                   style={{
                     flex: 1,
                     fontSize: 13,
                     fontWeight: '700',
-                    color: '#172117',
+                    color: '#111111',
                     textAlign: 'right',
                     padding: 0,
                   }}
@@ -798,15 +764,15 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   className="px-3 py-2 rounded-xl"
                   style={{
                     borderWidth: 1,
-                    borderColor: '#E2E8E2',
-                    backgroundColor: '#EFF5EE',
+                    borderColor: '#E5E7EB',
+                    backgroundColor: '#E5F3F5',
                     minHeight: 38,
                     justifyContent: 'center',
                   }}
                 >
                   <Text
                     className="text-[12px] font-extrabold"
-                    style={{ color: '#172117' }}
+                    style={{ color: '#111111' }}
                     numberOfLines={1}
                   >
                     {fmt(totals.amount2plus3)}
@@ -833,7 +799,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   {/* Header */}
                   <View
                     className="flex-row pb-2 mb-1"
-                    style={{ borderBottomWidth: 1, borderBottomColor: '#EFF5EE' }}
+                    style={{ borderBottomWidth: 1, borderBottomColor: '#E5F3F5' }}
                   >
                     <ChargesHead w={32} align="left">ITEM</ChargesHead>
                     <ChargesHead w={92}>BASE (₹)</ChargesHead>
@@ -850,7 +816,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                       className="flex-row py-1.5"
                       style={{
                         borderBottomWidth: i < chargesSummary.length - 1 ? 1 : 0,
-                        borderBottomColor: '#F7FAF7',
+                        borderBottomColor: '#F3F4F6',
                       }}
                     >
                       <ChargesCell w={32} align="left" bold>{r.label}</ChargesCell>
@@ -918,9 +884,9 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
               className="flex-row items-center justify-between py-2"
               style={{
                 borderTopWidth: 1,
-                borderTopColor: '#EFF5EE',
+                borderTopColor: '#E5F3F5',
                 borderBottomWidth: 1,
-                borderBottomColor: '#EFF5EE',
+                borderBottomColor: '#E5F3F5',
               }}
             >
               <Text className="text-[13px] font-extrabold text-gray-900">
@@ -948,9 +914,9 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             <View
               className="rounded-xl px-3 py-3 mt-2"
               style={{
-                backgroundColor: pay.settled ? '#E6F7E3' : CREDIT_AMBER_BG,
+                backgroundColor: pay.settled ? '#E5F3F5' : CREDIT_AMBER_BG,
                 borderWidth: 1,
-                borderColor: pay.settled ? '#C8EEBF' : '#FDE68A',
+                borderColor: pay.settled ? '#C7E6EA' : '#FDE68A',
               }}
             >
               <View className="flex-row items-center justify-between">
@@ -984,9 +950,9 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                 <View
                   className="flex-row mt-3 px-3 py-2.5 rounded-xl"
                   style={{
-                    backgroundColor: creditTrackable ? '#F0F8EF' : '#FEE2E2',
+                    backgroundColor: creditTrackable ? '#E5F3F5' : '#FEE2E2',
                     borderWidth: 1,
-                    borderColor: creditTrackable ? '#E2E8E2' : '#FECACA',
+                    borderColor: creditTrackable ? '#E5E7EB' : '#FECACA',
                   }}
                 >
                   <View style={{ paddingTop: 1 }}>
@@ -1007,14 +973,14 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                     </Text>
                     <Text
                       className="text-[10.5px] mt-0.5"
-                      style={{ color: creditTrackable ? '#667066' : '#B91C1C' }}
+                      style={{ color: creditTrackable ? '#6B7280' : '#B91C1C' }}
                     >
                       {creditTrackable
                         ? `${ticket?.customerName || 'Customer'} · ${formatPhone(ticket?.customerPhone)} · Invoice #${ticket?.trackingId || '—'} · ${toApiDate(new Date())}`
                         : 'This booking has no valid 10-digit mobile number, so no customer account can be opened for the credit. Add one on the booking first.'}
                     </Text>
                     {creditTrackable ? (
-                      <Text className="text-[10px] mt-1" style={{ color: '#8FA08F' }}>
+                      <Text className="text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
                         When they pay later, record it on their Cash Book account —
                         the outstanding balance drops by what they hand over.
                       </Text>
@@ -1032,11 +998,11 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   value={paymentNote}
                   onChangeText={setPaymentNote}
                   placeholder="e.g. Will pay on Friday"
-                  placeholderTextColor="#8FA08F"
+                  placeholderTextColor="#9CA3AF"
                   multiline
                   style={{
                     borderWidth: 1,
-                    borderColor: '#E2E8E2',
+                    borderColor: '#E5E7EB',
                     backgroundColor: '#FFFFFF',
                     borderRadius: 12,
                     paddingHorizontal: 12,
@@ -1044,7 +1010,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                     minHeight: 60,
                     fontSize: 13,
                     fontWeight: '600',
-                    color: '#172117',
+                    color: '#111111',
                     textAlignVertical: 'top',
                   }}
                 />
@@ -1052,17 +1018,18 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             ) : null}
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Sticky CTA — live total on the left, action button on the right so
           the owner always sees the payable amount update as they edit. */}
       <View
-        className="absolute left-0 right-0 bottom-0 px-4 pt-2.5"
+        className="absolute left-0 right-0 bottom-0 pt-2.5"
         style={{
+          paddingHorizontal: barPadX,
           paddingBottom: insets.bottom + 12,
-          backgroundColor: 'rgba(240, 248, 239, 0.98)',
+          backgroundColor: 'rgba(229, 243, 245, 0.98)',
           borderTopWidth: 1,
-          borderTopColor: '#E2E8E2',
+          borderTopColor: '#E5E7EB',
         }}
       >
         {invoiceBlockedBy ? (
@@ -1121,7 +1088,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                 <CheckCircle2 size={18} color="#FFFFFF" />
               )}
               <Text className="ml-2 text-white text-[13px] font-extrabold">
-                {submitting ? 'Generating…' : 'Generate Invoice'}
+                {submitting ? 'Generating…' : existing ? 'Update Invoice' : 'Generate Invoice'}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1140,7 +1107,7 @@ function SpareHeadCell({ w, last, children }) {
         paddingHorizontal: 8,
         paddingVertical: 8,
         borderRightWidth: last ? 0 : 1,
-        borderRightColor: '#E2E8E2',
+        borderRightColor: '#E5E7EB',
       }}
     >
       <Text className="text-[10.5px] font-extrabold text-gray-600">
@@ -1159,7 +1126,7 @@ function SpareReadCell({ w, last, children }) {
         paddingHorizontal: 8,
         paddingVertical: 10,
         borderRightWidth: last ? 0 : 1,
-        borderRightColor: '#E2E8E2',
+        borderRightColor: '#E5E7EB',
         alignItems: 'center',
         justifyContent: 'center',
       }}
@@ -1181,7 +1148,7 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
         paddingHorizontal: 6,
         paddingVertical: 6,
         borderRightWidth: last ? 0 : 1,
-        borderRightColor: '#E2E8E2',
+        borderRightColor: '#E5E7EB',
         flexDirection: 'row',
         alignItems: 'center',
       }}
@@ -1189,7 +1156,7 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
       {prefix ? (
         <Text
           className="text-[11px] font-extrabold mr-1"
-          style={{ color: accent || '#667066' }}
+          style={{ color: accent || '#6B7280' }}
         >
           {prefix}
         </Text>
@@ -1199,12 +1166,12 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
         onChangeText={onChange}
         keyboardType={keyboardType}
         placeholder="—"
-        placeholderTextColor="#8FA08F"
+        placeholderTextColor="#9CA3AF"
         style={{
           flex: 1,
           fontSize: 11,
           fontWeight: '700',
-          color: accent || '#172117',
+          color: accent || '#111111',
           padding: 0,
         }}
       />
@@ -1239,21 +1206,21 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
         className="flex-row items-center justify-between px-3 rounded-xl"
         style={{
           borderWidth: 1,
-          borderColor: '#E2E8E2',
-          backgroundColor: disabled ? '#EFF5EE' : '#FFFFFF',
+          borderColor: '#E5E7EB',
+          backgroundColor: disabled ? '#E5F3F5' : '#FFFFFF',
           minHeight: 38,
         }}
       >
         <Text
           className="text-[12px] font-bold"
-          style={{ color: disabled ? '#8FA08F' : '#172117' }}
+          style={{ color: disabled ? '#9CA3AF' : '#111111' }}
           numberOfLines={1}
         >
           {display}
         </Text>
-        {disabled ? null : <ChevronDown size={16} color="#667066" />}
+        {disabled ? null : <ChevronDown size={16} color="#6B7280" />}
       </Pressable>
-      <Modal
+      <SafeModal
         transparent
         visible={open}
         animationType="fade"
@@ -1261,7 +1228,7 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
       >
         <Pressable
           className="flex-1 items-center justify-center px-8"
-          style={{ backgroundColor: 'rgba(23, 33, 23, 0.45)' }}
+          style={{ backgroundColor: 'rgba(17, 17, 17, 0.45)' }}
           onPress={() => setOpen(false)}
         >
           <View
@@ -1281,14 +1248,14 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
                   }}
                   className="px-4 py-3"
                   style={{
-                    backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
+                    backgroundColor: active ? '#E5F3F5' : '#FFFFFF',
                     borderBottomWidth: i < options.length - 1 ? 1 : 0,
-                    borderBottomColor: '#EFF5EE',
+                    borderBottomColor: '#E5F3F5',
                   }}
                 >
                   <Text
                     className="text-[13px] font-bold"
-                    style={{ color: active ? BRAND_GREEN_DARK : '#172117' }}
+                    style={{ color: active ? BRAND_GREEN_DARK : '#111111' }}
                   >
                     {lbl}
                   </Text>
@@ -1297,7 +1264,7 @@ function InlineDropdown({ value, options, onChange, formatLabel, placeholder, di
             })}
           </View>
         </Pressable>
-      </Modal>
+      </SafeModal>
     </>
   );
 }
@@ -1321,7 +1288,7 @@ function ChargesCell({ w, align = 'right', bold, accent, children }) {
         width: w,
         textAlign: align,
         fontWeight: bold ? '800' : '500',
-        color: accent || (bold ? '#172117' : '#172117'),
+        color: accent || (bold ? '#111111' : '#111111'),
       }}
     >
       {children}
@@ -1339,9 +1306,9 @@ function PlainTotalRow({ label, value, divider }) {
         divider
           ? {
               borderTopWidth: 1,
-              borderTopColor: '#EFF5EE',
+              borderTopColor: '#E5F3F5',
               borderBottomWidth: 1,
-              borderBottomColor: '#EFF5EE',
+              borderBottomColor: '#E5F3F5',
             }
           : null
       }
@@ -1373,7 +1340,7 @@ function MoneyInputRow({ label, hint, value, onChange, action, readOnly }) {
           <Pressable
             onPress={action.onPress}
             className="px-2.5 py-1 rounded-full mr-2"
-            style={{ backgroundColor: '#E6F7E3', borderWidth: 1, borderColor: '#C8EEBF' }}
+            style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
           >
             <Text className="text-[10.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>
               {action.label}
@@ -1384,7 +1351,7 @@ function MoneyInputRow({ label, hint, value, onChange, action, readOnly }) {
           className="flex-row items-center px-3 py-1.5 rounded-lg"
           style={{
             borderWidth: 1,
-            borderColor: '#E2E8E2',
+            borderColor: '#E5E7EB',
             backgroundColor: readOnly ? '#F4F7F4' : '#FFFFFF',
             minWidth: 120,
           }}
@@ -1396,12 +1363,12 @@ function MoneyInputRow({ label, hint, value, onChange, action, readOnly }) {
             editable={!readOnly}
             keyboardType="decimal-pad"
             placeholder="0"
-            placeholderTextColor="#8FA08F"
+            placeholderTextColor="#9CA3AF"
             style={{
               flex: 1,
               fontSize: 13,
               fontWeight: '700',
-              color: readOnly ? '#4B564B' : '#172117',
+              color: readOnly ? '#4B564B' : '#111111',
               textAlign: 'right',
               padding: 0,
             }}
@@ -1415,17 +1382,3 @@ function MoneyInputRow({ label, hint, value, onChange, action, readOnly }) {
   );
 }
 
-function NumberedRow({ no, label, value }) {
-  return (
-    <View className="flex-row items-center py-1.5">
-      <View
-        className="w-6 h-6 rounded-full items-center justify-center mr-2"
-        style={{ backgroundColor: '#E6F7E3' }}
-      >
-        <Text className="text-[10.5px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{no}</Text>
-      </View>
-      <Text className="text-[12px] text-gray-700 flex-1">{label}</Text>
-      <Text className="text-[13px] font-extrabold text-gray-900">{value}</Text>
-    </View>
-  );
-}

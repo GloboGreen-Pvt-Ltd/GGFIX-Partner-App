@@ -2,12 +2,12 @@
 // OwnerBuyListingScreen so both screens' category tiles read as the same
 // colour for a given category, and neither file duplicates the palette.
 const CODE_TINT = {
-  MOBILE: '#E6F7E3',
-  SMARTPHONE: '#E6F7E3',
+  MOBILE: '#E5F3F5',
+  SMARTPHONE: '#E5F3F5',
   LAPTOP: '#F3ECFF',
   TABLET: '#EAF3FF',
-  SMARTWATCH: '#EAF7F2',
-  SMARTWATCHES: '#EAF7F2',
+  SMARTWATCH: '#E5F3F5',
+  SMARTWATCHES: '#E5F3F5',
   AUDIO: '#FFF0F2',
   AUDIO_DEVICE: '#FFF0F2',
   AUDIO_DEVICES: '#FFF0F2',

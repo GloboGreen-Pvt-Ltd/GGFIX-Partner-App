@@ -86,8 +86,8 @@ export function DashboardHeader({
   const avatarSize = isTablet ? 56 : 52;
   const shopNameSize = isTablet ? 24 : cls === 'large' ? 21 : 19;
   const greetingSize = isTablet ? 14 : 13;
-  const actionIconSize = isTablet ? 24 : 22;
-  const actionButtonSize = isTablet ? 46 : 40;
+  const actionIconSize = isTablet ? 16 : 14;
+  const actionButtonSize = isTablet ? 38 : 32;
   const actionGap = isTablet ? 14 : 8;
 
   const avatarHitSlop = hitSlopFor(avatarSize);
@@ -97,9 +97,6 @@ export function DashboardHeader({
     width: actionButtonSize,
     height: actionButtonSize,
     borderRadius: actionButtonSize / 2,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
@@ -200,19 +197,19 @@ export function DashboardHeader({
               onPress={onSwitchAccountPress}
               accessibilityRole="button"
               accessibilityLabel="Switch account"
-              style={actionButtonStyle}
+              style={{ ...actionButtonStyle, backgroundColor: '#035C6C' }}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <ArrowLeftRight size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
+              <ArrowLeftRight size={actionIconSize} color="#FFFFFF" strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
             <Touchable
               onPress={onNotificationsPress}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
-              style={actionButtonStyle}
+              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <Bell size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
+              <Bell size={actionIconSize} color="#111111" strokeWidth={HEADER_ACTION_STROKE} />
               {notifUnread > 0 ? (
                 <View
                   style={{
@@ -238,10 +235,10 @@ export function DashboardHeader({
               onPress={onCartPress}
               accessibilityRole="button"
               accessibilityLabel="Cart"
-              style={actionButtonStyle}
+              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <ShoppingCart size={actionIconSize} color={colors.text} strokeWidth={HEADER_ACTION_STROKE} />
+              <ShoppingCart size={actionIconSize} color="#111111" strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
           </View>
         </View>
