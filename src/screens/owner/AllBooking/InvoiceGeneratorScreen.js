@@ -153,8 +153,8 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
 
   // Form state — the visible inputs the owner edits
-  const [serviceChargesStr, setServiceChargesStr] = useState('0');
-  const [discountStr, setDiscountStr] = useState('0');
+  const [serviceChargesStr, setServiceChargesStr] = useState('');
+  const [discountStr, setDiscountStr] = useState('');
   const [taxMode, setTaxMode] = useState('WITHOUT');
   const [gstPercent, setGstPercent] = useState(0);
   // Editable spare lines: [{id, description, rate, warranty, qty, taxableValue}]
@@ -171,7 +171,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
   // `paidNowStr` is what is being handed over at delivery; the credit is
   // whatever is left and is never typed directly, so the three figures cannot
   // contradict each other.
-  const [paidNowStr, setPaidNowStr] = useState('0');
+  const [paidNowStr, setPaidNowStr] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
 
   const load = useCallback(async () => {
@@ -197,21 +197,23 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         return {
           id: it.id || `spare-${i}`,
           description: it.label || it.serviceName || `Item ${i + 1}`,
-          rate,
+          rate: rate || '',
           warranty: it.warranty || '',
           qty: 1,
           // Default Taxable Value = Rate. Owner can override per-row to
           // declare a smaller taxable portion if there's a margin.
-          taxableValue: rate,
+          // An unpriced row starts empty (0 placeholder), not with a typed-over 0.
+          taxableValue: rate || '',
         };
       }));
 
-      // Service Charges (A) is always a fresh manual entry starting at 0.
+      // Service Charges (A) is always a fresh manual entry, starting empty
+      // (0 is the placeholder, so typing 100 doesn't read 0100).
       // The tax / GST / discount picks are user preferences worth keeping
       // across visits, so those still rehydrate from the prior invoice.
-      setServiceChargesStr('0');
+      setServiceChargesStr('');
       if (inv) {
-        setDiscountStr(String(Number(inv.discount || 0)));
+        setDiscountStr(Number(inv.discount) > 0 ? String(Number(inv.discount)) : '');
         const mode = inv.taxMode || 'WITHOUT';
         setTaxMode(mode);
         // Normalised on the way IN as well as on change: an invoice saved before
@@ -223,7 +225,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
       // No advance to restore — it is read straight off the ticket every time
       // (see the state block above), so a re-generated bill deducts the same
       // deposit as the first one.
-      setPaidNowStr(String(Number(inv?.amountPaid || 0)));
+      setPaidNowStr(Number(inv?.amountPaid) > 0 ? String(Number(inv.amountPaid)) : '');
       setPaymentNote(inv?.paymentNote || '');
     } finally {
       setLoading(false);
@@ -545,7 +547,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                   value={serviceChargesStr}
                   onChangeText={(v) => setServiceChargesStr(v.replace(/[^0-9.]/g, ''))}
                   keyboardType="decimal-pad"
-                  placeholder="0.00"
+                  placeholder="0"
                   placeholderTextColor="#9CA3AF"
                   style={{
                     flex: 1,
@@ -630,6 +632,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                           value={String(sp.rate ?? '')}
                           onChange={(v) => updateSpareField(i, 'rate', v.replace(/[^0-9.]/g, ''))}
                           keyboardType="decimal-pad"
+                          placeholder="0"
                         />
                         <SpareInputCell
                           w={90}
@@ -649,6 +652,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
                           value={String(sp.taxableValue ?? '')}
                           onChange={(v) => updateSpareField(i, 'taxableValue', v.replace(/[^0-9.]/g, ''))}
                           keyboardType="decimal-pad"
+                          placeholder="0"
                           accent={BRAND_GREEN_DARK}
                         />
                       </View>
@@ -1140,7 +1144,7 @@ function SpareReadCell({ w, last, children }) {
 
 // Editable body cell — every other column uses this so the table is
 // inline-editable in the same row layout the reference shows.
-function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent }) {
+function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent, placeholder = '—' }) {
   return (
     <View
       style={{
@@ -1165,7 +1169,7 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
         value={value}
         onChangeText={onChange}
         keyboardType={keyboardType}
-        placeholder="—"
+        placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         style={{
           flex: 1,

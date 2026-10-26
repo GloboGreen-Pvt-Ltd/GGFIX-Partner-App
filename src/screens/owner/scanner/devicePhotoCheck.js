@@ -152,6 +152,19 @@ export function sharpness({ width, height, data }) {
   return sq / n - mean * mean;
 }
 
+// The model calls tablets "cell phone" too, so a phone-class box is told apart
+// by its shape (long / short side, in pixels). Phones run 16:9 → 20:9
+// (1.78–2.22; measured 1.99–2.14 on real photos), tablets 4:3 → 16:10
+// (1.33–1.6). Between the bands it's "can't confirm" → retake.
+const TABLET_MAX_SHAPE = 1.62;
+const PHONE_MIN_SHAPE = 1.7;
+const PHONE_SURE_SHAPE = 1.8;
+const shapeOf = (d, imgAspect) => {
+  const w = (d.u1 - d.u0) * imgAspect;
+  const h = d.v1 - d.v0;
+  return w > 0 && h > 0 ? Math.max(w, h) / Math.min(w, h) : null;
+};
+
 // People / hands / furniture around the device don't compete with it; any
 // other object scoring higher than the device does (keyboard, book, laptop…).
 const BACKGROUND = new Set([0, 61, 62, 64, 66]); // person, chair, couch, bed, dining table
@@ -160,9 +173,11 @@ const BACKGROUND = new Set([0, 61, 62, 64, 66]); // person, chair, couch, bed, d
  * Pure verdict — no I/O, unit-tested.
  * dets: every detection ≥ DETECT_MIN_SCORE, highest score first.
  * sharp: sharpness of the device crop, or null when not measured yet.
+ * imgAspect: image width / height — enables the phone-vs-tablet shape check
+ *   (null skips it).
  * → { status, detected } — `detected` is what the model saw (for the message).
  */
-export function decidePhoto(category, dets, sharp) {
+export function decidePhoto(category, dets, sharp, imgAspect = null) {
   if (!isVerifiableCategory(category)) return { status: 'unavailable', detected: null };
   const accept = acceptedClasses(category);
   const expected = dets.find((d) => accept.includes(d.cls)) || null;
@@ -170,6 +185,15 @@ export function decidePhoto(category, dets, sharp) {
 
   if (expected && expected.score >= DETECT_OK) {
     if (rival && rival.score > expected.score) return { status: 'wrong_device', detected: rival.label };
+    const shape = imgAspect && expected.cls === PHONE && expected.u1 != null ? shapeOf(expected, imgAspect) : null;
+    if (shape != null && category === 'MOBILE') {
+      if (shape < TABLET_MAX_SHAPE) return { status: 'wrong_device', detected: 'Tablet' };
+      if (shape < PHONE_MIN_SHAPE) return { status: 'uncertain', detected: expected.label };
+    }
+    if (shape != null && category === 'TABLET') {
+      if (shape >= PHONE_SURE_SHAPE) return { status: 'wrong_device', detected: 'Mobile Phone' };
+      if (shape >= PHONE_MIN_SHAPE) return { status: 'uncertain', detected: expected.label };
+    }
     if (sharp != null && sharp < BLUR_MIN) return { status: 'blurry', detected: expected.label };
     return { status: 'ok', detected: expected.label };
   }
@@ -272,7 +296,7 @@ export async function checkDevicePhoto(uri, category) {
     const top = dets.slice(0, 5).map((d) => `${d.label}(${d.cls}) ${d.score.toFixed(2)}`).join(', ') || `nothing ≥ ${DETECT_MIN_SCORE}`;
     console.log(`[PHOTO CHECK] ${category} · ${W}x${H} · ${engine} · inference ${ms} ms · detected: ${top}`);
 
-    const first = decidePhoto(category, dets, null);
+    const first = decidePhoto(category, dets, null, W / H);
     if (first.status !== 'ok') console.log(`[PHOTO CHECK] REJECTED ${first.status} · detected ${first.detected || '-'} · needs ${acceptedClasses(category).join('/')} ≥ ${DETECT_OK}`);
     if (first.status !== 'ok') return { status: first.status, detected: first.detected, uri, temp: [], score: dets[0]?.score || 0 };
 
@@ -287,7 +311,7 @@ export async function checkDevicePhoto(uri, category) {
       sharpCtx.resize(px.width >= px.height ? { width: SHARP_EDGE } : { height: SHARP_EDGE });
     }
     const sharp = sharpness(await decode(sharpCtx));
-    const final = decidePhoto(category, dets, sharp);
+    const final = decidePhoto(category, dets, sharp, W / H);
     console.log(`[PHOTO CHECK] ${final.status === 'ok' ? 'ACCEPTED' : `REJECTED ${final.status}`} · ${final.detected} ${best?.score?.toFixed(2)} · sharpness ${Math.round(sharp)} (min ${BLUR_MIN}) · crop ${crop ? 'yes' : 'no'}`);
 
     const outCtx = M.ImageManipulator.manipulate(base);

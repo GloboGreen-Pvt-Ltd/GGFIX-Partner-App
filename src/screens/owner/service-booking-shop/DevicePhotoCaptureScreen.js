@@ -93,6 +93,20 @@ export default function DevicePhotoCaptureScreen({ navigation, route }) {
   const [result, setResult] = useState(null);
   const [torch, setTorch] = useState(false);
   const [cameraFailed, setCameraFailed] = useState(false);
+  // The live (VisionCamera) preview failed → drop to the Expo camera, which
+  // every build has; the photo is still verified after capture.
+  const [liveFailed, setLiveFailed] = useState(false);
+  const onCameraError = useCallback((e) => {
+    const msg = e?.message || String(e);
+    if (LIVE && !liveFailed) {
+      console.warn('[PHOTO CAMERA] live camera failed, switching to Expo camera:', msg);
+      setLiveFailed(true);
+      setDetector('failed');
+    } else {
+      console.warn('[PHOTO CAMERA] camera failed:', msg);
+      setCameraFailed(true);
+    }
+  }, [liveFailed]);
   const [detector, setDetector] = useState(LIVE_DETECT ? 'loading' : 'failed');
   const [live, setLive] = useState('none'); // none | right | wrong
   const hits = useRef(0);
@@ -228,7 +242,10 @@ export default function DevicePhotoCaptureScreen({ navigation, route }) {
 
   const showCamera = !gallery && granted && !cameraFailed;
   const cameraActive = showCamera && isFocused && appActive && phase === 'live';
-  const CameraImpl = LIVE ? LiveScannerCamera : FallbackScannerCamera;
+  const CameraImpl = LIVE && !liveFailed ? LiveScannerCamera : FallbackScannerCamera;
+  useEffect(() => {
+    if (!gallery) console.log(`[PHOTO CAMERA] ${CameraImpl === LiveScannerCamera ? 'VisionCamera (live detection)' : 'Expo camera'} · permission ${permission.status}`);
+  }, [gallery, CameraImpl, permission.status]);
   const verdict = result ? verdictFor(result, label) : null;
   const statusText = !gated || detector === 'failed'
     ? `Fit the ${label} in the frame — it's verified after capture`
@@ -253,7 +270,7 @@ export default function DevicePhotoCaptureScreen({ navigation, route }) {
             wrongHint={`Wrong device — capture a ${label}`}
             onBox={onBox}
             onDetectorState={setDetector}
-            onCameraError={() => setCameraFailed(true)}
+            onCameraError={onCameraError}
           />
         ) : null}
 
@@ -313,7 +330,7 @@ export default function DevicePhotoCaptureScreen({ navigation, route }) {
                     icon={Camera}
                     label={cameraFailed ? 'Try again' : permission.status === 'blocked' ? 'Open settings' : 'Allow camera'}
                     onPress={() => {
-                      if (cameraFailed) setCameraFailed(false);
+                      if (cameraFailed) { setCameraFailed(false); setLiveFailed(false); }
                       else if (permission.status === 'blocked') Linking.openSettings?.();
                       else Promise.resolve(permission.request()).catch(() => {});
                     }}
