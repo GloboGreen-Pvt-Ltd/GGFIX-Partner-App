@@ -117,7 +117,12 @@ export function usePrinterConnection() {
     }
 
     try {
-      const bonded = await Transport.getBondedDevices();
+      // Watchdog: on some older Samsungs (Android 9/10) this native call can
+      // hang, which left the sheet stuck "busy" with every control disabled.
+      const bonded = await Promise.race([
+        Transport.getBondedDevices(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Could not read paired devices — turn Bluetooth off and on, then try again.')), 8000)),
+      ]);
       setDevices(bonded);
       const last = await getLastDevice();
       const preselected = (!last || last.transport === PRINTER_TRANSPORT.BLUETOOTH)

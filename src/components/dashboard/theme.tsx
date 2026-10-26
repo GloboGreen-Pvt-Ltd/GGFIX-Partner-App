@@ -30,23 +30,42 @@ import { cn } from '../rnr/cn';
 
 export const HAIRLINE = StyleSheet.hairlineWidth;
 
-// GGFix palette (2026-09 refresh) — Accent / Primary / Primary Dark, budgeted
-// 60 / 30 / 10. See the original DashboardScreen history for the rationale
-// behind the shape of the split; only the hues moved.
-export const GREEN = '#00A86B'; // Accent
-export const GREEN_DARK = '#00695C'; // Primary
+// GGFIX App palette (2026-10) — the Dashboard's colour system.
+// 60% white · 25% gray / light teal · 10% teal · 5% green.
+export const PAL = {
+  teal: '#035C6C',      // Primary — buttons, active navigation, highlights
+  white: '#FFFFFF',     // Main background, cards
+  black: '#111111',     // Headings, primary text
+  gray: '#F3F4F6',      // Section backgrounds
+  green: '#609138',     // Success, positive status
+  darkGray: '#6B7280',  // Secondary text
+  lightTeal: '#E5F3F5', // Selected cards, icon backgrounds
+  border: '#E5E7EB',    // Borders, dividers
+  // Lighter shade of teal — tool tiles carry a WHITE glyph on it.
+  tealSoft: '#357D89',
+  // Kept only for destructive actions (Log Out).
+  red: '#F32C26',
+} as const;
+
+export const WASH = {
+  lightTeal: PAL.lightTeal,
+  green: '#EFF4EB',
+} as const;
+
+// Legacy names kept so call sites don't change; values follow PAL.
+// Primary Teal on filled key UI (active tab, Book Now, Home).
+export const GREEN = PAL.teal; // Accent
+export const GREEN_DARK = PAL.teal; // Primary
 // A paler tint of Accent, used only for the "done" status dot — kept
 // derived rather than hand-picked so it can't drift from Accent.
 export const GREEN_LIGHT = lighten(GREEN);
 
-// The brand's deep pine — behind both the avatar's verification badge and
-// every icon tile, so the two cannot drift apart. #004D40 (Primary Dark),
-// luminance 0.055 (dark): ~10:1 as a foreground on white, 10:1 under a white
-// glyph as a fill.
-export const PINE = '#004D40';
-// Text Primary, not the brand pine — the owner's name/shop name reads as
-// plain header text, not a branded accent.
-export const SHOP_NAME_COLOR = '#1B1F23';
+// The brand fill — behind both the avatar's verification badge and every
+// icon tile, so the two cannot drift apart.
+export const PINE = PAL.teal;
+// Black heading text, not the brand teal — the owner's name/shop name reads as
+// a heading, not a branded accent.
+export const SHOP_NAME_COLOR = PAL.black;
 
 // ONE stroke weight for every icon on this screen.
 export const ICON_STROKE = 2;
@@ -57,13 +76,13 @@ export const C = {
   // tab bar's white backing) so Home doesn't show a seam against them.
   groupedBg: '#FFFFFF', // Background
   card: '#FFFFFF', // Surface/Card
-  fill: 'rgba(27,31,35,0.06)',
-  highlight: 'rgba(27,31,35,0.08)',
-  label: '#1B1F23', // Text Primary
-  label2: '#667085', // Text Secondary
-  label3: 'rgba(102,112,133,0.45)',
-  separator: '#E4E7EC', // Border
-  placeholder: '#667085',
+  fill: 'rgba(17,17,17,0.06)',
+  highlight: 'rgba(17,17,17,0.08)',
+  label: PAL.black, // Text Primary
+  label2: PAL.darkGray, // Text Secondary
+  label3: 'rgba(107,114,128,0.45)',
+  separator: PAL.border, // Border
+  placeholder: PAL.darkGray,
   tint: GREEN_DARK,
 
   // The only fills an icon tile may take. All three currently point at the
@@ -72,13 +91,13 @@ export const C = {
   tone: PINE,
   toneDeep: PINE,
   toneLime: PINE,
-  warn: '#F59E0B',
-  error: '#DC2626',
-  muted: '#667085',
+  warn: PAL.teal,
+  error: PAL.red,
+  muted: PAL.darkGray,
 } as const;
 
 export const VERIFIED_ICON = PINE;
-export const UNVERIFIED_ICON = '#004D40';
+export const UNVERIFIED_ICON = PAL.darkGray;
 export const BADGE_ICON_SIZE = 20;
 export const BADGE_STROKE = ICON_STROKE;
 
@@ -98,12 +117,11 @@ export function glyphOn(tone: string): string {
 }
 
 // Booking status chip tones — a soft wash of the hue plus its deep text.
-// Status pills — GGFIX palette: green (#09AD2A) done, yellow (#F3BF23)
-// waiting, neutral grey with a green dot while in progress.
+// Status pills — green done, grey waiting, green dot on grey while in progress.
 export const STATUS_TONES: Record<'done' | 'pending' | 'active', StatusTone> = {
-  done: { dot: '#09AD2A', text: '#078F23', bg: '#EAF8EC' },
-  pending: { dot: '#F3BF23', text: '#8A6A00', bg: '#FFF8E1' },
-  active: { dot: '#09AD2A', text: '#1E1E1E', bg: '#F3F3F3' },
+  done: { dot: PAL.green, text: '#4A7029', bg: WASH.green },
+  pending: { dot: PAL.darkGray, text: PAL.darkGray, bg: PAL.gray },
+  active: { dot: PAL.green, text: PAL.black, bg: PAL.gray },
 };
 
 // "INVOICE_GENERATED" → "Invoice Generated".
@@ -136,14 +154,14 @@ export const GLASS = {
   edge: 'rgba(255,255,255,0.85)',
   hairline: 'rgba(255,255,255,0.55)',
   shadow: {
-    shadowColor: '#0B1F14',
+    shadowColor: PAL.black,
     shadowOpacity: 0.1,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   } as GlassShadow,
   chromeShadow: {
-    shadowColor: '#0B1F14',
+    shadowColor: PAL.black,
     shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
@@ -184,18 +202,18 @@ export function concentric(outer: number, pad: number): number {
 }
 
 // Service Orders/Active Jobs/Pickup Queue/Pickup Requests/Pickup Confirmed/
-// Delivery Ready/Delivered → green/blue/purple/red/teal/orange/violet.
-// `request` moved off the old orange-red (too close to `ready`'s amber) to a
-// plain red, and `delivered` off a purple close to `pickups`'s to a warmer
-// violet, so the seven read as seven distinct colours, not five.
+// Delivery Ready/Delivered → teal/blue/green/gray/teal/blue/green — the
+// reference's four hues at a medium shade, so the icon on them can be white.
 export const OV_TONE = {
-  total: '#17A34A',
-  active: '#2E90FA',
-  pickups: '#6D3BF5',
-  request: '#DC2626',
-  accepted: '#0E9384',
-  ready: '#D97706',
-  delivered: '#C026D3',
+  total: '#357D89',
+  active: '#3B82F6',
+  pickups: '#5E9440',
+  request: '#6B7280',
+  accepted: '#357D89',
+  ready: '#3B82F6',
+  delivered: '#5E9440',
+  cancelled: '#6B7280',
+  returned: '#357D89',
 } as const;
 
 // The one 7-colour accent set every per-item tint on this screen draws

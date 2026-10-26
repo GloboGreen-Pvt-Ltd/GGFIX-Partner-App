@@ -31,7 +31,8 @@ import {
   Inter_700Bold_Italic,
 } from '@expo-google-fonts/inter';
 import { Provider } from 'react-redux';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import SystemBarGuard from './src/components/SystemBarGuard';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
@@ -128,11 +129,16 @@ export default function App() {
               Android edge-to-edge, where windowSoftInputMode="adjustResize" alone
               is unreliable device-to-device. */}
           <KeyboardProvider>
-            <SafeAreaProvider>
+            {/* initialWindowMetrics: the real insets on the first frame, so the
+                navigation-bar padding below doesn't jump in after launch. */}
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
               <StatusBar style="dark" />
-              <NavigationContainer theme={navTheme}>
-                <RootNavigator />
-              </NavigationContainer>
+              {/* Android: everything laid out above the system navigation bar. */}
+              <SystemBarGuard>
+                <NavigationContainer theme={navTheme}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </SystemBarGuard>
             </SafeAreaProvider>
           </KeyboardProvider>
         </GluestackUIProvider>

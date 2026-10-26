@@ -29,24 +29,23 @@ import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette — same values used across the rest of the app's redesigned screens.
-const ACCENT = '#004C40';
-const PRIMARY = '#006B57';
-const BRIGHT = '#00A86B';
-const ACTIVE_GREEN = '#16A34A';
-const MINT = '#E8F7F2';
-const SOFT_MINT = '#F4FBF8';
-const PAGE_BG = '#F8FCFA';
+const ACCENT = '#035C6C';
+const BRIGHT = '#035C6C';
+const ACTIVE_GREEN = '#609138';
+const MINT = '#E5F3F5';
+const SOFT_MINT = '#F3F4F6';
+const PAGE_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const BORDER = '#DCE7E2';
-const TEXT_PRIMARY = '#111827';
-const TEXT_SECONDARY = '#667085';
+const BORDER = '#C7E6EA';
+const TEXT_PRIMARY = '#111111';
+const TEXT_SECONDARY = '#6B7280';
 const INACTIVE_TEXT = '#8A9694';
 const INACTIVE_BG = '#F1F5F3';
 const AMBER = '#F59E0B';
 const AMBER_BG = '#FFF3E0';
 
 const cardShadow = {
-  shadowColor: '#0B1F14',
+  shadowColor: '#111111',
   shadowOpacity: 0.06,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 8 },

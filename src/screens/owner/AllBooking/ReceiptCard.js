@@ -21,25 +21,18 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   Calendar, CircleCheck, Clock, Hash, MapPin, Palette, Phone, ScanLine, Smartphone, User, Wrench,
 } from 'lucide-react-native';
-import { specDisplayParts } from '../../../utils/deviceSpecs';
+import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
+import { imeiApplies, useImeiApplies } from '../../../utils/imeiPolicy';
 
 // GGFIX palette.
-const GREEN = '#09AD2A';
-const GREEN_DEEP = '#078F23';
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const HAIR = '#F3F3F3';
-const BORDER = '#E6E6E6';
-
-const cardShadow = {
-  shadowColor: '#1E1E1E',
-  shadowOpacity: 0.04,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 1,
-};
+const GREEN = '#035C6C';
+const GREEN_DEEP = '#035C6C';
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const HAIR = '#F3F4F6';
+const BORDER = '#E5E7EB';
 
 // Shop number printed on every receipt. Hardcoded per the owner's explicit
 // instruction ("for now display this exact shop number") — it lived on the
@@ -203,7 +196,7 @@ export function buildBookingReceiptText({
     return `${i + 1}. ${d.modelName || 'Device'}\n   Services: ${svcs}${price}`;
   }).join('\n');
   return (
-    `🧾 GGFix Booking Receipt\n` +
+    `🧾 Near G Fix Booking Receipt\n` +
     (when ? `${when.date} · ${when.time}\n` : '') +
     `\n— SHOP INFORMATION —\n` +
     `Shop: ${shop.name || 'Your Shop'}\n` +
@@ -220,12 +213,17 @@ export function buildBookingReceiptText({
     (payment
       ? `${payment.label}: ${inr2(payment.amount)}\nBalance Amount: ${inr2(payment.balance)}\n`
       : '') +
-    `\nTrack your repair in the GGFix app.`
+    `\nTrack your repair in the Near G Fix app.`
   );
 }
 
 // A saved ticket → the props <BookingReceipt> takes. One ticket is one device.
-function receiptPropsFromTicket(ticket, shop) {
+// IMEI is printed for mobile phones only (unknown category keeps it).
+function receiptPropsFromTicket(
+  ticket,
+  shop,
+  showImei = imeiApplies(resolveSpecCategory(ticket?.deviceCategory, ticket?.categoryCode, ticket?.categoryName)),
+) {
   const items = priceItemsFromTicket(ticket);
   const total = estimatedTotalOf(ticket, items);
   return {
@@ -240,7 +238,7 @@ function receiptPropsFromTicket(ticket, shop) {
       modelName: ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || 'Device',
       imageUrl: ticket.deviceImageUrl || null,
       variant: specDisplayParts(ticket, { withColor: true }).join(' · '),
-      imei: ticket.imei || null,
+      imei: showImei ? ticket.imei || null : null,
       serviceNames: items.map((i) => i.label || i.serviceName || i.name).filter(Boolean),
     }],
     trackingId: ticket.trackingId || ticket.id,
@@ -258,8 +256,9 @@ export function buildReceiptMessage(ticket, shop) {
 
 // The receipt slip for a saved ticket (Bookings list / Ticket Detail share sheet).
 export function ReceiptCard({ ticket, shop }) {
+  const showImei = useImeiApplies(ticket);
   if (!ticket) return null;
-  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop)} />;
+  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop, showImei)} />;
 }
 
 // Splits "CSPEN8324788" so the digits can print in brand green.
@@ -302,7 +301,7 @@ export function ReceiptSlip({
             </View>
           </View>
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>GGFix</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>Near G Fix</Text>
             <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, marginTop: 1 }}>Booking Receipt</Text>
           </View>
         </View>
@@ -370,7 +369,7 @@ export function ReceiptSlip({
       {/* Tear line */}
       <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12 }}>
         {Array.from({ length: 26 }).map((_, i) => (
-          <View key={i} style={{ flex: 1, height: 1.5, marginHorizontal: 2, borderRadius: 1, backgroundColor: '#D6D6D6' }} />
+          <View key={i} style={{ flex: 1, height: 1.5, marginHorizontal: 2, borderRadius: 1, backgroundColor: '#D1D5DB' }} />
         ))}
       </View>
 
@@ -454,20 +453,10 @@ export function BookingReceipt({
   const Pill = onCopyTrackingId ? Pressable : View;
 
   return (
-    <LinearGradient
-      colors={[MINT, '#F8F8F8']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0.5, y: 1 }}
-      style={{ paddingHorizontal: padding, paddingTop: 12, paddingBottom: padding }}
-    >
+    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: padding, paddingTop: 12, paddingBottom: padding }}>
       <View style={contentStyle}>
-        {/* Shop header — avatar, shop name, booking date & time. */}
-        <View
-          style={{
-            flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 10, marginBottom: 12,
-            backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, ...cardShadow,
-          }}
-        >
+        {/* Shop header — avatar, shop name, booking date & time (plain row, no card). */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
           <ShopAvatar uri={shop.imageUrl} />
           <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>
@@ -531,71 +520,33 @@ export function BookingReceipt({
           </Pill>
         </View>
 
-        <ReceiptSection label="Shop Information" right="YOUR SERVICE PARTNER">
-          <ReceiptRow icon="storefront-outline" label="Shop Name" value={shop.name || 'Your Shop'} />
-          <ReceiptRow icon="call-outline" label="Mobile Number" value={RECEIPT_SHOP_NUMBER} last />
-        </ReceiptSection>
-
-        <ReceiptSection label="Customer Details" right="OUR VALUED CUSTOMER">
+        <ReceiptSection label="Customer Details">
           <ReceiptRow icon="person-outline" label="Customer Name" value={customer.name} />
           <ReceiptRow icon="call-outline" label="Mobile Number" value={customer.phone} />
           <ReceiptRow icon="location-outline" label="Address" value={customer.address} last />
         </ReceiptSection>
 
-        <ReceiptSection label="Device & Repair Details" right="GETTING YOU FIXED">
+        <ReceiptSection label="Device & Repair Details">
           {devices.map((d, i) => {
             const last = i === devices.length - 1;
             return (
-              <View
-                key={i}
-                style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  marginBottom: last ? 0 : 8, paddingBottom: last ? 0 : 8, borderBottomWidth: last ? 0 : 1, borderBottomColor: HAIR,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: MUTED }}>DEVICE</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                    <View
-                      style={{
-                        height: 34, width: 32, borderRadius: 9, marginRight: 8, overflow: 'hidden',
-                        backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
-                      {d.imageUrl ? (
-                        <Image source={{ uri: d.imageUrl }} style={{ width: 26, height: 30 }} resizeMode="contain" />
-                      ) : (
-                        <Ionicons name="phone-portrait-outline" size={15} color={GREEN} />
-                      )}
-                    </View>
-                    <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: INK }} numberOfLines={2}>
-                      {devices.length > 1 ? `${i + 1}. ` : ''}{d.modelName || 'Device'}
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ width: 1, height: 36, backgroundColor: HAIR, marginHorizontal: 10 }} />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Ionicons name="build-outline" size={11} color={GREEN} />
-                    <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: MUTED, marginLeft: 4 }}>REPAIR SERVICES</Text>
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: '700', marginTop: 4, color: INK }} numberOfLines={3}>
-                    {(d.serviceNames || []).join(', ') || '—'}
-                  </Text>
-                </View>
+              <View key={i}>
+                <ReceiptRow icon="phone-portrait-outline" label={devices.length > 1 ? `Device ${i + 1}` : 'Device'} value={d.modelName || 'Device'} />
+                <ReceiptRow icon="build-outline" label="Repair Services" value={(d.serviceNames || []).join(', ')} last={last} />
+                {!last ? <View style={{ height: 1, backgroundColor: HAIR, marginVertical: 7 }} /> : null}
               </View>
             );
           })}
         </ReceiptSection>
 
-        <ReceiptSection label="Service Information" right="TRACK YOUR REPAIR" noMargin>
+        <ReceiptSection label="Service Information" noMargin>
           <ReceiptRow icon="pricetag-outline" label="Tracking ID" value={`#${tid}`} bold />
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', width: 108 }}>
               <Ionicons name="time-outline" size={12} color={GREEN} style={{ marginRight: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED }}>Status</Text>
             </View>
-            <View style={{ flex: 1, alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <View style={{ borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE }}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: GREEN_DEEP }}>{statusLabel || 'Order Placed'}</Text>
               </View>
@@ -613,7 +564,7 @@ export function BookingReceipt({
           ) : null}
         </ReceiptSection>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -639,28 +590,16 @@ function ShopAvatar({ uri, size = 40 }) {
   );
 }
 
-function ReceiptSection({ label, right, children, noMargin }) {
+// Heading, a line under it, then the details — no card around them.
+function ReceiptSection({ label, children, noMargin }) {
   return (
-    <View style={{ marginBottom: noMargin ? 0 : 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+    <View style={{ marginBottom: noMargin ? 0 : 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ width: 3, height: 13, borderRadius: 2, backgroundColor: GREEN, marginRight: 7 }} />
         <Text style={{ flexShrink: 1, fontSize: 13, fontWeight: '800', color: INK }} numberOfLines={1}>{label}</Text>
-        <View style={{ flex: 1 }} />
-        {right ? (
-          <View style={{ marginLeft: 8, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MINT_LINE }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.5, color: GREEN_DEEP }} numberOfLines={1}>
-              {right}
-            </Text>
-          </View>
-        ) : null}
       </View>
-      <View
-        style={{
-          borderRadius: 14, paddingHorizontal: 11, paddingVertical: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: HAIR, ...cardShadow,
-        }}
-      >
-        {children}
-      </View>
+      <View style={{ height: 1, backgroundColor: BORDER, marginTop: 7, marginBottom: 9 }} />
+      {children}
     </View>
   );
 }
@@ -677,7 +616,7 @@ function ReceiptRow({ icon, label, value, bold, last }) {
           {label}
         </Text>
       </View>
-      <Text style={{ flex: 1, fontSize: 12, color: INK, fontWeight: bold ? '800' : '700', lineHeight: 16 }}>
+      <Text style={{ flex: 1, fontSize: 12, color: INK, fontWeight: bold ? '800' : '700', lineHeight: 16, textAlign: 'right', marginLeft: 8 }}>
         {value || '—'}
       </Text>
     </View>

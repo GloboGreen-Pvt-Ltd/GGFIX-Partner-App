@@ -11,12 +11,16 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Download, Share2, Printer } from 'lucide-react-native';
+import { ChevronLeft, Download, Share2, Pencil, Trash2 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
-import { notify } from '../../../components/confirm';
+import { confirm, notify } from '../../../components/confirm';
 import { saveToDownloads, notifyDownloaded } from '../../../lib/downloads';
 import { ticketApi, authApi } from '../../../api/client';
 import { getSession } from '../../../auth/session';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
+import { getModel, parseModelNumbers } from '../../../api/masterData';
+import { splitDisplayName } from './DeviceDetailScreen';
+import { useResponsive } from '../../../theme/responsive';
 
 // expo-print / expo-sharing / expo-file-system are platform-native; require
 // lazily so the web bundle (and dev environments without the modules
@@ -49,11 +53,11 @@ function safeFilename(s) {
     .replace(/^_|_$/g, '');
 }
 
-const BRAND_GREEN = '#16BB05';
-const BRAND_GREEN_DARK = '#087A0A';
+const BRAND_GREEN = '#035C6C';
+const BRAND_GREEN_DARK = '#035C6C';
 
 const cardShadow = {
-  shadowColor: '#172117',
+  shadowColor: '#111111',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 10 },
@@ -74,23 +78,48 @@ function formatDateTime(iso) {
   });
 }
 
+// Once the device is out for delivery (or the booking is closed) the invoice is
+// part of the handover, so it can no longer be edited or deleted. The server
+// refuses a delete past this point too (409).
+const INVOICE_LOCKED_STATUSES = ['DELIVERED_PROCESSING', 'DELIVERED', 'CANCELLED', 'RETURNED'];
+
 function safeJson(s, fallback) {
   if (!s) return fallback;
   try { const v = JSON.parse(s); return Array.isArray(v) ? v : fallback; }
   catch { return fallback; }
 }
 
+// Address is optional on Customer Details, but bookings still get region
+// names filled in ("Tamil Nadu, Tamil Nadu"). Drop repeated parts and return
+// '' when nothing but state / district / city names (or a pincode) is left.
+function enteredAddress(raw, regions) {
+  const region = new Set(regions.filter(Boolean).map((r) => String(r).trim().toLowerCase()));
+  const seen = new Set();
+  const parts = String(raw || '').split(',').map((p) => p.trim()).filter((p) => {
+    const k = p.toLowerCase();
+    if (!k || k === '—' || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const isRegion = (p) => region.has(p.toLowerCase()) || /^\d{6}$/.test(p);
+  return parts.every(isRegion) ? '' : parts.join(', ');
+}
+
 export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [invoice, setInvoice] = useState(null);
   const [shop, setShop] = useState(null);     // public shop card (name/mobile/address/gst)
   const [owner, setOwner] = useState(null);   // logged-in owner session (name + phone)
   const [customer, setCustomer] = useState(null); // customer record (for address fallback)
+  const [model, setModel] = useState(null);       // catalogue model (device name fallback)
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const showImei = useImeiApplies(ticket); // mobile phones only
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -115,11 +144,18 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       // older bookings or pickup flows it can be NULL even though the
       // customer DOES have an address row. Fall back to a lookup by phone
       // so the printed invoice still carries the address.
-      if (t?.customerPhone && !t?.customerAddress) {
+      // Always fetched: its state / district / city tell an entered address
+      // apart from the auto-filled region names (see enteredAddress).
+      if (t?.customerPhone) {
         try {
           const c = await ticketApi.get(`/customers/lookup`, { query: { mobile: t.customerPhone } });
           setCustomer(c || null);
         } catch { setCustomer(null); }
+      }
+      // Older bookings carry no deviceDisplayName — name the device from its
+      // catalogue model instead.
+      if (t?.modelId && !String(t?.deviceDisplayName || '').trim()) {
+        setModel(await getModel(t.modelId).catch(() => null));
       }
     } finally {
       setLoading(false);
@@ -128,10 +164,36 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const invoiceEditable = !INVOICE_LOCKED_STATUSES.includes(String(ticket?.status || '').toUpperCase());
+
+  // Replace, not navigate: the generator replaces itself with this report on
+  // save, so the stack ends with one report rather than two.
+  const handleEdit = () => navigation.replace('InvoiceGenerator', { ticketId });
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: 'Delete invoice?',
+      message: `Invoice #${invoice?.invoiceNo} will be deleted, its Cash Book credit removed and "Invoice Generated" taken off the Service History.`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await ticketApi.del(`/tickets/${ticketId}/invoice`);
+      notify('Invoice deleted', 'Generate a new invoice from Update Service Status.', { preset: 'done' });
+      navigation.goBack();
+    } catch (e) {
+      notify('Delete failed', e?.message || 'Could not delete invoice', { preset: 'error' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <Loader label="Loading invoice..." />;
   if (!invoice) {
     return (
-      <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: '#F0F8EF' }}>
+      <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: '#E5F3F5' }}>
         <Text className="text-[13px] font-extrabold text-gray-700">No invoice generated yet</Text>
         <Text className="text-[12px] text-gray-500 mt-2 text-center">
           Open the Invoice Generator from the Invoices screen to create one.
@@ -154,7 +216,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   // Resolve shop / owner display fields. Prefer the freshly-fetched shop
   // (auth-service /shops/{id}/public) for legal info; fall back to the
   // logged-in owner's session for fields the public shop view doesn't carry.
-  const shopName    = shop?.name || ticket?.shopName || 'GGFix Service Center';
+  const shopName    = shop?.name || ticket?.shopName || 'Near G Fix Service Center';
   const shopMobile  = shop?.mobile || owner?.phone || '';
   const shopAddress = shop?.address || ticket?.shopAddress || '';
   const shopGst     = shop?.gstNumber || invoice?.gstNo || '';
@@ -165,17 +227,24 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   // Resolved customer address: prefer the ticket's denormalized snapshot,
   // then the fetched customer's `address` (legacy concat), then a freshly
   // composed line from structured columns (addressLine / area / district /
-  // state / pincode). Falls back to '—' so the receipt always shows the row.
+  // state / pincode). Address is optional, so it is '' (row hidden) unless
+  // the customer actually entered one.
   const composedCustomerAddr = customer
     ? [customer.addressLine, customer.area || customer.locality, customer.district || customer.city, customer.state, customer.pincode]
         .filter((p) => p && String(p).trim())
         .join(', ')
     : '';
-  const customerAddress =
-    ticket?.customerAddress
-    || customer?.address
-    || composedCustomerAddr
-    || '—';
+  const customerAddress = enteredAddress(
+    ticket?.customerAddress || customer?.address || composedCustomerAddr,
+    [customer?.state, customer?.district, customer?.city, customer?.taluk],
+  );
+
+  // TO block device line: "Apple iPhone 13 · A2633", IMEI for phones only.
+  const shownDevice = splitDisplayName(ticket?.deviceDisplayName);
+  const deviceModel = shownDevice.name
+    ? [shownDevice.name, shownDevice.modelNumber].filter(Boolean).join(' · ')
+    : [model?.name, parseModelNumbers(model?.modelNumber)[0]].filter(Boolean).join(' · ');
+  const deviceImei = showImei ? String(ticket?.imei || '').trim() : '';
 
   // Per-row tax breakdown. Returns 0 GST when taxMode = WITHOUT or 0% so
   // the rendered tables match the saved invoice.totalGst.
@@ -268,7 +337,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const buildInvoiceHtml = () => buildHtml({
     invoice, ticket, spareLines, serviceLines,
     shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-    customerName, customerAddress, trackingId,
+    customerName, customerAddress, trackingId, deviceModel, deviceImei,
     totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
     grandTotalBreak,
   });
@@ -296,7 +365,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
         return;
       }
       const saved = await saveToDownloads({
-        stem: `GGFix_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}`,
+        stem: `NearGFix_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}`,
         extension: 'pdf',
         mimeType: 'application/pdf',
         sourceUri: printed.uri,
@@ -446,7 +515,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
           paddingBottom: 14,
           paddingHorizontal: 16,
           borderBottomWidth: 1,
-          borderBottomColor: '#E2E8E2',
+          borderBottomColor: '#E5E7EB',
         }}
       >
         <View className="flex-row items-center">
@@ -455,7 +524,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             activeOpacity={0.7}
             className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#172117" />
+            <ChevronLeft size={22} color="#111111" />
           </TouchableOpacity>
           <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
             Deliver Invoice
@@ -511,19 +580,54 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               ₹{fmt(invoice.finalPayableAmount)}
             </Text>
           </View>
-          <View className="items-end pb-1">
+          <View className="flex-1 items-end pb-1 ml-3">
             <Text className="text-[9.5px] text-text-muted">Delivery date</Text>
             <Text className="text-text text-[11px] font-bold mt-0.5" numberOfLines={1}>
               {formatDateTime(invoice.generatedAt || invoice.deliveryDate)}
             </Text>
           </View>
         </View>
+
+        {invoiceEditable ? (
+          <View className="flex-row mt-3">
+            <TouchableOpacity
+              onPress={handleEdit}
+              disabled={deleting}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Edit invoice"
+              className="flex-1 flex-row items-center justify-center h-10 rounded-xl mr-2 bg-surface-muted"
+              style={{ opacity: deleting ? 0.5 : 1 }}
+            >
+              <Pencil size={15} color={BRAND_GREEN_DARK} />
+              <Text className="text-[12.5px] font-extrabold ml-1.5" style={{ color: BRAND_GREEN_DARK }}>
+                Edit Invoice
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDelete}
+              disabled={deleting}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Delete invoice"
+              className="flex-1 flex-row items-center justify-center h-10 rounded-xl"
+              style={{ backgroundColor: '#FEE2E2', opacity: deleting ? 0.5 : 1 }}
+            >
+              {deleting
+                ? <ActivityIndicator size="small" color="#B91C1C" />
+                : <Trash2 size={15} color="#B91C1C" />}
+              <Text className="text-[12.5px] font-extrabold ml-1.5" style={{ color: '#B91C1C' }}>
+                Delete Invoice
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
       >
         {/* Letterhead + Meta — shop legal name on the left, invoice
             metadata on the right. Delivery Date now reflects the moment
@@ -556,7 +660,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               </View>
             </View>
 
-            <View className="my-3" style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2' }} />
+            <View className="my-3" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }} />
 
             {/* Bill To / From */}
             <View className="flex-row">
@@ -567,7 +671,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 <Text className="text-[13px] font-extrabold text-gray-900 mt-1">
                   {ticket?.customerName || '—'}
                 </Text>
-                {customerAddress && customerAddress !== '—' ? (
+                {customerAddress ? (
                   <Text className="text-[11px] text-gray-600 mt-1 leading-4">
                     {customerAddress}
                   </Text>
@@ -575,6 +679,16 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 {ticket?.customerPhone ? (
                   <Text className="text-[11px] text-gray-700 mt-2 font-semibold">
                     Mobile : {ticket.customerPhone}
+                  </Text>
+                ) : null}
+                {deviceModel ? (
+                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
+                    Device : {deviceModel}
+                  </Text>
+                ) : null}
+                {deviceImei ? (
+                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
+                    IMEI : {deviceImei}
                   </Text>
                 ) : null}
               </View>
@@ -613,7 +727,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
-                <View style={{ backgroundColor: '#F7FAF7', flexDirection: 'row' }}>
+                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
                   <HeaderCell w={28}>Sl</HeaderCell>
                   <HeaderCell w={130}>Description</HeaderCell>
                   <HeaderCell w={70} right>Rate (₹)</HeaderCell>
@@ -631,7 +745,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                     <View
                       key={i}
                       className="flex-row"
-                      style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
+                      style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
                     >
                       <Cell w={28}>{row.slNo || i + 1}</Cell>
                       <Cell w={130}>{row.description}</Cell>
@@ -646,7 +760,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 })}
                 <View
                   className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', backgroundColor: '#F0F8EF' }}
+                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
                 >
                   <Cell w={28} bold></Cell>
                   <Cell w={130} bold>Total Amount (₹)</Cell>
@@ -671,7 +785,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
-                <View style={{ backgroundColor: '#F7FAF7', flexDirection: 'row' }}>
+                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
                   <HeaderCell w={28}>Sl</HeaderCell>
                   <HeaderCell w={130}>Description</HeaderCell>
                   <HeaderCell w={64}>Warranty</HeaderCell>
@@ -691,7 +805,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                     <View
                       key={i}
                       className="flex-row"
-                      style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
+                      style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
                     >
                       <Cell w={28}>{row.slNo || i + 1}</Cell>
                       <Cell w={130}>{row.description}</Cell>
@@ -708,7 +822,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 })}
                 <View
                   className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', backgroundColor: '#F0F8EF' }}
+                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
                 >
                   <Cell w={28} bold></Cell>
                   <Cell w={130} bold>Total Amount (₹)</Cell>
@@ -734,7 +848,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
-                <View style={{ backgroundColor: '#F7FAF7', flexDirection: 'row' }}>
+                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
                   <HeaderCell w={28}>Sl</HeaderCell>
                   <HeaderCell w={120}>Description</HeaderCell>
                   <HeaderCell w={92} right>Taxable Value</HeaderCell>
@@ -743,7 +857,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                   <HeaderCell w={80} right>Total GST</HeaderCell>
                   <HeaderCell w={80} right>Total</HeaderCell>
                 </View>
-                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
+                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
                   <Cell w={28}>1</Cell>
                   <Cell w={120}>Service</Cell>
                   <Cell w={92} right>{fmt(totalServiceBreak.base)}</Cell>
@@ -752,7 +866,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                   <Cell w={80} right>{fmt(totalServiceBreak.totalGst)}</Cell>
                   <Cell w={80} right bold>{fmt(totalServiceBreak.total)}</Cell>
                 </View>
-                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}>
+                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
                   <Cell w={28}>2</Cell>
                   <Cell w={120}>Spares</Cell>
                   <Cell w={92} right>{fmt(totalSpareBreak.base)}</Cell>
@@ -763,7 +877,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 </View>
                 <View
                   className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E2E8E2', backgroundColor: '#F0F8EF' }}
+                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
                 >
                   <Cell w={28} bold></Cell>
                   <Cell w={120} bold>Total payable by customer (₹)</Cell>
@@ -793,7 +907,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             </View>
             <View
               className="flex-row justify-between py-1"
-              style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE', borderStyle: 'dashed' }}
+              style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5', borderStyle: 'dashed' }}
             >
               <Text className="text-[12px] text-gray-700">Discount</Text>
               <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>− ₹{fmt(invoice.discount)}</Text>
@@ -819,7 +933,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             {payShown ? (
               <View
                 className="mt-3 pt-3"
-                style={{ borderTopWidth: 1, borderTopColor: '#EFF5EE' }}
+                style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
               >
                 {advancePaid > 0 ? (
                   <View className="flex-row justify-between py-1">
@@ -843,7 +957,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
                 ) : null}
                 <View
                   className="mt-2 p-3 rounded-2xl flex-row items-center justify-between"
-                  style={{ backgroundColor: creditAmount > 0 ? '#FEF3C7' : '#E6F7E3' }}
+                  style={{ backgroundColor: creditAmount > 0 ? '#FEF3C7' : '#E5F3F5' }}
                 >
                   <Text
                     className="text-[12px] font-extrabold"
@@ -886,7 +1000,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               </View>
               <View
                 className="flex-1 ml-2 rounded-xl p-3 items-center"
-                style={{ backgroundColor: '#EFF5EE' }}
+                style={{ backgroundColor: '#E5F3F5' }}
               >
                 <Text className="text-[11px] font-extrabold text-gray-800" numberOfLines={2}>
                   {shopName}
@@ -961,7 +1075,7 @@ function fmtDateH(iso) {
 function buildHtml({
   invoice, ticket, spareLines, serviceLines,
   shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-  customerName, customerAddress, trackingId,
+  customerName, customerAddress, trackingId, deviceModel, deviceImei,
   totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
   grandTotalBreak,
 }) {
@@ -1067,7 +1181,6 @@ function buildHtml({
   // tight tables, prominent total band, and a single-line "Customer
   // Signature : <name>" + "Authorised Signatory : <shop / owner>" footer.
   // Padding and font sizes tuned so the whole receipt fits one A4 page.
-  const customerAddrLine = customerAddress || '—';
   const gt = grandTotalBreak || { base: 0, totalGst: 0, total: 0 };
   const taxableAmount   = gt.base;
   const totalGstTax     = gt.totalGst;
@@ -1097,7 +1210,7 @@ function buildHtml({
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     margin: 0; padding: 0;
-    color: #172117;
+    color: #111111;
     background: #ffffff;
     font-size: 10.5px;
     line-height: 1.4;
@@ -1110,19 +1223,19 @@ function buildHtml({
     justify-content: space-between;
     align-items: flex-start;
     padding: 10px 12px 12px 14px;
-    border-left: 4px solid #16BB05;
-    border-bottom: 2px solid #087A0A;
-    background: #F0F8EF;
+    border-left: 4px solid #035C6C;
+    border-bottom: 2px solid #035C6C;
+    background: #E5F3F5;
     border-radius: 6px 6px 0 0;
   }
-  .head .brand { font-size: 19px; font-weight: 900; color: #087A0A; line-height: 1.05; }
-  .head .sub   { font-size: 10.5px; color: #172117; margin-top: 2px; font-weight: 600; }
+  .head .brand { font-size: 19px; font-weight: 900; color: #035C6C; line-height: 1.05; }
+  .head .sub   { font-size: 10.5px; color: #111111; margin-top: 2px; font-weight: 600; }
   .head .right { text-align: right; font-size: 10px; }
   .pill {
     display: inline-block;
-    background: #E6F7E3;
-    color: #087A0A;
-    border: 1px solid #7ED957;
+    background: #E5F3F5;
+    color: #035C6C;
+    border: 1px solid #357D89;
     padding: 2px 9px;
     border-radius: 999px;
     font-size: 9px;
@@ -1130,35 +1243,35 @@ function buildHtml({
     font-weight: 800;
     text-transform: uppercase;
   }
-  .head .inv { font-size: 13px; font-weight: 900; color: #172117; margin-top: 4px; }
+  .head .inv { font-size: 13px; font-weight: 900; color: #111111; margin-top: 4px; }
 
   /* Meta strip — four in a row, no gaps, divider style like Amazon receipt */
   .meta-strip {
     display: flex;
-    border: 1px solid #E2E8E2;
+    border: 1px solid #E5E7EB;
     border-top: 0;
     border-radius: 0 0 6px 6px;
-    background: #F0F8EF;
+    background: #E5F3F5;
   }
   .meta-strip .col {
     flex: 1;
     padding: 6px 10px;
-    border-right: 1px solid #E2E8E2;
+    border-right: 1px solid #E5E7EB;
   }
   .meta-strip .col:last-child { border-right: 0; }
   .meta-strip .k {
     font-size: 8.5px;
-    color: #667066;
+    color: #6B7280;
     letter-spacing: .35px;
     font-weight: 800;
     text-transform: uppercase;
   }
-  .meta-strip .v { font-size: 11px; color: #172117; font-weight: 800; margin-top: 1px; }
+  .meta-strip .v { font-size: 11px; color: #111111; font-weight: 800; margin-top: 1px; }
 
   /* Cards */
   .card {
     background: #ffffff;
-    border: 1px solid #E2E8E2;
+    border: 1px solid #E5E7EB;
     border-radius: 6px;
     padding: 8px 12px;
     margin-top: 8px;
@@ -1169,7 +1282,7 @@ function buildHtml({
     gap: 6px;
     font-size: 9.5px;
     font-weight: 900;
-    color: #087A0A;
+    color: #035C6C;
     letter-spacing: .6px;
     text-transform: uppercase;
     margin-bottom: 5px;
@@ -1179,15 +1292,15 @@ function buildHtml({
     display: inline-block;
     width: 3px; height: 11px;
     border-radius: 2px;
-    background: #16BB05;
+    background: #035C6C;
   }
 
   /* Bill To / From */
   .tofrom { display: flex; gap: 12px; }
   .tofrom > div { flex: 1; }
-  .tofrom .lbl { color: #667066; font-size: 9px; letter-spacing: .4px; font-weight: 800; text-transform: uppercase; }
-  .tofrom .nm  { font-size: 12px; font-weight: 900; margin-top: 2px; color: #172117; }
-  .tofrom .ln  { font-size: 10.5px; color: #667066; margin-top: 1px; }
+  .tofrom .lbl { color: #6B7280; font-size: 9px; letter-spacing: .4px; font-weight: 800; text-transform: uppercase; }
+  .tofrom .nm  { font-size: 12px; font-weight: 900; margin-top: 2px; color: #111111; }
+  .tofrom .ln  { font-size: 10.5px; color: #6B7280; margin-top: 1px; }
 
   /* Tables */
   table {
@@ -1195,38 +1308,38 @@ function buildHtml({
     border-collapse: separate;
     border-spacing: 0;
     font-size: 10px;
-    border: 1px solid #E2E8E2;
+    border: 1px solid #E5E7EB;
     border-radius: 6px;
     overflow: hidden;
   }
   th, td { padding: 5px 7px; vertical-align: top; }
   th {
-    background: #F0F8EF;
-    color: #087A0A;
+    background: #E5F3F5;
+    color: #035C6C;
     font-size: 8.5px;
     letter-spacing: .35px;
     text-transform: uppercase;
     text-align: left;
-    border-bottom: 1px solid #E2E8E2;
+    border-bottom: 1px solid #E5E7EB;
     font-weight: 800;
   }
   th.r { text-align: right; }
-  tbody tr + tr td { border-top: 1px solid #EFF5EE; }
-  tbody tr:nth-child(even) td { background: #F0F8EF; }
+  tbody tr + tr td { border-top: 1px solid #E5F3F5; }
+  tbody tr:nth-child(even) td { background: #E5F3F5; }
   .r { text-align: right; }
   .b { font-weight: 800; }
   .totalrow td {
-    background: #F0F8EF !important;
+    background: #E5F3F5 !important;
     font-weight: 800;
-    border-top: 2px solid #E6F7E3;
-    color: #087A0A;
+    border-top: 2px solid #E5F3F5;
+    color: #035C6C;
   }
 
   /* Bill summary */
   .sum-card {
     margin-top: 8px;
     background: #ffffff;
-    border: 1px solid #E2E8E2;
+    border: 1px solid #E5E7EB;
     border-radius: 6px;
     padding: 8px 12px;
   }
@@ -1236,13 +1349,13 @@ function buildHtml({
     align-items: center;
     padding: 3px 0;
     font-size: 11px;
-    color: #172117;
+    color: #111111;
   }
-  .row b { color: #172117; }
-  .row.sep { border-top: 1px dashed #E2E8E2; margin-top: 3px; padding-top: 5px; }
+  .row b { color: #111111; }
+  .row.sep { border-top: 1px dashed #E5E7EB; margin-top: 3px; padding-top: 5px; }
   .final {
     margin-top: 6px;
-    background: linear-gradient(135deg, #087A0A 0%, #087A0A 100%);
+    background: linear-gradient(135deg, #035C6C 0%, #035C6C 100%);
     color: #fff;
     padding: 9px 14px;
     border-radius: 8px;
@@ -1254,7 +1367,7 @@ function buildHtml({
   .final .amt { font-size: 16px; font-weight: 900; }
   .words {
     font-size: 10px;
-    color: #667066;
+    color: #6B7280;
     margin-top: 5px;
     font-style: italic;
   }
@@ -1266,14 +1379,14 @@ function buildHtml({
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
-    border: 1px solid #E2E8E2;
+    border: 1px solid #E5E7EB;
     border-radius: 6px;
-    background: #F0F8EF;
+    background: #E5F3F5;
     font-size: 10.5px;
   }
-  .sigs .l { color: #667066; font-weight: 800; text-transform: uppercase; font-size: 9px; letter-spacing: .4px; }
-  .sigs .v { font-weight: 800; color: #172117; margin-left: 4px; font-size: 11px; }
-  .sigs .v small { font-weight: 600; color: #172117; }
+  .sigs .l { color: #6B7280; font-weight: 800; text-transform: uppercase; font-size: 9px; letter-spacing: .4px; }
+  .sigs .v { font-weight: 800; color: #111111; margin-left: 4px; font-size: 11px; }
+  .sigs .v small { font-weight: 600; color: #111111; }
 
   .decl {
     margin-top: 8px;
@@ -1286,7 +1399,7 @@ function buildHtml({
   }
   .decl b { color: #92400E; }
 
-  .thank { margin-top: 6px; text-align: center; font-size: 9.5px; color: #667066; font-style: italic; }
+  .thank { margin-top: 6px; text-align: center; font-size: 9.5px; color: #6B7280; font-style: italic; }
 </style>
 </head>
 <body>
@@ -1300,7 +1413,7 @@ function buildHtml({
         ${ownerDisplayName ? `<div class="sub">${esc(ownerDisplayName)}${shopMobile ? ` · ${esc(shopMobile)}` : ''}</div>` : (shopMobile ? `<div class="sub">${esc(shopMobile)}</div>` : '')}
       </div>
       <div class="right">
-        <span class="pill" style="background:#fff;border-color:#16BB05">Original Copy</span>
+        <span class="pill" style="background:#fff;border-color:#035C6C">Original Copy</span>
       </div>
     </div>
 
@@ -1319,8 +1432,10 @@ function buildHtml({
         <div>
           <div class="lbl">Billed To</div>
           <div class="nm">${esc(customerName || '—')}</div>
+          ${customerAddress ? `<div class="ln">${esc(customerAddress)}</div>` : ''}
           ${ticket?.customerPhone ? `<div class="ln">Mobile · ${esc(ticket.customerPhone)}</div>` : ''}
-          <div class="ln">Address · ${esc(customerAddrLine)}</div>
+          ${deviceModel ? `<div class="ln">Device · ${esc(deviceModel)}</div>` : ''}
+          ${deviceImei ? `<div class="ln">IMEI · ${esc(deviceImei)}</div>` : ''}
         </div>
         <div style="text-align:right">
           <div class="lbl">Issued By</div>
@@ -1346,7 +1461,7 @@ function buildHtml({
           <th class="r">Total (₹)</th>
         </tr></thead>
         <tbody>
-          ${serviceRows || '<tr><td colspan="8" style="text-align:center;color:#8FA08F">—</td></tr>'}
+          ${serviceRows || '<tr><td colspan="8" style="text-align:center;color:#9CA3AF">—</td></tr>'}
           <tr class="totalrow">
             <td></td><td>Total Amount (₹)</td>
             <td class="r">${fmtH(totalServiceGross)}</td>
@@ -1375,7 +1490,7 @@ function buildHtml({
           <th class="r">Total (₹)</th>
         </tr></thead>
         <tbody>
-          ${spareRows || '<tr><td colspan="10" style="text-align:center;color:#8FA08F">—</td></tr>'}
+          ${spareRows || '<tr><td colspan="10" style="text-align:center;color:#9CA3AF">—</td></tr>'}
           <tr class="totalrow">
             <td></td><td>Total Amount (₹)</td><td></td><td></td>
             <td class="r">${fmtH(totalSpareGross)}</td>
@@ -1446,9 +1561,9 @@ function buildHtml({
       </div>` : ''}
       <div class="row"><span>Net Payable</span><b>₹${fmtH(netPayableH)}</b></div>
       ${amountPaidH > 0 ? `<div class="row"><span>Amount Paid</span><b style="color:#b45309">− ₹${fmtH(amountPaidH)}</b></div>` : ''}
-      <div class="final" style="background:${creditAmountH > 0 ? '#fef3c7' : '#e6f7e3'}">
-        <span class="lbl" style="color:${creditAmountH > 0 ? '#b45309' : '#087a0a'}">${creditAmountH > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}</span>
-        <span class="amt" style="color:${creditAmountH > 0 ? '#b45309' : '#087a0a'}">₹${fmtH(creditAmountH)}</span>
+      <div class="final" style="background:${creditAmountH > 0 ? '#fef3c7' : '#E5F3F5'}">
+        <span class="lbl" style="color:${creditAmountH > 0 ? '#b45309' : '#035C6C'}">${creditAmountH > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}</span>
+        <span class="amt" style="color:${creditAmountH > 0 ? '#b45309' : '#035C6C'}">₹${fmtH(creditAmountH)}</span>
       </div>
       ${creditAmountH > 0 && invoice.paymentNote ? `<div class="words">Note : ${esc(invoice.paymentNote)}</div>` : ''}
       ` : ''}

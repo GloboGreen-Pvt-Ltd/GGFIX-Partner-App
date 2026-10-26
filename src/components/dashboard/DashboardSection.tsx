@@ -35,7 +35,7 @@ export function DashboardSection({ title, action, onAction, pad, style }: Dashbo
         style,
       ]}
     >
-      <Text style={{ fontSize: titleSize, lineHeight: titleSize + 6, color: '#111827', letterSpacing: -0.3, fontWeight: '700', fontFamily: SERIF, flex: 1 }} numberOfLines={1}>
+      <Text style={{ fontSize: titleSize, lineHeight: titleSize + 6, color: '#111111', letterSpacing: -0.3, fontWeight: '700', fontFamily: SERIF, flex: 1 }} numberOfLines={1}>
         {title}
       </Text>
       {action ? (
@@ -48,14 +48,14 @@ export function DashboardSection({ title, action, onAction, pad, style }: Dashbo
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: '#EAFBF3',
+            backgroundColor: '#E5F3F5',
             borderRadius: R.control,
             paddingVertical: 6,
             paddingHorizontal: 12,
           }}
         >
-          <Text style={{ fontSize: 13, color: '#006B43', fontWeight: '700', letterSpacing: -0.1 }}>{action}</Text>
-          <ChevronRight size={14} color="#006B43" strokeWidth={ICON_STROKE} style={{ marginLeft: 2 }} />
+          <Text style={{ fontSize: 13, color: '#035C6C', fontWeight: '700', letterSpacing: -0.1 }}>{action}</Text>
+          <ChevronRight size={14} color="#035C6C" strokeWidth={ICON_STROKE} style={{ marginLeft: 2 }} />
         </Touchable>
       ) : null}
     </View>

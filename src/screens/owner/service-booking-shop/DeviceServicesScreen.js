@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   Wrench,
   BatteryMedium,
@@ -11,12 +11,8 @@ import {
   Smartphone,
   Droplets,
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Plus,
   Check,
   X,
-  Hash,
   Sparkles,
   ArrowLeft,
   Headphones,
@@ -51,64 +47,39 @@ import {
   RotateCcw,
   Hourglass,
   TriangleAlert,
+  MessageSquarePlus,
 } from 'lucide-react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRepairServices, getRepairCategories, getRepairServicesGrouped } from '../../../api/masterData';
-import { rf, rs } from '../../../utils/responsive';
+import { rs } from '../../../utils/responsive';
 // `isTablet` / `screenWidth` from utils/responsive are read ONCE at module
 // load, so a rotation or split-screen resize never reached this layout. The
 // hook reads the live window during render.
 import { useResponsive } from '../../../theme/responsive';
-import { specDisplayParts } from '../../../utils/deviceSpecs';
+import { ResponsiveModal } from '../../../components/responsive';
 
 // GGFIX palette (kept as the same named constants used throughout this file,
 // values aligned to the app's Primary/Dark/Bright green + mint system so the
 // screen reads as one premium surface rather than a plain form).
-const BRAND_GREEN = '#09AD2A'; // warranty / category-chip active fill — GGFIX green
+const BRAND_GREEN = '#035C6C'; // warranty / category-chip active fill — GGFIX green
 
 // Page background is the soft off-white token so white cards read as
 // elevated surfaces against it, instead of white-on-white with only a
 // shadow to separate them.
-const SCREEN_BG = '#F8F8F8';
+const SCREEN_BG = '#F3F4F6';
 const CARD_BG = '#FFFFFF';
-const CARD_LINE = '#F3F3F3';   // outer card hairline (cards sit on the grey page)
-const BORDER_SOFT = '#E6E6E6'; // inner borders on white (inputs, chips, dividers)
-// Service row surface — a real white card now (was a flat grey fill), so it
-// sits above the page background instead of blending into it.
-const ROW_BG = '#FFFFFF';
-const ICON_DISC = '#EAF8EC'; // mint icon-tile background
-const ICON_TINT = '#09AD2A'; // icons / fills
-const TEXT_GREEN = '#078F23'; // green text on white / mint
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const PLACEHOLDER = '#8A8A8A';
-
-// Add button uses the GGFIX green so it reads as the primary action.
-// Disabled fill is the same hue at 35% rather than a separate grey.
-const ADD_BG = '#09AD2A';
-const ADD_BG_OFF = 'rgba(9, 173, 42, 0.35)';
+const BORDER_SOFT = '#E5E7EB'; // inner borders on white (inputs, chips, dividers)
+const ICON_TINT = '#035C6C'; // icons / fills
+const INK = '#111111';
+const MUTED = '#6B7280';
+const PLACEHOLDER = '#9CA3AF';
 
 // Picked-state wash — a service card and its ADDED pill both use this once a
 // service is added, replacing the old red "REMOVE" treatment (which read as
 // a warning rather than a confirmation).
-const MINT_BG = '#EAF8EC';
-const ACCENT_20 = '#CDEFD4'; // mint border
-
-// Soft card shadow (palette: ink, ≤0.06 opacity, ≤10 radius, y ≤3).
-const CARD_SHADOW = {
-  shadowColor: '#1E1E1E',
-  shadowOpacity: 0.05,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 1,
-};
-
-const WARRANTY_OPTIONS = [
-  { code: 'W_3M', label: '3 Months' },
-  { code: 'W_6M', label: '6 Months' },
-  { code: 'W_12M', label: '12 Months' },
-];
+const MINT_BG = '#E5F3F5';
+const ACCENT_20 = '#C7E6EA'; // mint border
 
 // One icon per repair category, matched by keyword so it works for however
 // the admin has actually named the category (mobile/laptop/tablet/smartwatch/
@@ -158,6 +129,12 @@ function groupIconFor(name) {
   return Wrench;
 }
 
+// Warranty is typed as months and saved as readable text ("6 Months") —
+// invoices and reports print the stored value as-is. Older bookings saved
+// codes like W_6M; both read back as the number of months.
+const warrantyMonths = (w) => String(w ?? '').match(/(\d+)/)?.[1] || '';
+const warrantyText = (m) => { const n = parseInt(m, 10); return n > 0 ? `${n} Month${n === 1 ? '' : 's'}` : null; };
+
 const priceNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
 
 const formatINR = (n) =>
@@ -184,7 +161,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
     const customSeed = [];
     for (const s of prefill) {
       if (s?.serviceId) {
-        rowSeed[s.serviceId] = { price: String(s.price ?? ''), warranty: s.warranty || '' };
+        rowSeed[s.serviceId] = { price: String(s.price ?? ''), warranty: warrantyMonths(s.warranty) };
         idSeed.add(s.serviceId);
       } else if (s?.serviceName) {
         // A previously-saved custom "Others" issue — re-seed it so edits keep it.
@@ -194,7 +171,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
           categoryId: s.categoryId || null,
           categoryName: s.categoryName || 'Others',
           price: priceNum(s.price),
-          warranty: s.warranty || null,
+          warranty: warrantyMonths(s.warranty),
         });
       }
     }
@@ -223,8 +200,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
   const [otherCatId, setOtherCatId] = useState(null);
   const [otherFormKey, setOtherFormKey] = useState(0); // bump to remount + clear the draft input
 
-
-  // `categoryId` is the DEVICE category (Mobile/Laptop/Tablet/…) picked back
+// `categoryId` is the DEVICE category (Mobile/Laptop/Tablet/…) picked back
   // on the Select Category step, forwarded unchanged through every screen in
   // between (SelectBrand → … → DeviceColorStorage → here). It was already
   // available on `params` — this screen just wasn't using it to filter yet.
@@ -343,6 +319,27 @@ export default function DeviceServicesScreen({ navigation, route }) {
   };
   const removeCustomIssue = (id) =>
     setCustomIssues((list) => list.filter((c) => c.id !== id));
+  // Other Issue popup closing adds whatever was typed (blank → nothing).
+  const closeOther = () => {
+    if ((otherNameRef.current || '').trim()) addCustomIssue();
+    setOtherOpen(false);
+  };
+  const setCustomWarranty = (id, v) =>
+    setCustomIssues((list) => list.map((c) => (c.id === id ? { ...c, warranty: String(v).replace(/[^0-9]/g, '') } : c)));
+  const setCustomPrice = (id, v) =>
+    setCustomIssues((list) => list.map((c) => (c.id === id ? { ...c, price: priceNum(v) } : c)));
+
+  // Select Issue grid: the group whose issues sheet is open, tiles per row,
+  // and a lookup for the Selected Issues list.
+  const [issueSheet, setIssueSheet] = useState(null);
+  const [otherOpen, setOtherOpen] = useState(false); // Other Issue popup
+  const sheetGroup = groups.find((g) => g.id === issueSheet) || null;
+  const tileCols = r.isTablet ? 5 : 3;
+  const serviceById = useMemo(() => {
+    const m = {};
+    (services || []).forEach((s) => { m[s.id] = s; });
+    return m;
+  }, [services]);
 
   // Running total — drives the floating cart bar at the bottom.
   const cartTotal = useMemo(() => {
@@ -358,14 +355,18 @@ export default function DeviceServicesScreen({ navigation, route }) {
 
   const onContinue = () => {
     const byId = {}; (services || []).forEach((s) => { byId[s.id] = s; });
+    // The group a service is listed under, shown above it in Bill Details.
+    const catByService = {};
+    groups.forEach((g) => g.services.forEach((s) => { catByService[s.id] = g.name; }));
     const selected = [...pickedIds].map((id) => {
       const s = byId[id]; const r = ensureRow(id);
       return {
         serviceId: id,
         serviceCode: s?.code,
         serviceName: s?.name,
+        categoryName: catByService[id] || null,
         price: priceNum(r.price),
-        warranty: r.warranty || null,
+        warranty: warrantyText(r.warranty),
       };
     });
     // Custom "Others" issues carry no catalog id — the booking pipeline already
@@ -377,7 +378,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
       categoryId: c.categoryId || null,
       categoryName: c.categoryName || 'Others',
       price: Number(c.price) || 0,
-      warranty: c.warranty || null,
+      warranty: warrantyText(c.warranty),
     }));
     const all = [...selected, ...customSelected];
     if (all.length === 0) return;
@@ -393,7 +394,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
           <Pressable
             onPress={() => navigation.goBack()}
             className="items-center justify-center"
-            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F4F6' }}
           >
             <ArrowLeft size={18} color={INK} />
           </Pressable>
@@ -407,30 +408,43 @@ export default function DeviceServicesScreen({ navigation, route }) {
 
   const totalSelected = pickedIds.size + customIssues.length;
 
+  // Select Issue tile order: these groups first, the rest after in API order.
+  // "Mainboard IC / Sub-Board IC" sits right after Battery & Charging.
+  const TILE_ORDER = [/dead|no power/i, /display|screen/i, /battery/i, /motherboard|mainboard|sub-?board/i, /network/i, /security/i];
+  const tileRank = (name) => {
+    const i = TILE_ORDER.findIndex((re) => re.test(String(name || '')));
+    return i === -1 ? TILE_ORDER.length : i;
+  };
+  const tileGroups = groups
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => tileRank(a.g.name) - tileRank(b.g.name) || a.i - b.i)
+    .map(({ g }) => g);
+
   return (
     <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
-      {/* ── White header — matches app's other white headers ─────── */}
-      <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 10, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}
-      >
-        <View className="relative flex-row items-center justify-center" style={{ minHeight: 36 }}>
+      {/* ── Header — same as Customer Details / Device Details: round back
+          button, centred title + subtitle, equal spacer on the right. ── */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: BORDER_SOFT }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="absolute left-0 items-center justify-center active:opacity-70"
-            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F3F3F3' }}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SCREEN_BG, borderWidth: 1, borderColor: BORDER_SOFT }}
           >
-            <ArrowLeft size={18} color={INK} />
+            <ArrowLeft size={18} color={INK} strokeWidth={2} />
           </Pressable>
-
-          <View className="items-center px-12">
-            <Text
-              className="text-center"
-              style={{ fontSize: 17, fontWeight: '800', color: INK }}
-              numberOfLines={1}
-            >
-              Add Issue Services
+          <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' }}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: INK, textAlign: 'center' }} numberOfLines={1}>
+              Issue Description
+            </Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1, textAlign: 'center' }} numberOfLines={2}>
+              {params.modelName ? `Select the issues for ${params.modelName}` : 'Select the issues, then enter price and warranty'}
             </Text>
           </View>
+          <View style={{ width: 36 }} />
         </View>
       </View>
 
@@ -460,341 +474,72 @@ export default function DeviceServicesScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* ── Device summary card — plain white, soft shadow ──────── */}
-        <View className="px-4" style={{ marginTop: 12 }}>
-          <View
-            style={{
-              backgroundColor: CARD_BG,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: CARD_LINE,
-              overflow: 'hidden',
-              ...CARD_SHADOW,
-              shadowOpacity: 0.06,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 3 },
-              elevation: 2,
-            }}
-          >
-            <View style={{ backgroundColor: CARD_BG, paddingHorizontal: 12, paddingVertical: 10 }}>
-              <View className="flex-row items-center">
-                <View
-                  className="items-center justify-center overflow-hidden mr-3"
-                  style={{ height: 52, width: 52, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_20 }}
-                >
-                  {params.imageUrl ? (
-                    <Image source={{ uri: params.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="cover" />
-                  ) : (
-                    <Smartphone size={22} color={ICON_TINT} />
-                  )}
-                </View>
-                <View className="flex-1">
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: INK }} numberOfLines={2}>
-                    {params.modelName || 'Device'}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={2}>
-                    {specDisplayParts(params, { withColor: true }).join(' · ')}
-                  </Text>
-                  {params.modelNumber ? (
-                    <View className="flex-row items-center" style={{ marginTop: 5 }}>
-                      <View
-                        className="flex-row items-center"
-                        style={{ backgroundColor: '#FFFFFF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: ACCENT_20 }}
-                      >
-                        <Hash size={10} color={ICON_TINT} />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 2 }}>{params.modelNumber}</Text>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
+        {/* ── Select Issue — one tile per repair group (the device category's
+            groups from /repair-services/grouped). A tile opens that group's
+            issues in a sheet; ✓ marks a group with picks. ─────────────── */}
+        <View className="px-4" style={{ paddingTop: 16 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 10 }}>
+            Select Issue<Text style={{ color: '#DC2626' }}> *</Text>
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+            {tileGroups.map((g) => (
+              <View key={g.id} style={{ width: `${100 / tileCols}%`, padding: 4 }}>
+                <IssueTile
+                  name={g.name}
+                  Icon={groupIconFor(g.name)}
+                  picked={g.services.filter((s) => pickedIds.has(s.id)).length}
+                  onPress={() => setIssueSheet(g.id)}
+                />
               </View>
+            ))}
+            {/* Other Issue — same tile, last; opens the custom-issue popup. */}
+            <View style={{ width: `${100 / tileCols}%`, padding: 4 }}>
+              <IssueTile
+                name="Other Issue"
+                Icon={MessageSquarePlus}
+                picked={customIssues.length}
+                // Fresh draft each time — the popup's input remounts empty.
+                onPress={() => { otherNameRef.current = ''; setOtherHasName(false); setOtherOpen(true); }}
+              />
             </View>
-
-            {/* Selected-service count strip — real data (totalSelected/cartTotal,
-                computed below), not a placeholder. Only rendered once at least
-                one service is picked. */}
-            {totalSelected > 0 ? (
-              <View
-                className="flex-row items-center justify-between"
-                style={{ paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: ACCENT_20 }}
-              >
-                <View className="flex-row items-center">
-                  <Check size={12} color={ICON_TINT} strokeWidth={3} />
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_GREEN, marginLeft: 6 }}>
-                    {totalSelected} service{totalSelected === 1 ? '' : 's'} selected
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: TEXT_GREEN }}>₹{formatINR(cartTotal)}</Text>
-              </View>
-            ) : null}
           </View>
-        </View>
 
-        {/* ── Section header ─────────────────────────────────────────────
-            Title Case, no letter-spacing: `tracking-widest` only exists to
-            make all-caps legible. */}
-        <View className="px-4 flex-row items-center" style={{ paddingTop: 14, paddingBottom: 8 }}>
-          <View
-            className="items-center justify-center mr-2"
-            style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT_BG }}
-          >
-            <Sparkles size={14} color={ICON_TINT} />
-          </View>
-          <View className="flex-1">
-            <Text style={{ fontSize: 13, fontWeight: '800', color: INK }}>Recommended Repairs</Text>
-            <Text style={{ fontSize: 11, color: MUTED }}>Tap a category to see issues & pricing</Text>
-          </View>
-        </View>
-
-        {/* ── Categories: premium accordion cards ─────────────────────────
-            Each category is its own elevated white card (was a hairline-
-            separated row list) so the section reads as a set of distinct,
-            tappable groups rather than a flat form list. */}
-        <View className="px-4">
-          {groups.map((g, gi) => {
-            const open = !!expanded[g.id];
-            const pickedInGroup = g.services.filter((s) => pickedIds.has(s.id)).length;
-            const Chevron = open ? ChevronUp : ChevronDown;
-            const GroupIcon = groupIconFor(g.name);
-            return (
-              <View
-                key={g.id}
-                style={{
-                  backgroundColor: CARD_BG,
-                  borderRadius: rs(16),
-                  borderWidth: 1,
-                  borderColor: open ? ICON_TINT + '33' : BORDER_SOFT,
-                  overflow: 'hidden',
-                  marginTop: gi === 0 ? 0 : rs(10),
-                  shadowColor: '#0B1F14',
-                  shadowOpacity: open ? 0.08 : 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 3 },
-                  elevation: open ? 3 : 1,
-                }}
-              >
-                <Pressable
-                  onPress={() => toggleGroup(g.id)}
-                  className="flex-row items-center active:opacity-80"
-                  style={{ paddingHorizontal: rs(14), paddingVertical: rs(12) }}
-                >
-                  <View
-                    className="items-center justify-center mr-3"
-                    style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: ICON_DISC }}
-                  >
-                    <GroupIcon size={18} color={ICON_TINT} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>{g.name}</Text>
-                    <View className="flex-row items-center mt-0.5">
-                      <Text className="text-text-muted" style={{ fontSize: 11 }}>
-                        {g.services.length} {g.services.length === 1 ? 'option' : 'options'}
-                      </Text>
-                      {pickedInGroup ? (
-                        <>
-                          <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                          <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>
-                            {pickedInGroup} added
-                          </Text>
-                        </>
-                      ) : null}
-                    </View>
-                  </View>
-                  <View
-                    className="items-center justify-center"
-                    style={{ height: rs(28), width: rs(28), borderRadius: rs(9), backgroundColor: open ? MINT_BG : '#F4F7F5' }}
-                  >
-                    <Chevron size={16} color={ICON_TINT} />
-                  </View>
-                </Pressable>
-
-                {open ? (
-                  <View style={{ paddingHorizontal: rs(14), paddingBottom: rs(12), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: BORDER_SOFT }}>
-                    {g.services.map((s) => {
-                      const r = ensureRow(s.id);
-                      const isPicked = pickedIds.has(s.id);
-                      const Icon = iconFor(s.code, s.name);
-                      // ₹0 is a valid price now, so ADD is always enabled.
-                      const canAdd = true;
-                      return (
-                        <ServiceItem
-                          key={s.id}
-                          name={s.name}
-                          Icon={Icon}
-                          isPicked={isPicked}
-                          canAdd={canAdd}
-                          price={r.price}
-                          onPriceChange={(v) => setField(s.id, 'price', v)}
-                          warranty={r.warranty}
-                          onWarrantyChange={(c) => setField(s.id, 'warranty', c)}
-                          onAdd={() => addService(s)}
-                          onRemove={() => removeService(s)}
-                        />
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-
-          {/* ── Others: a custom issue not in the service catalog ─────────
-              Same premium card treatment as the category accordions above,
-              for visual consistency across the section. */}
-          <View
-            style={{
-              backgroundColor: CARD_BG,
-              borderRadius: rs(16),
-              borderWidth: 1,
-              borderColor: expanded['__other__'] ? ICON_TINT + '33' : BORDER_SOFT,
-              overflow: 'hidden',
-              marginTop: rs(10),
-              shadowColor: '#0B1F14',
-              shadowOpacity: expanded['__other__'] ? 0.08 : 0.04,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 3 },
-              elevation: expanded['__other__'] ? 3 : 1,
-            }}
-          >
-            <Pressable
-              onPress={() => toggleGroup('__other__')}
-              className="flex-row items-center active:opacity-80"
-              style={{ paddingHorizontal: rs(14), paddingVertical: rs(12) }}
-            >
-              <View
-                className="items-center justify-center mr-3"
-                style={{ height: rs(40), width: rs(40), borderRadius: rs(12), backgroundColor: ICON_DISC }}
-              >
-                <Sparkles size={18} color={ICON_TINT} />
-              </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={1}>Others</Text>
-                <View className="flex-row items-center mt-0.5">
-                  <Text className="text-text-muted" style={{ fontSize: 11 }}>Add a custom issue</Text>
-                  {customIssues.length ? (
-                    <>
-                      <View className="h-1 w-1 rounded-full bg-text-muted mx-1.5" />
-                      <Text className="font-semibold" style={{ fontSize: 11, color: ICON_TINT }}>{customIssues.length} added</Text>
-                    </>
-                  ) : null}
-                </View>
-              </View>
-              <View
-                className="items-center justify-center"
-                style={{ height: rs(28), width: rs(28), borderRadius: rs(9), backgroundColor: expanded['__other__'] ? MINT_BG : '#F4F7F5' }}
-              >
-                {expanded['__other__'] ? <ChevronUp size={16} color={ICON_TINT} /> : <ChevronDown size={16} color={ICON_TINT} />}
-              </View>
-            </Pressable>
-
-            {expanded['__other__'] ? (
-              <View style={{ paddingHorizontal: rs(14), paddingBottom: rs(12), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: BORDER_SOFT }}>
-                {/* Already-added custom issues */}
-                {customIssues.map((c) => (
-                  <View
-                    key={c.id}
-                    className="rounded-2xl mb-2 bg-success/5 border-success/40"
-                    style={{ borderWidth: 1.5, padding: 10 }}
-                  >
-                    <View className="flex-row items-start">
-                      {/* Sparkles, not Wrench: this card is a CUSTOM issue,
-                          added through the "Others" row — which is marked with
-                          Sparkles. Wrench marks catalogue repairs, so using it
-                          here made the two kinds indistinguishable. */}
-                      <View className="h-10 w-10 rounded-full items-center justify-center mr-3" style={{ backgroundColor: ICON_DISC }}>
-                        <Sparkles size={18} color={ICON_TINT} />
-                      </View>
-                      <View className="flex-1 pr-1.5">
-                        <Text className="font-medium text-text " style={{ fontSize: 13 }} numberOfLines={2}>{c.name}</Text>
-                        <Text className="text-text-muted mt-0.5" style={{ fontSize: 11 }} numberOfLines={1}>
-                          {c.categoryName}
-                          {Number(c.price) > 0
-                            ? ` · ₹${Number(c.price).toLocaleString('en-IN')}`
-                            : ' · Price TBD'}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => removeCustomIssue(c.id)}
-                        className="flex-row items-center rounded-full px-3 py-1.5 active:opacity-80"
-                        style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
-                      >
-                        <X size={12} color="#DC2626" />
-                        <Text className="text-danger font-medium ml-1" style={{ fontSize: 11 }}>REMOVE</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-
-                {/* Draft: enter issue → pick condition category → price + warranty → ADD */}
-                <View className="rounded-2xl bg-background border-border" style={{ borderWidth: 1, padding: 10 }}>
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>ISSUE</Text>
-                  <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5">
-                    <TextInput
-                      key={`other-name-${otherFormKey}`}
-                      defaultValue=""
-                      onChangeText={(v) => { otherNameRef.current = v; setOtherHasName(v.trim().length > 0); }}
-                      placeholder="Describe the issue (e.g. Face ID not working)"
-                      placeholderTextColor="#8FA08F"
-                      className="text-text"
-                      style={{ paddingVertical: rs(8), fontSize: 13 }}
-                    />
-                  </View>
-
-                  {groups.length ? (
-                    <>
-                      <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>CONDITION CATEGORY</Text>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        className="mb-2.5"
-                        contentContainerStyle={{ paddingRight: 8 }}
-                        keyboardShouldPersistTaps="handled"
-                      >
-                        {groups.map((g) => {
-                          const active = otherCatId === g.id;
-                          return (
-                            <Pressable
-                              key={g.id}
-                              onPress={() => setOtherCatId(active ? null : g.id)}
-                              className="mr-2 px-3 py-1.5 rounded-full"
-                              style={{ backgroundColor: active ? BRAND_GREEN : '#fff', borderWidth: 1, borderColor: active ? BRAND_GREEN : '#E2E8E2' }}
-                            >
-                              <Text className={`font-medium ${active ? 'text-white' : 'text-text'}`} style={{ fontSize: 11 }}>{g.name}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </ScrollView>
-                    </>
-                  ) : null}
-
-                  <Text className="font-medium text-text-muted tracking-widest mb-1" style={{ fontSize: 11 }}>PRICE (₹)</Text>
-                  <View className="rounded-lg border border-border bg-card px-2.5 mb-2.5 flex-row items-center">
-                    <Text className="text-text-muted font-bold mr-1" style={{ fontSize: 13 }}>₹</Text>
-                    <TextInput
-                      key={`other-price-${otherFormKey}`}
-                      defaultValue=""
-                      onChangeText={(v) => { otherPriceRef.current = v; }}
-                      placeholder="0 (leave blank if price is not decided yet)"
-                      placeholderTextColor="#8FA08F"
-                      keyboardType="numeric"
-                      className="flex-1 text-text"
-                      style={{ paddingVertical: rs(8), fontSize: 13 }}
-                    />
-                  </View>
-
-                  <Pressable
-                    onPress={addCustomIssue}
-                    disabled={!otherHasName}
-                    className="flex-row items-center justify-center rounded-full py-2.5 active:opacity-80"
-                    style={{ backgroundColor: otherHasName ? ADD_BG : ADD_BG_OFF }}
-                  >
-                    <Plus size={14} color="#fff" />
-                    <Text className="text-white font-medium ml-1" style={{ fontSize: 13 }}>ADD ISSUE</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-          </View>
+          {/* Picked issues with their price — warranty and "Last 5 prices"
+              are no longer asked here. */}
+          {totalSelected > 0 ? (
+            <View style={{ marginTop: 18 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 10 }}>Selected Issues</Text>
+              {[...pickedIds].map((id) => {
+                const s = serviceById[id];
+                if (!s) return null;
+                return (
+                  <SelectedIssueRow
+                    key={id}
+                    name={s.name}
+                    Icon={iconFor(s.code, s.name)}
+                    price={ensureRow(id).price}
+                    onPriceChange={(v) => setField(id, 'price', v)}
+                    warranty={ensureRow(id).warranty}
+                    onWarrantyChange={(v) => setField(id, 'warranty', String(v).replace(/[^0-9]/g, ''))}
+                    onRemove={() => removeService(s)}
+                  />
+                );
+              })}
+              {customIssues.map((c) => (
+                <SelectedIssueRow
+                  key={c.id}
+                  name={c.name}
+                  sub={c.categoryName}
+                  Icon={Sparkles}
+                  price={Number(c.price) ? String(c.price) : ''}
+                  onPriceChange={(v) => setCustomPrice(c.id, v)}
+                  warranty={c.warranty || ''}
+                  onWarrantyChange={(v) => setCustomWarranty(c.id, v)}
+                  onRemove={() => removeCustomIssue(c.id)}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
       </KeyboardAwareScrollView>
 
@@ -816,12 +561,14 @@ export default function DeviceServicesScreen({ navigation, route }) {
           disabled={totalSelected === 0}
           className="active:opacity-90"
           style={{
+            // Tablets: same capped column as the list above.
+            ...(contentW ? { width: '100%', maxWidth: contentW, alignSelf: 'center' } : null),
             borderRadius: rs(18),
             overflow: 'hidden',
             backgroundColor: totalSelected > 0 ? ICON_TINT : CARD_BG,
             borderWidth: totalSelected > 0 ? 0 : 1,
             borderColor: BORDER_SOFT,
-            shadowColor: '#0B1F14',
+            shadowColor: '#111111',
             shadowOpacity: totalSelected > 0 ? 0.22 : 0.06,
             shadowRadius: 16,
             shadowOffset: { width: 0, height: 6 },
@@ -834,7 +581,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
             <View className="flex-1">
               <Text
                 className="font-bold"
-                style={{ fontSize: 11, color: totalSelected > 0 ? '#FFFFFF' : '#667085', opacity: totalSelected > 0 ? 0.9 : 1 }}
+                style={{ fontSize: 11, color: totalSelected > 0 ? '#FFFFFF' : '#6B7280', opacity: totalSelected > 0 ? 0.9 : 1 }}
               >
                 {totalSelected} Service{totalSelected === 1 ? '' : 's'} Selected
               </Text>
@@ -848,160 +595,196 @@ export default function DeviceServicesScreen({ navigation, route }) {
             <View className="flex-row items-center">
               <Text
                 className="font-medium"
-                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : '#9AA6A0', marginRight: 2 }}
+                style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : '#9CA3AF', marginRight: 2 }}
               >
                 Continue
               </Text>
-              <ChevronRight size={18} color={totalSelected > 0 ? '#fff' : '#9AA6A0'} />
+              <ChevronRight size={18} color={totalSelected > 0 ? '#fff' : '#9CA3AF'} />
             </View>
           </View>
         </Pressable>
       </View>
 
+      {/* ── Other Issue popup — a custom issue that isn't in the catalogue ── */}
+      <ResponsiveModal visible={otherOpen} onClose={closeOther} maxWidth={520}>
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 10 }} />
+        <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+          <MessageSquarePlus size={20} color={INK} strokeWidth={1.75} />
+          <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '800', color: INK }}>Other Issue</Text>
+          <Pressable onPress={closeOther} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} color={MUTED} />
+          </Pressable>
+        </View>
+        {/* Just the issue — no Add button: the keyboard's Done (or closing the
+            popup) adds what was typed. Its price is typed in Selected Issues. */}
+        <View className="flex-row items-center px-3" style={{ height: 46, borderRadius: 12, borderWidth: 1, borderColor: BORDER_SOFT, backgroundColor: CARD_BG }}>
+          <TextInput
+            key={`other-name-${otherFormKey}`}
+            defaultValue=""
+            autoFocus
+            onChangeText={(v) => { otherNameRef.current = v; setOtherHasName(v.trim().length > 0); }}
+            onSubmitEditing={closeOther}
+            returnKeyType="done"
+            placeholder="Describe the issue (e.g. Face ID not working)"
+            placeholderTextColor={PLACEHOLDER}
+            cursorColor={ICON_TINT}
+            style={{ flex: 1, paddingVertical: 0, fontSize: 13, color: INK }}
+          />
+        </View>
+      </ResponsiveModal>
+
+      {/* ── Issues of the tapped group — tap to select / unselect ──────── */}
+      <ResponsiveModal visible={!!sheetGroup} onClose={() => setIssueSheet(null)} maxWidth={520}>
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 10 }} />
+        {sheetGroup ? (
+          <>
+            <View className="flex-row items-center" style={{ marginBottom: 10 }}>
+              {(() => { const GIcon = groupIconFor(sheetGroup.name); return <GIcon size={20} color={INK} strokeWidth={1.75} />; })()}
+              <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '800', color: INK }} numberOfLines={1}>{sheetGroup.name}</Text>
+              <Pressable onPress={() => setIssueSheet(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={MUTED} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+              {sheetGroup.services.map((s) => {
+                const on = pickedIds.has(s.id);
+                const Icon = iconFor(s.code, s.name);
+                return (
+                  <Pressable
+                    key={s.id}
+                    // Select / unselect, then the sheet closes by itself.
+                    onPress={() => { if (on) removeService(s); else addService(s); setIssueSheet(null); }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    className="flex-row items-center active:opacity-80"
+                    style={{ minHeight: 52, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6, borderRadius: 12, borderWidth: on ? 1.5 : 1, borderColor: on ? ICON_TINT : BORDER_SOFT, backgroundColor: on ? MINT_BG : CARD_BG }}
+                  >
+                    <Icon size={19} color={on ? ICON_TINT : INK} strokeWidth={1.75} />
+                    <Text style={{ flex: 1, marginLeft: 12, fontSize: 13, fontWeight: on ? '700' : '500', color: INK }} numberOfLines={2}>{s.name}</Text>
+                    <View
+                      className="items-center justify-center"
+                      style={{ height: 20, width: 20, borderRadius: 6, borderWidth: 1.5, borderColor: on ? ICON_TINT : '#C9CFC9', backgroundColor: on ? ICON_TINT : '#FFFFFF' }}
+                    >
+                      {on ? <Check size={12} color="#FFFFFF" strokeWidth={3} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+      </ResponsiveModal>
     </View>
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Service "menu item" card — Swiggy/Zomato food-item rhythm:
-//   [thumbnail]  Name + spec      [Add] / [Remove]
-//                price input + warranty pills
+// Select Issue tile — icon over a two-line label; picked = green line, mint
+// fill and a ✓ badge in the corner.
 // ════════════════════════════════════════════════════════════════════════════
-function ServiceItem({
-  name, Icon, isPicked, canAdd, price, onPriceChange, warranty, onWarrantyChange, onAdd, onRemove,
-}) {
+function IssueTile({ name, Icon, picked, onPress, open = false }) {
+  const on = picked > 0 || open;
   return (
-    <View
-      className="rounded-2xl mb-2.5"
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}${picked > 0 ? `, ${picked} selected` : ''}`}
+      className="items-center justify-center active:opacity-80"
       style={{
-        backgroundColor: isPicked ? MINT_BG : ROW_BG,
-        borderWidth: isPicked ? 1.5 : 1,
-        borderColor: isPicked ? ICON_TINT : BORDER_SOFT,
-        padding: rs(12),
-        shadowColor: '#0B1F14',
-        shadowOpacity: isPicked ? 0 : 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: isPicked ? 0 : 1,
+        minHeight: 92, paddingHorizontal: 6, paddingVertical: 12, borderRadius: 14,
+        borderWidth: on ? 1.5 : 1, borderColor: on ? ICON_TINT : BORDER_SOFT, backgroundColor: on ? MINT_BG : CARD_BG,
       }}
     >
-      {/* Row 1 — icon tile + service name */}
+      {picked > 0 ? (
+        <View
+          className="items-center justify-center"
+          style={{ position: 'absolute', top: 6, right: 6, height: 18, width: 18, borderRadius: 9, backgroundColor: ICON_TINT }}
+        >
+          <Check size={11} color="#FFFFFF" strokeWidth={3} />
+        </View>
+      ) : null}
+      <Icon size={26} color={INK} strokeWidth={1.75} />
+      <Text
+        style={{ marginTop: 8, fontSize: 12, lineHeight: 15, fontWeight: on ? '700' : '500', color: INK, textAlign: 'center' }}
+        numberOfLines={2}
+      >
+        {name}
+      </Text>
+    </Pressable>
+  );
+}
+
+// One picked issue: icon, name and remove on top; then one row with
+// "Price [₹ box]" on the left and "Warranty [box Months]" on the right.
+function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, warranty, onWarrantyChange, onRemove }) {
+  const box = {
+    flexShrink: 1, height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: BORDER_SOFT, backgroundColor: '#FFFFFF',
+  };
+  const label = { fontSize: 12, fontWeight: '600', color: MUTED, marginRight: 6 };
+  return (
+    <View style={{ marginBottom: 8, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: ACCENT_20, backgroundColor: CARD_BG }}>
       <View className="flex-row items-center">
-        <View
-          className="items-center justify-center mr-3"
-          style={{ height: rs(38), width: rs(38), borderRadius: rs(11), backgroundColor: isPicked ? '#FFFFFF' : MINT_BG }}
-        >
-          <Icon size={19} color={ICON_TINT} />
+        <View className="items-center justify-center" style={{ height: 36, width: 36, borderRadius: 10, backgroundColor: MINT_BG }}>
+          <Icon size={18} color={ICON_TINT} />
         </View>
-        <Text className="flex-1 font-semibold text-text" style={{ fontSize: 13 }} numberOfLines={2}>{name}</Text>
-      </View>
-
-      {/* Row 2 — price action row: [₹ input] [Last 5 prices] [+ Add / ✓ Added],
-          all three in one horizontal row so "Last 5 prices" reads as tied to
-          the price field instead of a disconnected line below it. */}
-      <View className="flex-row items-center mt-2.5" style={{ gap: rs(8) }}>
-        <View
-          className="flex-row items-center rounded-full px-3"
-          style={{ height: rs(34), borderWidth: 1, borderColor: isPicked ? ICON_TINT : BORDER_SOFT, backgroundColor: '#FFFFFF' }}
-        >
-          <Text className="text-text-muted mr-1 font-semibold" style={{ fontSize: 11 }}>₹</Text>
-          <TextInput
-            placeholder="0"
-            placeholderTextColor="#8FA08F"
-            keyboardType="numeric"
-            value={String(price ?? '')}
-            onChangeText={onPriceChange}
-            autoComplete="off"
-            importantForAutofill="no"
-            textContentType="none"
-            className="text-text font-bold"
-            style={{ paddingVertical: 0, fontSize: 13, minWidth: rs(42) }}
-          />
+        <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: INK }} numberOfLines={2}>{name}</Text>
+          {sub ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>{sub}</Text> : null}
         </View>
-
         <Pressable
-          className="active:opacity-70 flex-row items-center rounded-full"
-          style={{ height: rs(34), paddingHorizontal: rs(10), borderWidth: 1, borderColor: ACCENT_20, backgroundColor: '#fff' }}
+          onPress={onRemove}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${name}`}
+          className="items-center justify-center active:opacity-70"
+          style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: 'rgba(220, 38, 38, 0.10)' }}
         >
-          {/* Explicit hex, not `text-primary`. The token already points at
-              #004C40, but NativeWind compiles classes at BUILD time, so a
-              token change only lands after `expo start --clear` — and this
-              link kept rendering the old green from a warm cache. */}
-          <Text numberOfLines={1} style={{ fontSize: 10.5, fontWeight: '600', color: ICON_TINT }}>Last 5 prices</Text>
+          <X size={14} color="#DC2626" />
         </Pressable>
-
-        <View style={{ marginLeft: 'auto' }}>
-          {isPicked ? (
-            // Same remove action as before (onRemove, unchanged) — only the
-            // label/colour changed, from a red "REMOVE" warning to a green
-            // "ADDED" confirmation. Still tappable to remove it.
-            <Pressable
-              onPress={onRemove}
-              accessibilityLabel="Remove this service"
-              className="flex-row items-center rounded-full active:opacity-80"
-              style={{ height: rs(34), paddingHorizontal: rs(11), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ICON_TINT }}
-            >
-              <Check size={12} color={ICON_TINT} strokeWidth={3} />
-              <Text className="font-semibold ml-1" style={{ fontSize: 11, color: ICON_TINT }}>Added</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              disabled={!canAdd}
-              onPress={onAdd}
-              className={`flex-row items-center rounded-full ${canAdd ? 'active:opacity-80' : ''}`}
-              style={{
-                height: rs(34),
-                paddingHorizontal: rs(13),
-                backgroundColor: canAdd ? ADD_BG : ADD_BG_OFF,
-                shadowColor: canAdd ? ADD_BG : 'transparent',
-                shadowOpacity: canAdd ? 0.28 : 0,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 3 },
-                elevation: canAdd ? 3 : 0,
-              }}
-            >
-              <Plus size={13} color="#fff" strokeWidth={2.5} />
-              <Text className="text-white font-semibold ml-1" style={{ fontSize: 11 }}>Add</Text>
-            </Pressable>
-          )}
-        </View>
       </View>
 
-      {/* Row 3 — warranty chips */}
-      <View className="mt-3">
-        <Text className="font-semibold text-text-muted mb-1.5" style={{ fontSize: 11 }}>Warranty</Text>
-        <View className="flex-row -mx-1">
-          {WARRANTY_OPTIONS.map((w) => {
-            const active = warranty === w.code;
-            return (
-              <Pressable
-                key={w.code}
-                onPress={() => onWarrantyChange(active ? '' : w.code)}
-                className="flex-1 mx-1 rounded-full items-center justify-center"
-                style={{
-                  height: rs(38),
-                  backgroundColor: active ? BRAND_GREEN : '#fff',
-                  borderWidth: 1,
-                  borderColor: active ? BRAND_GREEN : BORDER_SOFT,
-                  shadowColor: active ? BRAND_GREEN : 'transparent',
-                  shadowOpacity: active ? 0.25 : 0,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: active ? 2 : 0,
-                }}
-              >
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
-                  style={{ fontSize: 11 }}
-                  className={`font-medium ${active ? 'text-white' : 'text-text'}`}
-                >
-                  {w.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+      {/* Compact fixed-width boxes (they shrink on very narrow phones):
+          Price on the left, Warranty on the right. */}
+      <View className="flex-row" style={{ marginTop: 10, gap: 10, justifyContent: 'space-between' }}>
+        <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={label}>Price</Text>
+          <View style={[box, { width: 96 }]}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: MUTED, marginRight: 4 }}>₹</Text>
+            <TextInput
+              placeholder="0"
+              placeholderTextColor={PLACEHOLDER}
+              keyboardType="numeric"
+              value={String(price ?? '')}
+              onChangeText={onPriceChange}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              cursorColor={ICON_TINT}
+              style={{ flex: 1, paddingVertical: 0, fontSize: 14, fontWeight: '700', color: INK }}
+            />
+          </View>
+        </View>
+        <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={label}>Warranty</Text>
+          <View style={[box, { width: 96 }]}>
+            <TextInput
+              placeholder="0"
+              placeholderTextColor={PLACEHOLDER}
+              keyboardType="number-pad"
+              maxLength={3}
+              value={String(warranty ?? '')}
+              onChangeText={onWarrantyChange}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              cursorColor={ICON_TINT}
+              style={{ flex: 1, paddingVertical: 0, fontSize: 14, fontWeight: '700', color: INK }}
+            />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, marginLeft: 4 }}>
+              {String(warranty) === '1' ? 'Month' : 'Months'}
+            </Text>
+          </View>
         </View>
       </View>
     </View>

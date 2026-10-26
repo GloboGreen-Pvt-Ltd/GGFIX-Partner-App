@@ -3,48 +3,33 @@
  * NativeWind className strings (e.g. `bg-primary text-white`). The named
  * default exports are kept for screens that still use StyleSheet.
  *
- * GGFix palette — brand sheet (Oct 2026). Same key names as before (nothing
- * renamed, so every existing `tokens.x` / `bg-x` call site across the app
- * keeps working); only the underlying hex values move. The six brand colours:
+ * GGFIX palette — the Home screen's teal palette, applied app-wide (Oct 2026).
+ * Same key names as before (every `tokens.x` / `bg-x` call site keeps working);
+ * only the hex values moved:
  *
- *   Green   #09AD2A — primary: buttons, active tabs, progress, success.
- *   Red     #F84141 — danger / error. Replaces #DC2626 (the earlier "keep the
- *                     error colour as-is" note is superseded by this sheet).
- *   Ink     #1E1E1E — main text.
- *   Page    #F8F8F8 — page background, behind white cards.
- *   Surface #F3F3F3 — soft fills: inputs, chips, muted surfaces.
- *   Yellow  #F3BF23 — attention / pending / warning highlights.
- *
- * The rest are the tints and shades the redesigned screens already use
- * alongside those six (Service History, Messages, Dashboard), so token-driven
- * screens and hand-styled ones land on identical values:
- *
- *   #078F23 deep green — green TEXT on light backgrounds (`primaryDark`).
- *           #09AD2A on white is ~3:1, fine for fills and bold labels but thin
- *           for small text; the deep shade is what the app uses for green copy.
- *   #EAF8EC mint / #CDEFD4 mint line — soft green fills and their borders.
- *   #6B6B6B muted text, #8A8A8A subtle text / placeholders.
- *   #E6E6E6 border, #D6D6D6 strong border.
- *   #FFF8E1 / #8A6A00 — yellow soft fill and the dark text that sits on it.
- *
- * Contrast rules: `primary`, `success` and `danger` carry white text/icons.
- * `attention` / `warning` (yellow) take DARK text only — white on #F3BF23 is
- * under 2:1.
+ *   Teal        #035C6C — primary: buttons, active navigation, highlights.
+ *   Light Teal  #E5F3F5 — selected cards, icon backgrounds (#C7E6EA its line).
+ *   Green       #609138 — success, positive status.
+ *   Black       #111111 — headings, primary text.
+ *   Dark Gray   #6B7280 — secondary text (#9CA3AF subtle / placeholders).
+ *   Light Gray  #F3F4F6 — page / section backgrounds, soft fills.
+ *   Border Gray #E5E7EB — borders, dividers (#D1D5DB strong).
+ *   Red #F84141 danger · Yellow #F3BF23 attention (dark text only).
  */
 const tokens = {
   // Primary — the interactive green
-  primary: '#09AD2A',
-  primaryBright: '#09AD2A',
-  primaryLight: '#09AD2A',
-  primaryDark: '#078F23',
-  primarySoft: '#EAF8EC',
+  primary: '#035C6C',
+  primaryBright: '#035C6C',
+  primaryLight: '#035C6C',
+  primaryDark: '#035C6C',
+  primarySoft: '#E5F3F5',
 
   // Accent — same brand green. `accentDark` is the deep shade for text;
   // `accentLight` / `accentSoft` are the mint tints (dark text only).
-  accent: '#09AD2A',
-  accentLight: '#CDEFD4',
-  accentDark: '#078F23',
-  accentSoft: '#EAF8EC',
+  accent: '#035C6C',
+  accentLight: '#C7E6EA',
+  accentDark: '#035C6C',
+  accentSoft: '#E5F3F5',
 
   // Attention — pending / warning states. DARK text only.
   attention: '#F3BF23',
@@ -56,28 +41,28 @@ const tokens = {
   // `background` is the page wash behind white cards; `pageBackground` is the
   // same value under an explicit name for screens that want to be unambiguous
   // about which surface they mean.
-  background: '#F8F8F8',
-  pageBackground: '#F8F8F8',
+  background: '#F3F4F6',
+  pageBackground: '#F3F4F6',
   card: '#FFFFFF',
   surface: '#FFFFFF',
-  surfaceMuted: '#F3F3F3',
+  surfaceMuted: '#F3F4F6',
 
   // Text
-  text: '#1E1E1E',
-  textMuted: '#6B6B6B',
-  textSubtle: '#8A8A8A',
+  text: '#111111',
+  textMuted: '#6B7280',
+  textSubtle: '#9CA3AF',
 
   // Lines
-  border: '#E6E6E6',
-  borderStrong: '#D6D6D6',
+  border: '#E5E7EB',
+  borderStrong: '#D1D5DB',
 
   // Status
-  success: '#09AD2A',
+  success: '#609138',
   warning: '#F3BF23',
   danger: '#F84141',
   error: '#F84141',
   // No blue in the palette; "info" was only ever a neutral notice.
-  info: '#09AD2A',
+  info: '#035C6C',
 };
 
 export const radii = {
@@ -91,14 +76,14 @@ export const radii = {
 
 export const shadows = {
   card: {
-    shadowColor: '#1E1E1E',
+    shadowColor: '#111111',
     shadowOpacity: 0.06,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
   bar: {
-    shadowColor: '#1E1E1E',
+    shadowColor: '#111111',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: -6 },

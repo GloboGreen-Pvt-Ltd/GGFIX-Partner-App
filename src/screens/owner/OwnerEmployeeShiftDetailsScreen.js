@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,21 +11,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ticketApi } from '../../api/client';
 import { useResponsive } from '../../theme/responsive';
-import { rf, rlh, rs } from '../../utils/responsive';
+import { rlh, rs } from '../../utils/responsive';
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Schedule window: 9 AM through 10 PM (matches the mockup's 09:00 - 10:00 next-day range).
-const SCHEDULE_HOURS = Array.from({ length: 14 }, (_, i) => 9 + i);
+// Full day, scrollable; the view auto-scrolls to the check-in (or current) hour.
+const SCHEDULE_HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+const ampm = (h24) => (h24 < 12 ? 'AM' : 'PM');
+
 function hourLabel(h24) {
-  const h12 = ((h24 - 1) % 12) + 1;
-  return `${pad2(h12)}:00`;
+  const h12 = ((h24 + 11) % 12) + 1;
+  return `${pad2(h12)}:00 ${ampm(h24)}`;
 }
 
 // Parse a server time string ("HH:mm" / "HH:mm:ss") into { hour, minute, label }.
@@ -36,7 +38,7 @@ function parseTime(t) {
   const minute = Number(mm || 0);
   if (Number.isNaN(hour)) return null;
   const h12 = ((hour - 1 + 12) % 12) + 1;
-  return { hour, minute, label: `${pad2(h12)}:${pad2(minute)}` };
+  return { hour, minute, label: `${pad2(h12)}:${pad2(minute)} ${ampm(hour)}` };
 }
 
 function isoDate(d) {
@@ -60,6 +62,8 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
   const [dayData, setDayData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [viewAsList, setViewAsList] = useState(false);
+  const scrollRef = useRef(null);
+  const rowY = useRef({});
 
   const loadDay = useCallback(async (dateStr) => {
     if (!employee?.id) return;
@@ -98,6 +102,22 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
   const checkIn = parseTime(dayData?.checkInTime);
   const checkOut = parseTime(dayData?.checkOutTime);
 
+  const focusHour = checkIn?.hour ?? (selectedDate === todayIso ? new Date().getHours() : 9);
+  useEffect(() => {
+    if (loading || viewAsList) return undefined;
+    const t = setTimeout(() => {
+      const y = rowY.current[Math.max(0, focusHour - 1)];
+      if (y != null) scrollRef.current?.scrollTo({ y: y + (rowY.current.top || 0), animated: true });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [loading, viewAsList, focusHour, selectedDate]);
+
+  const shiftWeek = (delta) => {
+    const d = new Date(selected);
+    d.setDate(d.getDate() + delta * 7);
+    setSelectedDate(isoDate(d));
+  };
+
   if (!employee) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -114,19 +134,27 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
       <View style={[styles.headerRow, capStyle]}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerDate}>{selected.getDate()}</Text>
-          <View>
-            <Text style={styles.headerDayLong}>{dayLong}</Text>
-            <Text style={styles.headerMonth}>{monthYear}</Text>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.headerDayLong} numberOfLines={1}>{dayLong}</Text>
+            <Text style={styles.headerMonth} numberOfLines={1}>{monthYear}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.todayBtn}
-          onPress={() => setSelectedDate(todayIso)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="calendar-outline" size={rs(15)} color="#09AD2A" />
-          <Text style={styles.todayBtnText}>Today</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.navBtn} onPress={() => shiftWeek(-1)} hitSlop={8} accessibilityLabel="Previous week">
+            <Ionicons name="chevron-back" size={rs(16)} color="#035C6C" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.todayBtn}
+            onPress={() => setSelectedDate(todayIso)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="calendar-outline" size={rs(15)} color="#035C6C" />
+            <Text style={styles.todayBtnText}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navBtn} onPress={() => shiftWeek(1)} hitSlop={8} accessibilityLabel="Next week">
+            <Ionicons name="chevron-forward" size={rs(16)} color="#035C6C" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Week strip */}
@@ -170,7 +198,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
       </View>
 
       {/* Schedule timeline */}
-      <ScrollView contentContainerStyle={[styles.scheduleContent, capStyle]}>
+      <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={[styles.scheduleContent, capStyle]}>
         <View style={styles.scheduleHeaderRow}>
           <Text style={styles.scheduleTitle}>Schedule</Text>
           <TouchableOpacity
@@ -178,18 +206,18 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
             onPress={() => setViewAsList((v) => !v)}
             activeOpacity={0.85}
           >
-            <Ionicons name="list" size={rs(16)} color="#09AD2A" />
+            <Ionicons name="list" size={rs(16)} color="#035C6C" />
             <Text style={styles.viewListBtnText}>{viewAsList ? 'View as timeline' : 'View as list'}</Text>
           </TouchableOpacity>
         </View>
 
         {loading ? (
-          <ActivityIndicator size="small" color="#09AD2A" style={{ marginVertical: rs(24) }} />
+          <ActivityIndicator size="small" color="#035C6C" style={{ marginVertical: rs(24) }} />
         ) : viewAsList ? (
           <View style={styles.listWrap}>
             {checkIn ? (
               <View style={styles.listRow}>
-                <View style={[styles.listDot, { backgroundColor: '#09AD2A' }]} />
+                <View style={[styles.listDot, { backgroundColor: '#035C6C' }]} />
                 <Text style={styles.listRowLabel}>Check-In Time</Text>
                 <Text style={styles.listRowValue}>{checkIn.label}</Text>
               </View>
@@ -206,14 +234,14 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
             ) : null}
           </View>
         ) : (
-          <View style={styles.timeline}>
+          <View style={styles.timeline} onLayout={(e) => { rowY.current.top = e.nativeEvent.layout.y; }}>
             {SCHEDULE_HOURS.map((h) => {
               const isCheckIn = checkIn && checkIn.hour === h;
               const isCheckOut = checkOut && checkOut.hour === h;
               return (
-                <View key={h} style={styles.hourRow}>
+                <View key={h} style={styles.hourRow} onLayout={(e) => { rowY.current[h] = e.nativeEvent.layout.y; }}>
                   <View style={styles.hourPill}>
-                    <Text style={styles.hourPillText}>{hourLabel(h)}</Text>
+                    <Text style={styles.hourPillText} numberOfLines={1} adjustsFontSizeToFit>{hourLabel(h)}</Text>
                   </View>
                   <View style={styles.connectorCol}>
                     <View style={styles.connectorLine} />
@@ -255,7 +283,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F8F8' },
+  safe: { flex: 1, backgroundColor: '#F3F4F6' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { fontSize: 13, color: '#F84141' },
 
@@ -267,22 +295,34 @@ const styles = StyleSheet.create({
     paddingTop: rs(8),
     paddingBottom: rs(4),
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10) },
-  headerDate: { fontSize: 20, fontWeight: '800', color: '#078F23', lineHeight: rlh(26) },
-  headerDayLong: { fontSize: 13, fontWeight: '700', color: '#1E1E1E' },
-  headerMonth: { fontSize: 11, color: '#6B6B6B', marginTop: rs(1) },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: rs(10), flexShrink: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: rs(6), marginLeft: rs(8) },
+  navBtn: {
+    width: rs(30),
+    height: rs(30),
+    borderRadius: rs(9),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#C7E6EA',
+  },
+  flex: { flex: 1 },
+  headerDate: { fontSize: 20, fontWeight: '800', color: '#035C6C', lineHeight: rlh(26) },
+  headerDayLong: { fontSize: 13, fontWeight: '700', color: '#111111' },
+  headerMonth: { fontSize: 11, color: '#6B7280', marginTop: rs(1) },
   todayBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(5),
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     paddingHorizontal: rs(10),
     paddingVertical: rs(5),
     borderRadius: rs(9),
   },
-  todayBtnText: { color: '#078F23', fontSize: 11, fontWeight: '700' },
+  todayBtnText: { color: '#035C6C', fontSize: 11, fontWeight: '700' },
 
   weekStrip: {
     flexDirection: 'row',
@@ -297,30 +337,30 @@ const styles = StyleSheet.create({
     borderRadius: rs(9),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
-  weekDaySelected: { backgroundColor: '#09AD2A', borderColor: '#09AD2A' },
+  weekDaySelected: { backgroundColor: '#035C6C', borderColor: '#035C6C' },
   weekDaySunday: { backgroundColor: '#FEECEC', borderColor: '#FBD0D0' },
-  weekDayName: { fontSize: 10, color: '#6B6B6B', fontWeight: '600' },
-  weekDayNum: { fontSize: 12.5, fontWeight: '800', color: '#1E1E1E', marginTop: rs(2) },
+  weekDayName: { fontSize: 10, color: '#6B7280', fontWeight: '600' },
+  weekDayNum: { fontSize: 12.5, fontWeight: '800', color: '#111111', marginTop: rs(2) },
   weekDayTextSelected: { color: '#FFFFFF' },
   weekDayTextSunday: { color: '#F84141' },
 
   scheduleContent: { paddingHorizontal: rs(12), paddingTop: rs(6), paddingBottom: rs(20) },
   scheduleHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: rs(6) },
-  scheduleTitle: { fontSize: 13, fontWeight: '800', color: '#1E1E1E' },
+  scheduleTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
   viewListBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(5),
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#09AD2A',
+    borderColor: '#035C6C',
     paddingHorizontal: rs(9),
     paddingVertical: rs(5),
     borderRadius: rs(9),
   },
-  viewListBtnText: { color: '#078F23', fontSize: 11, fontWeight: '700' },
+  viewListBtnText: { color: '#035C6C', fontSize: 11, fontWeight: '700' },
 
   timeline: {
     backgroundColor: 'transparent',
@@ -331,36 +371,39 @@ const styles = StyleSheet.create({
     minHeight: rs(36),
   },
   hourPill: {
-    width: rs(54),
+    width: rs(70),
     paddingVertical: rs(4),
     borderRadius: 999,
-    backgroundColor: '#EAF8EC',
+    backgroundColor: '#E5F3F5',
     borderWidth: 1,
-    borderColor: '#CDEFD4',
+    borderColor: '#C7E6EA',
     alignItems: 'center',
     marginRight: rs(4),
   },
-  hourPillText: { fontSize: 10.5, fontWeight: '700', color: '#078F23' },
+  hourPillText: { fontSize: 10.5, fontWeight: '700', color: '#035C6C' },
   connectorCol: { width: rs(22), alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  connectorLine: { position: 'absolute', top: 0, bottom: 0, left: rs(10), borderLeftWidth: 1.5, borderStyle: 'dashed', borderColor: '#CDEFD4' },
-  connectorDot: { width: rs(9), height: rs(9), borderRadius: rs(5), backgroundColor: '#09AD2A', zIndex: 1 },
+  connectorLine: { position: 'absolute', top: 0, bottom: 0, left: rs(10), borderLeftWidth: 1.5, borderStyle: 'dashed', borderColor: '#C7E6EA' },
+  connectorDot: { width: rs(9), height: rs(9), borderRadius: rs(5), backgroundColor: '#035C6C', zIndex: 1 },
   hourLineWrap: {
     flex: 1,
     justifyContent: 'center',
     minHeight: rs(30),
     marginLeft: rs(4),
+    paddingVertical: rs(3),
   },
   hourLine: {
-    height: rs(1),
-    borderStyle: 'dashed',
-    borderWidth: 0.5,
-    borderColor: '#CDEFD4',
-  },
-
-  eventChip: {
     position: 'absolute',
     left: 0,
     right: 0,
+    top: '50%',
+    height: rs(1),
+    borderStyle: 'dashed',
+    borderWidth: 0.5,
+    borderColor: '#C7E6EA',
+  },
+
+  eventChip: {
+    marginVertical: rs(2),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -368,15 +411,15 @@ const styles = StyleSheet.create({
     paddingVertical: rs(5),
     borderRadius: rs(6),
   },
-  eventChipCheckIn: { backgroundColor: '#EAF8EC' },
+  eventChipCheckIn: { backgroundColor: '#E5F3F5' },
   eventChipCheckOut: { backgroundColor: '#FEECEC' },
   eventChipTextOut: { color: '#F84141' },
-  eventChipText: { fontSize: 11, fontWeight: '700', color: '#078F23' },
-  eventChipTime: { fontSize: 10.5, fontWeight: '600', color: '#078F23' },
+  eventChipText: { fontSize: 11, fontWeight: '700', color: '#035C6C' },
+  eventChipTime: { fontSize: 10.5, fontWeight: '600', color: '#035C6C' },
 
   empty: {
     fontSize: 12,
-    color: '#6B6B6B',
+    color: '#6B7280',
     textAlign: 'center',
     marginTop: rs(16),
   },
@@ -391,11 +434,11 @@ const styles = StyleSheet.create({
     paddingVertical: rs(9),
     marginBottom: rs(6),
     borderWidth: 1,
-    borderColor: '#F3F3F3',
+    borderColor: '#F3F4F6',
   },
   listDot: { width: rs(10), height: rs(10), borderRadius: rs(5), marginRight: rs(12) },
-  listRowLabel: { flex: 1, fontSize: 12, fontWeight: '700', color: '#1E1E1E' },
-  listRowValue: { fontSize: 12, fontWeight: '800', color: '#078F23' },
+  listRowLabel: { flex: 1, fontSize: 12, fontWeight: '700', color: '#111111' },
+  listRowValue: { fontSize: 12, fontWeight: '800', color: '#035C6C' },
 
   statusNote: {
     marginTop: rs(10),

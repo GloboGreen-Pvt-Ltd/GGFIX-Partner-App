@@ -1,41 +1,40 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View, Text, ScrollView, TextInput, Pressable, Image } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, View, Text, TextInput, Pressable, Image, StatusBar } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { T } from '../../../components/dashboard/theme';
 import { RecordingPresets, createAudioPlayer, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import {
-  ArrowLeft,
-  MoreHorizontal,
-  Smartphone,
   Hash,
   ScanLine,
-  ReceiptText,
-  Calendar,
-  Timer,
-  Truck,
-  ShieldCheck,
+  ArrowLeft,
+  ArrowRight,
+  Barcode,
   CircleCheck,
   Circle,
-  ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Pencil,
-  Tag,
   Mic,
   Square,
   Play,
   Pause,
   Trash2,
   Eraser,
-  Wrench,
-  HelpCircle,
 } from 'lucide-react-native';
-import { Select } from '../../../components/rnr';
+import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
+import MissingPartsChecklist, { seedMissingParts, flaggedMissingParts } from './MissingPartsChecklist';
+import { categoryLabel, consumeValidated, discardTempImage, isVerifiableCategory } from '../scanner/devicePhotoCheck';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
+import ImageViewerModal from '../../../components/ImageViewerModal';
+import { MaterialDatePicker, MaterialTimePicker } from '../../../components/MaterialPickers';
 import { useResponsive } from '../../../theme/responsive';
 import { rf, rs } from '../../../utils/responsive';
 import { uploadMedia } from '../../../api/masterData';
-import { specDisplayParts } from '../../../utils/deviceSpecs';
+import { lockTypesFor, resolveSpecCategory } from '../../../utils/deviceSpecs';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 /**
  * Service Price & Issue Estimate.
@@ -45,39 +44,78 @@ import { specDisplayParts } from '../../../utils/deviceSpecs';
  * split footer (total on the left, Continue pill on the right) rather than one
  * full-bleed bar.
  *
- * GGFIX palette: #09AD2A for fills / icons / selected states, #078F23 for green
- * TEXT on white or mint (so it stays legible), #EAF8EC tints with a #CDEFD4 edge,
- * on a #F8F8F8 page with compact white cards.
+ * GGFIX palette: #035C6C for fills / icons / selected states, #035C6C for green
+ * TEXT on white or mint (so it stays legible), #E5F3F5 tints with a #C7E6EA edge,
+ * on a #F3F4F6 page with compact white cards.
  */
-const ACCENT = '#09AD2A';       // fills, icons, selected
-const ACCENT_TEXT = '#078F23';  // green text on white / mint
-const ACCENT_08 = '#EAF8EC';    // light green tint
-const ACCENT_30 = '#CDEFD4';    // light green border
+const ACCENT = '#035C6C';       // fills, icons, selected
+const ACCENT_TEXT = '#035C6C';  // green text on white / mint
+const ACCENT_08 = '#E5F3F5';    // light green tint
+const ACCENT_30 = '#C7E6EA';    // light green border
 
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const SUBTLE = '#8A8A8A';
-const RED = '#F84141';
-const RED_TINT = '#FEECEC';
-const RED_LINE = '#FBD0D0';
+const INK = '#111111';
+const MUTED = '#6B7280';
+const SUBTLE = '#9CA3AF';
 const RED_TEXT = '#D63232';
 
-const PAGE_BG = '#F8F8F8';
+const PAGE_BG = '#F3F4F6';
 const SCREEN_BG = '#FFFFFF';   // card / input / sheet white
-const MINT = '#EAF8EC';
-const SOFT = '#F3F3F3';
-const LINE = '#E6E6E6';        // input + bar borders
-const HAIR = '#F3F3F3';        // card hairline on the grey page
+const MINT = '#E5F3F5';
+const SOFT = '#F3F4F6';
+
+// Header — same values as OwnerPersonalInfoScreen's header.
+const HEADER_BORDER = '#C7E6EA';
+const HEADER_TEXT = '#111111';
+const HEADER = {
+  bar: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: rs(16),
+    paddingBottom: rs(12),
+    borderBottomWidth: 1,
+    borderBottomColor: HEADER_BORDER,
+  },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  iconBtn: {
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: HEADER_BORDER,
+  },
+  titleWrap: { flex: 1, alignItems: 'center', marginHorizontal: rs(8) },
+  title: { color: HEADER_TEXT, fontSize: T.headline, fontWeight: '800' },
+  subtitle: { color: '#6B7280', fontSize: T.caption2, marginTop: rs(2) },
+};
+const LINE = '#E5E7EB';        // input + bar borders
+
+// Device Security Lock (optional) field — the entry box sits beside the
+// selected type. Same minimums as the lock popup (PIN/password 4+, pattern 4+
+// dots); ACCOUNT = iCloud / Google account lock, value optional.
+const LOCK_FIELD_OPTIONS = [
+  { key: 'PIN', label: 'PIN', placeholder: 'Enter PIN', keyboard: 'number-pad', max: 6 },
+  // No text box: a dot pad beside the list is drawn instead (reference design).
+  { key: 'PATTERN', label: 'Pattern' },
+  { key: 'PASSWORD', label: 'Password', placeholder: 'Enter password', keyboard: 'default', max: 16 },
+  { key: 'ACCOUNT', label: 'iCloud / Google Account', placeholder: 'Account (optional)', keyboard: 'email-address', max: 60 },
+];
 /** One height for every single-line field, so the rows line up across sections. */
-const FIELD_H = 42;   // pass through rs() at each use site
+// Device photos (optional, up to 5). Stored in devicePhotosJson as
+// { front, back, photo3, photo4, photo5 } so every existing reader — customer
+// app, staff app, booking edit — still finds the first two as front / back.
+const PHOTO_KEYS = ['front', 'back', 'photo3', 'photo4', 'photo5'];
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // master-data /media/upload limit
 
-const DURATIONS = [1, 2, 3, 4, 5, 6, 8, 12, 24, 48].map((h) => ({ value: h, label: `${h} hr` }));
-
-const formatINR = (n) =>
-  Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+// Estimated delivery is chosen in whole hours only (no minutes / days).
+const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 24, 48, 72].map((h) => ({ value: h, label: `${h} hr` }));
 
 const formatDate = (d) =>
   d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+
+const formatDateLong = (d) =>
+  d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 
 const formatTime = (d) => {
   let h = d.getHours();
@@ -100,11 +138,7 @@ const formatSpan = (mins) => {
 
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
-const sameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
 const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
-const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
 
 /**
  * Weeks of `month` as arrays of 7 Dates, including the leading and trailing days
@@ -126,13 +160,6 @@ const monthWeeks = (month) => {
     Array.from({ length: 7 }, (_, i) => new Date(y, m, 1 - lead + w * 7 + i)));
 };
 
-// A native date/time picker would need @react-native-community/datetimepicker,
-// and android/ is committed here, so a new native module means a full rebuild
-// before anyone could use it. The calendar and dropdowns below are pure JS.
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-  'August', 'September', 'October', 'November', 'December'];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 const HOUR_OPTS = Array.from({ length: 12 }, (_, i) => ({
   value: i + 1, label: String(i + 1).padStart(2, '0'),
 }));
@@ -141,14 +168,18 @@ const HOUR_OPTS = Array.from({ length: 12 }, (_, i) => ({
 const MINUTE_OPTS = Array.from({ length: 60 }, (_, m) => ({
   value: m, label: String(m).padStart(2, '0'),
 }));
-const MERIDIEM_OPTS = [{ value: 'AM', label: 'AM' }, { value: 'PM', label: 'PM' }];
 
-/** One popup width for hour, minute and AM/PM, so they don't resize between taps. */
-const TIME_MENU_W = 130;
-
+// What was entered here before a Back to Issue Description, keyed by that
+// (previous) route — Next opens a fresh copy of this screen, which restores it.
+const DRAFTS = {};
+const prevRouteKey = (navigation) => {
+  const st = navigation.getState();
+  return st?.routes?.[st.index - 1]?.key;
+};
 
 export default function ServicePriceEstimateScreen({ navigation, route }) {
-  const params = route?.params || {};
+  const [restored] = useState(() => DRAFTS[prevRouteKey(navigation)] || null);
+  const params = restored ? { ...(route?.params || {}), ...restored } : (route?.params || {});
   const insets = useSafeAreaInsets();
   const r = useResponsive();
   const services = params.services || [];
@@ -165,7 +196,25 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
    * passed. A re-estimate is made now, so it is measured from now.
    */
   const [now] = useState(() => new Date());
+  // Service start, saved as estimatedReadyAt. An edit / re-estimate keeps the
+  // booking's original start so Device Details' Service Schedule doesn't jump
+  // to the re-estimate time — only the ready-by is measured from `now`.
+  // Re-Service is a new job and starts now. serviceStartIso survives Back/Next.
+  const startIso = params.serviceStartIso
+    || (!params.reService && params.prefillEstimatedReadyIso)
+    || now.toISOString();
   const [imei, setImei] = useState(params.prefillImei || '');
+  // Non-mobile devices (Laptop / Tablet / Smartwatch / Audio) take a serial number instead.
+  const [serialNumber, setSerialNumber] = useState(params.prefillSerialNumber || params.serialNumber || '');
+  // Charger, case, SIM tray … handed over with the device.
+  const [accessories, setAccessories] = useState(params.prefillAccessories || params.accessories || '');
+  const [missingParts, setMissingParts] = useState(() => seedMissingParts(params.missingParts || params.prefillMissingParts));
+  // Seeded from a saved lock on re-estimate; sent on as `lock`, so Device
+  // Information skips its own lock popup.
+  const seedLock = params.lock || params.prefillLock || null;
+  const [lockType, setLockType] = useState(seedLock?.type || 'NONE');
+  const [lockValue, setLockValue] = useState(seedLock?.value || '');
+  const showImei = useImeiApplies(params); // mobile phones only
   const [complaint, setComplaint] = useState(params.prefillComplaint || '');
   const [duration, setDuration] = useState(() => {
     if (params.prefillEstimatedReadyIso && params.prefillEstimatedDeliveryIso) {
@@ -175,7 +224,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     }
     return 2;
   });
-  const [approval, setApproval] = useState(params.prefillCustomerApproved ?? false);
+  // Re-Estimate starts unticked: the earlier approval was for the old price.
+  const [approval, setApproval] = useState(params.reEstimate ? false : (params.prefillCustomerApproved ?? false));
   const [menuOpen, setMenuOpen] = useState(false);
 
   /**
@@ -203,6 +253,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const [edHour12, setEdHour12] = useState(12);
   const [edMeridiem, setEdMeridiem] = useState('PM');
   const [edMinute, setEdMinute] = useState(0);
+  // Delivery date / time pickers: 'date' | 'time' | null; the time picker's active half.
+  const [pickerMode, setPickerMode] = useState(null);
+  const [timeTab, setTimeTab] = useState('hour');
 
   // ── Audio recording state ────────────────────────────────────────
   // `audioUrl` is the hosted media.ggfix.in URL once the recording is uploaded;
@@ -370,46 +423,220 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   // Nothing reachable in an earlier month — every date there is already past.
   const canPrev = startOfMonth(calMonth) > startOfMonth(now);
 
-  const openReadyEditor = () => {
+  // Both pickers start from the current delivery moment.
+  const seedPicker = () => {
     const d = delivery;
     setEdDay(startOfDay(d));
     setCalMonth(startOfMonth(d));
     const h = d.getHours();
     setEdMeridiem(h >= 12 ? 'PM' : 'AM');
     setEdHour12(h % 12 || 12);
-    // Exact minute now that all 60 are selectable — the old 15-minute snap
-    // could shift a re-opened estimate by up to 7 minutes.
     setEdMinute(d.getMinutes());
-    setEdOpen(true);
   };
-
-  const applyReady = () => {
+  const openDatePicker = () => { seedPicker(); setPickerMode('date'); };
+  const openTimePicker = () => { seedPicker(); setTimeTab('hour'); setPickerMode('time'); };
+  // A manual date / time becomes the delivery moment; the hours shown follow it.
+  const applyPicker = () => {
     if (!edValid) return;
     setReadyOverride(edDate);
-    setEdOpen(false);
-  };
-
-  const clearReady = () => {
-    setReadyOverride(null);
-    setEdOpen(false);
+    setPickerMode(null);
   };
 
   // Continue allowed once the user has SOME description of the issue (text or
   // audio) AND has explicitly toggled customer approval. Don't gate on IMEI —
   // it's optional and not every device has one (laptops, audio gear).
   const hasIssue = complaint.trim().length > 0 || !!audioUrl;
-  const isReady = hasIssue && approval && !uploadingAudio && !isRecording;
+  // ── Device photos (moved here from Device Information) ─────────────────
+  const seedPhotos = params.devicePhotos || params.prefillDevicePhotos;
+  const [photoUrls, setPhotoUrls] = useState(() => (
+    seedPhotos && typeof seedPhotos === 'object' ? PHOTO_KEYS.map((k) => seedPhotos[k]).filter(Boolean) : []
+  ));
+  const [videoUrl, setVideoUrl] = useState(() => (seedPhotos && typeof seedPhotos === 'object' ? seedPhotos.video || '' : ''));
+  const [photoUploading, setPhotoUploading] = useState(false);
+  // Media sheet: { mode: 'add' } (Photo / Video tiles) → { mode: 'add', kind }
+  // (gallery / camera) | { mode: 'item' | 'replace', kind, index }.
+  const [mediaSheet, setMediaSheet] = useState(null);
+  const [preview, setPreview] = useState(null); // photo index shown full-screen
+
+  // kind: 'photo' | 'video'; fromCamera: take / record instead of the gallery.
+  // target.index replaces that photo; without one a photo is appended. The
+  // video always goes in the `video` slot.
+  const pickMedia = async (kind, fromCamera, target = {}) => {
+    const isVideo = kind === 'video';
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      const what = fromCamera ? 'Camera' : isVideo ? 'Videos' : 'Photos';
+      if (perm.canAskAgain === false && Platform.OS !== 'web') {
+        Alert.alert(`${what} access is off`, `Turn on ${what.toLowerCase()} access for this app in Settings to add device media.`, [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+      } else {
+        notify('Permission needed', `Allow ${what.toLowerCase()} access to add device media.`);
+      }
+      return;
+    }
+    // Photos (add or replace, camera or gallery) go through the capture / check
+    // screen, validated against this booking's device category; it hands back
+    // only an accepted photo.
+    if (!isVideo) {
+      if (!photoVerifiable) {
+        notify('Photo verification unavailable', `${categoryLabel(specCategory)} photos can't be verified yet — add a video instead, or continue without a photo.`);
+        return;
+      }
+      navigation.navigate('DevicePhotoCapture', {
+        mode: fromCamera ? 'camera' : 'gallery',
+        category: specCategory || null,
+        onDone: (asset) => uploadMediaAsset(asset, false, target),
+      });
+      return;
+    }
+    try {
+      const opts = { mediaTypes: 'videos', allowsEditing: false, videoMaxDuration: 15, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium };
+      const result = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      if (result.canceled || !result.assets?.[0]) return;
+      await uploadMediaAsset(result.assets[0], true, target);
+    } catch (e) {
+      notify('Upload failed', e?.message || 'Try again');
+    }
+  };
+  const uploadMediaAsset = async (asset, isVideo, target = {}) => {
+    // Data-level gate: a photo that DevicePhotoCapture didn't accept (or one
+    // already uploaded once) never reaches state or the upload.
+    if (!isVideo && !consumeValidated(asset?.uri)) {
+      discardTempImage(asset?.uri);
+      notify('Photo not added', 'Only verified device photos can be added to the booking.');
+      return;
+    }
+    try {
+      if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
+        notify(isVideo ? 'Video too large' : 'Photo too large', isVideo
+          ? 'The limit is 10 MB. Choose a shorter clip (about 5–8 seconds).'
+          : 'The limit is 10 MB. Choose a smaller photo and try again.');
+        return;
+      }
+      setPhotoUploading(true);
+      const replaceAt = typeof target.index === 'number' ? target.index : null;
+      const slot = isVideo ? 'video' : PHOTO_KEYS[Math.min(replaceAt ?? photoUrls.length, PHOTO_KEYS.length - 1)];
+      // 'repair' → media.ggfix.in/Devicefiles/<slot>-….
+      const url = await uploadMedia(asset, 'repair', { slot });
+      if (!url) throw new Error('Upload returned no URL');
+      if (isVideo) setVideoUrl(url);
+      else if (replaceAt !== null) setPhotoUrls((list) => list.map((u, n) => (n === replaceAt ? url : u)));
+      else setPhotoUrls((list) => (list.length >= PHOTO_KEYS.length ? list : [...list, url]));
+    } catch (e) {
+      const tooBig = e?.status === 413 || /too large|maximum upload size|exceed/i.test(e?.message || '');
+      notify('Upload failed', tooBig ? 'The file is larger than 10 MB.' : (e?.message || 'Try again'));
+    } finally {
+      setPhotoUploading(false);
+      if (!isVideo) discardTempImage(asset.uri);
+    }
+  };
+  // Close the sheet first, then open the picker — presenting a picker while a
+  // modal is still sliding out is unreliable on iOS.
+  const chooseMedia = (kind, fromCamera, target) => {
+    setMediaSheet(null);
+    setTimeout(() => pickMedia(kind, fromCamera, target), 320);
+  };
+  const removeMedia = (kind, index) => {
+    if (kind === 'video') setVideoUrl('');
+    else setPhotoUrls((list) => list.filter((_, n) => n !== index));
+  };
+  const previewMedia = (kind, index) => {
+    setMediaSheet(null);
+    if (kind === 'video') {
+      if (videoUrl) Linking.openURL(videoUrl).catch(() => notify('Could not open video', 'Try again.'));
+      return;
+    }
+    setTimeout(() => setPreview(index), 320);
+  };
+  const devicePhotosParam = () => {
+    const o = {};
+    photoUrls.forEach((u, i) => { o[PHOTO_KEYS[i]] = u; });
+    if (videoUrl) o.video = videoUrl;
+    return o;
+  };
+  const mediaItems = [
+    ...photoUrls.map((u, i) => ({ kind: 'photo', uri: u, index: i, label: `Photo ${i + 1}` })),
+    ...(videoUrl ? [{ kind: 'video', uri: videoUrl, index: 0, label: 'Video' }] : []),
+  ];
+  // Smartwatch / Audio Device: the detector can't verify them, so the photo is
+  // optional and can't be added (fail-closed); Mobile / Tablet / Laptop require one.
+  const photoVerifiable = isVerifiableCategory(resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName));
+  const canAddPhoto = photoVerifiable && photoUrls.length < PHOTO_KEYS.length;
+  const canAddMedia = canAddPhoto || !videoUrl;
+  // 3 thumbnails per row on phones, 5 on tablets (a hair under, so rounding never wraps).
+  const mediaPct = `${(100 / (r.isTablet ? 5 : 3)) - 0.1}%`;
+
+  // At least one device photo is required; the video is optional.
+  // Lock types this device can have (laptop: PIN + password; watch/audio: none).
+  const specCategory = resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName);
+  const lockTypes = lockTypesFor(specCategory);
+  // Missing / damaged parts is Mobile-only (unknown category keeps it).
+  const showMissingParts = !specCategory || specCategory === 'MOBILE';
+  const flaggedCount = flaggedMissingParts(missingParts).length;
+  const lockOptions = [{ key: 'NONE', label: 'None' }, ...LOCK_FIELD_OPTIONS.filter((o) =>
+    (o.key === 'ACCOUNT' ? lockTypes.includes('PATTERN') : lockTypes.includes(o.key)))];
+  const patternDots = lockType === 'PATTERN' ? lockValue.split(',').filter(Boolean).length : 0;
+  // PIN / Pattern / Password / Account are entered in the lock popup.
+  const [lockSheet, setLockSheet] = useState(null); // initialLock while open
+  const pickLock = (key) => {
+    if (key === 'NONE') { setLockType('NONE'); setLockValue(''); return; }
+    setLockSheet({ type: key, value: lockType === key ? lockValue : '' });
+  };
+  const lockSummary = lockType === 'PIN' ? `${lockValue.length} digits`
+    : lockType === 'PASSWORD' ? `${lockValue.length} chars`
+    : lockType === 'PATTERN' ? lockValue.split(',').join('>')
+    : lockType === 'ACCOUNT' ? (lockValue || 'Set')
+    : '';
+  const lockError = lockType === 'PIN' && lockValue.length < 4 ? 'Enter a 4–6 digit PIN.'
+    : lockType === 'PASSWORD' && lockValue.length < 4 ? 'Enter at least 4 characters.'
+    : lockType === 'PATTERN' && patternDots < 4 ? 'Draw at least 4 dots.'
+    : '';
+
+  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && (photoUrls.length > 0 || !photoVerifiable) && !lockError;
+
+  // Back to Issue Description, then Next, used to open this screen empty — the
+  // back press unmounts it. Keep what was entered (as the prefill* params this
+  // screen already seeds from) in DRAFTS; no navigation dispatch mid-removal.
+  const draftRef = useRef(null);
+  draftRef.current = {
+    prefillImei: imei,
+    prefillSerialNumber: serialNumber,
+    prefillAccessories: accessories,
+    prefillMissingParts: flaggedMissingParts(missingParts),
+    prefillLock: { type: lockType, value: lockValue },
+    prefillComplaint: complaint,
+    prefillCustomerApproved: approval,
+    prefillIssueAudioUrl: audioUrl || undefined,
+    prefillDevicePhotos: devicePhotosParam(),
+    prefillEstimatedReadyIso: now.toISOString(),
+    prefillEstimatedDeliveryIso: delivery.toISOString(),
+    serviceStartIso: startIso,
+  };
+  useEffect(() => navigation.addListener('beforeRemove', (e) => {
+    if (!['GO_BACK', 'POP'].includes(e.data?.action?.type)) return;
+    const key = prevRouteKey(navigation);
+    if (key) DRAFTS[key] = draftRef.current;
+  }), [navigation]);
 
   const onContinue = () => {
     if (!isReady) return;
     navigation.navigate('DeviceInformation', {
       ...params,
       imei: imei.trim(),
+      serialNumber: showImei ? undefined : (serialNumber.trim() || undefined),
+      devicePhotos: devicePhotosParam(),
+      accessories: accessories.trim() || undefined,
+      missingParts: showMissingParts ? flaggedMissingParts(missingParts) : [],
+      lock: lockOptions.length > 1 ? { type: lockType, value: lockType === 'NONE' ? '' : lockValue.trim() } : undefined,
       complaint: complaint.trim(),
       issueAudioUrl: audioUrl || null,
       estimatedAt: `${dateLabel} ${timeLabel}, ${effectiveHours}Hr`,
       estimatedDelivery: `${deliveryDateLabel} - ${deliveryTimeLabel}`,
-      estimatedReadyIso: now.toISOString(),
+      estimatedReadyIso: startIso,
       estimatedDeliveryIso: delivery.toISOString(),
       durationHours: effectiveHours,
       customerApproved: approval,
@@ -429,7 +656,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     ? 'Uploading…'
     : hasClip
     ? 'Voice note attached'
-    : 'Record a voice note (optional)';
+    : '';
 
   // Tablets get a capped, centred column; a 1024pt-wide bill row is unreadable.
   const colStyle = r.isTablet
@@ -438,275 +665,141 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 
   return (
     <View className="flex-1" style={{ backgroundColor: SCREEN_BG }}>
-      {/* ── Header — back · title · overflow ─────────────────────────── */}
-      <View
-        style={{
-          backgroundColor: SCREEN_BG,
-          paddingTop: insets.top + rs(10),
-          paddingBottom: rs(14),
-          paddingHorizontal: rs(16),
-        }}
-      >
+      {/* ── Header — same design as Personal Information: white bar, bottom
+          border, round back · centred title + subtitle · round overflow. ── */}
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      {/* Same header as Customer Details / Device Details: fixed 36pt round
+          back button and an equal spacer, so the title + subtitle stay centred
+          at every width. Plain style objects — NativeWind drops a
+          style={({ pressed }) => …} function, which left the button unsized. */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: LINE }}>
         <View style={[{ flexDirection: 'row', alignItems: 'center' }, colStyle]}>
           <Pressable
             onPress={() => navigation.goBack()}
-            className="active:opacity-70"
-            style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: SOFT, alignItems: 'center', justifyContent: 'center' }}
+            hitSlop={6}
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ArrowLeft size={rf(20)} color="#172117" strokeWidth={2} />
+            <ArrowLeft size={18} color={INK} strokeWidth={2} />
           </Pressable>
 
-          <Text
-            className="flex-1 text-text text-center"
-            style={{ fontSize: 17, fontWeight: '800', paddingHorizontal: rs(8) }}
-            numberOfLines={1}
-          >
-            Service Price & Issue Estimate
-          </Text>
+          <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' }}>
+            <Text style={{ color: INK, fontSize: 17, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              Device & Service Details
+            </Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1, textAlign: 'center' }} numberOfLines={2}>
+              Enter device details, issue, and estimated delivery.
+            </Text>
+          </View>
 
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            className="active:opacity-70"
-            style={{ height: rs(40), width: rs(40), borderRadius: rs(20), backgroundColor: SOFT, alignItems: 'center', justifyContent: 'center' }}
-            accessibilityRole="button"
-            accessibilityLabel="More options"
-          >
-            <MoreHorizontal size={rf(20)} color="#172117" strokeWidth={2} />
-          </Pressable>
+          <View style={{ width: 36 }} />
         </View>
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
+        bottomOffset={rs(120)}
         contentContainerStyle={{ paddingBottom: rs(150) }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={colStyle}>
-          {/* ── Device summary — plain white card, image well,
-              optional brand text, and a trailing chevron. ────────────────── */}
-          <View style={{ paddingHorizontal: rs(14) }}>
-            <View style={[card, { padding: rs(11) }]}>
-              <View className="flex-row items-center">
-                <View
-                  style={{
-                    height: rs(48), width: rs(48), borderRadius: rs(14), backgroundColor: '#FFFFFF',
-                    borderWidth: 1, borderColor: LINE,
-                    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: rs(10),
-                  }}
-                >
-                  {params.imageUrl ? (
-                    <Image source={{ uri: params.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  ) : (
-                    <Smartphone size={rf(21)} color={ACCENT} strokeWidth={2} />
-                  )}
-                </View>
-                <View className="flex-1">
-                  <View className="flex-row items-center">
-                    <Text className="flex-1 text-text" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
-                      {params.modelName || 'Device'}
-                    </Text>
-                    {params.brandName ? (
-                      <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', marginLeft: rs(6) }} numberOfLines={1}>
-                        {params.brandName}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(2) }} numberOfLines={1}>
-                    {specDisplayParts(params, { withColor: true }).join(' · ')}
-                  </Text>
-                  <View className="flex-row items-center flex-wrap" style={{ marginTop: rs(8) }}>
-                    {params.modelNumber ? (
-                      <View style={[chip, { marginRight: rs(8) }]}>
-                        <Hash size={rf(10)} color={ACCENT} strokeWidth={2.5} />
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(3) }}>
-                          {params.modelNumber}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <View style={chip}>
-                      <Wrench size={rf(10)} color={ACCENT} strokeWidth={2.5} />
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>
-                        {services.length} service{services.length === 1 ? '' : 's'} added
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <ChevronRight size={rf(16)} color="#B8C4BE" strokeWidth={2} style={{ marginLeft: rs(4) }} />
-              </View>
-            </View>
-          </View>
-
-          {/* ── Bill details ───────────────────────────────────────────────
-              "N item(s)" is real data (services.length). "+ Add Service"
-              and per-row delete are NOT added — this screen has no
-              add/remove-service capability of its own (it only ever reads
-              `params.services`, set on the previous screen); wiring a fake
-              button or building new local remove-state here would change
-              what actually reaches `total`/`onContinue`, which the brief
-              explicitly rules out. See the final report for the full note. */}
-          <SectionHeader
-            icon={ReceiptText}
-            label="Bill Details"
-            subtitle="Services selected for this device"
-            right={(
-              <View
-                className="items-center"
-                style={{ borderRadius: 999, paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
-              >
-                <Text style={{ fontSize: 10.5, fontWeight: '700', color: ACCENT }}>
-                  {services.length} item{services.length === 1 ? '' : 's'}
-                </Text>
-              </View>
-            )}
-          />
-          <View style={{ paddingHorizontal: rs(16) }}>
-            <View style={[card, { padding: rs(10) }]}>
-              {services.map((s, i) => (
-                <View
-                  key={i}
-                  className="flex-row items-center"
-                  style={{
-                    paddingVertical: rs(6),
-                    borderTopWidth: i === 0 ? 0 : 1,
-                    borderTopColor: '#F2F5F3',
-                  }}
-                >
-                  <View
-                    style={{
-                      height: rs(30), width: rs(30), borderRadius: rs(9), backgroundColor: MINT,
-                      alignItems: 'center', justifyContent: 'center', marginRight: rs(10),
-                    }}
-                  >
-                    <Wrench size={rf(13)} color={ACCENT} strokeWidth={2} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{s.serviceName}</Text>
-                    {/* Real data only — warranty, when the service carries
-                        one; no fabricated issue-description subtitle (that
-                        field doesn't exist on this object). */}
-                    {s.warranty ? (
-                      <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(1) }} numberOfLines={1}>
-                        Warranty: {s.warranty}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text className="text-text" style={{ fontSize: 13, fontWeight: '700' }}>₹{formatINR(s.price)}</Text>
-                </View>
-              ))}
-              {services.length === 0 ? (
-                <View className="items-center" style={{ paddingVertical: rs(14) }}>
-                  <Text className="text-text-muted" style={{ fontSize: 12 }}>No services selected.</Text>
-                </View>
-              ) : null}
-
-              <View
-                style={{
-                  marginTop: rs(10), borderRadius: rs(12), padding: rs(10),
-                  backgroundColor: MINT,
-                }}
-              >
-                <View className="flex-row items-center">
-                  <Tag size={rf(14)} color={ACCENT} strokeWidth={2} />
-                  <Text className="flex-1 text-text" style={{ fontSize: 13, fontWeight: '700', marginLeft: rs(7) }}>
-                    Estimated Total
-                  </Text>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
-                </View>
-                <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(3) }}>
-                  Final amount may vary slightly based on parts availability.
-                </Text>
-              </View>
-            </View>
-          </View>
-
           {/* ── Device IMEI ────────────────────────────────────────────── */}
-          <SectionHeader
-            icon={ScanLine}
-            label="Device IMEI"
-            right={(
-              <View className="flex-row items-center">
-                <HelpCircle size={rf(12)} color="#8FA08F" strokeWidth={2} />
-                <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', marginLeft: rs(4) }}>
-                  Where to find IMEI?
-                </Text>
-              </View>
-            )}
-          />
-          <View style={{ paddingHorizontal: rs(16) }}>
-            {/* Scan sits BESIDE the field, not inside its border — inside, the
-                pill ate the right third of a 15-digit number on a 360pt phone. */}
-            <View className="flex-row items-center">
-              <View
-                className="flex-1 flex-row items-center"
-                style={{
-                  borderWidth: 1, borderColor: LINE, borderRadius: rs(14),
-                  backgroundColor: SCREEN_BG, paddingHorizontal: rs(12), marginRight: rs(8),
-                }}
-              >
-                <ScanLine size={rf(15)} color="#8FA08F" strokeWidth={2} style={{ marginRight: rs(6) }} />
-                <TextInput
-                  className="text-text flex-1"
-                  placeholder="Enter 15-digit IMEI"
-                  placeholderTextColor="#8FA08F"
-                  value={imei}
-                  onChangeText={setImei}
-                  keyboardType="number-pad"
-                  maxLength={17}
-                  style={{ height: rs(FIELD_H), paddingVertical: 0, fontSize: 13 }}
-                />
-              </View>
+          {/* IMEI is captured for mobile phones only. */}
+          {showImei ? (
+          <>
+          {/* Label + one field: barcode icon · number · scan button inside. */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              {/* Optional — Continue never waits on it (see hasIssue). */}
+              IMEI Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+            </Text>
+            <View
+              className="flex-row items-center"
+              style={{
+                height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                backgroundColor: SCREEN_BG, paddingLeft: rs(12), paddingRight: rs(6),
+              }}
+            >
+              <Barcode size={rf(20)} color={INK} strokeWidth={1.75} />
+              <TextInput
+                placeholder="Enter 15-digit IMEI"
+                placeholderTextColor={SUBTLE}
+                value={imei}
+                onChangeText={setImei}
+                keyboardType="number-pad"
+                maxLength={17}
+                cursorColor={ACCENT}
+                style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
+              />
               <Pressable
                 onPress={() => navigation.navigate('ScanImei', { onScan: (value) => setImei(value) })}
-                className="flex-row items-center justify-center active:opacity-80"
-                style={{
-                  height: rs(FIELD_H), backgroundColor: MINT, borderRadius: rs(14),
-                  paddingHorizontal: rs(14),
-                }}
+                hitSlop={6}
+                className="items-center justify-center active:opacity-70"
+                style={{ height: rs(34), width: rs(34), borderRadius: rs(8) }}
                 accessibilityRole="button"
                 accessibilityLabel="Scan IMEI barcode"
               >
-                <ScanLine size={rf(15)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: ACCENT, marginLeft: rs(5) }}>Scan</Text>
+                <ScanLine size={rf(20)} color={INK} strokeWidth={1.75} />
               </Pressable>
             </View>
-            {/* Same tip text as before, always visible — now a soft mint
-                info strip instead of plain muted text below the field. */}
-            <View
-              className="flex-row items-center"
-              style={{ marginTop: rs(8), borderRadius: rs(10), padding: rs(9), backgroundColor: MINT }}
-            >
-              <HelpCircle size={rf(13)} color={ACCENT} strokeWidth={2} />
-              <Text className="text-text" style={{ fontSize: 11, marginLeft: rs(7), lineHeight: rf(16), flex: 1 }}>
-                Tip: dial <Text style={{ fontWeight: '700' }}>*#06#</Text> on the device to display IMEI as a barcode.
+          </View>
+          </>
+          ) : (
+            /* Laptop / Tablet / Smartwatch / Audio: Serial Number, optional. */
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+                Serial Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+              </Text>
+              <View
+                className="flex-row items-center"
+                style={{
+                  height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                  backgroundColor: SCREEN_BG, paddingHorizontal: rs(12),
+                }}
+              >
+                <Hash size={rf(19)} color={INK} strokeWidth={1.75} />
+                <TextInput
+                  placeholder="Enter serial number"
+                  placeholderTextColor={SUBTLE}
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={40}
+                  cursorColor={ACCENT}
+                  style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ── Issue Description — label, then one box with the counter inside. */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              Issue Description<Text style={{ color: RED_TEXT }}> *</Text>
+            </Text>
+            <View style={{ borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG }}>
+              <TextInput
+                placeholder="Describe the issue, e.g. Screen is cracked and touch not working properly."
+                placeholderTextColor={SUBTLE}
+                value={complaint}
+                onChangeText={setComplaint}
+                maxLength={500}
+                multiline
+                textAlignVertical="top"
+                cursorColor={ACCENT}
+                // No fixed lineHeight + no font padding: on Android those push typed
+                // text below the placeholder, so the first line looked like line two.
+                style={{
+                  minHeight: rs(84), fontSize: rf(14), color: INK, includeFontPadding: false, textAlignVertical: 'top',
+                  paddingHorizontal: rs(12), paddingTop: rs(10), paddingBottom: rs(4),
+                }}
+              />
+              <Text style={{ fontSize: rf(11), color: SUBTLE, textAlign: 'right', paddingHorizontal: rs(12), paddingBottom: rs(8) }}>
+                {complaint.length}/500
               </Text>
             </View>
-          </View>
-
-          {/* ── Issue description ──────────────────────────────────────── */}
-          <SectionHeader icon={Pencil} label="Issue Description" subtitle="Type the issue, or record the customer explaining it" />
-          <View style={{ paddingHorizontal: rs(16) }}>
-            <TextInput
-              className="text-text"
-              placeholder="What's wrong with the device? e.g. Screen cracked, battery drains fast…"
-              placeholderTextColor="#8FA08F"
-              value={complaint}
-              onChangeText={setComplaint}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              style={{
-                minHeight: rs(78), fontSize: 13, lineHeight: rf(19),
-                borderWidth: 1, borderColor: LINE, borderRadius: rs(14),
-                paddingHorizontal: rs(12), paddingTop: rs(10), paddingBottom: rs(10),
-              }}
-            />
-            {/* Display-only counter — no maxLength was added to the input
-                above, so this never blocks or truncates typing; it's purely
-                informational, same as the rest of this pass. */}
-            <Text className="text-text-muted" style={{ fontSize: 10.5, textAlign: 'right', marginTop: rs(4) }}>
-              {complaint.length}/500
-            </Text>
           </View>
 
           {/* Voice note — the only quick-action card on this screen now
@@ -732,16 +825,20 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <Mic size={rf(18)} color={isRecording ? '#DC2626' : ACCENT} strokeWidth={2} />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-text" style={{ fontSize: 13, fontWeight: '700' }}>
+                  <Text className="text-text" style={{ fontSize: rf(13), fontWeight: '700' }}>
                     Record Voice Note
+                    <Text className="text-text-muted" style={{ fontSize: rf(12), fontWeight: '400' }}> (optional)</Text>
                   </Text>
-                  <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(1) }} numberOfLines={1}>
-                    {voiceHint}
-                  </Text>
+                  {/* Second line only for live status (recording / uploading / attached). */}
+                  {voiceHint ? (
+                    <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(1) }} numberOfLines={1}>
+                      {voiceHint}
+                    </Text>
+                  ) : null}
                 </View>
                 {voiceExpanded
-                  ? <ChevronDown size={rf(18)} color="#8FA08F" strokeWidth={2} />
-                  : <ChevronRight size={rf(18)} color="#8FA08F" strokeWidth={2} />}
+                  ? <ChevronDown size={rf(18)} color="#9CA3AF" strokeWidth={2} />
+                  : <ChevronRight size={rf(18)} color="#9CA3AF" strokeWidth={2} />}
               </Pressable>
 
             {voiceExpanded ? (
@@ -756,8 +853,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                     >
                       <View style={{ height: rs(10), width: rs(10), borderRadius: rs(5), backgroundColor: '#DC2626', marginRight: rs(8) }} />
                       <View className="flex-1">
-                        <Text className="text-danger" style={{ fontSize: 12, fontWeight: '600' }}>Recording…</Text>
-                        <Text className="text-danger" style={{ fontSize: 11, fontWeight: '500' }}>{recLabel}</Text>
+                        <Text className="text-danger" style={{ fontSize: rf(12), fontWeight: '600' }}>Recording…</Text>
+                        <Text className="text-danger" style={{ fontSize: rf(11), fontWeight: '500' }}>{recLabel}</Text>
                       </View>
                       <Pressable
                         onPress={stopRecording}
@@ -765,7 +862,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                         style={{ backgroundColor: '#DC2626', borderRadius: rs(999), paddingHorizontal: rs(14), paddingVertical: rs(8) }}
                       >
                         <Square size={rf(12)} color="#fff" fill="#fff" />
-                        <Text className="text-white" style={{ fontSize: 12, fontWeight: '600', marginLeft: rs(6) }}>STOP</Text>
+                        <Text className="text-white" style={{ fontSize: rf(12), fontWeight: '600', marginLeft: rs(6) }}>STOP</Text>
                       </Pressable>
                     </View>
                   ) : hasClip ? (
@@ -787,8 +884,8 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                           : <Play size={rf(16)} color="#fff" fill="#fff" />}
                       </Pressable>
                       <View className="flex-1" style={{ marginLeft: rs(10) }}>
-                        <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }}>Voice note attached</Text>
-                        <Text className="text-text-muted" style={{ fontSize: 12 }}>
+                        <Text className="text-text" style={{ fontSize: rf(13), fontWeight: '600' }}>Voice note attached</Text>
+                        <Text className="text-text-muted" style={{ fontSize: rf(12) }}>
                           {uploadingAudio ? 'Uploading…' : (audioUrl ? 'Uploaded · tap play to preview' : 'Tap play to preview')}
                         </Text>
                       </View>
@@ -813,7 +910,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                       style={{ backgroundColor: ACCENT, borderRadius: rs(12), paddingVertical: rs(10) }}
                     >
                       <Mic size={rf(16)} color="#fff" strokeWidth={2} />
-                      <Text className="text-white" style={{ fontSize: 13, fontWeight: '600', marginLeft: rs(8) }}>
+                      <Text className="text-white" style={{ fontSize: rf(13), fontWeight: '600', marginLeft: rs(8) }}>
                         Record voice note
                       </Text>
                     </Pressable>
@@ -823,123 +920,223 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* ── Estimated delivery — a horizontal 3-segment mini-timeline
-              (Received → Duration → Ready By) with small connector arrows,
-              replacing the previous "two fields in a row, one field below"
-              layout. Every interactive element (the Duration Select, the
-              Ready By editor Pressable) is the exact same component/handler
-              as before — only the surrounding layout changed. ────────────── */}
-          {/* Edit moved into the section header's right slot per this pass's
-              explicit request — same `openReadyEditor` handler as the
-              standalone Edit row used to call, just repositioned. */}
-          <SectionHeader
-            icon={Truck}
-            label="Estimated Delivery"
-            right={(
-              <Pressable
-                onPress={openReadyEditor}
-                className="flex-row items-center active:opacity-70"
-                accessibilityRole="button"
-                accessibilityLabel="Edit ready-by time"
-              >
-                <Pencil size={rf(12)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>Edit</Text>
-              </Pressable>
-            )}
-          />
-          <View style={{ paddingHorizontal: rs(16) }}>
-            {/* Each card is icon-LEFT / content-RIGHT, with the icon in a
-                fixed-width column vertically centred against the WHOLE
-                3-line text stack (label + date + time) — not just centred
-                against the label's own row, which is what still read as
-                "icon floating above the content" even after the icon was
-                already technically inline with the caption. `items-stretch`
-                on the row (not `items-center`) is what keeps all 3 cards the
-                same height regardless of label-wrap differences. */}
-            <View className="flex-row items-stretch">
-              {/* Received */}
-              <View
-                className="flex-1 flex-row items-center"
-                style={{ borderRadius: rs(12), backgroundColor: MINT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
-              >
-                <View style={{ width: rs(20), alignItems: 'center' }}>
-                  <Calendar size={rf(15)} color={ACCENT} strokeWidth={2} />
+          {/* ── Device Photo or Video — at least one photo; one video optional.
+              Tap a thumbnail to preview / replace / remove it. ─────────────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              Device Photo or Video<Text style={{ fontWeight: '400', color: MUTED }}>{photoVerifiable ? ' (Photo required)' : ' (Optional)'}</Text>
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -rs(4) }}>
+              {mediaItems.map((m) => (
+                <View key={m.uri} style={{ width: mediaPct, padding: rs(4) }}>
+                  <Pressable
+                    onPress={() => setMediaSheet({ mode: 'item', kind: m.kind, index: m.index })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${m.label} options`}
+                    className="active:opacity-85"
+                    style={{ aspectRatio: 1, borderRadius: rs(12), borderWidth: 1, borderColor: LINE, backgroundColor: PAGE_BG, overflow: 'hidden' }}
+                  >
+                    {m.kind === 'photo' ? (
+                      <Image source={{ uri: m.uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ flex: 1, backgroundColor: '#111111', alignItems: 'center', justifyContent: 'center' }}>
+                        <MaterialIcons name="play-circle-filled" size={rf(38)} color="#FFFFFF" />
+                      </View>
+                    )}
+                    <Pressable
+                      onPress={() => removeMedia(m.kind, m.index)}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${m.label}`}
+                      style={{
+                        position: 'absolute', top: rs(5), right: rs(5), height: rs(22), width: rs(22), borderRadius: rs(11),
+                        backgroundColor: 'rgba(17, 17, 17,0.7)', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <MaterialIcons name="close" size={rf(14)} color="#FFFFFF" />
+                    </Pressable>
+                  </Pressable>
+                  <Text style={{ marginTop: rs(4), fontSize: rf(11.5), fontWeight: '600', color: MUTED, textAlign: 'center' }} numberOfLines={1}>
+                    {m.label}
+                  </Text>
                 </View>
-                <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text className="text-text-muted" style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>RECEIVED</Text>
-                  <Text className="text-text" style={{ fontSize: 11, fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{dateLabel}</Text>
-                  <Text className="text-text-muted" style={{ fontSize: 10, marginTop: rs(1) }} numberOfLines={1}>{timeLabel}</Text>
+              ))}
+              {canAddMedia ? (
+                <View style={{ width: mediaPct, padding: rs(4) }}>
+                  <Pressable
+                    onPress={() => setMediaSheet({ mode: 'add' })}
+                    disabled={photoUploading}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add media"
+                    className="items-center justify-center active:opacity-80"
+                    style={{ aspectRatio: 1, borderRadius: rs(12), borderWidth: 1.5, borderStyle: 'dashed', borderColor: ACCENT, backgroundColor: MINT }}
+                  >
+                    {photoUploading ? (
+                      <ActivityIndicator color={ACCENT} />
+                    ) : (
+                      <>
+                        <MaterialIcons name="add-photo-alternate" size={rf(30)} color={ACCENT} />
+                        <Text style={{ marginTop: rs(4), fontSize: rf(12.5), fontWeight: '700', color: ACCENT_TEXT }}>+ Add Media</Text>
+                      </>
+                    )}
+                  </Pressable>
+                  <Text style={{ marginTop: rs(4), fontSize: rf(11.5), color: 'transparent' }}> </Text>
                 </View>
-              </View>
-
-              <ChevronRight size={rf(14)} color="#B8C4BE" strokeWidth={2.5} style={{ marginHorizontal: rs(4), alignSelf: 'center' }} />
-
-              {/* Duration — same Select, same handler, now the middle
-                  segment of the timeline instead of a separate side field. */}
-              <View
-                className="flex-1 flex-row items-center"
-                style={{ borderRadius: rs(12), backgroundColor: MINT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
-              >
-                <View style={{ width: rs(20), alignItems: 'center' }}>
-                  <Timer size={rf(15)} color={ACCENT} strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text className="text-text-muted" style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8 }} numberOfLines={1}>DURATION</Text>
-                  {/* With an override in force there is no matching option,
-                      so Select falls back to `displayValue` — the derived
-                      span. Choosing an hour from the list clears the
-                      override, which is what puts the two back in sync. */}
-                  <View style={{ marginTop: rs(3), alignSelf: 'flex-start' }}>
-                    <Select
-                      value={readyOverride ? null : duration}
-                      displayValue={spanLabel}
-                      options={DURATIONS}
-                      menuWidth={rs(150)}
-                      menuTitle="DURATION"
-                      onChange={(v) => { setDuration(v); setReadyOverride(null); }}
-                      className="py-0 px-0 bg-transparent border-0"
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <ChevronRight size={rf(14)} color="#B8C4BE" strokeWidth={2.5} style={{ marginHorizontal: rs(4), alignSelf: 'center' }} />
-
-              {/* Ready by — same Pressable/openReadyEditor as before. */}
-              <Pressable
-                onPress={openReadyEditor}
-                className="flex-1 flex-row items-center active:opacity-80"
-                style={{ borderRadius: rs(12), backgroundColor: ACCENT, paddingVertical: rs(9), paddingHorizontal: rs(9) }}
-                accessibilityRole="button"
-                accessibilityLabel={'Ready by ' + deliveryDateLabel + ' ' + deliveryTimeLabel + '. Edit.'}
-              >
-                <View style={{ width: rs(20), alignItems: 'center' }}>
-                  <ShieldCheck size={rf(15)} color="#fff" strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1, marginLeft: rs(6) }}>
-                  <Text style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>READY BY</Text>
-                  <Text className="text-white" style={{ fontSize: 11, fontWeight: '700', marginTop: rs(3) }} numberOfLines={1}>{deliveryDateLabel}</Text>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', marginTop: rs(1) }} numberOfLines={1}>{deliveryTimeLabel}</Text>
-                </View>
-              </Pressable>
+              ) : null}
             </View>
-
-            <View className="flex-row items-center" style={{ marginTop: rs(8) }}>
-              <View
-                className="flex-row items-center"
-                style={{ borderRadius: rs(999), paddingHorizontal: rs(8), paddingVertical: rs(3), backgroundColor: ACCENT_08 }}
-              >
-                <ShieldCheck size={rf(11)} color={ACCENT} strokeWidth={2} />
-                <Text style={{ fontSize: 10, fontWeight: '600', color: ACCENT, marginLeft: rs(4) }}>ON TIME</Text>
-              </View>
-            </View>
-
-            {readyOverride ? (
-              <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(5) }}>
-                Set manually · {spanLabel} from now
-              </Text>
+            {!photoUrls.length && photoVerifiable ? (
+              <Text style={{ fontSize: rf(12), color: RED_TEXT, marginTop: rs(2) }}>Add at least one photo of the device.</Text>
             ) : null}
+          </View>
 
+          {/* ── Device Additional Accessories ───────────────────────────────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              Device Additional Accessories<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+            </Text>
+            <View
+              className="flex-row items-center"
+              style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(12) }}
+            >
+              <MaterialIcons name="devices-other" size={rf(20)} color={INK} />
+              <TextInput
+                value={accessories}
+                onChangeText={setAccessories}
+                placeholder="Enter charger, case, SIM tray, etc."
+                placeholderTextColor={SUBTLE}
+                maxLength={200}
+                cursorColor={ACCENT}
+                style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
+              />
+            </View>
+          </View>
+
+          {/* ── Device Missing Parts (Optional, Mobile only) ───────────────── */}
+          {showMissingParts ? (
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+              <View className="flex-row items-center" style={{ marginBottom: rs(8) }}>
+                <Text style={{ flex: 1, fontSize: rf(14), fontWeight: '700', color: INK }}>
+                  Device Missing Parts<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+                </Text>
+                <Text style={{ fontSize: rf(11), fontWeight: '800', color: flaggedCount ? '#D63232' : ACCENT }}>
+                  {flaggedCount} Part{flaggedCount === 1 ? '' : 's'} Flagged
+                </Text>
+              </View>
+              <MissingPartsChecklist value={missingParts} onChange={setMissingParts} />
+            </View>
+          ) : null}
+
+          {/* ── Device Security Lock (Optional) — PIN / Pattern / Password /
+              Account open the lock popup; the saved value shows on its row. ── */}
+          {lockOptions.length > 1 ? (
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(4) }}>
+                Device Security Lock<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+              </Text>
+              {lockOptions.map((o) => {
+                const on = lockType === o.key;
+                return (
+                  <Pressable
+                    key={o.key}
+                    onPress={() => pickLock(o.key)}
+                    className="flex-row items-center"
+                    style={{ minHeight: rs(40), paddingVertical: rs(6) }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={o.label}
+                  >
+                    <View
+                      style={{
+                        height: rs(20), width: rs(20), borderRadius: rs(10), alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: on ? ACCENT : '#FFFFFF', borderWidth: on ? 0 : 1.5, borderColor: '#B8B8B8',
+                      }}
+                    >
+                      {on ? <MaterialIcons name="check" size={rf(14)} color="#FFFFFF" /> : null}
+                    </View>
+                    <Text style={{ flex: 1, marginLeft: rs(10), fontSize: rf(14), color: INK }} numberOfLines={1}>{o.label}</Text>
+                    {on && o.key !== 'NONE' ? (
+                      <Text style={{ fontSize: rf(12.5), color: MUTED, marginLeft: rs(8), maxWidth: '45%' }} numberOfLines={1}>
+                        {lockSummary}  <Text style={{ color: ACCENT, fontWeight: '700' }}>Edit</Text>
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+              <DeviceSecurityLockSheet
+                visible={!!lockSheet}
+                types={lockOptions.map((o) => o.key)}
+                initialLock={lockSheet}
+                showProgress={false}
+                entryOnly
+                onConfirm={(l) => { setLockType(l.type); setLockValue(l.value || ''); setLockSheet(null); }}
+                onClose={() => setLockSheet(null)}
+              />
+            </View>
+          ) : null}
+
+          {/* ── Booking Date & Time — the current moment, read-only ─────────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Booking Date & Time</Text>
+            <View
+              className="flex-row items-center"
+              style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: PAGE_BG, paddingHorizontal: rs(12) }}
+            >
+              <MaterialIcons name="event-available" size={rf(20)} color={INK} />
+              <Text style={{ flex: 1, marginLeft: rs(10), fontSize: rf(14), color: INK }} numberOfLines={1}>
+                {formatDateLong(now)}  ·  {timeLabel}
+              </Text>
+            </View>
+            <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: rs(5) }}>Automatically uses the current date and time.</Text>
+          </View>
+
+          {/* ── Estimated Delivery Date & Time — booking time + hours; either
+              field opens a Google-style date / Material time picker. ─────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Estimated Delivery Date & Time</Text>
+            <View className="flex-row" style={{ gap: rs(10) }}>
+              <Pressable
+                onPress={openDatePicker}
+                accessibilityRole="button"
+                accessibilityLabel={`Delivery date ${formatDateLong(delivery)}. Change.`}
+                className="active:opacity-80"
+                style={{ flex: 1.15 }}
+              >
+                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: MUTED, marginBottom: rs(4) }}>Delivery Date</Text>
+                <View
+                  className="flex-row items-center"
+                  style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
+                >
+                  <MaterialIcons name="event" size={rf(20)} color={ACCENT} />
+                  <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '600', color: INK }} numberOfLines={1}>
+                    {formatDateLong(delivery)}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={openTimePicker}
+                accessibilityRole="button"
+                accessibilityLabel={`Delivery time ${deliveryTimeLabel}. Change.`}
+                className="active:opacity-80"
+                style={{ flex: 0.85 }}
+              >
+                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: MUTED, marginBottom: rs(4) }}>Delivery Time</Text>
+                <View
+                  className="flex-row items-center"
+                  style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
+                >
+                  <MaterialIcons name="schedule" size={rf(20)} color={ACCENT} />
+                  <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '600', color: INK }} numberOfLines={1}>
+                    {deliveryTimeLabel}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: rs(5) }}>
+              {readyOverride ? `Set manually · about ${effectiveHours} hr after booking` : `Booking time + ${effectiveHours} hr`}
+            </Text>
+          </View>
+
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(6) }}>
             <View style={{ marginTop: rs(10) }}>
 
               {/* Customer approval */}
@@ -957,82 +1154,57 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               >
                 {approval
                   ? <CircleCheck size={rf(20)} color={ACCENT} strokeWidth={2} />
-                  : <Circle size={rf(20)} color="#CBD5CB" strokeWidth={2} />}
+                  : <Circle size={rf(20)} color="#D1D5DB" strokeWidth={2} />}
                 <View className="flex-1" style={{ marginLeft: rs(10) }}>
-                  <Text className="text-text" style={{ fontSize: 12, fontWeight: '600' }}>Customer repair approval</Text>
-                  <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(1) }}>
-                    Customer agreed to the estimated price & timing.
+                  <Text className="text-text" style={{ fontSize: rf(12), fontWeight: '600' }}>
+                    {params.reEstimate ? 'Customer Re-Estimate Approval' : 'Customer Booking Approval'}
+                  </Text>
+                  <Text className="text-text-muted" style={{ fontSize: rf(11), marginTop: rs(1) }}>
+                    {params.reEstimate
+                      ? 'Customer has reviewed and approved the revised services, updated service cost, and expected completion time.'
+                      : 'Customer has reviewed and approved the booking details, estimated service cost, and expected completion time.'}
                   </Text>
                 </View>
               </Pressable>
             </View>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
-      {/* ── Footer — total on the left, Continue pill on the right ────── */}
+      {/* ── Footer — Next only (the header arrow goes back) ───────────── */}
       <View
         className="absolute left-0 right-0"
-        style={{ bottom: 0, paddingBottom: insets.bottom + rs(8), paddingHorizontal: rs(16), paddingTop: rs(10), backgroundColor: SCREEN_BG }}
+        style={{ bottom: 0, paddingBottom: insets.bottom + rs(10), paddingHorizontal: rs(16), paddingTop: rs(10), backgroundColor: SCREEN_BG, borderTopWidth: 1, borderTopColor: LINE }}
       >
         <View style={colStyle}>
-          <View
-            className="flex-row items-center"
-            style={{
-              backgroundColor: SCREEN_BG,
-              borderRadius: rs(18),
-              borderWidth: 1,
-              borderColor: LINE,
-              paddingHorizontal: rs(14),
-              paddingVertical: rs(10),
-              shadowColor: '#172117',
-              shadowOpacity: 0.08,
-              shadowRadius: 14,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 6,
-            }}
-          >
-            <View
-              className="items-center justify-center"
-              style={{ height: rs(38), width: rs(38), borderRadius: rs(12), backgroundColor: MINT, marginRight: rs(10) }}
-            >
-              <ReceiptText size={rf(17)} color={ACCENT} strokeWidth={2} />
-            </View>
-
-            <View className="flex-1">
-              <Text className="text-text-muted" style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1 }}>
-                ESTIMATED TOTAL
-              </Text>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: ACCENT }}>₹{formatINR(total)}</Text>
-            </View>
-
+          <View className="flex-row" style={{ gap: rs(12) }}>
             <Pressable
               onPress={onContinue}
               disabled={!isReady}
-              className="flex-row items-center justify-center active:opacity-90"
-              style={{
-                backgroundColor: isReady ? ACCENT : '#B8C4BE',
-                borderRadius: rs(16),
-                paddingHorizontal: rs(22),
-                paddingVertical: rs(14),
-              }}
+              className="flex-1 flex-row items-center justify-center active:opacity-85"
+              style={{ height: rs(48), borderRadius: rs(12), backgroundColor: ACCENT, opacity: isReady ? 1 : 0.45 }}
               accessibilityRole="button"
+              accessibilityLabel="Next"
               accessibilityState={{ disabled: !isReady }}
             >
-              <Text className="text-white" style={{ fontSize: 13, fontWeight: '600' }}>Continue</Text>
-              <ChevronRight size={rf(18)} color="#fff" strokeWidth={2} />
+              <Text style={{ fontSize: rf(14), fontWeight: '700', color: '#FFFFFF' }}>Next</Text>
+              <ArrowRight size={rf(18)} color="#FFFFFF" strokeWidth={2.25} style={{ marginLeft: rs(8) }} />
             </Pressable>
           </View>
 
-          {!isReady && (uploadingAudio || isRecording || hasIssue) ? (
-            <Text className="text-text-muted text-center" style={{ fontSize: 12, marginTop: rs(6) }}>
+          {!isReady ? (
+            <Text className="text-text-muted text-center" style={{ fontSize: rf(12), marginTop: rs(6) }}>
               {uploadingAudio
                 ? 'Uploading voice note…'
                 : isRecording
                 ? 'Stop the recording first.'
-                : !approval
-                ? 'Confirm customer approval to continue.'
-                : 'Add an issue description to continue.'}
+                : photoUploading
+                ? 'Uploading device media…'
+                : !hasIssue
+                ? 'Add an issue description to continue.'
+                : !photoUrls.length && photoVerifiable
+                ? 'Add at least one device photo to continue.'
+                : params.reEstimate ? 'Confirm customer re-estimate approval to continue.' : 'Confirm customer approval to continue.'}
             </Text>
           ) : null}
         </View>
@@ -1054,247 +1226,158 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             <Eraser size={rf(18)} color={ACCENT} strokeWidth={2} />
           </View>
           <View className="flex-1">
-            <Text className="text-text" style={{ fontSize: 13, fontWeight: '600' }}>Clear this estimate</Text>
-            <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(1) }}>
+            <Text className="text-text" style={{ fontSize: rf(13), fontWeight: '600' }}>Clear this estimate</Text>
+            <Text className="text-text-muted" style={{ fontSize: rf(12), marginTop: rs(1) }}>
               Resets IMEI, issue, voice note, duration and approval.
             </Text>
           </View>
         </Pressable>
       </ResponsiveModal>
 
-      {/* ── Ready-by editor ──────────────────────────────────────────── */}
-      <ResponsiveModal visible={edOpen} onClose={() => setEdOpen(false)} maxWidth={480}>
-        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: rs(14) }} />
-        <Text className="text-text" style={{ fontSize: 15, fontWeight: '700' }}>Ready by</Text>
-        <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(2) }}>
-          Pick the date and time the device will be ready. Duration follows it.
-        </Text>
-
-        {/* `flexShrink: 1` is what keeps the preview and the buttons reachable:
-            it lets this region give up height inside the panel's own maxHeight
-            when a 6-row month makes the content tall. ResponsiveModal's
-            `scrollable` prop cannot do that — it wraps the panel from OUTSIDE,
-            so the panel's maxHeight clips the overflow instead of scrolling it.
-            That prop is why the old chip layout had to be squeezed to ~500pt. */}
-        <ScrollView
-          style={{ flexShrink: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* ── Month header ──────────────────────────────────────── */}
-          <View className="flex-row items-center" style={{ marginTop: rs(12) }}>
-            <Pressable
-              onPress={() => setCalMonth((m) => addMonths(m, -1))}
-              disabled={!canPrev}
-              className="active:opacity-70"
-              style={{
-                height: rs(32), width: rs(32), borderRadius: rs(9), backgroundColor: SOFT,
-                alignItems: 'center', justifyContent: 'center', opacity: canPrev ? 1 : 0.35,
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Previous month"
-            >
-              <ChevronLeft size={rf(16)} color="#172117" strokeWidth={2} />
-            </Pressable>
-            <Text
-              className="flex-1 text-text text-center"
-              style={{ fontSize: 13, fontWeight: '700' }}
-            >
-              {MONTHS[calMonth.getMonth()]}, {calMonth.getFullYear()}
-            </Text>
-            <Pressable
-              onPress={() => setCalMonth((m) => addMonths(m, 1))}
-              className="active:opacity-70"
-              style={{
-                height: rs(32), width: rs(32), borderRadius: rs(9), backgroundColor: SOFT,
-                alignItems: 'center', justifyContent: 'center',
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Next month"
-            >
-              <ChevronRight size={rf(16)} color="#172117" strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          {/* ── Weekday header ────────────────────────────────────── */}
-          <View className="flex-row" style={{ marginTop: rs(10) }}>
-            {WEEKDAYS.map((w) => (
-              <Text
-                key={w}
-                className="flex-1 text-text-muted text-center"
-                style={{ fontSize: 10.5, fontWeight: '600' }}
-              >
-                {w}
-              </Text>
-            ))}
-          </View>
-
-          {/* ── Day grid ──────────────────────────────────────────── */}
-          {weeks.map((week, wi) => (
-            <View key={wi} className="flex-row" style={{ marginTop: rs(4) }}>
-              {week.map((d) => {
-                const outside = d.getMonth() !== calMonth.getMonth();
-                const past = d < today0;
-                const sel = sameDay(d, edDay);
-                return (
-                  <Pressable
-                    key={d.toISOString()}
-                    onPress={() => setEdDay(startOfDay(d))}
-                    disabled={past}
-                    className="flex-1 items-center active:opacity-70"
-                    accessibilityRole="button"
-                    accessibilityLabel={formatDate(d)}
-                    accessibilityState={{ selected: sel, disabled: past }}
-                  >
-                    <View
-                      style={{
-                        height: rs(32), width: rs(32), borderRadius: rs(16),
-                        alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: sel ? ACCENT : 'transparent',
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontWeight: sel ? '700' : '500',
-                          color: sel ? '#FFFFFF' : past ? '#C7CFC7' : outside ? '#8FA08F' : '#172117',
-                        }}
-                      >
-                        {String(d.getDate()).padStart(2, '0')}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-
-          {/* ── Time: hour + minute on the left, AM/PM on the right ── */}
-          <View className="flex-row items-end" style={{ marginTop: rs(16) }}>
-            <View style={{ width: rs(78) }}>
-              <FieldLabel>HOUR</FieldLabel>
-              <View style={timeWell}>
-                <Select
-                  value={edHour12}
-                  options={HOUR_OPTS}
-                  menuWidth={rs(TIME_MENU_W)}
-                  menuTitle="HOUR"
-                  onChange={(v) => setEdHour12(v)}
-                  className="h-full py-0 px-3 bg-transparent border-0"
-                />
-              </View>
-            </View>
-            <View style={{ width: rs(78), marginLeft: rs(8) }}>
-              <FieldLabel>MINUTE</FieldLabel>
-              <View style={timeWell}>
-                <Select
-                  value={edMinute}
-                  options={MINUTE_OPTS}
-                  menuWidth={rs(TIME_MENU_W)}
-                  menuTitle="MINUTE"
-                  onChange={(v) => setEdMinute(v)}
-                  className="h-full py-0 px-3 bg-transparent border-0"
-                />
-              </View>
-            </View>
-            <View className="flex-1" />
-            <View style={{ width: rs(86) }}>
-              <FieldLabel>AM / PM</FieldLabel>
-              <View style={timeWell}>
-                <Select
-                  value={edMeridiem}
-                  options={MERIDIEM_OPTS}
-                  menuWidth={rs(TIME_MENU_W)}
-                  menuTitle="AM / PM"
-                  onChange={(v) => setEdMeridiem(v)}
-                  className="h-full py-0 px-3 bg-transparent border-0"
-                />
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-
-        <View
-          style={{
-            marginTop: rs(14), borderRadius: rs(12), padding: rs(12),
-            backgroundColor: edValid ? ACCENT_08 : 'rgba(220, 38, 38, 0.08)',
-          }}
-        >
-          <Text
-            style={{ fontSize: 13, fontWeight: '700', color: edValid ? ACCENT : '#DC2626' }}
-            numberOfLines={1}
-          >
-            {formatDate(edDate)} – {formatTime(edDate)}
-          </Text>
-          <Text className="text-text-muted" style={{ fontSize: 11, marginTop: rs(2) }}>
-            {edValid
-              ? formatSpan(Math.round((edDate - now) / 60000)) + ' from now'
-              : 'That time has already passed — pick a later one.'}
-          </Text>
-        </View>
-
-        <View className="flex-row" style={{ marginTop: rs(14) }}>
-          <Pressable
-            onPress={clearReady}
-            className="flex-1 items-center justify-center active:opacity-70"
-            style={{
-              borderRadius: rs(14), paddingVertical: rs(13), marginRight: rs(10),
-              borderWidth: 1, borderColor: ACCENT_30, backgroundColor: SCREEN_BG,
-            }}
-            accessibilityRole="button"
-          >
-            <Text style={{ fontSize: 13, fontWeight: '600', color: ACCENT }}>Use duration</Text>
-          </Pressable>
-          <Pressable
-            onPress={applyReady}
-            disabled={!edValid}
-            className="flex-1 items-center justify-center active:opacity-90"
-            style={{ borderRadius: rs(14), paddingVertical: rs(13), backgroundColor: edValid ? ACCENT : '#B8C4BE' }}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !edValid }}
-          >
-            <Text className="text-white" style={{ fontSize: 13, fontWeight: '600' }}>Set ready by</Text>
-          </Pressable>
-        </View>
+      {/* ── Delivery date / time — Material 3 date picker and clock-dial time
+          picker (components/MaterialPickers). Earlier than booking is refused. */}
+      <ResponsiveModal visible={pickerMode === 'date'} onClose={() => setPickerMode(null)} maxWidth={420} edgeToEdge>
+        <MaterialDatePicker
+          title="Select delivery date"
+          day={edDay}
+          onDayChange={setEdDay}
+          minDay={now}
+          error={edValid ? null : 'That’s before the booking time — pick a later date or time.'}
+          onCancel={() => setPickerMode(null)}
+          onOk={applyPicker}
+        />
       </ResponsiveModal>
-    </View>
-  );
-}
+      <ResponsiveModal visible={pickerMode === 'time'} onClose={() => setPickerMode(null)} maxWidth={420} edgeToEdge>
+        <MaterialTimePicker
+          title="Select delivery time"
+          hour12={edHour12}
+          minute={edMinute}
+          meridiem={edMeridiem}
+          onHour={setEdHour12}
+          onMinute={setEdMinute}
+          onMeridiem={setEdMeridiem}
+          error={edValid ? null : 'That’s before the booking time — pick a later time.'}
+          onCancel={() => setPickerMode(null)}
+          onOk={applyPicker}
+        />
+      </ResponsiveModal>
 
-// ════════════════════════════════════════════════════════════════════════════
-// Helpers
-// ════════════════════════════════════════════════════════════════════════════
-function SectionHeader({ icon: Icon, label, subtitle, right }) {
-  return (
-    <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16), paddingBottom: rs(8) }}>
-      <View className="flex-row items-center">
-        <Icon size={rf(15)} color={ACCENT} strokeWidth={2} />
-        <Text
-          className="text-text"
-          style={{ fontSize: 12, fontWeight: '700', marginLeft: rs(7), flex: right ? 1 : undefined }}
+      {/* ── Add / manage device media — Add Media: Photo | Video tiles, then
+          Choose from Gallery / Take Photo (or Record Video). ──────────── */}
+      <ResponsiveModal visible={!!mediaSheet} onClose={() => setMediaSheet(null)} maxWidth={480} edgeToEdge>
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: rs(12) }} />
+        <View className="flex-row items-center" style={{ marginBottom: rs(10) }}>
+          {(mediaSheet?.mode === 'add' && mediaSheet.kind) || mediaSheet?.mode === 'replace' ? (
+            <Pressable
+              onPress={() => setMediaSheet(mediaSheet.mode === 'replace' ? { ...mediaSheet, mode: 'item' } : { mode: 'add' })}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              className="items-center justify-center active:opacity-70"
+              style={{ height: rs(32), width: rs(32), borderRadius: rs(16), marginRight: rs(8), backgroundColor: PAGE_BG }}
+            >
+              <MaterialIcons name="arrow-back" size={rf(20)} color={INK} />
+            </Pressable>
+          ) : null}
+          <Text style={{ flex: 1, fontSize: rf(16), fontWeight: '800', color: INK }} numberOfLines={1}>
+            {mediaSheet?.mode === 'item'
+              ? (mediaSheet.kind === 'video' ? 'Video' : `Photo ${mediaSheet.index + 1}`)
+              : mediaSheet?.mode === 'replace'
+                ? (mediaSheet.kind === 'video' ? 'Replace Video' : `Replace Photo ${mediaSheet.index + 1}`)
+                : mediaSheet?.kind === 'video' ? 'Add Video' : mediaSheet?.kind === 'photo' ? 'Add Photo' : 'Add Media'}
+          </Text>
+        </View>
+
+        {mediaSheet?.mode === 'item' ? (
+          <>
+            <SheetOption
+              icon={mediaSheet.kind === 'video' ? 'play-circle-outline' : 'visibility'}
+              label={mediaSheet.kind === 'video' ? 'Play Video' : 'Preview'}
+              onPress={() => previewMedia(mediaSheet.kind, mediaSheet.index)}
+            />
+            <SheetOption icon="autorenew" label="Replace" onPress={() => setMediaSheet({ ...mediaSheet, mode: 'replace' })} />
+            <SheetOption icon="delete-outline" label="Remove" danger onPress={() => { removeMedia(mediaSheet.kind, mediaSheet.index); setMediaSheet(null); }} />
+          </>
+        ) : mediaSheet?.kind ? (
+          // Second step (add or replace): where the photo / video comes from.
+          <>
+            <SheetOption
+              icon="photo-library"
+              label="Choose from Gallery"
+              onPress={() => chooseMedia(mediaSheet.kind, false, mediaSheet.mode === 'replace' ? { index: mediaSheet.index } : {})}
+            />
+            <SheetOption
+              icon={mediaSheet.kind === 'video' ? 'videocam' : 'photo-camera'}
+              label={mediaSheet.kind === 'video' ? 'Record Video' : 'Take Photo'}
+              onPress={() => chooseMedia(mediaSheet.kind, true, mediaSheet.mode === 'replace' ? { index: mediaSheet.index } : {})}
+            />
+          </>
+        ) : (
+          // First step: Photo or Video, as two tiles.
+          <View className="flex-row" style={{ gap: rs(12) }}>
+            {[['photo', 'photo-camera', 'Photo', !photoVerifiable ? 'Verification not available for this device' : canAddPhoto ? `${photoUrls.length} of ${PHOTO_KEYS.length} added` : '5 photos added'],
+              ['video', 'videocam', 'Video', videoUrl ? 'Replaces the current video' : 'Optional · up to 15 s']].map(([kind, icon, title, hint]) => {
+              const off = kind === 'photo' && !canAddPhoto;
+              return (
+                <Pressable
+                  key={kind}
+                  onPress={() => setMediaSheet({ mode: 'add', kind })}
+                  disabled={off}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${title}`}
+                  className="flex-1 items-center justify-center active:opacity-80"
+                  style={{
+                    minHeight: rs(124), paddingVertical: rs(14), paddingHorizontal: rs(8), borderRadius: rs(16),
+                    borderWidth: 1, borderColor: LINE, backgroundColor: SCREEN_BG, opacity: off ? 0.45 : 1,
+                  }}
+                >
+                  <View className="items-center justify-center" style={{ height: rs(52), width: rs(52), borderRadius: rs(26), backgroundColor: MINT }}>
+                    <MaterialIcons name={icon} size={rf(28)} color={ACCENT} />
+                  </View>
+                  <Text style={{ marginTop: rs(8), fontSize: rf(15), fontWeight: '800', color: INK }}>{title}</Text>
+                  <Text style={{ marginTop: rs(2), fontSize: rf(11.5), color: MUTED, textAlign: 'center' }} numberOfLines={2}>{hint}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        <Pressable
+          onPress={() => setMediaSheet(null)}
+          accessibilityRole="button"
+          className="items-center justify-center active:opacity-80"
+          style={{ marginTop: rs(12), height: rs(46), borderRadius: rs(12), borderWidth: 1, borderColor: LINE, backgroundColor: SCREEN_BG }}
         >
-          {label}
-        </Text>
-        {right}
-      </View>
-      {subtitle ? (
-        <Text className="text-text-muted" style={{ fontSize: 12, marginTop: rs(6), marginLeft: rs(22) }}>
-          {subtitle}
-        </Text>
-      ) : null}
+          <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK }}>Cancel</Text>
+        </Pressable>
+      </ResponsiveModal>
+
+      <ImageViewerModal
+        visible={preview !== null}
+        images={photoUrls.map((u, i) => ({ uri: u, label: `Photo ${i + 1}` }))}
+        index={preview || 0}
+        onClose={() => setPreview(null)}
+      />
     </View>
   );
 }
 
-/** Small uppercase caption above each group of chips in the editor. */
-function FieldLabel({ children }) {
+/** One row of the media bottom sheet: Material icon in a tinted circle + label. */
+function SheetOption({ icon, label, onPress, danger = false, disabled = false }) {
   return (
-    <Text
-      className="text-text-muted"
-      style={{ fontSize: 10.5, fontWeight: '600', letterSpacing: 1.2, marginBottom: rs(6) }}
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      className="flex-row items-center active:opacity-70"
+      style={{ minHeight: rs(54), opacity: disabled ? 0.4 : 1 }}
     >
-      {children}
-    </Text>
+      <View style={{ height: rs(40), width: rs(40), borderRadius: rs(20), alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? 'rgba(220, 38, 38, 0.10)' : MINT }}>
+        <MaterialIcons name={icon} size={rf(21)} color={danger ? '#DC2626' : ACCENT} />
+      </View>
+      <Text style={{ flex: 1, marginLeft: rs(14), fontSize: rf(14.5), fontWeight: '600', color: danger ? '#DC2626' : INK }}>{label}</Text>
+    </Pressable>
   );
 }
 

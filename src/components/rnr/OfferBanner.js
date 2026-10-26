@@ -5,11 +5,11 @@ import { ArrowRight } from 'lucide-react-native';
 import { cn } from './cn';
 
 const palettes = {
-  primary: ['#087A0A', '#16BB05'],
-  emerald: ['#087A0A', '#16BB05'],
+  primary: ['#035C6C', '#035C6C'],
+  emerald: ['#035C6C', '#035C6C'],
   amber: ['#F59E0B', '#FCD34D'],
-  rose: ['#16BB05', '#DC2626'],
-  violet: ['#16BB05', '#7ED957'],
+  rose: ['#035C6C', '#DC2626'],
+  violet: ['#035C6C', '#357D89'],
 };
 
 export function OfferBanner({

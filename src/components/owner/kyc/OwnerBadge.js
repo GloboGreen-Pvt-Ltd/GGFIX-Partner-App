@@ -9,12 +9,12 @@ export function OwnerBadge() {
   return (
     <View
       className="flex-row items-center px-2.5 py-1 rounded-full"
-      style={{ backgroundColor: '#EAF8EC' }}
+      style={{ backgroundColor: '#E5F3F5' }}
     >
-      <ShieldCheck size={11} color="#078F23" strokeWidth={2.2} />
+      <ShieldCheck size={11} color="#035C6C" strokeWidth={2.2} />
       <Text
         className="ml-1 text-[10px] font-extrabold"
-        style={{ color: '#078F23', letterSpacing: 0.5 }}
+        style={{ color: '#035C6C', letterSpacing: 0.5 }}
       >
         OWNER
       </Text>

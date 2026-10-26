@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { ScreenHeader, Loader, EmptyState, Badge } from '../../components/rnr';
 import { listShopRepairBookings, postShopBookingStatus } from '../../api/orders';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 // Statuses the shop can set; keys match the customer status-flow steps so each
 // post lights up the corresponding step on the customer's side. Pickup and
@@ -51,6 +52,7 @@ const fmtDate = (v) => (v ? new Date(v).toLocaleString() : '');
 const hashed = (n) => (n ? (String(n).startsWith('#') ? n : `#${n}`) : '');
 
 export default function ShopServiceStatusScreen({ navigation }) {
+  const r = useResponsive();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,8 +86,8 @@ export default function ShopServiceStatusScreen({ navigation }) {
     <View className="flex-1 bg-background">
       <ScreenHeader title="Update Service Status" onBack={() => navigation.goBack()} />
       <ScrollView
-        contentContainerStyle={{ padding: 14, paddingBottom: 28 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#087A0A" />}
+        contentContainerStyle={{ padding: 14, paddingBottom: 28 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#035C6C" />}
       >
         {serviceBookings.length === 0 ? (
           <EmptyState title="No service bookings" description="Customer repair bookings for your shop will appear here." />
@@ -113,6 +115,7 @@ export default function ShopServiceStatusScreen({ navigation }) {
 
               <Pressable
                 onPress={() => setOpenId(isOpen ? null : bk.id)}
+                hitSlop={{ top: 6, bottom: 10 }}
                 className="mt-2 pt-2 border-t border-border flex-row items-center justify-center active:opacity-70"
               >
                 <Text className="text-[12px] font-bold text-primary">{isOpen ? 'Close' : 'Change Status'}</Text>

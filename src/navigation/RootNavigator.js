@@ -13,8 +13,11 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ForgotPasswordOtpScreen from '../screens/ForgotPasswordOtpScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import OwnerNavigator from './OwnerNavigator';
-import TechnicianNavigator from './TechnicianNavigator';
+import { isPartnerAccount, PARTNER_ONLY_MESSAGE } from '../auth/accountAccess';
+import { notify } from '../components/confirm';
 import AppLockGate from '../components/AppLockGate';
+import LegalDocumentScreen from '../legal/LegalDocumentScreen';
+import LegalConsentGate from '../legal/LegalConsentGate';
 import BootSplash from '../components/BootSplash';
 import colors from '../theme/colors';
 import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
@@ -28,19 +31,13 @@ const Stack = createNativeStackNavigator();
 const MIN_BOOT_SPLASH_MS = 5000;
 const BOOT_FADE_MS = 220;
 
-// Decide which app shell a session may enter. The shop app only serves shop
-// OWNERS (multi-shop or single-shop login) and in-shop TECHNICIANS. Every other
-// role — STAFF, PICKUP_PERSON (they use the Employee app), SUPER_ADMIN (admin
-// web), or an unrecognized/empty role — must be blocked, NOT silently dropped
-// into the full owner UI (which would expose payroll, staff data, etc.).
-// Note: the backend collapses TECHNICIAN/STAFF/PICKUP_PERSON into
-// loginType=EMPLOYEE, so technicians are routed on the raw `roles` value.
+// Decide which app shell a session may enter. The shop app serves ONLY the shop
+// owner (owner login) and the shop itself (shop-mobile login) — see
+// auth/accountAccess.js. Every employee (technician, staff, pickup person —
+// they use the Employee app), every admin (admin web) and any unrecognized
+// role is refused, never dropped into the owner UI (payroll, staff data, …).
 function getRoleFromSession(session) {
-  const roles = session?.roles || [];
-  const loginType = session?.loginType;
-  if (roles.includes('SHOP_OWNER') || loginType === 'SHOP_OWNER' || loginType === 'SHOP_LOGIN') return 'SHOP_OWNER';
-  if (roles.includes('TECHNICIAN')) return 'TECHNICIAN';
-  return null;
+  return isPartnerAccount(session) ? 'SHOP_OWNER' : null;
 }
 
 // Shown when a signed-in account isn't allowed in the shop app (e.g. a staff /
@@ -53,8 +50,9 @@ function UnsupportedRoleScreen({ onLogout }) {
         Account not supported here
       </Text>
       <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
-        This account can&apos;t be used in the GGFIX Partner app. Staff and pickup
-        accounts should sign in from the GGFix Employee app, and admin accounts
+        This account can&apos;t be used in the Near G Fix Partner app — it is for shop
+        owners and shop logins only. Employees (technicians, staff and pickup
+        persons) should sign in from the Near G Fix Employee app, and admin accounts
         from the admin web dashboard.
       </Text>
       <Pressable
@@ -107,16 +105,33 @@ export default function RootNavigator() {
     return () => setAuthExpiredHandler(null);
   }, [dispatch]);
 
-  const handleLogin = (newSession) => {
-    setSessionState(newSession);
-    dispatch(setSession(newSession));
-  };
   const handleLogout = async () => {
     try { await logout(); } catch (_) {}
     await clearSession();
     setSessionState(null);
     dispatch(clearAuth());
   };
+  // Every way in (OTP login, password-reset login) lands here, so the owner /
+  // shop-only rule is enforced once for all of them: anything else is signed
+  // straight back out with the reason.
+  const handleLogin = (newSession) => {
+    if (!isPartnerAccount(newSession)) {
+      handleLogout();
+      notify('Not allowed', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
+      return;
+    }
+    setSessionState(newSession);
+    dispatch(setSession(newSession));
+  };
+
+  // A session saved on this device by an account that may not use the app any
+  // more (an employee signed in before this rule) is signed out on launch.
+  useEffect(() => {
+    if (sessionLoading || !session?.accessToken || isPartnerAccount(session)) return;
+    handleLogout();
+    notify('Signed out', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionLoading, session]);
 
   // Runs once, independently of the session read, so both are genuinely in
   // parallel: BootSplash clears only once BOTH are true, whichever finishes
@@ -170,13 +185,13 @@ export default function RootNavigator() {
             first when the device hasn't seen it — initialRouteName is read
             once at mount, which is safe here since this Navigator only ever
             mounts after introSeen has already resolved (see above). */}
-        <Stack.Screen name="Intro" options={{ contentStyle: { backgroundColor: '#F8F8F8' } }}>
+        <Stack.Screen name="Intro" options={{ contentStyle: { backgroundColor: '#F3F4F6' } }}>
           {(props) => <IntroScreen {...props} onDone={markIntroSeen} />}
         </Stack.Screen>
-        {/* Intro and Login paint the brand page colour (#F8F8F8) themselves —
+        {/* Intro and Login paint the brand page colour (#F3F4F6) themselves —
             the navigator card matches it so nothing else can flash behind them
             mid-transition or on an overscroll bounce. */}
-        <Stack.Screen name="Login" options={{ contentStyle: { backgroundColor: '#F8F8F8' } }}>
+        <Stack.Screen name="Login" options={{ contentStyle: { backgroundColor: '#F3F4F6' } }}>
           {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
         </Stack.Screen>
         <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
@@ -185,19 +200,22 @@ export default function RootNavigator() {
         <Stack.Screen name="ResetPassword">
           {(props) => <ResetPasswordScreen {...props} onLogin={handleLogin} />}
         </Stack.Screen>
+        <Stack.Screen name="Terms" component={LegalDocumentScreen} initialParams={{ type: 'TERMS' }} />
+        <Stack.Screen name="PrivacyPolicy" component={LegalDocumentScreen} initialParams={{ type: 'PRIVACY' }} />
       </Stack.Navigator>
     );
   } else {
     const role = getRoleFromSession(session);
-    let roleContent;
-    if (role === 'TECHNICIAN') {
-      roleContent = <TechnicianNavigator session={session} onLogout={handleLogout} />;
-    } else if (role === 'SHOP_OWNER') {
-      roleContent = <OwnerNavigator session={session} onLogout={handleLogout} />;
-    } else {
-      roleContent = <UnsupportedRoleScreen onLogout={handleLogout} />;
-    }
-    mainContent = <AppLockGate onLogout={handleLogout}>{roleContent}</AppLockGate>;
+    // Not an owner / shop session: the effect above is already signing it out;
+    // this screen covers the frame in between (and any failure to clear).
+    const roleContent = role === 'SHOP_OWNER'
+      ? <OwnerNavigator session={session} onLogout={handleLogout} />
+      : <UnsupportedRoleScreen onLogout={handleLogout} />;
+    mainContent = (
+      <AppLockGate onLogout={handleLogout}>
+        <LegalConsentGate accountId={session.userId} onLogout={handleLogout}>{roleContent}</LegalConsentGate>
+      </AppLockGate>
+    );
   }
 
   if (!showBootOverlay) {

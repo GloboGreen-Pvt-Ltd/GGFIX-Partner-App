@@ -30,6 +30,7 @@ import LedgerFilterSheet, {
 } from './LedgerFilterSheet';
 import { formatMoney } from './revenueMath';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import {
   C,
   S,
@@ -258,6 +259,7 @@ async function loadDefaulters(now = new Date()) {
 
 export default function OwnerCashBookScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const [view, setView] = useState(PARTY_CUSTOMER);
 
   const [parties, setParties] = useState([]);
@@ -569,7 +571,7 @@ export default function OwnerCashBookScreen({ navigation }) {
         >
           <ArrowLeft size={rs(19)} color={C.ink} />
         </Pressable>
-        <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }}>
+        <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }} numberOfLines={1}>
           Cash Book
         </Text>
         <View
@@ -580,6 +582,9 @@ export default function OwnerCashBookScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Tablets: everything under the header sits in one capped, centred
+          column (the Add pill too — it is absolute inside this view). */}
+      <View style={{ flex: 1, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
       {/* ── menu list ────────────────────────────────────────────────── */}
       <ScrollView
         horizontal
@@ -618,7 +623,7 @@ export default function OwnerCashBookScreen({ navigation }) {
                 paddingVertical: S.tight,
                 minHeight: rs(34),
                 marginRight: S.xs,
-                backgroundColor: active ? '#F0F8EF' : '#FFFFFF',
+                backgroundColor: active ? '#E5F3F5' : '#FFFFFF',
                 borderWidth: 1.5,
                 borderColor: active ? C.green : C.border,
               }}
@@ -957,6 +962,7 @@ export default function OwnerCashBookScreen({ navigation }) {
           </Pressable>
         </View>
       ) : null}
+      </View>
 
       <LedgerFilterSheet
         visible={filterOpen}

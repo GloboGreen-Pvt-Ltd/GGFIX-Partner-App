@@ -9,6 +9,7 @@ import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions } from '.
 import { cleanIssueSummary } from '../../utils/pickupEstimateMeta';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const fmtInstantDate = (iso) => {
   if (!iso) return null;
@@ -73,7 +74,7 @@ function Row({ icon: Icon, label, value }) {
   return (
     <View className="flex-row items-start py-1">
       <View className="h-7 w-7 rounded-lg bg-primary/10 items-center justify-center mr-2.5">
-        <Icon size={13} color="#087A0A" />
+        <Icon size={13} color="#035C6C" />
       </View>
       <View className="flex-1">
         <Text className="text-[10px] text-text-muted">{label}</Text>
@@ -98,7 +99,7 @@ function MediaTile({ uri, label, video }) {
     <View className="flex-1 px-1">
       <View
         className="rounded-xl bg-background items-center justify-center overflow-hidden"
-        style={{ height: 96, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C8EEBF' }}
+        style={{ height: 96, borderWidth: 1, borderStyle: 'dashed', borderColor: '#C7E6EA' }}
       >
         {uri && !video ? (
           <Image source={{ uri }} className="w-full h-full" resizeMode="cover" />
@@ -109,7 +110,7 @@ function MediaTile({ uri, label, video }) {
           </View>
         ) : (
           <View className="items-center">
-            <FallbackIcon size={22} color="#8FA08F" />
+            <FallbackIcon size={22} color="#9CA3AF" />
             <Text className="text-[9px] text-text-muted mt-1">+ Add</Text>
           </View>
         )}
@@ -122,6 +123,7 @@ function MediaTile({ uri, label, video }) {
 export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
   const id = route?.params?.id;
   const preloaded = route?.params?.booking;
+  const r = useResponsive();
   // Seed with whatever the list passed in. Avoids a flash of "Loading" and
   // sidesteps the shop-side single-booking endpoint when the list already has
   // all the fields the detail view needs.
@@ -253,12 +255,12 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
           <Text className="text-text-muted">No pickup data.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 10, paddingBottom: 24 }}>
+        <ScrollView contentContainerStyle={{ padding: 10, paddingBottom: 24 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
           {/* Booking header */}
           <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
             <View className="flex-row items-center">
               <View className="h-10 w-10 rounded-xl bg-success/10 items-center justify-center mr-2.5">
-                <Truck size={18} color="#087A0A" />
+                <Truck size={18} color="#035C6C" />
               </View>
               <View className="flex-1">
                 <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>
@@ -277,7 +279,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
                 {device.image ? (
                   <Image source={{ uri: device.image }} style={{ width: 56, height: 56 }} resizeMode="cover" />
                 ) : (
-                  <Smartphone size={24} color="#087A0A" />
+                  <Smartphone size={24} color="#035C6C" />
                 )}
               </View>
               <View className="flex-1">
@@ -304,7 +306,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
           {(lineItems.length > 0 || data.estimateAmount != null) ? (
             <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
               <View className="flex-row items-center mb-2">
-                <IndianRupee size={14} color="#16BB05" />
+                <IndianRupee size={14} color="#035C6C" />
                 <Text className="text-[12px] font-extrabold text-text ml-1.5">Price Summary</Text>
               </View>
               {lineItems.length === 0 ? (
@@ -330,7 +332,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
           {/* Complaint Issue */}
           <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
             <View className="flex-row items-center mb-1.5">
-              <FileText size={14} color="#16BB05" />
+              <FileText size={14} color="#035C6C" />
               <Text className="text-[12px] font-extrabold text-text ml-1.5">Complaint Issue</Text>
             </View>
             <Text className="text-[12px] text-text" selectable>
@@ -351,7 +353,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
             <Row icon={CalendarClock} label="Estimated Delivery Date"    value={deliveryAtText || 'Not yet set'} />
             <View className="flex-row items-start py-1">
               <View className="h-7 w-7 rounded-lg bg-primary/10 items-center justify-center mr-2.5">
-                <CheckCircle2 size={13} color={approvalDone ? '#16BB05' : '#8FA08F'} />
+                <CheckCircle2 size={13} color={approvalDone ? '#035C6C' : '#9CA3AF'} />
               </View>
               <View className="flex-1">
                 <Text className="text-[10px] text-text-muted">Customer Repair Approval</Text>
@@ -366,7 +368,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
               estimate wizard even before the pickup person uploads anything. */}
           <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
             <View className="flex-row items-center mb-2">
-              <Camera size={14} color="#16BB05" />
+              <Camera size={14} color="#035C6C" />
               <Text className="text-[12px] font-extrabold text-text ml-1.5">Device Photo's</Text>
             </View>
             <View className="flex-row -mx-1">
@@ -422,13 +424,13 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
           <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
             <View className="flex-row items-center">
               <View className="h-9 w-9 rounded-lg bg-primary/10 items-center justify-center mr-2.5">
-                <UserCheck size={16} color="#087A0A" />
+                <UserCheck size={16} color="#035C6C" />
               </View>
               <View className="flex-1">
                 <Text className="text-[10px] text-text-muted">Pickup Person</Text>
                 <Text
                   className="text-[13px] font-bold"
-                  style={{ color: pickupAgent ? '#172117' : '#8FA08F' }}
+                  style={{ color: pickupAgent ? '#111111' : '#9CA3AF' }}
                   numberOfLines={1}
                 >
                   {pickupAgent || 'Not assigned'}
@@ -444,7 +446,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
             <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
               <View className="flex-row items-center">
                 <View className={`h-9 w-9 rounded-lg ${data.status === 'RECEIVED_AT_SHOP' ? 'bg-success/10' : 'bg-warning/10'} items-center justify-center mr-2.5`}>
-                  <CheckCircle2 size={16} color={data.status === 'RECEIVED_AT_SHOP' ? '#087A0A' : '#D97706'} />
+                  <CheckCircle2 size={16} color={data.status === 'RECEIVED_AT_SHOP' ? '#035C6C' : '#D97706'} />
                 </View>
                 <View className="flex-1 mr-2">
                   <Text className="text-[10px] text-text-muted">Shop hand-off</Text>

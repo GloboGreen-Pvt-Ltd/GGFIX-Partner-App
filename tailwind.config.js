@@ -6,28 +6,29 @@
  * working); only the hex values move — see the header comment in
  * theme/colors.js for the six brand colours and the shades derived from them.
  *
- *   Green  #09AD2A — `primary` (DEFAULT / -500). `primary-dark` (#078F23) is
- *                    the shade for green TEXT on light backgrounds.
+ *   Teal   #035C6C — `primary` (DEFAULT / -500): buttons, active navigation.
+ *   Green  #609138 — `success`: positive status.
  *   Red    #F84141 — `danger` / `error`.
- *   Ink    #1E1E1E — `text`.
- *   Page   #F8F8F8 — `background`, behind white `card`s.
- *   Muted  #F3F3F3 — `surface-muted`.
+ *   Ink    #111111 — `text`; #6B7280 secondary text.
+ *   Page   #F3F4F6 — `background` / `surface-muted`, behind white `card`s.
+ *   Border #E5E7EB.
  *   Yellow #F3BF23 — `attention` / `warning`. DARK text only.
  */
 
-// Green ramp around the brand green (#09AD2A at 500). The tints match the
-// mint fills the redesigned screens already use; 600 is the text shade.
+// Primary ramp around the brand teal (#035C6C at 500) — the Home screen's
+// palette, applied app-wide (Oct 2026). Key name `green` kept for call sites.
+// 100 = Light Teal (#E5F3F5) icon/selected backgrounds.
 const green = {
-  50: '#EAF8EC',
-  100: '#EAF8EC',
-  200: '#CDEFD4',
-  300: '#8FDB9F',
-  400: '#4CC463',
-  500: '#09AD2A', // Brand green — fills, active states, progress
-  600: '#078F23', // Deep green — green text on light backgrounds
-  700: '#06701B',
-  800: '#055A16',
-  900: '#033F0F',
+  50: '#E5F3F5',
+  100: '#E5F3F5',
+  200: '#C7E6EA',
+  300: '#8CC3CC',
+  400: '#357D89',
+  500: '#035C6C', // Brand teal — fills, active states, progress
+  600: '#035C6C', // Teal text on light backgrounds
+  700: '#024B58',
+  800: '#023F4A',
+  900: '#012A31',
 };
 
 // Attention ramp around the brand yellow (#F3BF23 at 500) — pending / warning.
@@ -132,25 +133,25 @@ module.exports = {
         // Surfaces
         // Mirrors theme/colors.js — the two must stay in step. `background`
         // is the page wash behind pure-white `card`/`surface`.
-        background: '#F8F8F8',
+        background: '#F3F4F6',
         card: '#FFFFFF',
         surface: {
           DEFAULT: '#FFFFFF',
-          muted: '#F3F3F3',
+          muted: '#F3F4F6',
         },
         // Text
         text: {
-          DEFAULT: '#1E1E1E',
-          muted: '#6B6B6B',
-          subtle: '#8A8A8A',
+          DEFAULT: '#111111',
+          muted: '#6B7280',
+          subtle: '#9CA3AF',
         },
         // Lines
         border: {
-          DEFAULT: '#E6E6E6',
-          strong: '#D6D6D6',
+          DEFAULT: '#E5E7EB',
+          strong: '#D1D5DB',
         },
         // Status
-        success: green[500],
+        success: '#609138',
         warning: amber[500],
         danger: red[500],
         error: red[500],

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import {
@@ -8,28 +9,32 @@ import {
 } from 'lucide-react-native';
 import { EmptyState, Loader } from '../../components/rnr';
 import { notify } from '../../components/confirm';
+import SafeModal from '../../components/SafeModal';
 import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { listProducts, getCart, addToCart } from '../../api/marketplace';
+import { isOwnListing, ownShopIdsOf } from '../../api/nearbyListings';
+import { getSession } from '../../auth/session';
 import { getUnreadCount } from '../../api/notifications';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { rf } from '../../utils/responsive';
 import { tintFor } from '../shared/categoryTints';
 import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
 import { selectShopId } from '../../store/authSlice';
+import { useTabBarSpace } from '../../navigation/tabBarMetrics';
 
 // Same page as the Customer app's Buy home (BuyHomeScreen); listings, product
 // details, orders, cart and notifications open the Partner screens.
 
-// Partner app Buy palette — green #09AD2A, ink #1E1E1E, neutrals #F8F8F8 / #F3F3F3.
-const GREEN = '#09AD2A';
-const GREEN_DARK = '#078F23';   // green text / icons
-const GREEN_LIGHT = '#EAF8EC';  // tiles, icon circles
-const INK = '#1E1E1E';
-const MUTED = '#6B6B6B';
-const HINT = '#8E8E8E';
-const FIELD = '#F3F3F3';
-const LINE = '#E6E6E6';
-const PAGE_BG = '#F8F8F8';
+// Partner app Buy palette — green #035C6C, ink #111111, neutrals #F3F4F6 / #F3F4F6.
+const GREEN = '#035C6C';
+const GREEN_DARK = '#035C6C';   // green text / icons
+const GREEN_LIGHT = '#E5F3F5';  // tiles, icon circles
+const INK = '#111111';
+const MUTED = '#6B7280';
+const HINT = '#9CA3AF';
+const FIELD = '#F3F4F6';
+const LINE = '#E5E7EB';
+const PAGE_BG = '#F3F4F6';
 const RED = '#F84141';
 
 const MAX_W = 720;
@@ -223,6 +228,8 @@ function OptionChip({ label, active, onPress }) {
 }
 
 export default function OwnerBuyHomeScreen({ navigation }) {
+  // The tab bar floats over the page; keep the last items clear of it.
+  const tabSpace = useTabBarSpace();
   const shopId = useSelector(selectShopId);
   const [cats, setCats] = useState([]);
   const [menuImages, setMenuImages] = useState({});
@@ -244,11 +251,12 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [list, banners, prods, imgs] = await Promise.all([
+        const [list, banners, prods, imgs, session] = await Promise.all([
           getDeviceCategories(),
           getBanners().catch(() => []),
           listProducts({ status: 'ACTIVE' }).catch(() => []),
           getCategoryMenuImages('BUY', { includeInactive: true }),
+          getSession().catch(() => null),
         ]);
         setCats(sortCategories((list || []).filter((c) => c.isActive !== false)));
         setMenuImages(imgs || {});
@@ -259,8 +267,9 @@ export default function OwnerBuyHomeScreen({ navigation }) {
             .map((b) => ({ key: String(b.id), uri: imageOf(b) }))
             .filter((b) => b.uri),
         );
-        // Not this shop's own listings — same rule as the Buy listing.
-        setProducts((prods || []).filter((p) => !shopId || p.shopId !== shopId));
+        // None of the owner's own shops' listings — same rule as the Buy listing.
+        const own = { shopId, sellerId: session?.userId, ownShopIds: ownShopIdsOf(session, shopId) };
+        setProducts((prods || []).filter((p) => !isOwnListing(own, p)));
       } catch (_) {}
       setLoading(false);
     })();
@@ -385,7 +394,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
             }}
           >
             <SlidersHorizontal size={16} color={activeFilters > 0 ? '#FFFFFF' : INK} />
-            <Text style={{ marginLeft: 6, fontSize: rf(13), fontWeight: '800', color: activeFilters > 0 ? '#FFFFFF' : INK }}>Filters</Text>
+            <Text style={{ marginLeft: 6, fontSize: rf(13), fontWeight: '800', color: activeFilters > 0 ? '#FFFFFF' : INK }} numberOfLines={1}>Filters</Text>
             {activeFilters > 0 ? (
               <View style={{ marginLeft: 6, paddingHorizontal: 6, borderRadius: 999, backgroundColor: '#FFFFFF' }}>
                 <Text style={{ fontSize: rf(10), fontWeight: '800', color: GREEN_DARK }}>{activeFilters}</Text>
@@ -395,7 +404,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
         </View>
       </PageHeader>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}>
         <View style={centered}>
           {/* Hero — admin "Buy" banner artwork only (its text is baked in). */}
           {buyBanners.length ? (
@@ -427,7 +436,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                   {buyBanners.map((b, i) => (
                     <View
                       key={b.key}
-                      style={{ height: 6, width: i === slide ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === slide ? GREEN : '#D6D6D6' }}
+                      style={{ height: 6, width: i === slide ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === slide ? GREEN : '#D1D5DB' }}
                     />
                   ))}
                 </View>
@@ -501,10 +510,12 @@ export default function OwnerBuyHomeScreen({ navigation }) {
       </ScrollView>
 
       {/* Filters sheet — Sort + Max price, applied to the listing (with any search text). */}
-      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(16,24,20,0.45)', justifyContent: 'flex-end' }}>
+      <SafeModal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17,0.45)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowFilters(false)} accessibilityLabel="Close filters" />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
+          {/* Pads this modal window's own nav-bar / home-indicator inset. */}
+          {/* Tablets: capped and centred rather than spanning the screen. */}
+          <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: 12 }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ flex: 1, fontSize: rf(14), fontWeight: '800', color: INK }}>Filters</Text>
@@ -536,9 +547,9 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                 <Text style={{ fontSize: rf(13), fontWeight: '800', color: '#FFFFFF' }}>Show results</Text>
               </Pressable>
             </View>
-          </View>
+          </SafeAreaView>
         </View>
-      </Modal>
+      </SafeModal>
     </View>
   );
 }

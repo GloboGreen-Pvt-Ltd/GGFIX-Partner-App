@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { Camera, Video } from 'lucide-react-native';
 import {
   AppHeader, Card, BottomActionBar, Loader, ErrorState, ScreenContainer, useBottomBarInset,
@@ -8,6 +8,7 @@ import {
 import { tokens } from '../../theme/colors';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 function formatINR(amount) {
   if (amount == null) return '0';
@@ -39,6 +40,7 @@ export default function DeviceInformationScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const insetBottom = useBottomBarInset();
+  const r = useResponsive();
 
   const load = useCallback(async () => {
     if (!ticketId) { setLoading(false); return; }
@@ -81,7 +83,7 @@ export default function DeviceInformationScreen({ route, navigation }) {
   return (
     <ScreenContainer>
       <AppHeader title="Device Information" subtitle={ticket?.deviceLabel || undefined} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 96 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 96, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}>
         {error ? <ErrorState description={error} onRetry={load} className="py-6" /> : null}
 
         <Card>
@@ -95,7 +97,7 @@ export default function DeviceInformationScreen({ route, navigation }) {
           ))}
           <PriceDivider />
           <View className="flex-row items-center justify-between">
-            <Text className="text-[13px] font-bold text-text">Estimated Repair Amount</Text>
+            <Text className="text-[13px] font-bold text-text flex-1 mr-2" numberOfLines={1}>Estimated Repair Amount</Text>
             <Text className="text-[15px] font-extrabold text-primary">₹{formatINR(estimatedTotal)}</Text>
           </View>
         </Card>

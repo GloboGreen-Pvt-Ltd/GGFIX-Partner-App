@@ -26,9 +26,9 @@ import { displayNameFor } from '../utils/deviceSearch';
  * hands Pressable a plain object, which the interop keeps.
  */
 const ACTIONS = [
-  { key: 'BOOK', label: 'Book Service', hint: 'Start a repair booking', icon: Wrench, tint: '#E6F7E3', accent: '#087A0A' },
+  { key: 'BOOK', label: 'Book Service', hint: 'Start a repair booking', icon: Wrench, tint: '#E5F3F5', accent: '#035C6C' },
   { key: 'SELL', label: 'Sell', hint: 'Sell this device', icon: IndianRupee, tint: '#FEF3C7', accent: '#B45309' },
-  { key: 'BUY', label: 'Buy', hint: 'Browse the marketplace', icon: ShoppingCart, tint: '#EFF5EE', accent: '#004C40' },
+  { key: 'BUY', label: 'Buy', hint: 'Browse the marketplace', icon: ShoppingCart, tint: '#E5F3F5', accent: '#035C6C' },
 ];
 
 export default function DeviceActionSheet({ visible, device, onAction, onClose }) {
@@ -39,23 +39,23 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
 
   return (
     <ResponsiveModal visible={visible} onClose={onClose} maxWidth={560}>
-      <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8E2', marginBottom: SPACING.lg }} />
+      <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: SPACING.lg }} />
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
         <View
           style={{
-            height: 52, width: 52, borderRadius: 12, backgroundColor: '#F8F8F8',
+            height: 52, width: 52, borderRadius: 12, backgroundColor: '#F3F4F6',
             alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12,
           }}
         >
           {device.modelImageUrl
             ? <Image source={{ uri: device.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" />
-            : <Smartphone size={24} color="#8FA08F" strokeWidth={2} />}
+            : <Smartphone size={24} color="#9CA3AF" strokeWidth={2} />}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: '#172117' }} numberOfLines={2}>{title}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: '#111111' }} numberOfLines={2}>{title}</Text>
           {subtitle ? (
-            <Text style={{ fontSize: 12, color: '#667066', marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
           ) : null}
         </View>
         <Touchable
@@ -63,10 +63,10 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Close"
-          style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: '#EFF5EE', alignItems: 'center', justifyContent: 'center' }}
+          style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' }}
           pressedStyle={{ opacity: 0.6 }}
         >
-          <X size={16} color="#667066" strokeWidth={2} />
+          <X size={16} color="#6B7280" strokeWidth={2} />
         </Touchable>
       </View>
 
@@ -89,14 +89,14 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
               paddingHorizontal: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: '#EFF5EE',
+              borderColor: '#E5F3F5',
               marginBottom: 8,
               // 48pt minimum: the Android and iOS touch-target floors are
               // 48dp and 44pt, and this row is the only way into all three
               // flows.
               minHeight: TOUCH_MIN,
             }}
-            pressedStyle={{ backgroundColor: '#F8F8F8', borderColor: '#E2E8E2' }}
+            pressedStyle={{ backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' }}
           >
             <View
               style={{
@@ -107,10 +107,10 @@ export default function DeviceActionSheet({ visible, device, onAction, onClose }
               <Icon size={19} color={a.accent} strokeWidth={2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#172117' }}>{a.label}</Text>
-              <Text style={{ fontSize: 11, color: '#667066', marginTop: 1 }}>{a.hint}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>{a.label}</Text>
+              <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }}>{a.hint}</Text>
             </View>
-            <ChevronRight size={16} color="#CBD5CB" strokeWidth={2} />
+            <ChevronRight size={16} color="#D1D5DB" strokeWidth={2} />
           </Touchable>
         );
       })}

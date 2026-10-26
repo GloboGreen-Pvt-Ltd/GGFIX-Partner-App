@@ -26,9 +26,9 @@ import { SELL, SellButton } from '../sell/sellTheme';
 // — this screen previously had no header of its own and relied on the plain
 // native-stack title, which looked flatter than its siblings.
 const HEADER_WHITE = '#FFFFFF';
-const HEADER_LINE = '#E6E6E6';
-const HEADER_INK = '#1E1E1E';
-const HEADER_SOFT = '#F8F8F8';
+const HEADER_LINE = '#E5E7EB';
+const HEADER_INK = '#111111';
+const HEADER_SOFT = '#F3F4F6';
 
 const sellConditionsFor = (deviceLabel) => [
   { key: 'WORKING', label: `Working ${deviceLabel}`, sub: 'Turns on · No major issues', icon: Smartphone, color: SELL.green, tint: SELL.greenLight },
@@ -40,12 +40,12 @@ import {
   Input,
   Label,
   Loader,
-  Badge,
 } from '../../../components/rnr';
 import { getModelOptions } from '../../../api/masterData';
 import { createSavedDevice, updateSavedDevice } from '../../../api/customer';
 import useDeviceSpecForm from '../../../lib/hooks/useDeviceSpecForm';
 import { SPEC_ATTRIBUTE_KEYS, formatSpecValue, specDetailRows } from '../../../utils/deviceSpecs';
+import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 // Section icon + right-hand caption per category-specific field.
 const SPEC_ICONS = {
@@ -72,10 +72,10 @@ const SPEC_CAPTIONS = {
 // so e.g. a device listed as "Cosmic Blue" or "Rose Gold" rendered a green
 // swatch dot.
 const COLOR_SWATCHES = {
-  black: '#1A1A1A', white: '#F7FAF7', silver: '#C7CDD1', gold: '#E6C384',
-  rose: '#E8B4B8', blue: '#3B82F6', red: '#DC2626', green: '#16A34A',
+  black: '#1A1A1A', white: '#F3F4F6', silver: '#C7CDD1', gold: '#E6C384',
+  rose: '#E8B4B8', blue: '#3B82F6', red: '#DC2626', green: '#609138',
   purple: '#8B5CF6', pink: '#EC4899', graphite: '#4B5563', midnight: '#1E293B',
-  starlight: '#F5F1E6', sierra: '#9DB4C0', alpine: '#2F6B4F', sky: '#BFDBFE',
+  starlight: '#F5F1E6', sierra: '#9DB4C0', alpine: '#035C6C', sky: '#BFDBFE',
   phantom: '#374151', cosmic: '#1E3A5F',
 };
 // A handful of real, well-known TWO-WORD device colour names checked as exact
@@ -96,7 +96,7 @@ function swatchFor(name) {
   for (const key of Object.keys(COLOR_SWATCHES)) {
     if (n.includes(key)) return COLOR_SWATCHES[key];
   }
-  return '#8FA08F';
+  return '#9CA3AF';
 }
 
 export default function SelectVariantScreen({ navigation, route }) {
@@ -120,8 +120,9 @@ export default function SelectVariantScreen({ navigation, route }) {
       ? categoryId
       : (route?.params?.categoryCode || '')
   ).toUpperCase();
-  const NO_IMEI_KEYWORDS = ['LAPTOP', 'AUDIO', 'WATCH', 'HEADPHONE', 'EARBUD', 'TABLET'];
-  const noImei = NO_IMEI_KEYWORDS.some((k) => categoryCode.includes(k));
+  // IMEI applies to mobile phones only (shared policy; falls back to the
+  // model's category when the params don't name one).
+  const noImei = !useImeiApplies({ categoryCode, categoryName: route?.params?.categoryName, modelId });
   // Smart watches & audio devices don't take RAM/Storage selections.
   const NO_RAM_STORAGE_KEYWORDS = ['WATCH', 'AUDIO', 'HEADPHONE', 'EARBUD'];
   const noRamStorage = NO_RAM_STORAGE_KEYWORDS.some((k) => categoryCode.includes(k));
@@ -288,7 +289,7 @@ export default function SelectVariantScreen({ navigation, route }) {
     }
     if (flow === 'SELL') {
       navigation.navigate('SellScreening', {
-        device: { ...payload, modelName, imei },
+        device: { ...payload, modelName, imei: noImei ? undefined : imei },
         workingCondition: condition,
         editSellOrderId: route?.params?.editSellOrderId,
         editHints: route?.params?.editHints,
@@ -298,7 +299,7 @@ export default function SelectVariantScreen({ navigation, route }) {
     if (flow === 'OWNER_LIST') {
       // Owner is listing this device on the marketplace — hand off to the
       // description chooser (Detailed / Short / Dead Phone Short).
-      navigation.navigate('OwnerSellMobile', { device: { ...payload, modelName, imei } });
+      navigation.navigate('OwnerSellMobile', { device: { ...payload, modelName, imei: noImei ? undefined : imei } });
       return;
     }
   };
@@ -394,7 +395,7 @@ export default function SelectVariantScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
 
         {isEditingSellOrder ? (
           <View className="bg-warning/10 border border-warning/30 rounded-xl px-3 py-2 mb-3 flex-row items-center">
@@ -762,7 +763,7 @@ function DetailRow({ label, value, leading, last }) {
   return (
     <View
       className="flex-row items-center px-3"
-      style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}
+      style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
     >
       <Text className="text-[12px] text-text-muted" style={{ width: 92 }}>{label}</Text>
       <View className="flex-1 flex-row items-center" style={{ gap: 6 }}>

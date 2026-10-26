@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Modal, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import {
   GestureHandlerRootView,
   PanGestureHandler,
@@ -7,8 +7,9 @@ import {
   TapGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
+import SafeModal from './SafeModal';
 
 /**
  * Full-screen image viewer: two-finger pinch-to-zoom, one-finger pan while
@@ -125,9 +126,10 @@ function ZoomableImage({ uri, size, onSwipe }) {
  *                            so swiping moves through its siblings.
  * @param {number}   index    which one was tapped
  * @param {Function} onClose
+ * @param {string}   [actionLabel]  optional footer button text
+ * @param {Function} [onAction]     (entry, index) => void — footer button press
  */
-export default function ImageViewerModal({ visible, images = [], index = 0, onClose }) {
-  const insets = useSafeAreaInsets();
+export default function ImageViewerModal({ visible, images = [], index = 0, onClose, actionLabel, onAction }) {
   const { width: screenW } = useWindowDimensions();
   const [i, setI] = useState(index);
 
@@ -145,14 +147,16 @@ export default function ImageViewerModal({ visible, images = [], index = 0, onCl
   };
 
   return (
-    <Modal visible={!!visible && list.length > 0} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={!!visible && list.length > 0} transparent animationType="fade" onRequestClose={onClose}>
       {/* RN Modal renders in its own window; gesture-handler needs a local root
           here or the pinch/pan handlers never receive touches on Android. */}
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(23, 33, 23, 0.94)' }}>
+        {/* Full-screen and edge-to-edge: the backdrop pads this window's own
+            status-bar and nav-bar / home-indicator insets. */}
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.94)' }}>
           <View
             style={{
-              paddingTop: insets.top + 8,
+              paddingTop: 8,
               paddingHorizontal: 14,
               flexDirection: 'row',
               alignItems: 'center',
@@ -188,7 +192,7 @@ export default function ImageViewerModal({ visible, images = [], index = 0, onCl
             ) : null}
           </View>
 
-          <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 18, alignItems: 'center' }}>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 18, alignItems: 'center' }}>
             {current?.label ? (
               <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }} numberOfLines={2}>
                 {current.label}
@@ -199,9 +203,24 @@ export default function ImageViewerModal({ visible, images = [], index = 0, onCl
                 {safeIndex + 1} / {list.length}
               </Text>
             ) : null}
+            {/* Optional footer action (e.g. Device Details' "Select this model"),
+                handed the image entry currently on screen. */}
+            {actionLabel && onAction && current ? (
+              <Pressable
+                onPress={() => onAction(current, safeIndex)}
+                accessibilityRole="button"
+                accessibilityLabel={actionLabel}
+                style={{
+                  marginTop: 14, height: 46, alignSelf: 'stretch', borderRadius: 12,
+                  backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>{actionLabel}</Text>
+              </Pressable>
+            ) : null}
           </View>
-        </View>
+        </SafeAreaView>
       </GestureHandlerRootView>
-    </Modal>
+    </SafeModal>
   );
 }

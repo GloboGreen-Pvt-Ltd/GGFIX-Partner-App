@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 const DEFAULT_PARTS = ['Display', 'Back Door', 'SIM Card Tray', "Button's"];
 
@@ -24,7 +26,7 @@ export default function DeviceMissingPartsScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={48}>
         <View style={styles.card}>
           <Text style={styles.title}>Device Missing / Damage Parts</Text>
           {rows.map((row, index) => (
@@ -33,7 +35,7 @@ export default function DeviceMissingPartsScreen({ route, navigation }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter Details"
-                placeholderTextColor="#8FA08F"
+                placeholderTextColor="#9CA3AF"
                 value={row.details}
                 onChangeText={(v) => updateRow(index, { details: v })}
               />
@@ -56,14 +58,14 @@ export default function DeviceMissingPartsScreen({ route, navigation }) {
         <TouchableOpacity style={styles.button} onPress={handleContinue}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 function Toggle({ label, active, onPress }) {
   return (
-    <TouchableOpacity style={styles.toggle} onPress={onPress}>
+    <TouchableOpacity style={styles.toggle} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
       <View style={[styles.checkbox, active && styles.checkboxActive]} />
       <Text style={styles.toggleLabel}>{label}</Text>
     </TouchableOpacity>
@@ -71,52 +73,53 @@ function Toggle({ label, active, onPress }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F8EF' },
+  safe: { flex: 1, backgroundColor: '#E5F3F5' },
   scroll: { flex: 1 },
-  content: { padding: 12, paddingBottom: 24 },
+  // Tablets: cap and centre the form column.
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 10,
     marginBottom: 12,
   },
-  title: { fontSize: 13, fontWeight: '700', color: '#172117', marginBottom: 6 },
+  title: { fontSize: 13, fontWeight: '700', color: '#111111', marginBottom: 6 },
   row: {
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 9,
     marginBottom: 6,
   },
-  partName: { fontSize: 13, fontWeight: '600', color: '#172117', marginBottom: 4 },
+  partName: { fontSize: 13, fontWeight: '600', color: '#111111', marginBottom: 4 },
   input: {
-    backgroundColor: '#F7FAF7',
+    backgroundColor: '#F3F4F6',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8E2',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 13,
-    color: '#172117',
+    color: '#111111',
     marginBottom: 8,
   },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   toggle: { flexDirection: 'row', alignItems: 'center' },
   checkbox: {
     width: 18,
     height: 18,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#8FA08F',
+    borderColor: '#9CA3AF',
     marginRight: 6,
   },
   checkboxActive: {
-    backgroundColor: '#087A0A',
-    borderColor: '#16BB05',
+    backgroundColor: '#035C6C',
+    borderColor: '#035C6C',
   },
-  toggleLabel: { fontSize: 12, color: '#172117' },
+  toggleLabel: { fontSize: 12, color: '#111111' },
   button: {
-    backgroundColor: '#087A0A',
+    backgroundColor: '#035C6C',
     paddingVertical: 12,
     borderRadius: 999,
     alignItems: 'center',

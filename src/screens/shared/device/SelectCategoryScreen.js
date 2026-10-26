@@ -28,7 +28,9 @@ const GRID_COLUMNS = 5;
 // Below this card width the sub-caption cannot render a whole word.
 const SUB_MIN_CARD = 100;
 function gridMetrics(screenWidth) {
-  const numColumns = GRID_COLUMNS;
+  // 5 on every phone (the design); tablets use the extra width for more
+  // tiles rather than 190pt-wide ones.
+  const numColumns = screenWidth >= 840 ? 8 : screenWidth >= 600 ? 6 : GRID_COLUMNS;
   // Math.floor — see SelectBrandScreen for explanation; without it RN can
   // round subpixel widths up and wrap the last card to a new row.
   const cardWidth = Math.floor((screenWidth - HORIZONTAL_PAD * 2 - GRID_GAP * (numColumns - 1)) / numColumns);
@@ -36,17 +38,17 @@ function gridMetrics(screenWidth) {
 }
 
 const CODE_META = {
-  MOBILE:        { icon: Smartphone, color: '#004C40', bg: 'bg-primary/10', sub: 'Smartphones' },
-  SMARTPHONE:    { icon: Smartphone, color: '#004C40', bg: 'bg-primary/10', sub: 'Smartphones' },
-  LAPTOP:        { icon: Laptop,     color: '#004C40', bg: 'bg-primary/10', sub: 'Laptops & Notebooks' },
-  TABLET:        { icon: Tablet,     color: '#004C40', bg: 'bg-info/10',    sub: 'Tablets' },
+  MOBILE:        { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Smartphones' },
+  SMARTPHONE:    { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Smartphones' },
+  LAPTOP:        { icon: Laptop,     color: '#035C6C', bg: 'bg-primary/10', sub: 'Laptops & Notebooks' },
+  TABLET:        { icon: Tablet,     color: '#035C6C', bg: 'bg-info/10',    sub: 'Tablets' },
   SMARTWATCH:    { icon: Watch,      color: '#B45309', bg: 'bg-warning/10', sub: 'Smart Watches' },
   SMARTWATCHES:  { icon: Watch,      color: '#B45309', bg: 'bg-warning/10', sub: 'Smart Watches' },
-  AUDIO:         { icon: Headphones, color: '#004C40', bg: 'bg-danger/10',  sub: 'Headphones, Earbuds & Speakers' },
-  AUDIO_DEVICES: { icon: Headphones, color: '#004C40', bg: 'bg-danger/10',  sub: 'Headphones, Earbuds & Speakers' },
-  SPEAKER:       { icon: Volume2,    color: '#004C40', bg: 'bg-success/10', sub: 'Speakers' },
+  AUDIO:         { icon: Headphones, color: '#035C6C', bg: 'bg-danger/10',  sub: 'Headphones, Earbuds & Speakers' },
+  AUDIO_DEVICES: { icon: Headphones, color: '#035C6C', bg: 'bg-danger/10',  sub: 'Headphones, Earbuds & Speakers' },
+  SPEAKER:       { icon: Volume2,    color: '#035C6C', bg: 'bg-success/10', sub: 'Speakers' },
 };
-const DEFAULT_META = { icon: Smartphone, color: '#004C40', bg: 'bg-primary/10', sub: 'Devices' };
+const DEFAULT_META = { icon: Smartphone, color: '#035C6C', bg: 'bg-primary/10', sub: 'Devices' };
 
 export default function SelectCategoryScreen({ navigation, route }) {
   const flow = route?.params?.flow || 'PROFILE';
@@ -122,7 +124,7 @@ export default function SelectCategoryScreen({ navigation, route }) {
                       width: cardWidth,
                       padding: 6,
                       alignItems: 'center',
-                      shadowColor: '#172117',
+                      shadowColor: '#111111',
                       shadowOpacity: 0.04,
                       shadowRadius: 8,
                       shadowOffset: { width: 0, height: 2 },

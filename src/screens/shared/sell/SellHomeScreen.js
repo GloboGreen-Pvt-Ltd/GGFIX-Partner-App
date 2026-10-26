@@ -8,16 +8,16 @@ import { getDeviceCategories } from '../../../api/masterData';
 // Per-code emoji/tint/sub fallback so admin-driven categories keep a friendly
 // visual when they have no uploaded image yet.
 const CODE_META = {
-  MOBILE:        { emoji: '📱', bg: '#F0F8EF', sub: 'Get instant quote' },
-  SMARTPHONE:    { emoji: '📱', bg: '#F0F8EF', sub: 'Get instant quote' },
-  LAPTOP:        { emoji: '💻', bg: '#F0F8EF', sub: 'Fair market value' },
+  MOBILE:        { emoji: '📱', bg: '#E5F3F5', sub: 'Get instant quote' },
+  SMARTPHONE:    { emoji: '📱', bg: '#E5F3F5', sub: 'Get instant quote' },
+  LAPTOP:        { emoji: '💻', bg: '#E5F3F5', sub: 'Fair market value' },
   SMARTWATCH:    { emoji: '⌚', bg: '#FFFBEB', sub: 'All brands accepted' },
   SMARTWATCHES:  { emoji: '⌚', bg: '#FFFBEB', sub: 'All brands accepted' },
-  TABLET:        { emoji: '📲', bg: '#F0F8EF', sub: 'Top price guaranteed' },
+  TABLET:        { emoji: '📲', bg: '#E5F3F5', sub: 'Top price guaranteed' },
   AUDIO:         { emoji: '🎧', bg: '#FEF2F2', sub: 'Earbuds & headphones' },
   AUDIO_DEVICES: { emoji: '🎧', bg: '#FEF2F2', sub: 'Earbuds & headphones' },
 };
-const DEFAULT_META = { emoji: '📱', bg: '#F0F8EF', sub: 'Get the best price' };
+const DEFAULT_META = { emoji: '📱', bg: '#E5F3F5', sub: 'Get the best price' };
 
 // Resolve an admin-uploaded category image (base64 preferred) to an <Image>
 // uri, or null when the category has no image.
@@ -62,7 +62,7 @@ export default function SellHomeScreen({ navigation }) {
     <View className="flex-1 bg-background">
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#E2E8E2' }}
+          style={{ backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
         >
           <View className="px-4">
             <Text className="text-text-muted text-[12px] font-bold tracking-widest">SELL & EARN</Text>
@@ -76,11 +76,11 @@ export default function SellHomeScreen({ navigation }) {
         {/* Trust strip — 3 cards matching Repair Home's promise cards */}
         <View className="flex-row px-4 mt-3">
           <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
-            <TrendingUp size={17} color="#16BB05" />
+            <TrendingUp size={17} color="#035C6C" />
             <Text className="text-[10px] font-bold text-text text-center mt-1">Best Price</Text>
           </View>
           <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
-            <ShieldCheck size={17} color="#16BB05" />
+            <ShieldCheck size={17} color="#035C6C" />
             <Text className="text-[10px] font-bold text-text text-center mt-1">Verified Shops</Text>
           </View>
           <View className="flex-1 bg-card border border-border rounded-2xl py-2.5 px-2 items-center mx-1">
@@ -111,7 +111,7 @@ export default function SellHomeScreen({ navigation }) {
                     width: cardW,
                     marginLeft: i % numCols === 0 ? 0 : gridGap,
                     marginBottom: gridGap,
-                    shadowColor: '#172117', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+                    shadowColor: '#111111', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
                   }}
                 >
                   <View

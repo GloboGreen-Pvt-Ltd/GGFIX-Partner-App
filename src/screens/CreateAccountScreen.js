@@ -10,17 +10,19 @@ import {
 } from 'react-native';
 import { ArrowLeft, UserPlus, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../components/rnr';
 import { GREEN, MUTED, INK, SCREEN_BG, FIELD_BORDER } from './authUi';
 
 // Same brand-green wash and tint border as the shared AuthShell.
-const MINT = '#EAF8EC';
-const MINT_LINE = '#CDEFD4';
+const MINT = '#E5F3F5';
+const MINT_LINE = '#C7E6EA';
 
 // Placeholder — the full sign-up flow is built later. For now this gives the
 // "Create account" option a destination so it isn't a dead button.
 export default function CreateAccountScreen({ navigation }) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isWide = width >= 600;
   const contentMaxWidth = isWide ? 440 : undefined;
 
@@ -33,7 +35,7 @@ export default function CreateAccountScreen({ navigation }) {
     <View style={{ flex: 1, backgroundColor: SCREEN_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor={MINT} />
       <LinearGradient
-        colors={[MINT, '#F3FAF4', SCREEN_BG]}
+        colors={[MINT, '#F3F4F6', SCREEN_BG]}
         locations={[0, 0.45, 1]}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 320 }}
       />
@@ -43,7 +45,8 @@ export default function CreateAccountScreen({ navigation }) {
         hitSlop={10}
         style={{
           position: 'absolute',
-          top: Platform.OS === 'ios' ? 56 : 20,
+          // Below the status bar / notch / camera cutout on every device.
+          top: Math.max(Platform.OS === 'ios' ? 56 : 20, insets.top + 8),
           left: 18,
           zIndex: 10,
           height: 40,
@@ -63,6 +66,8 @@ export default function CreateAccountScreen({ navigation }) {
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: 'center',
+          // Keeps centred content clear of the back button on short screens.
+          paddingTop: insets.top + 56,
           paddingBottom: 32,
           paddingHorizontal: isWide ? 32 : 22,
         }}

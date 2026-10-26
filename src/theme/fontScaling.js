@@ -6,9 +6,10 @@
 // screen, we wrap React Native's `Text` / `TextInput` render once, at app start,
 // and scale the resolved `fontSize` (and `lineHeight`).
 //
-// It also forces `allowFontScaling = false`, so a phone's system "large font"
-// accessibility setting can't inflate the UI on top of our own scaling — that
-// OS multiplier is the usual reason text looks "over high".
+// The phone's accessibility "font size" setting is honoured but CAPPED at
+// MAX_A11Y_SCALE: users who need larger text get it, while the OS multiplier
+// (the usual reason text looked "over high") can't blow the compact layouts
+// past what their screens are built to absorb.
 //
 // Why a monkey-patch: React 19 removed `Component.defaultProps`, so the old
 // `Text.defaultProps.allowFontScaling = false` global no longer applies.
@@ -35,6 +36,9 @@ const raw = (1 + (widthScale - 1) * 0.5) * COMPACT;
 
 export const FONT_SCALE = Math.min(Math.max(raw, 0.82), 1.06);
 
+// Upper bound on the OS accessibility text multiplier (1.2 = up to 20% larger).
+export const MAX_A11Y_SCALE = 1.2;
+
 // Scale a single font size. Non-numbers / non-positive values pass through.
 export const scaleFont = (size) =>
   typeof size === 'number' && size > 0 ? Math.round(size * FONT_SCALE * 10) / 10 : size;
@@ -47,7 +51,7 @@ function patchFontScaling(Component) {
   Component.__ggfixFontPatched = true;
 
   Component.render = function ggfixScaledRender(props, ref) {
-    // Disable OS font scaling by feeding it in as an INPUT prop (unless the
+    // Cap OS font scaling by feeding it in as an INPUT prop (unless the
     // caller already set one explicitly) so Text/TextInput's own
     // implementation handles it. We used to force it onto the OUTPUT element
     // via cloneElement below, but on web `originalRender` (react-native-web's
@@ -57,7 +61,9 @@ function patchFontScaling(Component) {
     // `allowFontScaling` prop on a DOM element" (and, under some style
     // shapes, throws outright while cloning).
     const scaledProps =
-      props.allowFontScaling === undefined ? { ...props, allowFontScaling: false } : props;
+      props.allowFontScaling === undefined && props.maxFontSizeMultiplier === undefined
+        ? { ...props, allowFontScaling: true, maxFontSizeMultiplier: MAX_A11Y_SCALE }
+        : props;
     const element = originalRender.call(this, scaledProps, ref);
     if (!React.isValidElement(element)) return element;
 

@@ -21,6 +21,7 @@ import {
 } from '../../lib/contacts';
 import { PARTY_CUSTOMER, createParty, formatPhone, partyCopy } from '../../api/ledgerParties';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import {
   C,
   S,
@@ -58,6 +59,9 @@ const ROW_HEIGHT = SIZE.contactRow;
 
 export default function OwnerContactPickerScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablets: header rows, list and the pinned button share one capped column.
+  const r = useResponsive();
+  const cap = { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' };
   const partyType = route.params?.partyType || PARTY_CUSTOMER;
   const copy = partyCopy(partyType);
 
@@ -218,7 +222,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
           <Text className="font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={{ fontSize: T.rowSub, color: C.muted }}>{formatPhone(item.phone)}</Text>
+          <Text style={{ fontSize: T.rowSub, color: C.muted }} numberOfLines={1}>{formatPhone(item.phone)}</Text>
         </View>
         {busy ? <ActivityIndicator size="small" color={C.green} /> : null}
       </Pressable>
@@ -258,7 +262,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
     <View className="flex-1 bg-background">
       {/* ── header ───────────────────────────────────────────────────── */}
       <View className="bg-card" style={headerStyle(insets.top)}>
-        <View className="flex-row items-center">
+        <View className="flex-row items-center" style={cap}>
           <Pressable
             onPress={() => (navigation.canGoBack()
               ? navigation.goBack()
@@ -275,22 +279,22 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
               "+ Add Customer" opens, so "Contacts" alone would read as a detour
               rather than as the thing the owner asked for. */}
           <View className="flex-1">
-            <Text className="font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }}>{copy.addCta}</Text>
-            <Text style={{ fontSize: T.screenSub, color: C.muted }}>Pick from your contacts</Text>
+            <Text className="font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }} numberOfLines={1}>{copy.addCta}</Text>
+            <Text style={{ fontSize: T.screenSub, color: C.muted }} numberOfLines={1}>Pick from your contacts</Text>
           </View>
         </View>
 
         {state === 'granted' ? (
           <View
             className="flex-row items-center"
-            style={{
+            style={[{
               backgroundColor: C.field,
               borderWidth: 1,
               borderColor: C.hairline,
               borderRadius: SIZE.radius,
               paddingHorizontal: S.sm,
               marginTop: S.xs,
-            }}
+            }, cap]}
           >
             <Search size={rs(15)} color={C.muted} />
             <TextInput
@@ -321,7 +325,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
       ) : state === 'denied' ? (
         <Blocked
           title="Contacts access is off"
-          body={`Allow contacts to pick a ${copy.one.toLowerCase()} from your phone book. If the permission dialog no longer appears, turn it on for GGFIX Partner in Settings.`}
+          body={`Allow contacts to pick a ${copy.one.toLowerCase()} from your phone book. If the permission dialog no longer appears, turn it on for Near G Fix Partner in Settings.`}
           actionLabel="Allow contacts"
           onAction={async () => {
             // Trust the CURRENT grant before asking again: the request watchdog
@@ -380,6 +384,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
             ) : null
           }
           contentContainerStyle={{
+            ...cap,
             paddingHorizontal: S.gutter,
             paddingTop: S.tight,
             // Clears the pinned "Add Manually" bar plus the system nav inset.
@@ -439,6 +444,7 @@ export default function OwnerContactPickerScreen({ navigation, route }) {
             onPress={() => addManually()}
             className="flex-row items-center justify-center rounded-2xl active:opacity-85"
             style={{
+              ...cap,
               backgroundColor: C.greenSoft,
               paddingVertical: S.md,
               minHeight: SIZE.buttonMin,

@@ -245,7 +245,7 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
         {/* Recent Pending */}
         <View style={styles.sectionHeadRow}>
           <Text style={styles.sectionHeader}>Recent Pending</Text>
-          <TouchableOpacity onPress={() => setFilter('Pending')}>
+          <TouchableOpacity onPress={() => setFilter('Pending')} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
@@ -269,7 +269,7 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
         {/* In Process */}
         <View style={styles.sectionHeadRow}>
           <Text style={styles.sectionHeader}>In Process</Text>
-          <TouchableOpacity onPress={() => setFilter('In Process')}>
+          <TouchableOpacity onPress={() => setFilter('In Process')} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
@@ -293,7 +293,7 @@ export default function OwnerEmployeeWorkingRecordScreen({ route, navigation }) 
         {/* Previous Completed (with filter chips) */}
         <View style={styles.sectionHeadRow}>
           <Text style={styles.sectionHeader}>Previous Completed</Text>
-          <TouchableOpacity onPress={() => setFilter('All')}>
+          <TouchableOpacity onPress={() => setFilter('All')} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
@@ -381,7 +381,7 @@ function TaskCard({ booking, bucket, onPress, onRefresh, refreshing, showAssigne
             <Ionicons name="calendar-outline" size={13} color={GREEN} />
             <Text style={styles.taskDate}>{formatDate(booking.createdAt)}</Text>
           </View>
-          <Text style={styles.taskTracking}>#{trackingId(booking)}</Text>
+          <Text style={styles.taskTracking} numberOfLines={1}>#{trackingId(booking)}</Text>
         </View>
         <View style={styles.taskMiddleRow}>
           <Text style={styles.taskDevice} numberOfLines={2}>{deviceLine(booking)}</Text>
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   taskDate: { fontSize: 12, fontWeight: '800', color: INK },
-  taskTracking: { fontSize: 11, color: SUBTLE, fontWeight: '700' },
+  taskTracking: { fontSize: 11, color: SUBTLE, fontWeight: '700', flexShrink: 1, marginLeft: 8 },
   taskMiddleRow: { marginTop: 4 },
   taskDevice: { fontSize: 12, color: INK },
   taskAssignee: { fontSize: 11, color: GREEN_DEEP, fontWeight: '700', marginTop: 2 },

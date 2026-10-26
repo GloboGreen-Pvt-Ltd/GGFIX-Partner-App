@@ -15,7 +15,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
 };
 const CATEGORY_EMOJI_DEFAULT = '📦';
 // Falls back for any category code neither rail's palette names explicitly.
-const TILE_BG_DEFAULT = '#F3F5F4';
+const TILE_BG_DEFAULT = '#F3F4F6';
 
 function categoryImage(item: DeviceCategory): string | null {
   const b64 = item.imageBase64 && String(item.imageBase64).trim();
@@ -63,10 +63,10 @@ export function DashboardCategoryRail({ categories, pad, tile, keyPrefix, onPick
                 borderRadius: 18,
                 backgroundColor: bg,
                 borderWidth: 1,
-                borderColor: '#EEF1F0',
+                borderColor: '#F3F4F6',
                 alignItems: 'center',
                 justifyContent: 'center',
-                shadowColor: '#0B1F14',
+                shadowColor: '#111111',
                 shadowOpacity: 0.04,
                 shadowRadius: 5,
                 shadowOffset: { width: 0, height: 2 },
@@ -79,7 +79,7 @@ export function DashboardCategoryRail({ categories, pad, tile, keyPrefix, onPick
                 <Text style={{ fontSize: 28 }}>{emoji}</Text>
               )}
             </View>
-            <Text style={{ fontSize: T.caption1, color: '#1C2423', marginTop: 8, textAlign: 'center', letterSpacing: -0.1 }} numberOfLines={1}>
+            <Text style={{ fontSize: T.caption1, color: '#111111', marginTop: 8, textAlign: 'center', letterSpacing: -0.1 }} numberOfLines={1}>
               {c.name}
             </Text>
           </Touchable>

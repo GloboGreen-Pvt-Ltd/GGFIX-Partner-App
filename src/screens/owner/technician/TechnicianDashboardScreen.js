@@ -1,11 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import {
-  ClipboardList, Hammer, CheckCircle2, Clock, ChevronRight, Wrench, CalendarDays,
+  ClipboardList,
+  Hammer,
+  CheckCircle2,
+  Clock,
+  Wrench,
+  CalendarDays,
 } from 'lucide-react-native';
 import {
-  AppHeader, Card, SectionTitle, StatusChip, BookingCard, EmptyState, Loader, ErrorState,
-  ScreenContainer, Button, Skeleton,
+  AppHeader,
+  Card,
+  SectionTitle,
+  BookingCard,
+  EmptyState,
+  ErrorState,
+  ScreenContainer,
+  Button,
+  Skeleton,
 } from '../../../components/rnr';
 import { tokens } from '../../../theme/colors';
 import { ticketApi } from '../../../api/client';
@@ -80,7 +92,7 @@ export default function TechnicianDashboardScreen({ navigation }) {
     <ScreenContainer>
       <AppHeader title="My Work" subtitle="Today's tickets at a glance" />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 32, width: '100%', maxWidth: 720, alignSelf: 'center' }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.primary} />}
       >
         <View className="flex-row px-3 pt-4 -mx-1">

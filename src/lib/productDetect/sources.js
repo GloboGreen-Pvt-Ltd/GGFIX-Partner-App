@@ -16,12 +16,18 @@ async function visual(photo, { ocrText } = {}) {
 }
 
 export default {
-  async identify(photo) {
-    const r = await identifyDevice(asset(photo), { limit: 8 });
-    if (!r.configured || r.error) return { ok: false, error: r.error || 'not configured' };
+  async identify(photo, { ocrText, source } = {}) {
+    const r = await identifyDevice(asset(photo), { limit: 8, ocrText, source });
+    if (!r.configured || r.error) return { ok: false, error: r.error || 'not configured', retryAfterSeconds: r.retryAfterSeconds ?? null };
     return {
       ok: true,
+      // Groq vision is an AI guess: ranks candidates, never auto-selects (core.js).
+      ai: r.provider === 'groq',
       confidence: r.confidence,
+      // Server verdict (newer servers): NONE drops its list, EXACT names the model.
+      identification: r.identification || null,
+      exactId: r.identification === 'EXACT' ? r.exactMatch?.id || null : null,
+      scanId: r.scanId || null,
       label: r.recognisedAs || null,
       brand: r.brand || null,
       labels: r.labels || [],
