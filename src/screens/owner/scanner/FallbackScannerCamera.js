@@ -18,7 +18,7 @@ function reticle(layout) {
   return { x: (vw - w) / 2 / vw, y: (vh - h) / 2 / vh, w: w / vw, h: h / vh };
 }
 
-function FallbackScannerCameraImpl({ isActive, torch, hint, onCodes }, ref) {
+function FallbackScannerCameraImpl({ isActive, torch, hint, onCodes, onCameraError }, ref) {
   const camRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
@@ -66,7 +66,10 @@ function FallbackScannerCameraImpl({ isActive, torch, hint, onCodes }, ref) {
         barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
         onBarcodeScanned={isActive ? onBarcode : undefined}
         onCameraReady={() => setReady(true)}
-        onMountError={(e) => console.warn('[SCANNER] camera mount error:', e?.message || String(e))}
+        onMountError={(e) => {
+          console.warn('[SCANNER] camera mount error:', e?.message || String(e));
+          onCameraError?.(e);
+        }}
       />
       {layout.width ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>

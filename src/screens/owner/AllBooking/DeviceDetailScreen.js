@@ -17,11 +17,23 @@ import {
   Clock,
   Images,
   ScanLine,
+  Lock,
   Store,
   User,
   Wrench,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
+
+// Saved device lock for the detail view: type + value ("PIN · 1234",
+// "Pattern · 7,4,9,5"), so the technician can unlock the device.
+function securityText(type, value) {
+  const t = String(type || 'NONE').toUpperCase();
+  if (t === 'NONE') return 'No lock';
+  const label = t === 'PIN' ? 'PIN' : t === 'PASSWORD' ? 'Password' : t === 'PATTERN' ? 'Pattern' : t.charAt(0) + t.slice(1).toLowerCase();
+  let v = value == null ? '' : String(value).trim();
+  if (t === 'PATTERN') v = v.split(',').map((d) => d.trim()).filter(Boolean).join(',');
+  return v ? `${label} · ${v}` : label;
+}
 import { notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand } from '../../../api/masterData';
@@ -589,7 +601,6 @@ export default function DeviceDetailScreen({ route, navigation }) {
               value={scheduleDeliveryText || 'Not yet set'}
               sub="Estimated handover time"
               done={!!scheduleDeliveryText}
-              isLast={!showImei && ticket.customerApproval == null}
             />
             {showImei ? (
               <TimelineRow
@@ -597,19 +608,22 @@ export default function DeviceDetailScreen({ route, navigation }) {
                 label="IMEI"
                 value={imeiText || 'Not captured yet'}
                 done={!!imeiText}
-                isLast={ticket.customerApproval == null}
               />
             ) : null}
-            {/* Real ticket.customerApproval data, as before. */}
-            {ticket.customerApproval != null ? (
-              <TimelineRow
-                icon={CheckCircle2}
-                label="Customer Booking Approval"
-                value={ticket.customerApproval ? 'Approved' : 'Pending'}
-                done={ticket.customerApproval === true}
-                isLast
-              />
-            ) : null}
+            <TimelineRow
+              icon={Lock}
+              label="Device Security"
+              value={securityText(ticket.deviceSecurityType, ticket.deviceSecurityValue)}
+              done={!!ticket.deviceSecurityType && String(ticket.deviceSecurityType).toUpperCase() !== 'NONE'}
+            />
+            {/* Always shown: not recorded yet reads as Pending. */}
+            <TimelineRow
+              icon={CheckCircle2}
+              label="Customer Booking Approval"
+              value={ticket.customerApproval === true ? 'Approved' : 'Pending'}
+              done={ticket.customerApproval === true}
+              isLast
+            />
           </View>
 
           {/* ── Re-Estimated Summary — its own card, only once re-estimated ── */}
