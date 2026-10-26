@@ -268,7 +268,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
   // Tablets: a centred, capped column; saved slots 2 across on wide screens.
-  const capStyle = winW >= 768 ? { width: Math.min(winW - 32, 760), alignSelf: 'center' } : null;
+  const capStyle = winW >= 600 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null;
   const slotCols = winW >= 700 ? 2 : 1;
 
   // This screen's own header replaces the stack header.
@@ -811,8 +811,10 @@ const styles = StyleSheet.create({
   fieldValue: { flex: 1, fontSize: 13, fontWeight: '700', color: C.text },
   fieldInput: { flex: 1, height: '100%', paddingVertical: 0, fontSize: 13, fontWeight: '700', color: C.text },
 
-  row: { flexDirection: 'row', gap: 8 },
-  col: { flex: 1, minWidth: 0 },
+  // Wraps on narrow phones (<360pt): the third field drops to its own line
+  // instead of squeezing all three below a readable width.
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  col: { flex: 1, minWidth: 96 },
 
   circleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 4 },
   dayCircle: {

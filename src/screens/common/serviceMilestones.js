@@ -240,7 +240,7 @@ function PhotoStrip({ urls, onOpen }) {
   if (!urls.length) return null;
   const shown = urls.slice(0, 4);
   return (
-    <View className="flex-row" style={{ marginTop: 6 }}>
+    <View className="flex-row" style={{ marginTop: 6, flexWrap: 'wrap', rowGap: 6 }}>
       {shown.map((u, i) => (
         <TouchableOpacity key={u} activeOpacity={0.85} onPress={() => onOpen(i)} style={{ marginRight: 6 }}>
           <Image source={{ uri: u }} style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: '#F3F4F6' }} />

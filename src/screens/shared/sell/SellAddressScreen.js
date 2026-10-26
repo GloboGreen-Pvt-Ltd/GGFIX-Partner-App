@@ -31,7 +31,7 @@ export default function SellAddressScreen({ navigation, route }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 120, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <View className="mb-2">
           <Text className="text-[13px] font-extrabold text-text">Where should we pick up?</Text>
           <Text className="text-[11px] text-text-muted mt-0.5">Free doorstep pickup across serviceable areas.</Text>

@@ -42,6 +42,7 @@ import ReminderCard, { REMINDER_CARD_WIDTH } from './ReminderCard';
 import { formatMoney } from './revenueMath';
 import { getSession } from '../../auth/session';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import {
   C,
   S,
@@ -118,6 +119,10 @@ const timeOf = (iso) => {
 
 export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablet: entries, action bar and sheets capped and centred (phones: full width).
+  const r = useResponsive();
+  const listCap = { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' };
+  const sheetCap = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
   const partyId = route.params?.partyId;
   // Passed through from the list so the header has a name to show on the very
   // first frame, before the statement lands.
@@ -790,12 +795,12 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.green} colors={[C.green]} />
           }
-          contentContainerStyle={{
+          contentContainerStyle={[{
             paddingHorizontal: S.gutter,
             paddingTop: S.xs,
             paddingBottom: S.xl,
             flexGrow: 1,
-          }}
+          }, listCap]}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center px-10">
               <View
@@ -836,6 +841,7 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
           paddingBottom: bottomInset(insets.bottom, S.sm),
         }}
       >
+        <View style={listCap}>
         {/* Contact + statement strip. These act on the ACCOUNT, so they sit
             above the balance rather than beside Received/Given, which record a
             single movement. */}
@@ -1012,6 +1018,7 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
             </Text>
           </Pressable>
         </View>
+        </View>
       </View>
 
       {/* ── More ─────────────────────────────────────────────────────────
@@ -1037,6 +1044,7 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
                   paddingTop: S.lg,
                   paddingBottom: bottomInset(insets.bottom, S.lg),
                   paddingHorizontal: S.lg,
+                  ...sheetCap,
                 }}
               >
                 <View className="flex-row flex-wrap" style={{ rowGap: S.lg }}>
@@ -1120,6 +1128,7 @@ export default function OwnerLedgerPartyDetailScreen({ navigation, route }) {
                   paddingTop: S.lg,
                   paddingBottom: bottomInset(insets.bottom, S.lg),
                   paddingHorizontal: S.lg,
+                  ...sheetCap,
                 }}
               >
                 {entryAction ? (
@@ -1213,7 +1222,7 @@ function QuickAction({ icon: Icon, label, onPress }) {
       accessibilityRole="button"
       accessibilityLabel={label}
       className="items-center active:opacity-60"
-      style={{ paddingVertical: S.tight }}
+      style={{ paddingVertical: S.tight, flexShrink: 1, minWidth: 0 }}
     >
       <View
         className="items-center justify-center"

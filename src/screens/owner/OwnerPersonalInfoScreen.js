@@ -11,10 +11,10 @@ import {
   Animated,
   Easing,
   Platform,
-  KeyboardAvoidingView,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -74,7 +74,7 @@ export default function OwnerPersonalInfoScreen() {
   const r = useResponsive();
   // Tablet/iPad: cap the column and centre it so a form doesn't stretch
   // edge-to-edge. Phones keep contentW undefined and are unaffected.
-  const contentW = r.isTablet ? Math.min(r.width - rs(32), 900) : undefined;
+  const contentW = r.isTablet ? Math.min(r.width - rs(32), r.maxWidth('form')) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
   // Avatar scales with the device class: smaller on small phones, larger on tablets.
   const avatarSize = r.isTablet ? rs(76) : r.isSmallPhone ? rs(52) : rs(60);
@@ -269,7 +269,7 @@ export default function OwnerPersonalInfoScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? rs(8) : 0}
       >
         <ScrollView

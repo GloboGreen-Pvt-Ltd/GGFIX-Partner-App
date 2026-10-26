@@ -16,6 +16,7 @@ import {
   IdCard,
   CreditCard,
 } from 'lucide-react-native';
+import { useResponsive } from '../../theme/responsive';
 
 const BRAND_GREEN      = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -43,6 +44,8 @@ const DOCS = [
 ];
 
 export default function OwnerKycIntroScreen({ navigation }) {
+  // Tablet: cap and centre the content column (phones: full width).
+  const r = useResponsive();
   return (
     <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -83,7 +86,7 @@ export default function OwnerKycIntroScreen({ navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
       >
         {/* Hero card */}
         <View style={cardShadow}>

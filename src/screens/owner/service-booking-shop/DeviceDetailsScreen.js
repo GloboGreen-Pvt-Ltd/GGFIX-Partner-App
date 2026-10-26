@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions,
+  ActivityIndicator, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, ClipboardList, FileText, Plus, PowerOff, Search, Smartphone, Wrench, X } from 'lucide-react-native';
 import { ResponsiveModal } from '../../../components/responsive';
 import { rf, rs } from '../../../utils/responsive';
@@ -497,8 +498,12 @@ export default function DeviceDetailsScreen({ navigation, route }) {
         </View>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+      {/* KeyboardAwareScrollView (repo pattern): lifts the focused field above
+          the keyboard on both platforms; the old iOS-only KeyboardAvoidingView
+          shrank the view but never scrolled the input into sight. */}
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          bottomOffset={24}
           contentContainerStyle={{ padding: 14, paddingBottom: 24, alignItems: 'center' }}
           keyboardShouldPersistTaps="handled"
         >
@@ -923,8 +928,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
               </View>
             ) : null}
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
 
       {/* ── Working device: Choose Description Type ── */}
       <ResponsiveModal visible={!!descFor} onClose={() => setDescFor(null)}>
@@ -956,14 +960,14 @@ export default function DeviceDetailsScreen({ navigation, route }) {
       </ResponsiveModal>
 
       {/* ── Next only (the header arrow goes back) ───────────────────────── */}
-      <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 14, paddingTop: 10, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: '#FFFFFF' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 10, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: '#FFFFFF' }}>
         <Pressable
           onPress={onNext}
           disabled={!ready}
           accessibilityRole="button"
           accessibilityLabel="Next"
           className="flex-1 flex-row items-center justify-center active:opacity-85"
-          style={{ height: 48, borderRadius: 12, backgroundColor: ACCENT, opacity: ready ? 1 : 0.45 }}
+          style={{ height: 48, maxWidth: 760, borderRadius: 12, backgroundColor: ACCENT, opacity: ready ? 1 : 0.45 }}
         >
           <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Next</Text>
           <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.25} style={{ marginLeft: 8 }} />

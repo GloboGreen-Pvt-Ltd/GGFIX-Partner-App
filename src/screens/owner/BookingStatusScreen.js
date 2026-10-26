@@ -303,6 +303,8 @@ export default function BookingStatusScreen({ navigation }) {
                 label={t.label}
                 value={pad2(countFor(t))}
                 onPress={() => openReport(t)}
+                // 2 per row on phones, all 4 in one row on tablets.
+                basis={r.isTablet ? '22%' : '45%'}
               />
             ))}
           </View>
@@ -349,7 +351,7 @@ function SectionHeader({ title, subtitle }) {
 
 // One of the 2x2 metric cards — small mint icon well beside the count and
 // label (colour-coding lives on the Working Pending rows below, not here).
-function MetricCard({ icon: Icon, label, value, onPress }) {
+function MetricCard({ icon: Icon, label, value, onPress, basis = '45%' }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -357,7 +359,7 @@ function MetricCard({ icon: Icon, label, value, onPress }) {
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
       style={{
-        flexGrow: 1, flexBasis: '45%',
+        flexGrow: 1, flexBasis: basis,
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: CARD_BG, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9,
         borderWidth: 1, borderColor: HAIR, ...cardShadow,

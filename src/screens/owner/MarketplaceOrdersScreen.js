@@ -195,8 +195,8 @@ function OrderCard({ item, showPrice, isSell, hasOrder, onPress }) {
             {meta.short.toUpperCase()}
           </Text>
         </View>
-        <View className="flex-row items-center">
-          <Text className="font-bold" style={{ fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
+        <View className="flex-row items-center" style={{ flexShrink: 1, marginLeft: 8 }}>
+          <Text className="font-bold" style={{ flexShrink: 1, fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 0.3 }} numberOfLines={1}>
             #GGFIX{orderId}
           </Text>
           {/* Same real destination as the whole card — a decorative
@@ -337,7 +337,7 @@ function BottomNavMimic({ navigation, activeKey }) {
             >
               <ItemIcon size={18} color={active ? ACCENT : TEXT_PRIMARY} strokeWidth={2} />
             </View>
-            <Text className="font-bold" style={{ fontSize: 10, color: active ? PRIMARY : TEXT_PRIMARY, marginTop: 2 }}>
+            <Text className="font-bold" style={{ fontSize: 10, color: active ? PRIMARY : TEXT_PRIMARY, marginTop: 2 }} numberOfLines={1}>
               {it.label}
             </Text>
           </Pressable>

@@ -121,6 +121,7 @@ import OwnerQrCodeScreen from '../screens/owner/OwnerQrCodeScreen';
 import OwnerModelCompatibilityScreen from '../screens/owner/OwnerModelCompatibilityScreen';
 import RepairServiceBookingShop from '../screens/owner/service-booking-shop/RepairServiceBookingShop';
 import ScanImeiScreen from '../screens/owner/service-booking-shop/ScanImeiScreen';
+import DevicePhotoCaptureScreen from '../screens/owner/service-booking-shop/DevicePhotoCaptureScreen';
 import ScanQrCodeScreen from '../screens/owner/service-booking-shop/ScanQrCodeScreen';
 import ShopServiceStatusScreen from '../screens/owner/ShopServiceStatusScreen';
 import OwnerLeaveRequestsScreen from '../screens/owner/OwnerLeaveRequestsScreen';
@@ -498,6 +499,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="RepairServiceBookingShop" component={RepairServiceBookingShop} options={{ headerShown: false }} />
       <Stack.Screen name="ScanQrCode" component={ScanQrCodeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ScanImei" component={ScanImeiScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="DevicePhotoCapture" component={DevicePhotoCaptureScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopServiceStatus" component={ShopServiceStatusScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="DeviceDetail" component={DeviceDetailScreen} options={{ headerShown: false }} />

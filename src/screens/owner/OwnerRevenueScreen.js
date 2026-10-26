@@ -18,6 +18,7 @@ import { EmptyState, Loader } from '../../components/rnr';
 import { ticketApi } from '../../api/client';
 import { hasInvoice } from './AllBooking/bookingScopes';
 import { dayLabel, formatMoney } from './revenueMath';
+import { useResponsive } from '../../theme/responsive';
 
 // GGFIX brand sheet (theme/colors.js).
 const GREEN = '#035C6C';
@@ -159,6 +160,9 @@ async function mapLimit(items, limit, fn) {
 
 export default function OwnerRevenueScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: period strip + invoice list share one capped, centred column.
+  const capStyle = { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' };
   const [rows, setRows] = useState([]); // { ticket, invoice }
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -260,7 +264,7 @@ export default function OwnerRevenueScreen({ navigation }) {
                 <Text className="text-[10px] font-extrabold" style={{ color: GREEN_TEXT }}>{invoiceNo}</Text>
               ) : null}
               {trackingId ? (
-                <Text className="text-[10px]" style={{ color: MUTED }}>{invoiceNo ? '  ·  ' : ''}#{trackingId}</Text>
+                <Text className="text-[10px] flex-shrink" style={{ color: MUTED }} numberOfLines={1}>{invoiceNo ? '  ·  ' : ''}#{trackingId}</Text>
               ) : null}
               {customer ? (
                 <View className="flex-row items-center flex-shrink">
@@ -334,7 +338,7 @@ export default function OwnerRevenueScreen({ navigation }) {
       </LinearGradient>
 
       {/* ── Period totals (all four always visible) ─────────────── */}
-      <View className="flex-row" style={{ paddingHorizontal: 10, paddingTop: 10 }}>
+      <View className="flex-row" style={[{ paddingHorizontal: 10, paddingTop: 10 }, capStyle]}>
         {PERIODS.map((p) => {
           const active = period === p.key;
           return (
@@ -390,7 +394,7 @@ export default function OwnerRevenueScreen({ navigation }) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />
           }
-          contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 2, paddingBottom: 24 }}
+          contentContainerStyle={[{ paddingHorizontal: 10, paddingTop: 2, paddingBottom: 24 + insets.bottom }, capStyle]}
           ListEmptyComponent={
             <EmptyState
               icon={<ReceiptIndianRupee size={26} color={GREEN} />}

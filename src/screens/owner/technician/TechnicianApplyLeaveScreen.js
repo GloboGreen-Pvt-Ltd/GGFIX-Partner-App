@@ -4,10 +4,10 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 
@@ -66,7 +66,8 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      {/* Keeps the focused field (incl. the reason box) above the keyboard. */}
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={16}>
         <Text style={styles.label}>Start date</Text>
         <TextInput
           style={styles.input}
@@ -99,14 +100,14 @@ export default function TechnicianApplyLeaveScreen({ navigation }) {
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>Submit request</Text>}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#111111' },
-  content: { padding: 12, paddingBottom: 24 },
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
   label: { fontSize: 13, color: '#9CA3AF', marginBottom: 5 },
   input: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#111111', borderRadius: 8, padding: 11, fontSize: 13, color: '#F3F4F6', marginBottom: 12 },
   textArea: { minHeight: 70, textAlignVertical: 'top' },

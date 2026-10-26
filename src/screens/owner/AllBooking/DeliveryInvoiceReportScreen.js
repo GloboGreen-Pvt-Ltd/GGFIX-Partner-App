@@ -20,6 +20,7 @@ import { getSession } from '../../../auth/session';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
 import { getModel, parseModelNumbers } from '../../../api/masterData';
 import { splitDisplayName } from './DeviceDetailScreen';
+import { useResponsive } from '../../../theme/responsive';
 
 // expo-print / expo-sharing / expo-file-system are platform-native; require
 // lazily so the web bundle (and dev environments without the modules
@@ -106,6 +107,7 @@ function enteredAddress(raw, regions) {
 
 export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [invoice, setInvoice] = useState(null);
@@ -578,7 +580,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               ₹{fmt(invoice.finalPayableAmount)}
             </Text>
           </View>
-          <View className="items-end pb-1">
+          <View className="flex-1 items-end pb-1 ml-3">
             <Text className="text-[9.5px] text-text-muted">Delivery date</Text>
             <Text className="text-text text-[11px] font-bold mt-0.5" numberOfLines={1}>
               {formatDateTime(invoice.generatedAt || invoice.deliveryDate)}
@@ -625,7 +627,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
       >
         {/* Letterhead + Meta — shop legal name on the left, invoice
             metadata on the right. Delivery Date now reflects the moment

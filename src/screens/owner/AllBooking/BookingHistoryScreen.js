@@ -158,6 +158,81 @@ function inDateRange(d, filter) {
   }
 }
 
+// Parent booking number of a device on a multi-device booking (GTS-001 for
+// GTS-001-A), or null for a single-device ticket. Prefers the server's
+// bookingNumber + deviceSuffix; falls back to the -A/-B tail of the id.
+function bulkKeyOf(t) {
+  if (!t) return null;
+  if (t.deviceSuffix && t.bookingNumber) return String(t.bookingNumber);
+  const m = String(t.trackingId || '').match(/^([A-Z0-9]TS-\d{3,})-[A-Z]{1,2}$/);
+  return m ? m[1] : null;
+}
+
+// Payment chips, one per line (label left, value right): Estimate, what was
+// collected (Advance / Full Paid), Balance. A delivered booking was settled
+// at the counter, so it reads Full Paid rather than "Pay on delivery".
+// Shared by the booking card and the bulk device list, so both read the same.
+function payRowsFor(item) {
+  const inv = item._invoice;
+  if (inv) {
+    const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+    const paid = (Number(inv.advancePaid) || 0) + (Number(inv.amountPaid) || 0);
+    const credit = Number(inv.creditAmount) || 0;
+    return [
+      { label: 'Bill', short: 'Bill', value: inr(inv.finalPayableAmount), fg: '#035C6C', bg: '#E5F3F5' },
+      { label: 'Paid', short: 'Paid', value: inr(paid), fg: '#15803D', bg: '#DCFCE7' },
+      credit > 0
+        ? { label: 'Balance', short: 'Bal', value: inr(credit), fg: '#B45309', bg: '#FFEDD5' }
+        : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
+    ];
+  }
+  const estimateNum = Number(estimatedTotalOf(item)) || 0;
+  const billTotal = Number(item.finalPrice ?? estimateNum) || 0;
+  const pay = paymentFromTicket(item, billTotal);
+  const deliveredPaid = String(item.status || '').toUpperCase() === 'DELIVERED';
+  const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+  const balanceNum = deliveredPaid ? 0 : pay ? pay.balance : billTotal;
+  return [
+    { label: 'Estimate', short: 'Est', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
+    deliveredPaid || pay?.label === 'Full Payment'
+      ? { label: 'Full Paid', short: 'Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
+      : pay
+        ? { label: 'Advance', short: 'Adv', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
+        : { label: 'Payment', short: 'Pay', value: 'on delivery', fg: '#6B7280', bg: '#F3F4F6' },
+    balanceNum > 0
+      ? { label: 'Balance', short: 'Bal', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
+      : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
+  ];
+}
+
+// The booking card's right-side amount: invoice total once raised, else the estimate.
+const deviceAmount = (item) => Number(item._invoice?.finalPayableAmount ?? item.finalPrice ?? estimatedTotalOf(item)) || 0;
+// Ticket statuses past "Invoice Generated" — the only rows worth an invoice fetch.
+const INVOICED_STATUS = /READY|INVOICE|DELIVER|COMPLETE|CLOSE|RETURN/i;
+const inrAmount = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+// The same compact chips the booking card shows under the device colour.
+function PayChips({ item, style }) {
+  return (
+    <View className="flex-row flex-wrap" style={[{ gap: 3 }, style]}>
+      {payRowsFor(item).map((r) => (
+        <View key={r.label} style={{ paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 5, backgroundColor: r.bg }}>
+          <Text className="text-[9px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>
+            {r.short} {r.value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// "2 Mobiles" when every device of a bulk booking is a phone, else "3 Devices".
+function bulkCountLabel(devices) {
+  const n = devices.length;
+  const allMobile = devices.every((d) => /mobile|phone/i.test(String(d.deviceCategory || d.categoryName || d.categoryCode || 'MOBILE')));
+  return `${n} ${allMobile ? (n === 1 ? 'Mobile' : 'Mobiles') : (n === 1 ? 'Device' : 'Devices')}`;
+}
+
 function formatDate(d) {
   if (!d) return null;
   const date = new Date(d);
@@ -415,10 +490,30 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   // Booking card tap → action grid (Status first, then the card's other actions).
   const [bookingMenuFor, setBookingMenuFor] = useState(null);
+  // Bulk booking card tap → device list first; the bulk group the action grid
+  // was opened from, so closing it goes back to that list.
+  const [devicePickerFor, setDevicePickerFor] = useState(null);
+  const [menuFromBulk, setMenuFromBulk] = useState(null);
   const fromBookingMenu = (fn) => () => {
     const b = bookingMenuFor;
     setBookingMenuFor(null);
+    setMenuFromBulk(null);
     setTimeout(() => fn(b), 320);
+  };
+  // Device row → the same action grid, for that device's own ticket. Two RN
+  // Modals swapping in one tick is unreliable, so let the list slide away first.
+  const openDeviceActions = (group, device) => {
+    setDevicePickerFor(null);
+    setMenuFromBulk(group);
+    setTimeout(() => setBookingMenuFor(device), 320);
+  };
+  // Closing the action grid without picking an action: back to the device
+  // list when it came from one, otherwise just closed.
+  const closeBookingMenu = () => {
+    const group = menuFromBulk;
+    setBookingMenuFor(null);
+    setMenuFromBulk(null);
+    if (group) setTimeout(() => setDevicePickerFor(group), 320);
   };
   // Same rules the old action row used: Re-Est / Reschedule only on the
   // Re-Estimated list, no Assign on the Invoice list, Invoice only once there
@@ -616,6 +711,12 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   // Fetch all bookings (search server-side; status/date/tab filtering happens
   // client-side so the tab counts always reflect the full result set).
+  // Kept across reloads, so coming back to this screen (e.g. after generating
+  // an invoice) costs one /tickets call instead of re-fetching every lookup and
+  // every booking's invoice before the list can update.
+  const lookupsRef = useRef({ ramById: null, storageById: null, modelById: {}, brands: new Set() });
+  const invoiceCacheRef = useRef(new Map()); // ticketId → { key, inv }
+
   const load = useCallback(
     async (isRefresh = false) => {
       if (isRefresh) setRefreshing(true);
@@ -626,28 +727,43 @@ export default function BookingHistoryScreen({ navigation, route }) {
         // computed off this one page, so it has to be big enough to hold a
         // shop's whole book — at size 50 the header read "50 Bookings" for any
         // busier shop and the preset counts capped out with it.
+        // A child ticket number (GTS-058-A) searches by its parent (GTS-058),
+        // so every device of that bulk booking comes back and groups into the
+        // one parent card instead of a lone child card.
+        const rawQ = (queryRef.current || '').trim();
+        const childQ = rawQ.replace(/^#/, '').match(/^([A-Z0-9]TS-\d{3,})-[A-Z]{1,2}$/i);
         const data = await ticketApi.get('/tickets', {
-          query: { page: 0, size: 500, q: queryRef.current || undefined },
+          query: { page: 0, size: 500, q: (childQ ? childQ[1].toUpperCase() : rawQ) || undefined },
         });
         const content = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
         // Enrich each ticket with the model's catalog image and proper name —
         // tickets don't always carry deviceImageUrl / deviceDisplayName, but we
         // have brandId+modelId on every row.
-        const brandIds = Array.from(new Set(content.map((t) => t.brandId).filter(Boolean)));
-        const modelById = {};
+        const L = lookupsRef.current;
+        // Only brands not fetched yet this session.
+        const brandIds = Array.from(new Set(content.map((t) => t.brandId).filter(Boolean))).filter((b) => !L.brands.has(b));
+        const modelById = L.modelById;
         // Master RAM/Storage options so the ticket's option UUIDs can be shown as
         // human labels ("8 GB" / "128 GB") on the card's RAM · Storage line.
-        const [ramOpts, storageOpts] = await Promise.all([
-          getRamOptions().catch(() => []),
-          getStorageOptions().catch(() => []),
-        ]);
-        const ramById = {}; (ramOpts || []).forEach((r) => { ramById[r.id] = r.label; });
-        const storageById = {}; (storageOpts || []).forEach((s) => { storageById[s.id] = s.label; });
+        if (!L.ramById) {
+          const [ramOpts, storageOpts] = await Promise.all([
+            getRamOptions().catch(() => null),
+            getStorageOptions().catch(() => null),
+          ]);
+          const ramById = {}; (ramOpts || []).forEach((r) => { ramById[r.id] = r.label; });
+          const storageById = {}; (storageOpts || []).forEach((s) => { storageById[s.id] = s.label; });
+          // A failed fetch isn't cached — the next load tries again.
+          if (ramOpts && storageOpts) { L.ramById = ramById; L.storageById = storageById; }
+          else { L.tmpRam = ramById; L.tmpStorage = storageById; }
+        }
+        const ramById = L.ramById || L.tmpRam || {};
+        const storageById = L.storageById || L.tmpStorage || {};
         if (brandIds.length) {
           await Promise.all(brandIds.map(async (bId) => {
             try {
               const models = await getModelsByBrand(bId);
               (models || []).forEach((m) => { modelById[m.id] = m; primeModelCategory(m); });
+              L.brands.add(bId);
             } catch (_) {}
           }));
         }
@@ -666,7 +782,32 @@ export default function BookingHistoryScreen({ navigation, route }) {
             _modelImage: t.deviceImageUrl || modelUrl || null,
           };
         });
+        // The invoice (bill total, paid, credit) lives on its own row, not the
+        // ticket — without it a closed booking whose estimate was 0 read
+        // "Est ₹0 · Paid ₹0 · Bal Settled" even with a credit still owed.
+        // Last-known invoices fill the list instantly; every invoice is then
+        // re-read (an edited invoice can change without the ticket changing).
+        const invCache = invoiceCacheRef.current;
+        const invKey = (t) => t.id;
+        const stale = [];
+        enriched.forEach((t) => {
+          if (!INVOICED_STATUS.test(String(t.status || ''))) return;
+          const c = invCache.get(t.id);
+          if (c?.inv) t._invoice = c.inv;
+          stale.push(t);
+        });
+        // Show the fresh list now; changed rows get their invoice right after.
         setItems(enriched);
+        if (stale.length) {
+          await Promise.all(stale.map(async (t) => {
+            const inv = await ticketApi.get(`/tickets/${t.id}/invoice`).catch(() => undefined);
+            if (inv === undefined) return; // failed — not cached, retried next load
+            const ok = inv && inv.finalPayableAmount != null ? inv : null;
+            invCache.set(t.id, { key: invKey(t), inv: ok });
+            if (ok) t._invoice = ok;
+          }));
+          setItems([...enriched]);
+        }
       } catch (e) {
         setError(e.message || 'Failed to load bookings');
       } finally {
@@ -746,10 +887,44 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   const selectScope = (key) => setScopeKey(key);
 
+  // Bulk bookings: the devices of one multi-device booking (GTS-001-A, -B …)
+  // collapse into ONE card, placed where its newest device would sort. A lone
+  // visible device (the scope filtered out its siblings) stays a normal card.
+  const rows = useMemo(() => {
+    if (isPickupScope) return visible;
+    // A booking that started single (GTS-001, no suffix) and later got
+    // GTS-001-B: the original joins its siblings' card by its own id.
+    const bulkKeys = new Set(visible.map(bulkKeyOf).filter(Boolean));
+    const keyFor = (t) => bulkKeyOf(t) || (bulkKeys.has(t.trackingId) ? t.trackingId : null);
+    const groups = new Map();
+    for (const t of visible) {
+      const key = keyFor(t);
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    }
+    const out = [];
+    const placed = new Set();
+    for (const t of visible) {
+      const key = keyFor(t);
+      const devices = key ? groups.get(key) : null;
+      if (!devices || devices.length < 2) { out.push(t); continue; }
+      if (placed.has(key)) continue;
+      placed.add(key);
+      out.push({
+        id: `bulk:${key}`,
+        _bulk: true,
+        bookingNumber: key,
+        devices: devices.slice().sort((a, b) => String(a.trackingId).localeCompare(String(b.trackingId))),
+      });
+    }
+    return out;
+  }, [visible, isPickupScope]);
+
   // Pad to an even count in 2-col mode so the last lone card stays half-width.
-  const listData = numCols > 1 && visible.length % 2 === 1
-    ? [...visible, { id: '__ghost__', _ghost: true }]
-    : visible;
+  const listData = numCols > 1 && rows.length % 2 === 1
+    ? [...rows, { id: '__ghost__', _ghost: true }]
+    : rows;
 
   // ── Pickup card ───────────────────────────────────────────────────
   // Pickup rows are repair-bookings, not tickets: no device/model catalog data
@@ -856,8 +1031,90 @@ export default function BookingHistoryScreen({ navigation, route }) {
   };
 
   // ── Card row ──────────────────────────────────────────────────────
+  // ── Bulk booking card — one card for every device of GTS-001-A, -B …; a tap
+  // opens the device list, never an action on the parent number.
+  const renderBulk = (group) => {
+    const first = group.devices[0] || {};
+    const newest = group.devices.reduce((acc, d) => (new Date(d.createdAt || 0) > new Date(acc.createdAt || 0) ? d : acc), first);
+    const customerName = first.customerName || first.customerFullName || first.customer?.name || '-';
+    const phone = first.customerPhone || first.customer?.phone || '';
+    const dateStr = formatDate(newest.createdAt);
+    const timeStr = formatTime(newest.createdAt);
+    return (
+      <Pressable
+        onPress={() => setDevicePickerFor(group)}
+        className="bg-card rounded-2xl mb-2 active:opacity-90"
+        style={{
+          flex: numCols > 1 ? 1 : undefined,
+          padding: 10,
+          borderWidth: 1,
+          borderColor: '#E5E7EB',
+          shadowColor: '#111111',
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 2,
+        }}
+      >
+        <View className="flex-row items-start">
+          <View className="h-12 w-12 rounded-2xl bg-success/10 items-center justify-center mr-2.5">
+            <Smartphone size={22} color={ACCENT_GREEN} />
+          </View>
+          <View className="flex-1 pr-2">
+            <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
+              <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>BULK BOOKING · #{group.bookingNumber}</Text>
+            </View>
+            <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{bulkCountLabel(group.devices)}</Text>
+            <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>
+              {group.devices.map((d) => d.trackingId).join(' · ')}
+            </Text>
+          </View>
+          <View className="items-end" style={{ maxWidth: 118 }}>
+            {dateStr ? (
+              <View className="flex-row items-center">
+                <Calendar size={11} color="#6B7280" />
+                <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
+              </View>
+            ) : null}
+            {timeStr ? <Text className="text-[10.5px] text-text-muted mt-0.5">{timeStr}</Text> : null}
+            {/* Whole booking: every device's amount added up. */}
+            <Text className="text-[12px] font-extrabold mt-0.5" style={{ color: ACCENT_GREEN }} numberOfLines={1}>
+              {inrAmount(group.devices.reduce((sum, d) => sum + deviceAmount(d), 0))}
+            </Text>
+          </View>
+        </View>
+
+        <View className="h-px bg-border my-2" />
+        <View className="flex-row items-center py-0.5">
+          <View className="w-4 items-center mr-1.5"><User size={11} color="#6B7280" /></View>
+          <Text className="text-[10px] text-text-muted w-16">Customer</Text>
+          <Text className="text-[11px] text-text font-semibold" style={{ flexShrink: 1 }} numberOfLines={1}>
+            {customerName}{phone ? ` · ${phone}` : ''}
+          </Text>
+        </View>
+        {/* One line per device: its own ticket number, model and status. */}
+        {group.devices.map((d) => {
+          const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
+          const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
+          return (
+            <View key={d.id} className="flex-row items-center" style={{ marginTop: 5 }}>
+              <Text className="text-[10.5px] font-extrabold" style={{ color: ACCENT_GREEN, width: 78 }} numberOfLines={1}>{d.trackingId}</Text>
+              <Text className="text-[11px] text-text font-semibold" style={{ flex: 1, minWidth: 0, marginRight: 6 }} numberOfLines={1}>
+                {d._modelName || d.deviceDisplayName || d.deviceModelName || d.modelName || 'Device'}
+              </Text>
+              <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border, maxWidth: 110 }}>
+                <Text className="text-[8.5px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>{meta.label.toUpperCase()}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </Pressable>
+    );
+  };
+
   const renderItem = ({ item }) => {
     if (item._ghost) return <View style={{ flex: 1, marginHorizontal: 0 }} />;
+    if (item._bulk) return renderBulk(item);
     const deviceName = item._modelName || item.deviceDisplayName || item.deviceModelName || item.modelName || 'Device';
     const deviceImage = item._modelImage || item.deviceImageUrl || null;
     const specs = [item._modelNumber, item._ramStorage].filter(Boolean).join(' - ');
@@ -873,28 +1130,9 @@ export default function BookingHistoryScreen({ navigation, route }) {
     // Invoice total (finalPrice) once one is raised, otherwise the estimate —
     // summed from the line items when estimatedPrice is null. Always shown,
     // ₹0 included, so a missing price reads as zero rather than a blank card.
-    const amountNum = Number(item.finalPrice ?? estimatedTotalOf(item)) || 0;
+    const amountNum = deviceAmount(item);
     const amountStr = `₹${amountNum.toLocaleString('en-IN')}`;
-    // Payment rows, one per line (label left, value right): Estimate, what was
-    // collected (Advance / Full Paid), Balance. A delivered booking was settled
-    // at the counter, so it reads Full Paid rather than "Pay on delivery".
-    const estimateNum = Number(estimatedTotalOf(item)) || 0;
-    const billTotal = Number(item.finalPrice ?? estimateNum) || 0;
-    const pay = paymentFromTicket(item, billTotal);
-    const deliveredPaid = String(item.status || '').toUpperCase() === 'DELIVERED';
-    const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
-    const balanceNum = deliveredPaid ? 0 : pay ? pay.balance : billTotal;
-    const payRows = [
-      { label: 'Estimate', short: 'Est', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
-      deliveredPaid || pay?.label === 'Full Payment'
-        ? { label: 'Full Paid', short: 'Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
-        : pay
-          ? { label: 'Advance', short: 'Adv', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
-          : { label: 'Payment', short: 'Pay', value: 'on delivery', fg: '#6B7280', bg: '#F3F4F6' },
-      balanceNum > 0
-        ? { label: 'Balance', short: 'Bal', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
-        : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
-    ];
+    const payRows = payRowsFor(item);
 
     // A card tap opens Update Service Status. Every *destination* the card could
     // navigate to is already a labelled button in the row underneath, so the tap
@@ -1262,7 +1500,8 @@ return (
               colors={[ACCENT_GREEN]}
             />
           }
-          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: tabSpace }}
+          // Single column (phones, narrow tablets): cap the cards so they don't stretch.
+          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: tabSpace, ...(numCols === 1 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null) }}
           ListEmptyComponent={
             <EmptyState
               icon={<ClipboardList size={26} color={ACCENT_GREEN} />}
@@ -1290,6 +1529,10 @@ return (
               paddingTop: 10,
               paddingBottom: 16,
               maxHeight: winH * 0.78,
+              // Tablets: a centred sheet, not a full-width strip.
+              width: '100%',
+              maxWidth: 560,
+              alignSelf: 'center',
             }}
           >
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
@@ -1403,8 +1646,16 @@ return (
           with it. */}
       {/* Booking actions — opened by tapping a booking card. Home tool-tile
           look: white icon on a teal / green / blue / grey disc, 4 per row. */}
-      <ResponsiveModal visible={!!bookingMenuFor} onClose={() => setBookingMenuFor(null)}>
+      <ResponsiveModal visible={!!bookingMenuFor} onClose={closeBookingMenu}>
         <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        {menuFromBulk ? (
+          <Pressable onPress={closeBookingMenu} hitSlop={6} className="flex-row items-center active:opacity-70" style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
+            <ArrowLeft size={14} color={ACCENT_GREEN} />
+            <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: '700', color: ACCENT_GREEN }}>
+              All devices · {menuFromBulk.bookingNumber}
+            </Text>
+          </Pressable>
+        ) : null}
         <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
           {bookingMenuFor ? (bookingMenuFor._modelName || bookingMenuFor.deviceDisplayName || bookingMenuFor.deviceModelName || bookingMenuFor.modelName || 'Booking') : ''}
         </Text>
@@ -1434,6 +1685,63 @@ return (
             );
           })}
         </View>
+      </ResponsiveModal>
+
+      {/* Bulk booking → pick a device; its row opens the action grid above for
+          that device's own ticket (never the parent number). */}
+      <ResponsiveModal visible={!!devicePickerFor} onClose={() => setDevicePickerFor(null)} scrollable>
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
+        <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: ACCENT_GREEN }}>BULK BOOKING · {devicePickerFor?.bookingNumber}</Text>
+        </View>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+          {devicePickerFor
+            ? [devicePickerFor.bookingNumber, bulkCountLabel(devicePickerFor.devices), devicePickerFor.devices[0]?.customerName].filter(Boolean).join(' · ')
+            : ''}
+        </Text>
+        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
+          Tap a device to see its actions
+        </Text>
+        {(devicePickerFor?.devices || []).map((d) => {
+          const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
+          const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
+          const image = d._modelImage || d.deviceImageUrl || null;
+          return (
+            <Pressable
+              key={d.id}
+              onPress={() => openDeviceActions(devicePickerFor, d)}
+              accessibilityRole="button"
+              accessibilityLabel={`${d.trackingId} actions`}
+              className="flex-row items-center active:opacity-80"
+              style={{ padding: 10, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+            >
+              <View className="items-center justify-center overflow-hidden" style={{ height: 44, width: 44, borderRadius: 12, backgroundColor: 'rgba(3, 92, 108, 0.10)', marginRight: 10 }}>
+                {image ? <Image source={{ uri: image }} style={{ width: 44, height: 44 }} resizeMode="cover" /> : <Smartphone size={20} color={ACCENT_GREEN} />}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }}>#{d.trackingId}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>
+                  {d._modelName || d.deviceDisplayName || d.deviceModelName || d.modelName || 'Device'}
+                </Text>
+                {/* Its own issue / services — each device is a separate repair. */}
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>
+                  {d.repairServicesSummary || (d.services?.map?.((s) => s.serviceName).join(', ')) || d.issueDescription || '—'}
+                </Text>
+                {/* This device's own Est / Adv / Bal — same chips as its card. */}
+                <PayChips item={d} style={{ marginTop: 4 }} />
+              </View>
+              <View className="items-end" style={{ marginLeft: 6, maxWidth: 120 }}>
+                <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: tone.fg }} numberOfLines={1}>{meta.label.toUpperCase()}</Text>
+                </View>
+                {/* Right-side amount, as on the booking card: invoice total, else estimate. */}
+                <Text style={{ fontSize: 12, fontWeight: '800', color: ACCENT_GREEN, marginTop: 4 }} numberOfLines={1}>
+                  {inrAmount(deviceAmount(d))}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </ResponsiveModal>
 
       <ServiceStatusSheet

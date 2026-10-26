@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, View, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight } from 'lucide-react-native';
 import { Button } from './Button';
 import { cn } from './cn';
@@ -24,15 +25,19 @@ export function BottomActionBar({
   priceValue,
   priceCaption,
   children,
-  insetBottom = 20,
+  insetBottom,
   safeArea = true,
 }) {
   const hasPrice = priceLabel != null || priceValue != null;
+  // Callers that don't pass insetBottom still clear the iOS home indicator
+  // (Android reports 0 under SystemBarGuard, so this stays the old 20 there).
+  const insets = useSafeAreaInsets();
+  const bottomPad = insetBottom ?? Math.max(20, insets.bottom + 8);
   return (
     <View
       className={cn('absolute left-0 right-0 bottom-0 bg-card border-t border-border px-4 pt-3', className)}
       style={{
-        paddingBottom: safeArea ? insetBottom : 12,
+        paddingBottom: safeArea ? bottomPad : 12,
         shadowColor: '#111111',
         shadowOpacity: 0.10,
         shadowRadius: 16,
@@ -40,7 +45,7 @@ export function BottomActionBar({
         elevation: 14,
       }}
     >
-      <View className="flex-row items-center">
+      <View className="flex-row items-center" style={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {hasPrice ? (
           <View className="mr-3" style={{ maxWidth: '46%' }}>
             {priceCaption ? <Text className="text-[11px] text-text-muted" numberOfLines={1}>{priceCaption}</Text> : null}

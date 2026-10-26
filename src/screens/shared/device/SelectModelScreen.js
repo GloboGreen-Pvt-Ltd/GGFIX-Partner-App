@@ -8,6 +8,7 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Smartphone, Check, Pencil, Plus, X, Search, ArrowLeft } from 'lucide-react-native';
 import { EmptyState, Loader, ScreenHeader } from '../../../components/rnr';
 import DeviceImage from '../../../components/DeviceImage';
@@ -617,8 +618,12 @@ export default function SelectModelScreen({ navigation, route }) {
 
       {/* Type-in sheet for a model the catalogue doesn't carry. */}
       {otherOpen ? (
-        <View className="absolute inset-0 items-center justify-center px-6" style={{ backgroundColor: 'rgba(17, 17, 17, 0.55)' }}>
-          <View className="w-full bg-card rounded-2xl p-5">
+        // keyboard-controller KAV keeps the auto-focused input above the keyboard on short phones.
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(17, 17, 17, 0.55)' }}
+        >
+          <View className="w-full bg-card rounded-2xl p-5" style={{ maxWidth: 480 }}>
             <Text className="text-[13px] font-extrabold text-text">Other model</Text>
             <Text className="text-[12px] text-text-muted mt-1 leading-4">
               {brandName ? `Brand: ${brandName}. ` : ''}Type the model as printed on the device.
@@ -658,7 +663,7 @@ export default function SelectModelScreen({ navigation, route }) {
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       ) : null}
     </View>
   );

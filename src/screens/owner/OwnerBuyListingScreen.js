@@ -55,6 +55,7 @@ import { OfferBanner } from '../../components/rnr';
 import { notify } from '../../components/confirm';
 import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import { tintFor } from '../shared/categoryTints';
+import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
 const GREEN       = '#035C6C';
@@ -165,11 +166,16 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   const isSmall = winW < 360;
   const isTablet = winW >= 768;
   const padH = 16;
+  // Tablets: the list column is capped and centred (r.maxWidth), so the hero
+  // pages are sized off that column, not the full window.
+  const r = useResponsive();
+  const listW = r.maxWidth('list');
+  const capStyle = { width: '100%', maxWidth: listW, alignSelf: 'center' };
   // The hero carousel lives inside the FlatList content container, which is
   // inset by (padH - 2) on each side — so its real page/viewport width is the
   // window width minus that gutter, NOT winW. Using winW overflows the viewport
   // and desyncs paging + dots.
-  const heroW = winW - 2 * (padH - 2);
+  const heroW = listW - 2 * (padH - 2);
 
   const [cats, setCats] = useState([]);
   // categoryMenuKey -> imageUrl from the active BUY Category Menu rows.
@@ -965,7 +971,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
           }}
         >
-          <View style={{ paddingHorizontal: padH }}>
+          <View style={[{ paddingHorizontal: padH }, capStyle]}>
             {/* Back · Buy (+subtitle) · Cart */}
             <View className="flex-row items-center">
               <Pressable
@@ -976,8 +982,8 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
                 <ChevronLeft size={20} color="#111111" />
               </Pressable>
               <View className="flex-1 items-center">
-                <Text className="text-text text-[17px] font-extrabold">Buy</Text>
-                <Text className="text-text-muted text-[11px] font-medium mt-0.5">Buy devices, spares & more</Text>
+                <Text className="text-text text-[17px] font-extrabold" numberOfLines={1}>Buy</Text>
+                <Text className="text-text-muted text-[11px] font-medium mt-0.5" numberOfLines={1}>Buy devices, spares & more</Text>
               </View>
               <Pressable
                 onPress={() => navigation.navigate('OwnerCart')}
@@ -1058,7 +1064,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           renderItem={renderItem}
           ListHeaderComponent={ListHeader}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />}
-          contentContainerStyle={{ paddingHorizontal: padH - 2, paddingBottom: 110 }}
+          contentContainerStyle={[{ paddingHorizontal: padH - 2, paddingBottom: 110 }, capStyle]}
           ListEmptyComponent={
             browsing ? (
               <View className="items-center pt-10 px-8">
@@ -1078,7 +1084,8 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 17, 17, 0.45)' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowFilters(false)} />
           {/* Pads this modal window's own nav-bar / home-indicator inset. */}
-          <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
+          {/* Tablets: capped and centred rather than spanning the screen. */}
+          <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
             <View className="flex-row items-center justify-between mb-3">
               <Text className="text-[13px] font-extrabold text-gray-900">Filters</Text>
@@ -1136,7 +1143,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           {({ insets, keyboard }) => (
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17, 17, 17, 0.45)', paddingBottom: keyboard }}>
               <Pressable style={{ flex: 1 }} onPress={() => setShowBrands(false)} />
-              <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 22 + (keyboard > 0 ? 0 : insets.bottom), maxHeight: '78%' }}>
+              <View style={{ width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 22 + (keyboard > 0 ? 0 : insets.bottom), maxHeight: '78%' }}>
                 <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
                 <View className="flex-row items-center justify-between">
                   <View className="flex-1 pr-2">

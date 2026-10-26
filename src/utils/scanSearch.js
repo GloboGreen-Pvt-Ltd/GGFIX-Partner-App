@@ -162,10 +162,11 @@ const KNOWN_BRANDS = [
 ];
 
 // GGFIX tracking IDs look like a short letter prefix + digits (e.g.
-// CSPEN1014799), or the partner-scoped {letter}TS-{seq} (e.g. GTS-001) — matches
-// how `splitTrackingId` (DeviceDetailScreen.js) and the printed slip
+// CSPEN1014799), or the partner-scoped {letter}TS-{seq} (e.g. GTS-001), with a
+// device suffix on multi-device bookings (GTS-001-A) — matches how
+// `splitTrackingId` (DeviceDetailScreen.js) and the printed slip
 // (BarcodePrintScreen.js) already treat them.
-const TRACKING_ID_RE = /\b([A-Z]{3,6}\d{6,12}|[A-Z0-9]TS-\d{3,})\b/g;
+const TRACKING_ID_RE = /\b([A-Z]{3,6}\d{6,12}|[A-Z0-9]TS-\d{3,}(?:-[A-Z]{1,2})?)\b/g;
 const IMEI_RE = /\b(\d{14,17})\b/g;
 // A "model code" here means a compact alphanumeric SKU, not a full sentence:
 // "A2215", "SM-S928B", "GA04123-IN" — letters+digits, 4–12 chars, at least

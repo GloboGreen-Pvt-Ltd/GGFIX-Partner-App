@@ -7,8 +7,10 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
   ChevronLeft,
   Phone,
@@ -132,6 +134,9 @@ function useVoiceRecorder() {
 // ─────────────────────────────────────── bubble renderer
 
 function MessageBubble({ m, mine }) {
+  // Image attachments: 220 wide, but never wider than the bubble on a 320pt phone.
+  const { width: winW } = useWindowDimensions();
+  const imgW = Math.min(220, Math.floor((winW - 24) * 0.82) - 28);
   const bubbleBg = m.failed
     ? 'bg-red-100 border border-red-300 rounded-2xl rounded-br-sm'
     : mine
@@ -148,7 +153,7 @@ function MessageBubble({ m, mine }) {
         {isImage ? (
           <Image
             source={{ uri: m.attachmentUrl }}
-            style={{ width: 220, height: 160, borderRadius: 10, marginBottom: m.body ? 6 : 0 }}
+            style={{ width: imgW, height: Math.round(imgW * 160 / 220), borderRadius: 10, marginBottom: m.body ? 6 : 0 }}
             resizeMode="cover"
           />
         ) : null}
@@ -262,10 +267,9 @@ export default function ShopChatThreadScreen({ navigation, route }) {
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
-  // The Android window resizes when the keyboard opens (adjustResize), so the OS
-  // itself lifts the composer above the keyboard — no KeyboardAvoidingView or
-  // manual padding needed (either would double-lift or leave a residual gap on
-  // dismiss). We only track whether the keyboard is open, to switch the
+  // The composer is lifted by keyboard-controller's KeyboardAvoidingView below
+  // (edge-to-edge Android no longer resizes the window, and iOS never did). It
+  // measures the overlap itself, so it cannot double-lift. Here we only track whether the keyboard is open, to switch the
   // composer's bottom padding (small while typing vs. nav-bar clearance closed).
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
@@ -408,7 +412,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
         </View>
       </SafeAreaView>
 
-      <View className="flex-1">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           className="flex-1"
@@ -514,7 +518,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
             </View>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

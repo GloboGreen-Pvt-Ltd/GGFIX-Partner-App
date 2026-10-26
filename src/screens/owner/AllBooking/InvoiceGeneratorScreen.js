@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useResponsive } from '../../../theme/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -137,6 +139,10 @@ function priceItemsFromTicket(ticket) {
 
 export default function InvoiceGeneratorScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: cap the form column and centre it (sticky bar matches via padding).
+  const formW = r.maxWidth('form');
+  const barPadX = Math.max(16, (r.width - formW) / 2);
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [existing, setExisting] = useState(null);
@@ -508,18 +514,21 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
+      {/* KeyboardAwareScrollView lifts the focused field above the keyboard;
+          bottomOffset clears the sticky total/CTA bar. */}
+      <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
+        bottomOffset={120}
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 130, width: '100%', maxWidth: formW, alignSelf: 'center' }}
       >
         {/* (A) Service Charges — single row matching the reference:
             label on the left, narrow input on the right. */}
         <View className="px-4" style={{ marginTop: 12 }}>
           <View className="bg-white rounded-2xl p-4" style={cardShadow}>
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13px] font-bold text-gray-900">
+              <Text className="flex-1 mr-2 text-[13px] font-bold text-gray-900">
                 (A) Service Charges
               </Text>
               <View
@@ -1009,13 +1018,14 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             ) : null}
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Sticky CTA — live total on the left, action button on the right so
           the owner always sees the payable amount update as they edit. */}
       <View
-        className="absolute left-0 right-0 bottom-0 px-4 pt-2.5"
+        className="absolute left-0 right-0 bottom-0 pt-2.5"
         style={{
+          paddingHorizontal: barPadX,
           paddingBottom: insets.bottom + 12,
           backgroundColor: 'rgba(229, 243, 245, 0.98)',
           borderTopWidth: 1,

@@ -159,7 +159,7 @@ export default function SellSelectDeviceScreen({ navigation, route }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {/* Category context banner */}
         {presetCategoryName ? (
           <View className={`border rounded-xl p-2.5 mb-3 flex-row items-center ${meta?.bg || 'bg-primary/5'} border-primary/15`}>

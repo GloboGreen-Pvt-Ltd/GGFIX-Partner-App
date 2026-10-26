@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useResponsive } from '../../../theme/responsive';
 import {
   Smartphone, Tablet, Laptop, Watch, Headphones, Volume2,
 } from 'lucide-react-native';
@@ -49,7 +50,9 @@ const GRID_COLUMNS = 5;
 
 export default function ChooseDeviceScreen({ navigation, route }) {
   const params = route?.params || {};
-  const { width } = useWindowDimensions();
+  // Live width, capped on tablets so the five cards don't balloon.
+  const r = useResponsive();
+  const width = r.maxWidth('list');
   const numColumns = GRID_COLUMNS;
   const horizontalPadding = 16;
   const gap = 8;
@@ -116,7 +119,7 @@ export default function ChooseDeviceScreen({ navigation, route }) {
         <Loader label="Loading categories..." />
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: 24, width: '100%', maxWidth: width, alignSelf: 'center' }}
           showsVerticalScrollIndicator={false}
         >
           {cats.length === 0 ? (

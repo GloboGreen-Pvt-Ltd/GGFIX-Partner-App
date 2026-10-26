@@ -6,6 +6,7 @@ import { Badge, Chip, EmptyState, Loader, ScreenHeader } from '../../components/
 import { listShopRepairBookings } from '../../api/orders';
 import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
 import { SCOPES, statusOf } from './AllBooking/bookingScopes';
+import { useResponsive } from '../../theme/responsive';
 
 // DELIVERED is a closed pickup (bookingScopes PICKUP_CLOSED) — bucket it with
 // COMPLETED so it isn't counted as Active yet hidden from every filter.
@@ -152,6 +153,7 @@ function Detail({ icon: Icon, label, value }) {
 }
 
 export default function OwnerPickupServiceListScreen({ navigation }) {
+  const r = useResponsive();
   const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -234,7 +236,7 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
         <FlatList
           data={items}
           keyExtractor={(it) => String(it.id)}
-          contentContainerStyle={{ padding: 12, paddingBottom: 48 }}
+          contentContainerStyle={{ padding: 12, paddingBottom: 48 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} tintColor="#035C6C" />}
           renderItem={({ item }) => (
             <PickupRow

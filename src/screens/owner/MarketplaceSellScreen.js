@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StatusBar, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Smartphone,
@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   MapPin,
 } from 'lucide-react-native';
+import { useResponsive } from '../../theme/responsive';
 
 // Swiggy / Zomato green palette — matches customer SellHomeScreen visual language.
 const GREEN       = '#035C6C';
@@ -57,7 +58,11 @@ const TILES = [
 ];
 
 export default function MarketplaceSellScreen({ navigation }) {
-  const { width } = useWindowDimensions();
+  const r = useResponsive();
+  // Tablets: content is capped and centred, so size the grid off that column,
+  // not the full window (two half-screen cards on an iPad were enormous).
+  const width = r.maxWidth('list');
+  const capStyle = { width: '100%', maxWidth: width, alignSelf: 'center' };
   const padH = 16;
   // 2-column grid for the category cards. Match the customer SellHome's
   // gap so the visual rhythm is consistent across both apps.
@@ -79,7 +84,7 @@ export default function MarketplaceSellScreen({ navigation }) {
             borderBottomColor: '#E5E7EB',
           }}
         >
-          <View style={{ paddingHorizontal: padH }}>
+          <View style={[{ paddingHorizontal: padH }, capStyle]}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {navigation?.canGoBack?.() ? (
                 <Pressable
@@ -99,8 +104,9 @@ export default function MarketplaceSellScreen({ navigation }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Store size={14} color="#111111" />
                   <Text
+                    numberOfLines={1}
                     style={{
-                      color: '#111111', fontWeight: '800', fontSize: 13,
+                      flexShrink: 1, color: '#111111', fontWeight: '800', fontSize: 13,
                       marginLeft: 4, letterSpacing: 0.5,
                     }}
                   >
@@ -113,7 +119,7 @@ export default function MarketplaceSellScreen({ navigation }) {
                     numberOfLines={1}
                     style={{
                       color: '#6B7280', fontWeight: '700', fontSize: 13,
-                      maxWidth: width - 160, marginLeft: 4,
+                      flexShrink: 1, maxWidth: width - 160, marginLeft: 4,
                     }}
                   >
                     Listings reach nearby buyers
@@ -183,7 +189,7 @@ export default function MarketplaceSellScreen({ navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={[{ paddingBottom: 32 }, capStyle]}
       >
         {/* Promise tiles */}
         <View style={{ flexDirection: 'row', paddingHorizontal: padH, marginTop: 14 }}>

@@ -505,7 +505,8 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             <Pressable onPress={() => setShowSwitcher(false)} style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.5)', justifyContent: 'flex-end' }}>
               <Pressable
                 onPress={(e) => e.stopPropagation()}
-                style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28 + insets.bottom }}
+                // Tablets: cap and centre the sheet.
+                style={{ width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28 + insets.bottom }}
               >
                 <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: LIGHT, marginBottom: 12 }} />
                 <View className="flex-row items-center justify-between">

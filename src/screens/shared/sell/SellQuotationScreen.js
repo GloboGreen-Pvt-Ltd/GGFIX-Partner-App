@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import colors from '../../../theme/colors';
 import { Loader, Empty } from '../../../components/ui';
 import { getSellOrderQuotations } from '../../../api/orders';
@@ -27,6 +27,8 @@ export default function SellQuotationScreen({ route }) {
   return (
     <View style={styles.container}>
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Total Quotation : {items.length}</Text>
+      {/* Scrolls once the list outgrows the screen. */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
       <View style={styles.table}>
         <View style={styles.headerRow}>
           <Text style={[styles.cell, { fontWeight: '700' }]}>S.No</Text>
@@ -45,6 +47,7 @@ export default function SellQuotationScreen({ route }) {
           </View>
         ))}
       </View>
+      </ScrollView>
     </View>
   );
 }

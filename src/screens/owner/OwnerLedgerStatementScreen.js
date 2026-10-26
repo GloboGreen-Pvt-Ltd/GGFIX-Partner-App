@@ -29,6 +29,7 @@ import { notifyDownloaded, saveToDownloads } from '../../lib/downloads';
 import { getSession } from '../../auth/session';
 import { formatMoney } from './revenueMath';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import { C, S, SIZE, T, bottomInset, headerStyle } from './ledgerUi';
 import LedgerDateSheet from './LedgerDateSheet';
 import {
@@ -156,6 +157,10 @@ function sinceLastZero(entries) {
 
 export default function OwnerLedgerStatementScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablet: statement, action bar and sheet capped and centred (phones: full width).
+  const resp = useResponsive();
+  const listCap = { width: '100%', maxWidth: resp.maxWidth('list'), alignSelf: 'center' };
+  const barSide = Math.max(S.gutter, (resp.width - resp.maxWidth('form')) / 2);
   const partyId = route.params?.partyId;
   const seed = route.params?.party || null;
 
@@ -576,14 +581,16 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
           data={view.rows}
           keyExtractor={(e) => e.id}
           renderItem={renderRow}
-          contentContainerStyle={{ paddingBottom: S.xl, flexGrow: 1 }}
+          contentContainerStyle={[{ paddingBottom: S.xl, flexGrow: 1 }, listCap]}
           ListHeaderComponent={
             <>
               {/* The figure the whole screen is about. */}
               <View className="items-center" style={{ paddingVertical: S.lg }}>
                 <Text
                   className="font-extrabold"
-                  style={{ fontSize: T.hero, color: tone.danger ? C.red : C.green }}
+                  style={{ fontSize: T.hero, color: tone.danger ? C.red : C.green, paddingHorizontal: S.gutter }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
                 >
                   {money(statement.balance)}
                 </Text>
@@ -645,7 +652,7 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
         style={{
           borderTopWidth: 1,
           borderTopColor: C.hairline,
-          paddingHorizontal: S.gutter,
+          paddingHorizontal: barSide,
           paddingTop: S.sm,
           paddingBottom: bottomInset(insets.bottom, S.sm),
           gap: S.sm,
@@ -719,6 +726,9 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
                   paddingTop: S.lg,
                   paddingBottom: bottomInset(insets.bottom, S.lg),
                   paddingHorizontal: S.xl,
+                  width: '100%',
+                  maxWidth: resp.maxWidth('form'),
+                  alignSelf: 'center',
                 }}
               >
                 <Text

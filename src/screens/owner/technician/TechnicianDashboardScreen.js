@@ -92,7 +92,7 @@ export default function TechnicianDashboardScreen({ navigation }) {
     <ScreenContainer>
       <AppHeader title="My Work" subtitle="Today's tickets at a glance" />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 32, width: '100%', maxWidth: 720, alignSelf: 'center' }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.primary} />}
       >
         <View className="flex-row px-3 pt-4 -mx-1">

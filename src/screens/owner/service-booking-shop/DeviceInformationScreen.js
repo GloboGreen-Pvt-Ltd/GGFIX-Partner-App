@@ -20,6 +20,7 @@ import {
   IndianRupee,
   UserCheck,
   MessageSquareText,
+  PackageX,
   Timer,
   Calendar,
   Clock,
@@ -223,12 +224,10 @@ export default function DeviceInformationScreen({ navigation, route }) {
   // PIN + Password, Smartwatch / Audio Device none (no lock step).
   const specCategory = resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName);
   const lockTypes = lockTypesFor(specCategory);
-  // Missing / damaged parts is a Mobile-only step (unknown category keeps it);
-  // every other category goes straight to the devices list with none flagged.
-  const needsMissingParts = !specCategory || specCategory === 'MOBILE';
+  // Missing parts are taken on Device & Service Details now (params.missingParts).
   const goNext = (extra) => navigation.navigate(
-    needsMissingParts ? 'DeviceMissingParts' : 'ServiceBookingDevicesList',
-    { ...params, services, devicePhotos: photos, ...extra, ...(needsMissingParts ? null : { missingParts: [] }) },
+    'ServiceBookingDevicesList',
+    { ...params, services, devicePhotos: photos, ...extra },
   );
 
   // Next opens the Device Security Lock popup; its Continue advances the flow.
@@ -416,6 +415,30 @@ export default function DeviceInformationScreen({ navigation, route }) {
             ) : null}
             </View>
 
+            {/* Parts flagged on Device & Service Details. */}
+            {Array.isArray(params.missingParts) && params.missingParts.length ? (
+              <>
+                <View style={DIVIDER} />
+                <SubHead icon={PackageX} label="Device Missing Parts" />
+                <View className="flex-row flex-wrap" style={{ marginLeft: SUB_INDENT, marginTop: 4, gap: 6 }}>
+                  {params.missingParts.map((p) => (
+                    <View
+                      key={p.partId}
+                      style={{
+                        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1,
+                        borderColor: p.damage ? '#F84141' : '#F3BF23',
+                        backgroundColor: p.damage ? '#FEECEC' : '#FFF8E1',
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: p.damage ? '#D63232' : '#8A6A00' }}>
+                        {p.partName} · {p.damage ? 'Damaged' : 'Missing'}{p.detail ? ` — ${p.detail}` : ''}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
+
             <View style={DIVIDER} />
 
             {/* Repair timeline — Estimated Duration only when `durationHours` is on params. */}
@@ -569,7 +592,7 @@ function PriceInputRow({ label, value, onChangeText }) {
       <Text style={{ flex: 1, fontSize: 13, color: INK }}>{label}</Text>
       <View
         className="flex-row items-center"
-        style={{ marginLeft: 8, minWidth: 104, height: 36, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: MINT_LINE, backgroundColor: '#FFFFFF' }}
+        style={{ marginLeft: 8, minWidth: 104, minHeight: 36, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: MINT_LINE, backgroundColor: '#FFFFFF' }}
       >
         <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>₹</Text>
         <TextInput

@@ -153,7 +153,7 @@ export default function HelpSupportScreen({ navigation }) {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: rs(16), paddingTop: rs(12), paddingBottom: 28 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingTop: rs(12), paddingBottom: 28 + r.insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
         <View style={capStyle}>

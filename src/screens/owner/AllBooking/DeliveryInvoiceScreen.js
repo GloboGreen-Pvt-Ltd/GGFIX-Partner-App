@@ -23,6 +23,7 @@ import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
+import { useResponsive } from '../../../theme/responsive';
 
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -172,6 +173,10 @@ function DetailRow({ icon: Icon, label, value }) {
 
 export default function DeliveryInvoiceScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: cap the invoice column and centre it (sticky bar matches via padding).
+  const formW = r.maxWidth('form');
+  const barPadX = Math.max(16, (r.width - formW) / 2);
   const ticketId = route?.params?.ticketId;
   const [ticket, setTicket] = useState(null);
   const [events, setEvents] = useState([]);
@@ -317,7 +322,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120, width: '100%', maxWidth: formW, alignSelf: 'center' }}
       >
         {/* From (shop) letterhead */}
         <View className="px-4" style={{ marginTop: 12 }}>
@@ -431,7 +436,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
               <Text className="text-[10px] font-extrabold text-gray-400 flex-1" style={{ letterSpacing: 0.6 }}>DESCRIPTION</Text>
               <Text
                 className="text-[10px] font-extrabold text-gray-400 text-right"
-                style={{ width: 76, letterSpacing: 0.6 }}
+                style={{ minWidth: 76, letterSpacing: 0.6 }}
               >
                 AMOUNT
               </Text>
@@ -471,7 +476,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                 </View>
                 <Text
                   className="text-[12px] font-bold text-gray-900 text-right"
-                  style={{ width: 76 }}
+                  style={{ minWidth: 76 }}
                 >
                   ₹{Number(item.amount || 0).toLocaleString('en-IN')}
                 </Text>
@@ -622,8 +627,9 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
 
       {/* Sticky action bar */}
       <View
-        className="absolute left-0 right-0 bottom-0 flex-row px-4 pt-3"
+        className="absolute left-0 right-0 bottom-0 flex-row pt-3"
         style={{
+          paddingHorizontal: barPadX,
           paddingBottom: insets.bottom + 12,
           backgroundColor: 'rgba(229, 243, 245, 0.96)',
           borderTopWidth: 1,

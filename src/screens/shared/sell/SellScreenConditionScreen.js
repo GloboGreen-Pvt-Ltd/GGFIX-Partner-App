@@ -103,7 +103,7 @@ export default function SellScreenConditionScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {isEditing ? <EditingBanner text="Your previous condition picks are pre-selected." /> : null}
         <SellIntro title="Physical condition" caption="Pick the option that best matches each part of the device." />
         {groups.map((g) => {

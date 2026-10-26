@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ApiPicker } from '../../components/ApiPicker';
 import { useBrands, useModels, useRamOptions, useStorageOptions } from '../../api/hooks/useMasterData';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
 import { useImeiApplies } from '../../utils/imeiPolicy';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function CreateTicketScreen({ navigation }) {
   const [customerId, setCustomerId] = useState('');
@@ -53,7 +55,7 @@ export default function CreateTicketScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
       <Text style={styles.label}>Customer ID (UUID)</Text>
       <TextInput style={styles.input} placeholder="Customer UUID" placeholderTextColor="#6B7280" value={customerId} onChangeText={setCustomerId} />
 
@@ -78,13 +80,14 @@ export default function CreateTicketScreen({ navigation }) {
       <TouchableOpacity style={styles.button} onPress={handleCreate} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Ticket</Text>}
       </TouchableOpacity>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: '#111111' },
-  content: { padding: 12, paddingBottom: 24 },
+  // Tablets: cap and centre the form column.
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' },
   label: { fontSize: 13, color: '#9CA3AF', marginBottom: 4 },
   input: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#111111', borderRadius: 8, padding: 11, fontSize: 13, color: '#F3F4F6', marginBottom: 10 },
   button: { backgroundColor: '#035C6C', padding: 13, borderRadius: 8, alignItems: 'center', marginTop: 12 },

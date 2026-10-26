@@ -389,6 +389,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
           >
             <Touchable
               onPress={() => setCopies((c) => Math.max(1, c - 1))}
+              hitSlop={8}
               style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }}
               pressedStyle={{ opacity: 0.7 }}
             >
@@ -399,6 +400,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
             </View>
             <Touchable
               onPress={() => setCopies((c) => Math.min(10, c + 1))}
+              hitSlop={8}
               style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT }}
               pressedStyle={{ opacity: 0.8 }}
             >

@@ -70,7 +70,7 @@ export default function SellScreeningScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {isEditing ? <EditingBanner text="Your previous answers are pre-selected — change any below." /> : null}
         <SellIntro title="Quick device check" caption="Answer each question about the device's current condition." />
         {questions.map((q, i) => {

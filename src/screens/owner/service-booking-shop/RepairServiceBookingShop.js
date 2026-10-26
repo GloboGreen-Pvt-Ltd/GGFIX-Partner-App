@@ -21,13 +21,13 @@ import DeviceDetailsScreen from './DeviceDetailsScreen';
 import DeviceServicesScreen from './DeviceServicesScreen';
 import ServicePriceEstimateScreen from './ServicePriceEstimateScreen';
 import DeviceInformationScreen from './DeviceInformationScreen';
-import DeviceMissingPartsScreen from './DeviceMissingPartsScreen';
 import ServiceBookingDevicesListScreen from './ServiceBookingDevicesListScreen';
 import BookingThankYouScreen from './BookingThankYouScreen';
 import AssignTechnicianScreen from './AssignTechnicianScreen';
 import BookingSuccessfulScreen from './BookingSuccessfulScreen';
 import ScanQrCodeScreen from './ScanQrCodeScreen';
 import ScanImeiScreen from './ScanImeiScreen';
+import DevicePhotoCaptureScreen from './DevicePhotoCaptureScreen';
 import BookingStatusScreen from './BookingStatusScreen';
 
 const Stack = createNativeStackNavigator();
@@ -71,12 +71,12 @@ export default function RepairServiceBookingShop() {
       <Stack.Screen name="DeviceInformation" component={DeviceInformationScreen} />
       {/* Removed: DeviceSecurity. The lock is a popup on DeviceInformation
           (DeviceSecurityLockSheet) — it was the only live caller of this route. */}
-      <Stack.Screen name="DeviceMissingParts" component={DeviceMissingPartsScreen} />
       <Stack.Screen name="BookingThankYou" component={BookingThankYouScreen} />
       <Stack.Screen name="AssignTechnician" component={AssignTechnicianScreen} />
       <Stack.Screen name="BookingSuccessful" component={BookingSuccessfulScreen} />
       <Stack.Screen name="ScanQrCode" component={ScanQrCodeScreen} />
       <Stack.Screen name="ScanImei" component={ScanImeiScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="DevicePhotoCapture" component={DevicePhotoCaptureScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BookingStatus" component={BookingStatusScreen} />
     </Stack.Navigator>
   );

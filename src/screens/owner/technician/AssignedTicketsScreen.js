@@ -54,7 +54,7 @@ export default function AssignedTicketsScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#111111' },
   loader: { flex: 1, justifyContent: 'center' },
-  list: { padding: 12, paddingBottom: 24 },
+  list: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' },
   row: { backgroundColor: '#111111', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#111111' },
   tracking: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
   status: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },

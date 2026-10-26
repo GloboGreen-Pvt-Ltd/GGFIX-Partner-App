@@ -325,7 +325,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                 <Text style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{periodLabel}</Text>
                 <View style={{ width: 1, height: 10, backgroundColor: BORDER, marginHorizontal: 8 }} />
                 <IndianRupee size={10} color={MUTED} />
-                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 1 }}>{fmtINR(totalPrice) || '0'} total</Text>
+                <Text style={{ flexShrink: 1, fontSize: 11, color: MUTED, marginLeft: 1 }} numberOfLines={1}>{fmtINR(totalPrice) || '0'} total</Text>
               </View>
             </View>
             <View
@@ -417,6 +417,10 @@ export default function BookingStatusReportScreen({ navigation, route }) {
               <Pressable
                 onPress={(e) => e.stopPropagation()}
                 style={{
+                  // Tablets: cap and centre the sheet.
+                  width: '100%',
+                  maxWidth: r.maxWidth('form'),
+                  alignSelf: 'center',
                   backgroundColor: CARD_BG,
                   borderTopLeftRadius: 22,
                   borderTopRightRadius: 22,
@@ -566,13 +570,14 @@ function CardAction({ icon: Icon, label, tint, fg, onPress }) {
       onPress={onPress}
       android_ripple={{ color: BORDER }}
       accessibilityRole="button"
+      hitSlop={{ top: 7, bottom: 7 }}
       style={{
         flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        height: 30, borderRadius: 9, paddingHorizontal: 4, backgroundColor: tint,
+        minHeight: 30, borderRadius: 9, paddingHorizontal: 4, backgroundColor: tint,
       }}
     >
       <Icon size={12} color={fg} />
-      <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 11, color: fg }} numberOfLines={1}>
+      <Text className="font-extrabold" style={{ flexShrink: 1, marginLeft: 4, fontSize: 11, color: fg }} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>

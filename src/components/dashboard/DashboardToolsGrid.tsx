@@ -1,7 +1,7 @@
 import React from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import type { DashboardTool } from '../../types/dashboard';
-import { getSizeClass } from './theme';
+import { BREAKPOINTS, LARGE_PHONE_MIN, TILE_COLUMNS } from '../../theme/responsive';
 import { DashboardToolCard } from './DashboardToolCard';
 
 export interface DashboardToolsGridProps {
@@ -24,8 +24,9 @@ export interface DashboardToolsGridProps {
  *   >= 768  → 6 columns  (tablet / iPad)
  */
 export function getDashboardToolColumns(width: number): number {
-  const cls = getSizeClass(width);
-  return cls === 'tablet' ? 6 : cls === 'large' ? 5 : 4;
+  // The app-wide tile rule (theme/responsive TILE_COLUMNS): phone 4, large phone 5, tablet 6.
+  if (width >= BREAKPOINTS.tablet) return TILE_COLUMNS.tablet;
+  return width >= LARGE_PHONE_MIN ? TILE_COLUMNS.largePhone : TILE_COLUMNS.phone;
 }
 
 /**

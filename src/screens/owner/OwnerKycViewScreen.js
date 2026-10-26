@@ -72,9 +72,9 @@ function StatusPill({ status }) {
   const ui = STATUS_UI[status] || STATUS_UI.PENDING_REVIEW;
   const Icon = status === 'APPROVED' ? CheckCircle2 : ui.icon;
   return (
-    <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ui.tint }}>
+    <View className="flex-row items-center rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ui.tint, maxWidth: '100%' }}>
       <Icon size={11} color={ui.ink} strokeWidth={2.4} />
-      <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: ui.ink }}>{ui.label}</Text>
+      <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: ui.ink, flexShrink: 1 }} numberOfLines={1}>{ui.label}</Text>
     </View>
   );
 }
@@ -286,6 +286,7 @@ export default function OwnerKycViewScreen({ route, navigation }) {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={onEdit}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     accessibilityRole="button"
                     className="flex-row items-center rounded-full"
                     style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.green }}

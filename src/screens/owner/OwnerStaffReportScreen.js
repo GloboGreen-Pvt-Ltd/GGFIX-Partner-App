@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
+import { useResponsive } from '../../theme/responsive';
 
 const GREEN       = '#035C6C';
 const GREEN_DARK  = '#035C6C';
@@ -51,6 +52,7 @@ const cardShadow = {
  * employee's full attendance calendar.
  */
 export default function OwnerStaffReportScreen({ navigation, route }) {
+  const r = useResponsive();
   const mode = route?.params?.mode || 'attendance';
   const meta = MODE_META[mode] || MODE_META.attendance;
 
@@ -108,7 +110,8 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
   );
 
   const Stat = ({ label, value, focal }) => (
-    <View className="items-center px-2">
+    // Tighter on <360pt phones so four stats still leave room for the name.
+    <View className={`items-center ${r.isSmallPhone ? 'px-1' : 'px-2'}`}>
       <Text className="text-[13px] font-extrabold" style={{ color: focal ? meta.accent : '#111111' }}>
         {value}
       </Text>
@@ -172,7 +175,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
             </Pressable>
             <View className="flex-1 flex-row items-center justify-center">
               <HeaderIcon size={16} color="#111111" />
-              <Text className="text-center text-text text-[17px] font-extrabold ml-1.5">{meta.title}</Text>
+              <Text className="text-center text-text text-[17px] font-extrabold ml-1.5" style={{ flexShrink: 1 }} numberOfLines={1}>{meta.title}</Text>
             </View>
             <View className="h-9 w-9" />
           </View>
@@ -188,8 +191,8 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
                 <ChevronRight size={16} color="#111111" />
               </Pressable>
             </View>
-            <View className="bg-surface-muted rounded-full px-3 py-1.5">
-              <Text className="text-[11px] font-extrabold" style={{ color: GREEN_DARK }}>
+            <View className="bg-surface-muted rounded-full px-3 py-1.5 ml-2" style={{ flexShrink: 1 }}>
+              <Text className="text-[11px] font-extrabold" style={{ color: GREEN_DARK }} numberOfLines={1}>
                 Total {meta.title}: {total}{meta.unit ? ` ${meta.unit}` : ''}
               </Text>
             </View>
@@ -215,7 +218,7 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />
           }
-          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
           ListEmptyComponent={
             <View className="items-center pt-12 px-8">
               <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E5F3F5' }}>

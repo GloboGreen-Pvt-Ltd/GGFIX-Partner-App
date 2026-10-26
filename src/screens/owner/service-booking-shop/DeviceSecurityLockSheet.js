@@ -37,6 +37,7 @@ const RED = '#F84141';
 // square), so the same pad runs full size here and compact on Device & Service
 // Details.
 const CELL = rs(64);
+const ENTRY_CELL = rs(84); // pattern-only popup on Device & Service Details: 252 vs 192 pad
 
 function dotCenter(idx, cell) {
   const i = idx - 1;
@@ -344,7 +345,8 @@ export default function DeviceSecurityLockSheet({
       return (
         <View style={{ alignItems: 'center', marginTop: 10 }}>
           <View style={{ borderRadius: 16, padding: 8, backgroundColor: SOFT }}>
-            <PatternPad key={padKey} value={pattern} onChange={setPattern} onDrawStart={() => setDrawing(true)} onDrawEnd={() => setDrawing(false)} />
+            {/* Device & Service Details (entryOnly) gets a taller pad — easier to draw on. */}
+            <PatternPad key={padKey} value={pattern} onChange={setPattern} cell={entryOnly ? ENTRY_CELL : CELL} onDrawStart={() => setDrawing(true)} onDrawEnd={() => setDrawing(false)} />
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginTop: 8 }}>
             <Text style={{ flex: 1, fontSize: F.desc, color: patternDots >= 4 ? PRIMARY : SUB, fontWeight: '600' }} numberOfLines={1}>
@@ -503,7 +505,7 @@ export default function DeviceSecurityLockSheet({
       </Pressable>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
         <ShieldCheck size={12} color={SUB} strokeWidth={2} />
-        <Text style={{ fontSize: rf(11), fontWeight: '600', color: SUB, marginLeft: 5 }} numberOfLines={1}>{SECURE_NOTE}</Text>
+        <Text style={{ flexShrink: 1, fontSize: rf(11), fontWeight: '600', color: SUB, marginLeft: 5 }} numberOfLines={1}>{SECURE_NOTE}</Text>
       </View>
     </ResponsiveModal>
   );
@@ -520,7 +522,7 @@ const S = {
   },
   tile: { height: rs(34), width: rs(34), borderRadius: rs(10), alignItems: 'center', justifyContent: 'center' },
   input: {
-    marginTop: rs(8), height: rs(42), borderRadius: rs(10), paddingHorizontal: rs(12),
+    marginTop: rs(8), minHeight: rs(42), borderRadius: rs(10), paddingHorizontal: rs(12),
     backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: LINE, color: INK,
   },
 };

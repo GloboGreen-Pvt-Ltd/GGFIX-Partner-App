@@ -20,6 +20,7 @@ import {
   setNotificationsClearedAt,
 } from '../../api/notifications';
 import { confirm } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const timeOf = (v) => { const t = Date.parse(v || ''); return Number.isNaN(t) ? 0 : t; };
 
@@ -58,6 +59,7 @@ const categoryOf = (n) => {
 };
 
 export default function OwnerNotificationsScreen({ navigation }) {
+  const r = useResponsive();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -195,7 +197,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
               <ChevronLeft size={20} color="#111111" />
             </Pressable>
             <View className="flex-1 flex-row items-center justify-center">
-              <Text className="text-center text-text text-[17px] font-extrabold">Notifications</Text>
+              <Text className="text-center text-text text-[17px] font-extrabold" style={{ flexShrink: 1 }} numberOfLines={1}>Notifications</Text>
               {unread > 0 ? (
                 <View className="ml-2 rounded-full px-2 py-0.5 bg-surface-muted">
                   <Text className="text-text text-[11px] font-extrabold">{unread} new</Text>
@@ -261,7 +263,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />
           }
-          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
           ListEmptyComponent={
             error ? (
               <View className="items-center pt-14 px-8">

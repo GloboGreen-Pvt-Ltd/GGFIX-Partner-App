@@ -37,6 +37,8 @@ config.resolver.blockList = [
 // (assets/models/efficientdet_lite0.tflite, loaded by react-native-fast-tflite).
 // Metro only reads this at startup — restart it after changing this list.
 if (!config.resolver.assetExts.includes('tflite')) config.resolver.assetExts.push('tflite');
+// Weight shards of the pure-JS COCO-SSD fallback detector (assets/models/coco-ssd-lite).
+if (!config.resolver.assetExts.includes('bin')) config.resolver.assetExts.push('bin');
 
 // `inlineRem: false` is what makes spacing responsive app-wide.
 //

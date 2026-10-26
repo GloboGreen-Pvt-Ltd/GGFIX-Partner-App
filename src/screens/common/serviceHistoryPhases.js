@@ -83,6 +83,10 @@ const MUST_FOLLOW = {
 // "Step X of Y" only once they have actually happened.
 const ONLY_IF_HAPPENED = new Set(['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED', 'CANCELLED']);
 
+// Notes on the booking, not steps of the job: drawn only once they happened,
+// never counted in "Step X of Y", never the "Current" step.
+const MARKERS = new Set(['BOOKING_EDITED']);
+
 // A step that can't happen once its opposite did: a rejected estimate is never
 // approved, a cancelled job is never delivered.
 const RULED_OUT_BY = { CUSTOMER_APPROVED: 'CUSTOMER_REJECTED', DELIVERED: 'CANCELLED' };
@@ -119,6 +123,8 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   // reads "Assigned to Technician / Assigned to Afsal" without a status of its own.
   { value: 'BOOKING_CREATED_BY_SHOP',                       label: 'Booking Created by Shop',               phase: SERVICE, group: G_ACCEPTED },
   { value: 'SERVICE_ACCEPTED',                              label: 'Service Accepted',                      phase: SERVICE, group: G_ACCEPTED },
+  // Edit Booking saved (a marker — see MARKERS). Re-Estimate has its own row.
+  { value: 'BOOKING_EDITED',                                label: 'Booking Edited',                        phase: SERVICE, group: G_ACCEPTED },
   { value: 'ASSIGNED_TO_TECHNICIAN',                        label: 'Assigned to Technician',                phase: SERVICE, group: G_ACCEPTED },
   { value: 'AWAITING_TECHNICIAN_ACCEPTANCE',                label: 'Awaiting Technician Acceptance',        phase: SERVICE, group: G_ACCEPTED },
   { value: 'REASSIGNED_TO_TECHNICIAN',                      label: 'Re-Assigned to Technician',             phase: SERVICE, group: G_ACCEPTED },
@@ -563,9 +569,10 @@ function computeRowCompletion(allEvents, phaseFilter) {
   // only the doorstep-pickup rows (owner Pickup History / pickup-person
   // views), 'SERVICE' hides them (owner Service History / technician views).
   // No filter = both phases, with the walk-in-bookings hide rule kept below.
-  const visibleOptions = phaseFilter
+  const visibleOptions = (phaseFilter
     ? SHOP_BOOKING_STATUS_OPTIONS.filter((o) => o.phase === phaseFilter)
-    : SHOP_BOOKING_STATUS_OPTIONS;
+    : SHOP_BOOKING_STATUS_OPTIONS
+  ).filter((o) => !MARKERS.has(o.value) || !!eventByStatus[o.value]);
 
   // Which of the two endings the booking actually took. The shared handover
   // tail (Out for Delivery, Invoice Generated) has a row under BOTH branches,
@@ -586,6 +593,7 @@ function computeRowCompletion(allEvents, phaseFilter) {
   // the branch it took (Working Pending until a return trigger shows up),
   // minus forks it didn't take and steps their opposite has ruled out.
   const applies = (opt) => {
+    if (MARKERS.has(opt.value)) return false;
     if (opt.group === G_RETURN && !returnPathActive) return false;
     if (opt.group === G_PENDING && returnPathActive) return false;
     if (ONLY_IF_HAPPENED.has(opt.value)) return rowCompleted(opt);
@@ -638,7 +646,7 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter, visibleSta
   // the tied rows happened to come back in.
   const stepRank = (e) =>
     SHOP_BOOKING_STATUS_OPTIONS.findIndex((o) => o.value === (e.status || '').toUpperCase());
-  const sortedByTime = withoutSupersededVerdicts(events).slice().sort((a, b) => {
+  const sortedByTime = withoutSupersededVerdicts(events).filter((e) => !MARKERS.has((e.status || '').toUpperCase())).sort((a, b) => {
     const byTime = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     return byTime !== 0 ? byTime : stepRank(b) - stepRank(a);
   });
@@ -752,7 +760,7 @@ export function getCurrentPhaseLabel(events, status) {
   );
   if (terminal) return LABEL_BY_KEY[terminal];
 
-  const sorted = rows.slice().sort(
+  const sorted = rows.filter((e) => !MARKERS.has((e.status || '').toUpperCase())).sort(
     (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
   );
   const latest = sorted[0];

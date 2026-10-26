@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { inventoryApi } from '../../api/client';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function InventoryScreen() {
   const [list, setList] = useState([]);
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#111111' },
   loader: { flex: 1, justifyContent: 'center' },
   title: { fontSize: 17, fontWeight: '700', color: '#F3F4F6', padding: 12 },
-  list: { padding: 12, paddingBottom: 24 },
+  list: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
   row: { backgroundColor: '#111111', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#111111' },
   name: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
   qty: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
