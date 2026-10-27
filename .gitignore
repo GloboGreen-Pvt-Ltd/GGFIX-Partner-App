@@ -40,3 +40,8 @@ yarn-error.*
 # Gradle output of the nested native module (modules/ggfix-downloads/android/build).
 # The root `build/` rule is anchored, so it does not cover this one.
 modules/*/android/build/
+
+# local junk (Windows nul redirects, archives)
+/nul
+/_nul
+*.zip

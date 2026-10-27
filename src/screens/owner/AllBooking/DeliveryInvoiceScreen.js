@@ -61,10 +61,10 @@ const HANDOFF_STEPS = [
   },
   {
     key: 'DELIVERED_PROCESSING',
-    label: 'Delivered to Customer Processing',
+    label: 'Dispatched',
     hint: 'Mark when the handover has started but the customer has not yet received the device.',
-    confirmTitle: 'Start delivery handover?',
-    confirmMessage: 'Record that the delivery handover is in progress. The booking will move to "Delivered Processing" — it does NOT mark the device as delivered.',
+    confirmTitle: 'Mark as dispatched?',
+    confirmMessage: 'Record that the delivery handover is in progress. The booking will move to "Dispatched" — it does NOT mark the device as delivered.',
     Icon: Truck,
   },
   {
@@ -533,7 +533,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             <SectionHeader icon={ListChecks} label="BILLING & HANDOVER" />
             <Text className="text-[11px] text-gray-500 mb-3 leading-4">
               Record each step as it happens. The booking advances through
-              Invoice Generated → Invoice Ready → Delivered Processing →
+              Invoice Generated → Invoice Ready → Dispatched →
               Delivered to Customer.
             </Text>
             {HANDOFF_STEPS.map((step) => {

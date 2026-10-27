@@ -205,7 +205,7 @@ function ScanSearchQrScreen({ navigation, route }) {
     if (navigatedRef.current || !ticket?.id) return;
     navigatedRef.current = true;
     console.log('[QR] navigation executed -> DeviceDetail');
-    navigation.replace('DeviceDetail', { ticketId: ticket.id });
+    navigation.replace('TicketDetail', { ticketId: ticket.id });
   };
   const openPickup = (pickup) => { console.log('[QR] navigation executed -> OwnerPickupServiceDetail'); navigation.navigate('OwnerPickupServiceDetail', { id: pickup.id, booking: pickup }); };
   const searchManually = (prefillQuery) => navigation.replace('OwnerSearch', prefillQuery ? { prefillQuery } : undefined);

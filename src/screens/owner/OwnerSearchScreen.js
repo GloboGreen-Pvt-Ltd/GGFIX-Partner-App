@@ -279,7 +279,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
   const openWorkRecord = (item) => {
     pushRecent(query);
     if (item.kind === 'pickup') navigation.navigate('OwnerPickupServiceDetail', { id: item.row.id, booking: item.row });
-    else navigation.navigate('DeviceDetail', { ticketId: item.row.id });
+    else navigation.navigate('TicketDetail', { ticketId: item.row.id });
   };
 
   // One flat list, section-tagged, so devices and work records scroll together.

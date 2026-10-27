@@ -7,6 +7,7 @@ import {
   EncodingType,
   cacheDirectory,
   copyAsync,
+  deleteAsync,
   documentDirectory,
   getContentUriAsync,
   writeAsStringAsync,
@@ -92,12 +93,6 @@ export async function saveToDownloads({ stem, extension, mimeType, sourceUri, te
     return { name, uri, mimeType, location: 'Files' };
   }
 
-  if (!mediaStoreAvailable()) {
-    throw new Error(
-      'This build cannot save to Downloads. Rebuild the app so the Downloads module is included.',
-    );
-  }
-
   // MediaStore copies from a real file, so text content is staged in the cache
   // directory first. The staged copy is disposable — the download itself is the
   // row MediaStore creates.
@@ -107,10 +102,44 @@ export async function saveToDownloads({ stem, extension, mimeType, sourceUri, te
     await writeAsStringAsync(from, text, { encoding: EncodingType.UTF8 });
   }
 
+  // Expo Go / a dev build made before modules/ggfix-downloads existed has no
+  // MediaStore bridge. Hand the file to the share sheet instead so local testing
+  // still ends with a saved copy ("Save to device", Drive, Files…).
+  if (!mediaStoreAvailable()) {
+    await shareLocalFile(from, name, mimeType);
+    return { name, uri: null, mimeType, location: 'share sheet', shared: true };
+  }
+
   // MediaStore returns the name it settled on: an existing GGFix_Invoice_X.pdf
   // makes the next one "GGFix_Invoice_X (1).pdf" rather than being overwritten.
   const saved = await mediaStoreSave(from, name, mimeType);
   return { name: saved?.name || name, uri: saved?.uri || null, mimeType, location: 'Downloads' };
+}
+
+/**
+ * Share a local file under a friendly name. The renamed copy sits NEXT TO the
+ * source (same directory), because expo-sharing only reads paths the app owns —
+ * a sibling of a file we just wrote is always one of those. If the copy or the
+ * share of it is refused, the original file is shared as-is.
+ */
+export async function shareLocalFile(sourceUri, name, mimeType) {
+  let uri = sourceUri;
+  try {
+    const sibling = sourceUri.replace(/[^/]+$/, encodeURIComponent(name));
+    if (sibling !== sourceUri) {
+      await deleteAsync(sibling, { idempotent: true });
+      await copyAsync({ from: sourceUri, to: sibling });
+      uri = sibling;
+    }
+  } catch (_) { uri = sourceUri; }
+
+  const opts = { mimeType, dialogTitle: name, UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : undefined };
+  try {
+    await Sharing.shareAsync(uri, opts);
+  } catch (e) {
+    if (uri === sourceUri || !/not allowed/i.test(e?.message || '')) throw e;
+    await Sharing.shareAsync(sourceUri, opts);
+  }
 }
 
 /* ── the shade ─────────────────────────────────────────────────────────── */
@@ -135,8 +164,8 @@ async function ensureChannel() {
  * first download, rather than at launch: a prompt on the splash screen has no
  * context to justify itself.
  */
-export async function notifyDownloaded({ name, uri, mimeType, location }) {
-  if (!Notifications) return false;
+export async function notifyDownloaded({ name, uri, mimeType, location, shared }) {
+  if (!Notifications || shared) return false;
   try {
     // iOS provisional authorisation reports granted:false but still delivers
     // quietly to the list — which is all a download receipt needs.
@@ -159,6 +188,16 @@ export async function notifyDownloaded({ name, uri, mimeType, location }) {
   } catch (_) {
     return false;
   }
+}
+
+/** Open a local file in a viewer app (Android). Throws when none can open it. */
+export async function viewLocalFile(uri, mimeType) {
+  if (Platform.OS !== 'android' || !IntentLauncher) throw new Error('No in-app viewer on this platform.');
+  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+    data: uri.startsWith('content://') ? uri : await getContentUriAsync(uri),
+    flags: FLAG_GRANT_READ,
+    type: mimeType,
+  });
 }
 
 /** Open a saved file in whatever app handles its type. */

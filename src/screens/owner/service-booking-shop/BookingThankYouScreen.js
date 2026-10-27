@@ -19,6 +19,7 @@ import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies } from '../../../utils/imeiPolicy';
+import TechnicianAssignPanel from './TechnicianAssignPanel';
 
 // GGFIX palette.
 const ACCENT = '#035C6C';       // GGFIX green — fills, icons
@@ -95,18 +96,15 @@ export default function BookingThankYouScreen({ navigation, route }) {
     .filter(Boolean);
   const [barcodePickerOpen, setBarcodePickerOpen] = useState(false);
 
-  // Assign — the booking flow's own Technician Assign screen, which patches
-  // every ticket of this booking and then shows Booking Successful.
+  // Assign — scrolls up to the inline Assign Technician section (Assign All /
+  // Individually / Later for a bulk booking, one picker for a single device).
+  const scrollRef = useRef(null);
   const assignTechnician = () => {
     if (!bookedTickets.length) {
       notify('Not available', 'This booking has no ticket to assign yet.');
       return;
     }
-    navigation.navigate('AssignTechnician', {
-      tickets: bookedTickets.map((b) => b.ticket),
-      customer,
-      devices,
-    });
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   // SMS — the same receipt text WhatsApp sends, in the customer's SMS app.
@@ -179,7 +177,12 @@ export default function BookingThankYouScreen({ navigation, route }) {
           the first wizard step — Back from a finished booking would restart the
           one just completed. Go to Home instead: the booking is done, so the
           wizard is not somewhere to return to. */}
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + rs(4), paddingBottom: rs(16) }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingTop: insets.top + rs(4), paddingBottom: rs(16) }}>
+        {/* Assign Technician — inline, right after booking (each device is its own ticket). */}
+        <View style={colStyle}>
+          <TechnicianAssignPanel items={bookedTickets} />
+        </View>
+
         {/* On-screen Thank You receipt — shown here, never sent. */}
         <BookingReceipt
           {...receiptProps}
@@ -219,8 +222,17 @@ export default function BookingThankYouScreen({ navigation, route }) {
             <ActionTile icon="person-add-outline" label="Assign" color={PRIMARY} tint={MINT} onPress={assignTechnician} />
             <ActionTile icon="logo-whatsapp" label="WhatsApp" color="#16A34A" tint="#E6F7E3" onPress={shareWhatsApp} busy={sharing} disabled={sharing} />
             <ActionTile icon="chatbubble-ellipses-outline" label="SMS" color="#2563EB" tint="#E4EEFF" onPress={shareSms} />
-            <ActionTile icon="barcode-outline" label="Barcode Print" color="#B45309" tint="#FFF0D2" onPress={printBarcode} />
+            <ActionTile icon="barcode-outline" label="QR Print" color="#B45309" tint="#FFF0D2" onPress={printBarcode} />
           </View>
+          <Pressable
+            onPress={goHome}
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+            className="items-center justify-center active:opacity-80"
+            style={{ marginTop: rs(10), height: rs(44), borderRadius: 12, borderWidth: 1.5, borderColor: ACCENT, backgroundColor: '#FFFFFF' }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '800', color: ACCENT }}>Done</Text>
+          </Pressable>
         </View>
       </View>
 

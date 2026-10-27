@@ -38,11 +38,11 @@ const G_COMPLETED = 'COMPLETED';
 
 const SERVICE_GROUP_ORDER = [G_ACCEPTED, G_PROCESS, G_PENDING, G_RETURN, G_COMPLETED];
 
-// Out for Delivery and Invoice Generated are the shared handover tail: both the
+// Dispatched and Invoice Generated are the shared handover tail: both the
 // repaired path and the return path go out for delivery and raise an invoice.
 // They therefore appear as a row under BOTH branches, and `rowCompletedIn` below
 // only lights the copy that belongs to the ending the booking actually took —
-// otherwise a plain repaired job would show a green "Out for Delivery" sitting
+// otherwise a plain repaired job would show a green "Dispatched" sitting
 // under Return Device.
 const SHARED_TAIL = new Set(['DELIVERED_PROCESSING', 'INVOICE_GENERATED']);
 
@@ -155,12 +155,12 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   // Handover tail, in the order the backend LIFECYCLE_ORDER advances it:
   // READY → INVOICE_GENERATED → INVOICE_READY → DELIVERED_PROCESSING →
   // DELIVERED. The order matters — the timeline is walked one row at a time,
-  // so Out for Delivery sitting above Invoice Generated would have the shop
+  // so Dispatched sitting above Invoice Generated would have the shop
   // tick a row out of order. INVOICE_READY stays hidden as a duplicate of
   // Invoice Generated.
   { value: 'READY',                                         label: 'Ready for Delivery',                    phase: SERVICE, group: G_PENDING },
   { value: 'INVOICE_GENERATED',                             label: 'Invoice Generated',                     phase: SERVICE, group: G_PENDING },
-  { value: 'DELIVERED_PROCESSING',                          label: 'Out for Delivery',                      phase: SERVICE, group: G_PENDING },
+  { value: 'DELIVERED_PROCESSING',                          label: 'Dispatched',                      phase: SERVICE, group: G_PENDING },
   // ── Stage 4 (right branch): Return Device ─────────────────────────────────
   // The unrepaired ending, rendered in red. The last two rows repeat the shared
   // handover tail above — same status codes, own rowId so React keys and the
@@ -169,7 +169,7 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   { value: 'REPAIR_NOT_COMPLETED',                          label: 'Repair Not Completed',                  phase: SERVICE, group: G_RETURN },
   { value: 'RETURN_DELIVERY',                               label: 'Return Delivery',                       phase: SERVICE, group: G_RETURN },
   { value: 'INVOICE_GENERATED',     rowId: 'RETURN:INVOICE_GENERATED',    label: 'Invoice Generated',        phase: SERVICE, group: G_RETURN },
-  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Out for Delivery',         phase: SERVICE, group: G_RETURN },
+  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Dispatched',         phase: SERVICE, group: G_RETURN },
   // ── Stage 5: Completed ────────────────────────────────────────────────────
   { value: 'DELIVERED',                                     label: 'Delivered to Customer',                 phase: SERVICE, group: G_COMPLETED },
   { value: 'CANCELLED',                                     label: 'Repair Cancelled',                      phase: SERVICE, group: G_COMPLETED },
@@ -575,9 +575,9 @@ function computeRowCompletion(allEvents, phaseFilter) {
   ).filter((o) => !MARKERS.has(o.value) || !!eventByStatus[o.value]);
 
   // Which of the two endings the booking actually took. The shared handover
-  // tail (Out for Delivery, Invoice Generated) has a row under BOTH branches,
+  // tail (Dispatched, Invoice Generated) has a row under BOTH branches,
   // so it must only light up on the side that applies — otherwise a plain
-  // repaired job shows a green "Out for Delivery" sitting under Return Device.
+  // repaired job shows a green "Dispatched" sitting under Return Device.
   const returnPathActive = RETURN_TRIGGERS.some((k) => !!eventByStatus[k]);
   // Done = this row's own event exists. Nothing else ticks a row: a later step
   // never marks the ones above it (see MUST_FOLLOW for how order is kept).

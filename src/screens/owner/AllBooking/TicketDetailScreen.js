@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, Linking } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, PanResponder, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,7 +9,6 @@ import {
   Clock,
   Share2,
   QrCode,
-  FileText,
   UserPlus,
   RefreshCcw,
   ArrowDown,
@@ -23,13 +22,30 @@ import {
   MapPin,
   IndianRupee,
   ShieldCheck,
-  ClipboardList,
-  Zap,
+  FileText,
   Calendar,
   Wrench,
   ChevronRight,
+  ChevronUp,
+  ChevronDown as ChevronDownIcon,
   ScanLine,
   Plus,
+  Pencil,
+  Calculator,
+  CalendarClock,
+  History as HistoryIcon,
+  ListChecks,
+  Lock,
+  Camera,
+  Eye,
+  SquarePen,
+  Settings,
+  Search,
+  BadgeCheck,
+  PackageCheck,
+  Truck,
+  CircleX,
+  ThumbsDown,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
@@ -41,7 +57,10 @@ import { getModelsByBrand } from '../../../api/masterData';
 import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
 // Share Image sheet — same component the Bookings list uses, so the
 // experience (and the receipt it renders) is identical everywhere.
-import { ShareReceiptSheet } from './BookingActionSheets';
+import { RescheduleSheet, ShareReceiptSheet } from './BookingActionSheets';
+import ImageViewerModal from '../../../components/ImageViewerModal';
+import WhatsAppIcon from '../../../components/WhatsAppIcon';
+import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 import { specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
@@ -76,7 +95,7 @@ const STATUS_VARIANT = {
   RETURN_DELIVERY:      { label: 'Return Delivery',                   tone: 'amber' },
   INVOICE_GENERATED:    { label: 'Billing & Delivery Invoice Generated', tone: 'amber' },
   INVOICE_READY:        { label: 'Invoice Sent',                      tone: 'amber' },
-  DELIVERED_PROCESSING: { label: 'Delivery Processing',               tone: 'amber' },
+  DELIVERED_PROCESSING: { label: 'Dispatched',               tone: 'amber' },
   DELIVERED:            { label: 'Delivered',                         tone: 'green' },
   CANCELLED:            { label: 'Cancelled',                         tone: 'red' },
 };
@@ -106,16 +125,34 @@ const ACCEPTED_STATUSES = new Set([
 // Re-Estimated moved to the Home screen, next to New Booking and Pickup — it is
 // a way IN to a booking, not something you do from inside one, so it belongs
 // with the other entry points rather than among this screen's per-ticket actions.
+// Bottom-bar actions, 4 per row. Delivered bookings can't be edited,
+// re-estimated, re-scheduled or moved on — they get Re-Service instead.
 const ACTION_TILES = [
-  { key: 'view',    label: 'View Details',  icon: FileText, tint: 'rgba(3, 92, 108, 0.12)',  fg: BRAND_GREEN_DARK },
-  { key: 'share',   label: 'Share Receipt', icon: Share2,   tint: 'rgba(3, 92, 108, 0.12)',  fg: ACCENT_GREEN },
-  { key: 'barcode', label: 'Barcode',       icon: QrCode,   tint: 'rgba(245, 158, 11, 0.16)', fg: '#B45309' },
+  { key: 'edit',       label: 'Edit',     icon: Pencil },
+  { key: 'reestimate',   label: 'Re-Est',        icon: Calculator }, // add issues, amount & time
+  { key: 'editestimate', label: 'Price Revised', icon: SquarePen },  // remove issues or edit amount
+  { key: 'reschedule', label: 'Resched.', icon: CalendarClock },
+  { key: 'history',    label: 'History',  icon: HistoryIcon },
+  { key: 'share',      label: 'Receipt',  icon: Share2 },
+  { key: 'barcode',    label: 'Barcode',  icon: QrCode },
+  { key: 'status',     label: 'Status',   icon: ListChecks },
+];
+// Bottom-bar icon discs: a different brand colour per action (Teal, Bright
+// Blue, Green, Orange, Navy, Red, then deeper teal / blue), white icons.
+const HOME_TILE_TONES = ['#035C6C', '#0788C9', '#609138', '#E08E00', '#1C3053', '#F32C26', '#357D89', '#0571A8'];
+const DELIVERED_TILES = [
+  { key: 'history',   label: 'History',    icon: HistoryIcon },
+  { key: 'share',     label: 'Receipt',    icon: Share2 },
+  { key: 'barcode',   label: 'Barcode',    icon: QrCode },
+  { key: 'reservice', label: 'Re-Service', icon: RefreshCcw },
 ];
 
 // "Update Status" auto-advances the booking one stage at a time along this
 // owner-facing flow — the owner no longer hand-picks an arbitrary status.
 // Cancelled sits outside the linear flow (reached via the Cancel action).
-const ADVANCE_FLOW = ['CREATED', 'IN_DIAGNOSIS', 'QUOTED', 'APPROVED', 'IN_REPAIR', 'READY', 'DELIVERED'];
+// In Diagnosis isn't used; Re-Estimated / Customer Approved are set by the
+// Re-Estimate flow itself, so they aren't manual options either.
+const ADVANCE_FLOW = ['CREATED', 'IN_REPAIR', 'READY', 'DELIVERED'];
 
 // The Service History step each advance writes, where it writes one. Advancing
 // is held to the same one-step-at-a-time rule as every other status action
@@ -136,6 +173,38 @@ const STATUS_RANK = {
   READY: 5, INVOICE_GENERATED: 5.5, INVOICE_READY: 5.6, RETURN_DELIVERY: 5.7,
   DELIVERED_PROCESSING: 5.8, DELIVERED: 6,
 };
+
+// Update Status options (reference design): title, hint, icon, brand colour.
+const STATUS_OPTION = {
+  IN_DIAGNOSIS: { title: 'In Diagnosis', sub: 'Check the device and find the fault', Icon: Search, tone: '#0788C9' },
+  QUOTED: { title: 'Re-Estimated', sub: 'Extra work quoted to the customer', Icon: Calculator, tone: '#FAA700' },
+  APPROVED: { title: 'Customer Approved', sub: 'Customer accepted the estimate', Icon: BadgeCheck, tone: '#609138' },
+  IN_REPAIR: { title: 'In Repair', sub: 'Start the actual repair work', Icon: Wrench, tone: '#035C6C' },
+  QUALITY_CHECK: { title: 'Quality Check Completed', sub: 'Repair checked and passed by the shop', Icon: ShieldCheck, tone: '#609138' },
+  READY: { title: 'Ready for Delivery', sub: 'Ready to hand over to the customer', Icon: PackageCheck, tone: '#E08E00' },
+  INVOICE_GENERATED: { title: 'Invoice Generated', sub: 'Create the invoice for this booking', Icon: FileText, tone: '#357D89' },
+  DELIVERED_PROCESSING: { title: 'Dispatched', sub: 'Device dispatched to the customer', Icon: Truck, tone: '#1C3053' },
+  DELIVERED: { title: 'Delivered', sub: 'Mark as delivered to the customer', Icon: CheckCircle2, tone: '#0788C9' },
+  CUSTOMER_REJECTED: { title: 'Customer Rejected', sub: 'Customer declined the repair / estimate', Icon: ThumbsDown, tone: '#E08E00' },
+  CANCELLED: { title: 'Cancelled / Closed', sub: 'Close this booking (when applicable)', Icon: CircleX, tone: '#F32C26' },
+};
+// Blocker marker: the re-estimate still needs the customer's approval.
+const AWAIT_APPROVAL = '__AWAIT_APPROVAL__';
+// Sheet options recorded as a Service History step (progress event), not a
+// direct status change — the backend moves ticket.status from the step.
+const STEP_OPTION_KEY = {
+  QUALITY_CHECK: 'QUALITY_CHECK_COMPLETED',
+  DELIVERED_PROCESSING: 'DELIVERED_PROCESSING',
+  CUSTOMER_REJECTED: 'CUSTOMER_REJECTED',
+};
+// "Tue, Oct 27, 2026 02:35 AM"
+function fmtStatusWhen(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${day} ${time}`;
+}
 
 // The stage to auto-advance to from the current status — or null when the
 // booking is already delivered or cancelled (nothing further to advance to).
@@ -164,6 +233,8 @@ export default function TicketDetailScreen({ route, navigation }) {
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [technician, setTechnician] = useState(null);
+  // The booking's invoice (GET /tickets/{id}/invoice; null when none yet).
+  const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -201,6 +272,26 @@ export default function TicketDetailScreen({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket, autoMode]);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [pickedStatus, setPickedStatus] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  // Bottom action menu starts hidden behind its handle: tap it, or swipe up /
+  // down, to show or hide the actions.
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Latest "Service Re-estimated" history step, when the booking has one.
+  const [reEstimateEvent, setReEstimateEvent] = useState(null);
+  // Device photos viewer: index of the photo open full-screen, null = closed.
+  const [photoIndex, setPhotoIndex] = useState(null);
+  const menuPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 6,
+    onPanResponderRelease: (_, g) => {
+      if (g.dy < -12) setMenuOpen(true);
+      else if (g.dy > 12) setMenuOpen(false);
+      else setMenuOpen((v) => !v);
+    },
+  })).current;
+
   const [statusBusy, setStatusBusy] = useState(null);
 
   const load = useCallback(async () => {
@@ -210,6 +301,9 @@ export default function TicketDetailScreen({ route, navigation }) {
     try {
       const data = await ticketApi.get(`/tickets/${ticketId}`);
       setTicket(data);
+      ticketApi.get(`/tickets/${ticketId}/invoice`)
+        .then((inv) => setInvoice(inv && (inv.invoiceNo || inv.id) ? inv : null))
+        .catch(() => setInvoice(null));
       if (data?.assignedTechnicianId) {
         try {
           const list = await ticketApi.get('/technicians');
@@ -259,6 +353,10 @@ export default function TicketDetailScreen({ route, navigation }) {
       const rows = await ticketApi.get(`/tickets/${ticketId}/events`);
       const out = {};
       setRecordedKeys((Array.isArray(rows) ? rows : []).map((e) => String(e.status || '').toUpperCase()));
+      setReEstimateEvent((Array.isArray(rows) ? rows : [])
+        .filter((e) => String(e?.status || '').toUpperCase() === 'RE_ESTIMATED_CONFIRMED')
+        .sort((x, y) => new Date(x.createdAt || 0) - new Date(y.createdAt || 0))
+        .pop() || null);
       (Array.isArray(rows) ? rows : []).forEach((e) => {
         const k = (e.status || '').toUpperCase();
         if (!OWNER_PROGRESS_ROWS.some((r) => r.key === k)) return;
@@ -308,6 +406,28 @@ export default function TicketDetailScreen({ route, navigation }) {
     });
     if (ok) applyStatus('CANCELLED');
   }, [applyStatus]);
+
+  // Update Status → Quality Check Completed, recorded by the shop (actor OWNER,
+  // same progress event as History's QC button). The backend then moves the
+  // booking on to Ready for Delivery.
+  const recordStep = useCallback(async (optKey, note) => {
+    const statusKeyToRecord = STEP_OPTION_KEY[optKey];
+    if (!statusKeyToRecord) return;
+    setStatusBusy(optKey);
+    try {
+      await ticketApi.post(`/tickets/${ticketId}/progress-events`, {
+        body: { statusKey: statusKeyToRecord, actor: 'OWNER', ...(note ? { note } : {}) },
+      });
+      setStatusOpen(false);
+      notify(`${STATUS_OPTION[optKey]?.title || 'Status'} recorded`, 'Saved on the Service History.', { preset: 'done' });
+      load();
+      refreshProgress();
+    } catch (e) {
+      notify('Could not save', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
+    } finally {
+      setStatusBusy(null);
+    }
+  }, [ticketId, load, refreshProgress]);
 
   const submitProgress = useCallback(async (row) => {
     setProgressBusy(row.key);
@@ -404,11 +524,15 @@ export default function TicketDetailScreen({ route, navigation }) {
             <Pressable
               onPress={() => navigation.goBack()}
               hitSlop={6}
-              className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
+              className="items-center justify-center active:opacity-70"
+              style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
-              <ArrowLeft size={19} color="#111111" />
+              <ArrowLeft size={18} color="#111111" strokeWidth={2} />
             </Pressable>
-            <Text className="flex-1 text-text text-[17px] font-extrabold">Booking Details</Text>
+            <Text style={{ flex: 1, color: '#111111', fontSize: 17, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>Booking Details</Text>
+            <View style={{ width: 36 }} />
           </View>
         </View>
         <Loader label="Loading booking..." />
@@ -434,6 +558,26 @@ export default function TicketDetailScreen({ route, navigation }) {
   const color = ticket.color;
   const ramLabel = ticket.ramLabel;
   const storageLabel = ticket.storageLabel;
+  // Device card: model name / model number - RAM / storage / colour, each on its
+  // own line. deviceDisplayName is "Apple iPhone 11 · A2221 (4 GB / 64 GB / Black)".
+  const shownDevice = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(String(ticket.deviceDisplayName || '').trim()) || [];
+  const modelName = (shownDevice[1] || '').trim() || ticket.deviceModelName || ticket.modelName || 'Device';
+  const modelNumber = ticket.modelNumber || (shownDevice[2] || '').trim();
+  const specParts = specDisplayParts({ ...ticket, ramLabel, storageLabel });
+  const specText = (specParts.length ? specParts
+    : String(shownDevice[3] || '').split(' / ').map((x) => x.trim())
+      .filter((x) => x && x.toLowerCase() !== String(color || '').trim().toLowerCase())).join(' / ');
+  const modelLine = [modelNumber, specText].filter(Boolean).join(' - ');
+  const photoUrls = bookingPhotoUrls(ticket);
+  // Customer Mobile row: Call opens the dialer, WhatsApp the customer's chat.
+  const contactCustomer = (scheme) => {
+    const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!digits) return;
+    const url = scheme === 'whatsapp' ? `https://wa.me/91${digits}` : `tel:${digits}`;
+    Linking.openURL(url).catch(() =>
+      notify(scheme === 'whatsapp' ? 'WhatsApp not found' : 'Unable to call',
+        scheme === 'whatsapp' ? 'Install WhatsApp to message this customer.' : 'Could not open the phone dialer.'));
+  };
   const customerName = ticket.customerName || '—';
   const phone = ticket.customerPhone || '';
   const address = ticket.customerAddress || '';
@@ -447,6 +591,9 @@ export default function TicketDetailScreen({ route, navigation }) {
   const statusKey = String(ticket.status || '').toUpperCase();
   // Delivered: no Assign / Update Status; the bottom bar offers Re-Service.
   const isDelivered = statusKey === 'DELIVERED';
+  // Complaint without the old "IMEI not provided: …" line the booking flow used to append.
+  const complaintText = String(ticket.issueDescription || '').replace(/^\s*IMEI not provided:.*$/gim, '').trim();
+  const securityText = formatSecurity(ticket.deviceSecurityType, ticket.deviceSecurityValue);
   const statusMeta = STATUS_VARIANT[statusKey] || { label: ticket.status || 'Pending', tone: 'amber' };
   const statusTone = TONE[statusMeta.tone] || TONE.amber;
   const StatusIcon = statusKey === 'CANCELLED' ? AlertCircle : CheckCircle2;
@@ -457,68 +604,41 @@ export default function TicketDetailScreen({ route, navigation }) {
   const techCode = technician?.code
     || (technician?.id ? String(technician.id).slice(0, 8).toUpperCase() : null);
 
+  // Not delivered, and either nobody yet or the technician hasn't accepted.
+  const canChangeTech = !isDelivered && (!hasTechnician || !techAccepted);
+  // Own screen on the outer stack: back returns here and this screen reloads on focus.
   const goToAssign = () => {
-    // AssignTechnician is registered inside the nested RepairServiceBookingShop
-    // stack, not on the outer OwnerNavigator. A flat navigate('AssignTechnician')
-    // from this screen fails with "action NAVIGATE with payload was not handled"
-    // because the outer stack has no route by that name. Use the nested-route
-    // form so RN resolves it inside the booking sub-stack, same pattern as
-    // Edit Booking → SelectBrand.
-    navigation.navigate('RepairServiceBookingShop', {
-      screen: 'AssignTechnician',
-      params: {
-        tickets: [ticket],
-        customer: {
-          id: ticket.customerId,
-          name: ticket.customerName,
-          phone: ticket.customerPhone,
-          address: ticket.customerAddress,
-        },
-        devices: [{
-          id: ticket.id,
-          deviceDisplayName: deviceName,
-          model: { name: deviceName },
-        }],
-        returnToTicketId: ticket.id,
-      },
+    if (!canChangeTech) return;
+    navigation.navigate('TechnicianAssign', {
+      ticketId: ticket.id,
+      trackingId,
+      deviceName,
+      currentTechnicianId: ticket.assignedTechnicianId || null,
     });
   };
 
-  const onAssignPress = async () => {
-    const ok = await confirm({
-      title: 'Assign Technician',
-      message: `Pick a technician for booking ${trackingId}?`,
-      confirmText: 'Choose Technician',
-    });
-    if (ok) goToAssign();
-  };
-
-  const onReassignPress = async () => {
-    const ok = await confirm({
-      title: 'Re-Assign Technician',
-      message: `${techName || 'Current technician'} hasn't accepted this booking yet. Re-assign to someone else?`,
-      confirmText: 'Re-Assign',
-      destructive: true,
-    });
-    if (ok) goToAssign();
-  };
-
-  // Bottom-bar "Contact Customer" — opens the dialer pre-filled with the
-  // customer's number. No-op with a toast when the booking has no phone.
-  const contactCustomer = () => {
-    if (!phone) {
-      notify('No number', 'This booking has no customer phone on file.');
-      return;
-    }
-    Linking.openURL(`tel:${phone}`).catch(() =>
-      notify('Unable to call', 'Could not open the phone dialer.'),
-    );
-  };
+  const onAssignPress = goToAssign;
 
   const onAction = async (key) => {
     switch (key) {
+      // Edit = booking DETAILS only (customer, device, IMEI, complaint, photos,
+      // parts, security) on one screen; it never changes status, price,
+      // technician or delivery. Re-Est / Price Revised / Re-Service keep the wizard.
       case 'edit':
+        if (autoMode) navigation.replace('EditBooking', { ticketId: ticket.id });
+        else navigation.navigate('EditBooking', { ticketId: ticket.id });
+        break;
+      // Re-Est = ADDITIONAL issues + charges only, on its own screen (original
+      // prices read-only; status moves through the server's re-estimate rules).
       case 'reestimate':
+        if (autoMode) navigation.replace('ReEstimate', { ticketId: ticket.id });
+        else navigation.navigate('ReEstimate', { ticketId: ticket.id });
+        break;
+      // Price Revised = change / cancel EXISTING services only, on its own screen
+      // (no new services, no status change).
+      case 'editestimate':
+        navigation.navigate('PriceRevised', { ticketId: ticket.id });
+        break;
       case 'reservice': {
         // Ticket doesn't store device categoryId — look it up from master-data
         // so SelectModel (and SelectBrand) can filter to Mobile only instead of
@@ -553,7 +673,7 @@ export default function TicketDetailScreen({ route, navigation }) {
         // prices and every other saved field prefilled) — a price change there
         // is what marks the booking re-estimated on save.
         enterWizard('RepairServiceBookingShop', {
-          screen: key === 'reservice' || key === 'reestimate' ? 'DeviceServices' : 'CustomerDetails',
+          screen: key === 'reservice' || key === 'reestimate' || key === 'editestimate' ? 'ServicePriceEstimate' : 'CustomerDetails',
           params: {
             ...(key === 'reservice' ? buildReServiceParams(ticket) : buildEditParams(ticket, { lineItems, estimatedTotal })),
             categoryId,
@@ -571,7 +691,20 @@ export default function TicketDetailScreen({ route, navigation }) {
         });
         break;
       }
-      case 'view':    navigation.navigate('DeviceDetail', { ticketId: ticket.id }); break;
+      case 'reschedule': setRescheduleOpen(true); break;
+      case 'assign':  onAssignPress(); break;
+      case 'status': {
+        const n = nextStage(statusKey);
+        setPickedStatus(
+          n === 'READY' && !recordedKeys.includes('QUALITY_CHECK_COMPLETED') ? 'QUALITY_CHECK'
+            : n === 'DELIVERED' && !recordedKeys.includes('INVOICE_GENERATED') ? 'INVOICE_GENERATED'
+            : n === 'DELIVERED' && !recordedKeys.includes('DELIVERED_PROCESSING') ? 'DELIVERED_PROCESSING'
+            : n,
+        );
+        setRejectReason('');
+        setStatusOpen(true);
+        break;
+      }
       case 'history': navigation.navigate('BookingTimeline', { ticketId: ticket.id }); break;
       case 'share':   setShareOpen(true); break;
       case 'barcode': navigation.navigate('BarcodePrint', { ticketId: ticket.id, mode: 'barcode' }); break;
@@ -601,7 +734,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       <View
         style={{
           backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 6,
+          paddingTop: insets.top + 8,
           paddingBottom: 12,
           paddingHorizontal: 14,
           borderBottomWidth: 1,
@@ -612,74 +745,76 @@ export default function TicketDetailScreen({ route, navigation }) {
           <Pressable
             onPress={() => navigation.goBack()}
             hitSlop={6}
-            className="h-9 w-9 rounded-full items-center justify-center mr-2.5 active:opacity-70 bg-surface-muted"
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
-            <ArrowLeft size={19} color="#111111" />
+            <ArrowLeft size={18} color="#111111" strokeWidth={2} />
           </Pressable>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-            Booking Details
-          </Text>
-          <View
-            className="px-2.5 py-1 rounded-full"
-            style={{ maxWidth: 180, backgroundColor: '#E5F3F5' }}
-          >
-            <Text className="text-[11px] font-extrabold" numberOfLines={1}>
-              <Text style={{ color: '#111111' }}>#{tid.prefix}</Text>
-              <Text style={{ color: BRAND_GREEN_DARK }}>{tid.digits}</Text>
+          {/* Centred title + tracking id, with an equal 36pt spacer on the right
+              (same header as Customer Details / Device & Service Details). */}
+          <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' }}>
+            <Text style={{ color: '#111111', fontSize: 17, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>
+              Booking Details
             </Text>
+            <View className="px-2.5 rounded-full" style={{ marginTop: 3, paddingVertical: 2, maxWidth: 200, backgroundColor: '#E5F3F5' }}>
+              <Text className="text-[11px] font-extrabold" numberOfLines={1}>
+                <Text style={{ color: '#111111' }}>#{tid.prefix}</Text>
+                <Text style={{ color: BRAND_GREEN_DARK }}>{tid.digits}</Text>
+              </Text>
+            </View>
           </View>
+          <View style={{ width: 36 }} />
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + 128 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + (menuOpen ? 190 : 48) }}>
         <View style={{ width: contentW, alignSelf: 'center' }}>
         {/* ── Device hero ─────────────────────────────────────── */}
         <View className="px-4" style={{ marginTop: 12 }}>
-          <View className="bg-card rounded-3xl p-4" style={cardShadow}>
-            <View className="flex-row items-center">
+          <View className="bg-card rounded-2xl px-3.5 py-3" style={cardShadow}>
+            <View className="flex-row items-start">
               <View
-                className="w-[72px] h-[72px] rounded-2xl overflow-hidden items-center justify-center"
+                className="w-[56px] h-[56px] rounded-xl overflow-hidden items-center justify-center"
                 style={{ backgroundColor: '#E5F3F5' }}
               >
                 {ticket.deviceImageUrl ? (
-                  <Image source={{ uri: ticket.deviceImageUrl }} style={{ width: 72, height: 72 }} resizeMode="cover" />
+                  <Image source={{ uri: ticket.deviceImageUrl }} style={{ width: 56, height: 56 }} resizeMode="cover" />
                 ) : (
-                  <Smartphone size={30} color="#6B7280" />
+                  <Smartphone size={24} color="#6B7280" />
                 )}
               </View>
-              <View className="ml-3.5 flex-1">
-                <Text className="text-[15px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
-                {specDisplayParts({ ...ticket, ramLabel, storageLabel, color }, { withColor: true }).length ? (
-                  <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
-                    {specDisplayParts({ ...ticket, ramLabel, storageLabel, color }, { withColor: true }).join(' · ')}
-                  </Text>
+              <View className="ml-3 flex-1" style={{ minWidth: 0 }}>
+                <Text className="text-[15px] font-extrabold text-text">{modelName}</Text>
+                {modelLine ? (
+                  <Text className="text-[12.5px] font-semibold text-text">{modelLine}</Text>
                 ) : null}
-                <View
-                  className="self-start flex-row items-center rounded-full px-2.5 py-1 mt-2"
-                  style={{ backgroundColor: statusTone.bg, borderWidth: 1, borderColor: statusTone.border }}
-                >
-                  <StatusIcon size={12} color={statusTone.fg} />
-                  <Text className="text-[10px] font-extrabold ml-1" style={{ color: statusTone.fg }}>
-                    {statusMeta.label.toUpperCase()}
-                  </Text>
-                </View>
+                {color ? (
+                  <Text className="text-[12px] text-text-muted">{color}</Text>
+                ) : null}
+              </View>
+              {/* Right: Tracking ID and Booked on, stacked. */}
+              <View className="items-end ml-2" style={{ maxWidth: 130 }}>
+                <Text className="text-[10px] text-text-muted">Tracking ID</Text>
+                <Text className="text-[13px] font-extrabold text-primary text-right">#{trackingId}</Text>
+                {ticket.createdAt ? (
+                  <>
+                    <Text className="text-[10px] text-text-muted" style={{ marginTop: 6 }}>Booked on</Text>
+                    <Text className="text-[11px] font-bold text-text text-right" style={{ marginTop: 1 }}>{fmtInstant(ticket.createdAt) || '-'}</Text>
+                  </>
+                ) : null}
               </View>
             </View>
-            <View className="h-px bg-border my-3" />
-            <View className="flex-row items-center justify-between">
-              <View>
-                <Text className="text-[10px] text-text-muted">Tracking ID</Text>
-                <Text className="text-[13px] font-extrabold text-primary">#{trackingId}</Text>
-              </View>
-              {ticket.createdAt ? (
-                <View className="items-end">
-                  <Text className="text-[10px] text-text-muted">Booked on</Text>
-                  <View className="flex-row items-center mt-0.5">
-                    <Calendar size={12} color="#6B7280" />
-                    <Text className="text-[12px] font-bold text-text ml-1">{fmtInstant(ticket.createdAt) || '-'}</Text>
-                  </View>
-                </View>
-              ) : null}
+            {/* Status, starting at the card's left edge under the image. */}
+            <View
+              className="self-start flex-row items-center rounded-full px-2 py-0.5 mt-2"
+              style={{ backgroundColor: statusTone.bg, borderWidth: 1, borderColor: statusTone.border }}
+            >
+              <StatusIcon size={12} color={statusTone.fg} />
+              <Text className="text-[10px] font-extrabold ml-1 flex-shrink" style={{ color: statusTone.fg }}>
+                {statusMeta.label.toUpperCase()}
+              </Text>
             </View>
           </View>
         </View>
@@ -691,8 +826,76 @@ export default function TicketDetailScreen({ route, navigation }) {
             <View className="px-4">
               <View className="bg-card rounded-2xl px-4 py-2" style={cardShadow}>
                 {customerName ? <DetailRow icon={User} label="Name" value={customerName} /> : null}
-                {phone ? <DetailRow icon={Phone} label="Mobile" value={phone} /> : null}
+                {phone ? (
+                  <View className="flex-row items-center py-1.5">
+                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                      <Phone size={14} color={ACCENT_GREEN} />
+                    </View>
+                    <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Mobile</Text>
+                    <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={1}>{phone}</Text>
+                    <Pressable
+                      onPress={() => contactCustomer('tel')}
+                      hitSlop={4}
+                      className="w-8 h-8 rounded-full items-center justify-center active:opacity-70"
+                      style={{ backgroundColor: '#E5F3F5' }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Call customer"
+                    >
+                      <Phone size={15} color={ACCENT_GREEN} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => contactCustomer('whatsapp')}
+                      hitSlop={4}
+                      className="w-8 h-8 rounded-full items-center justify-center ml-2 active:opacity-70"
+                      style={{ backgroundColor: 'rgba(37, 211, 102, 0.14)' }}
+                      accessibilityRole="button"
+                      accessibilityLabel="WhatsApp customer"
+                    >
+                      <WhatsAppIcon size={16} color="#25D366" />
+                    </Pressable>
+                  </View>
+                ) : null}
                 {address ? <DetailRow icon={MapPin} label="Address" value={address} /> : null}
+              </View>
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Device photos (taken at booking) — tap one, or View, to open full-screen ── */}
+        {photoUrls.length ? (
+          <>
+            <SectionHeader icon={Camera} label="DEVICE PHOTOS" />
+            <View className="px-4">
+              <View className="bg-card rounded-2xl p-3" style={cardShadow}>
+                <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
+                  <Text className="text-[12px] text-text-muted">
+                    {photoUrls.length} photo{photoUrls.length > 1 ? 's' : ''}
+                  </Text>
+                  <Pressable
+                    onPress={() => setPhotoIndex(0)}
+                    className="flex-row items-center rounded-full px-2.5 py-1 active:opacity-80"
+                    style={{ backgroundColor: '#E5F3F5' }}
+                    accessibilityRole="button"
+                    accessibilityLabel="View device photos"
+                  >
+                    <Eye size={12} color={BRAND_GREEN_DARK} />
+                    <Text className="text-[11px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>View</Text>
+                  </Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {photoUrls.map((uri, i) => (
+                    <Pressable
+                      key={uri}
+                      onPress={() => setPhotoIndex(i)}
+                      className="rounded-xl overflow-hidden active:opacity-80"
+                      style={{ width: 64, height: 64, backgroundColor: '#E5F3F5' }}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={`Device photo ${i + 1}`}
+                    >
+                      <Image source={{ uri }} style={{ width: 64, height: 64 }} resizeMode="cover" />
+                    </Pressable>
+                  ))}
+                </ScrollView>
               </View>
             </View>
           </>
@@ -755,11 +958,14 @@ export default function TicketDetailScreen({ route, navigation }) {
         <SectionHeader icon={Wrench} label="SERVICE INFO" />
         <View className="px-4">
           <View className="bg-card rounded-2xl p-4" style={cardShadow}>
-            {ticket.issueDescription ? (
+            {complaintText ? (
               <View className="flex-row items-start py-1.5">
-                <Text className="text-[12px] text-text-muted" style={{ width: 96 }}>Complaint</Text>
-                <Text className="flex-1 text-[13px] text-text font-bold leading-5" numberOfLines={3}>
-                  {ticket.issueDescription}
+                <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                  <FileText size={14} color={ACCENT_GREEN} />
+                </View>
+                <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: 6 }}>Complaint</Text>
+                <Text className="flex-1 text-[13px] text-text font-bold leading-5" style={{ marginTop: 4 }} numberOfLines={3}>
+                  {complaintText}
                 </Text>
               </View>
             ) : null}
@@ -793,7 +999,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                 <ShieldCheck size={14} color={ACCENT_GREEN} />
               </View>
-              <Text className="flex-1 text-[12px] text-text-muted">Repair Approval</Text>
+              <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
               {ticket.customerApproval ? (
                 <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
                   <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
@@ -806,348 +1012,247 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </View>
               )}
             </View>
+            <DetailRow icon={Lock} label="Security" value={securityText} />
           </View>
         </View>
 
-        {/* ── Technician section ─────────────────────────────── */}
-        <SectionHeader icon={Users} label="TECHNICIAN" />
-        <View className="px-4">
-          <View
-            className="rounded-2xl p-4"
-            style={[cardShadow, {
-              backgroundColor: hasTechnician ? '#FFFFFF' : '#E5F3F5',
-              borderColor: hasTechnician ? '#E5E7EB' : '#C7E6EA',
-            }]}
-          >
-            {!hasTechnician ? (
-              <>
-                <View className="flex-row items-center mb-3">
-                  <View
-                    className="w-11 h-11 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: '#E5F3F5' }}
-                  >
-                    <User size={20} color={ACCENT_GREEN} />
-                  </View>
-                  <Text className="flex-1 text-[12px] text-text-muted">
-                    No technician assigned to this booking yet.
-                  </Text>
-                </View>
-                {!isDelivered ? (
-                <Pressable
-                  onPress={onAssignPress}
-                  className="rounded-xl active:opacity-90 overflow-hidden"
-                >
-                  <LinearGradient
-                    colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <UserPlus size={15} color="#fff" />
-                    <Text className="text-white text-[13px] font-extrabold ml-1.5">Assign Technician</Text>
-                  </LinearGradient>
-                </Pressable>
+        {/* ── Re-Estimated — only once the booking has been re-estimated ── */}
+        {reEstimateEvent || statusKey === 'QUOTED' ? (
+          <>
+            <SectionHeader icon={Calculator} label="RE-ESTIMATED" />
+            <View className="px-4">
+              <View className="bg-card rounded-2xl p-4" style={cardShadow}>
+                <DetailRow icon={Clock} label="Re-Est. On" value={fmtInstant(reEstimateEvent?.createdAt) || '-'} />
+                <DetailRow icon={IndianRupee} label="Revised" value={`₹${Number(estimatedTotal || 0).toLocaleString('en-IN')}`} />
+                {lineItems.length ? (
+                  <DetailRow icon={Wrench} label="Services" value={lineItems.map((i) => i.label).filter(Boolean).join(', ')} />
                 ) : null}
-              </>
-            ) : (
-              <View className="flex-row items-center">
-                <View
-                  className="h-11 w-11 rounded-full items-center justify-center mr-3"
-                  style={{ backgroundColor: ACCENT_GREEN }}
-                >
-                  <Text className="text-white text-[13px] font-extrabold">
-                    {(techName || '?').slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <View className="flex-1 min-w-0">
-                  <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>
-                    {techName}{techCode ? ` · ${techCode}` : ''}
-                  </Text>
-                  <View className="flex-row items-center mt-0.5">
-                    {techAccepted ? (
-                      <>
-                        <CheckCircle2 size={11} color={ACCENT_GREEN} />
-                        <Text className="text-[10.5px] font-extrabold text-success ml-1">Accepted</Text>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle size={11} color="#DC2626" />
-                        <Text className="text-[10.5px] font-extrabold text-danger ml-1">
-                          Not yet accepted
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </View>
-                {!techAccepted && !isDelivered ? (
-                  <Pressable
-                    onPress={onReassignPress}
-                    className="flex-row items-center rounded-full px-3 py-1.5 active:opacity-80"
-                    style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}
-                  >
-                    <RefreshCcw size={11} color={ACCENT_GREEN} />
-                    <Text className="text-[11px] font-extrabold ml-1" style={{ color: ACCENT_GREEN }}>Re-Assign</Text>
-                  </Pressable>
+                {ticket.originalEstimatedDeliveryAt ? (
+                  <DetailRow icon={Calendar} label="Original" value={fmtInstant(ticket.originalEstimatedDeliveryAt) || '-'} />
                 ) : null}
+                <DetailRow icon={CalendarClock} label="New Delivery" value={fmtInstant(ticket.estimatedDeliveryAt) || '-'} />
+                <View className="flex-row items-center py-1.5">
+                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                    <ShieldCheck size={14} color={ACCENT_GREEN} />
+                  </View>
+                  <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
+                  {ticket.customerApproval ? (
+                    <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
+                      <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
+                      <Text className="text-[12px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Approved</Text>
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#FEF3C7' }}>
+                      <AlertCircle size={13} color="#B45309" />
+                      <Text className="text-[12px] font-bold ml-1" style={{ color: '#B45309' }}>Pending</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            )}
-          </View>
-        </View>
+            </View>
+          </>
+        ) : null}
 
-        {/* ── Quick actions ────────────────────────────────── */}
-        <SectionHeader icon={Zap} label="QUICK ACTIONS" />
-        <View className="px-4">
-          <View className="flex-row flex-wrap -mx-1">
-            {ACTION_TILES.map((a) => {
-              const Icon = a.icon;
-              return (
-                <View key={a.key} style={{ width: '33.333%' }} className="p-1">
-                  <Pressable
-                    onPress={() => onAction(a.key)}
-                    className="bg-card rounded-2xl px-2 py-3 items-center active:opacity-80"
-                    style={cardShadow}
-                  >
-                    <View
-                      className="h-10 w-10 rounded-xl items-center justify-center mb-1.5"
-                      style={{ backgroundColor: a.tint }}
-                    >
-                      <Icon size={18} color={a.fg} />
+        {/* ── Invoice — once generated: number, date, amount, View Invoice.
+            Ready (not yet billed): a Generate Invoice shortcut. ── */}
+        {invoice || statusKey === 'READY' ? (
+          <>
+            <SectionHeader icon={FileText} label="INVOICE" />
+            <View className="px-4">
+              {invoice ? (
+                <View style={[cardShadow, { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#357D89', alignItems: 'center', justifyContent: 'center' }}>
+                      <FileText size={18} color="#FFFFFF" strokeWidth={2.2} />
                     </View>
-                    <Text className="text-[10.5px] font-extrabold text-text text-center" numberOfLines={1}>
-                      {a.label}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ── Service Progress — 3-state Mark → Done/Cancel pattern
-            (mirrors the technician Ticket Detail screen).
-
-              idle    → numbered chip + label + [Mark] gray chip
-              checked → yellow numbered chip + "Tap Done to confirm" + [Done] [Cancel]
-              done    → green check + "Recorded" + DONE pill                */}
-        <SectionHeader icon={CheckCircle2} label="SERVICE PROGRESS" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl p-3" style={cardShadow}>
-            <Text className="text-[10.5px] text-text-muted mb-2">
-              Tap <Text className="font-extrabold text-text">Mark</Text> on the next step, then{' '}
-              <Text className="font-extrabold text-text">Done</Text> to record it on the customer's Service History.
-            </Text>
-            {(() => {
-              // Resolve each step's done-ness up front so we can highlight the
-              // first not-yet-done step (the actionable "next" one) in green.
-              const states = OWNER_PROGRESS_ROWS.map((row, idx) => {
-                const entry = progressStatus[row.key];
-                // A step counts as done if it was explicitly recorded OR the
-                // ticket's status has already advanced at/past it in the lifecycle
-                // (e.g. once the invoice is generated, "Ready for Delivery" is
-                // behind us — so it shows done instead of looking stuck).
-                const lifeIdx = LIFECYCLE_ORDER.indexOf(row.key);
-                const lifecycleDone = lifeIdx >= 0 && statusIdx >= 0 && statusIdx >= lifeIdx;
-                const done = !!entry?.done || lifecycleDone;
-                return { row, idx, entry, done };
-              });
-              const nextIdx = states.findIndex((s) => !s.done);
-              const lastIdx = OWNER_PROGRESS_ROWS.length - 1;
-
-              return states.map(({ row, idx, entry, done }) => {
-                const checked = !!progressChecked[row.key];
-                const busy = progressBusy === row.key;
-                const stepNo = String(idx + 1).padStart(2, '0');
-                const isNext = idx === nextIdx;
-                // Locked until the Service History step before it is recorded.
-                const blocker = done ? null : stepBlockedBy(recordedKeys, row.key);
-                const toggleTick = () =>
-                  setProgressChecked((prev) => ({ ...prev, [row.key]: !prev[row.key] }));
-                return (
-                  <View
-                    key={row.key}
-                    style={{ flexDirection: 'row', alignItems: 'stretch', paddingVertical: 10 }}
-                  >
-                    {/* Numbered chip + dashed connector down to the next step. */}
-                    <View style={{ width: 30, alignItems: 'center' }}>
-                      <View
-                        className="rounded-full items-center justify-center"
-                        style={{
-                          width: 30, height: 30,
-                          backgroundColor: done ? '#E5F3F5' : checked ? '#FEF3C7' : '#E5F3F5',
-                        }}
-                      >
-                        {done
-                          ? <Check size={14} color="#035C6C" />
-                          : (
-                            <Text
-                              className="text-[10px] font-extrabold"
-                              style={{ color: checked ? '#B45309' : '#6B7280' }}
-                            >
-                              {stepNo}
-                            </Text>
-                          )}
-                      </View>
-                      {idx < lastIdx ? (
-                        <View
-                          style={{
-                            flex: 1,
-                            marginTop: 3,
-                            marginBottom: -13,
-                            borderLeftWidth: 1.5,
-                            borderStyle: 'dashed',
-                            borderColor: done ? '#357D89' : '#D1D5DB',
-                          }}
-                        />
-                      ) : null}
-                    </View>
-
-                    <Pressable
-                      onPress={done || blocker ? null : toggleTick}
-                      className="flex-1 ml-3"
-                      style={({ pressed }) => ({ justifyContent: 'center', opacity: pressed && !done && !blocker ? 0.7 : 1 })}
-                    >
-                      <Text
-                        className={`text-[13px] ${done ? 'font-extrabold' : 'font-bold'} text-text`}
-                        numberOfLines={1}
-                      >
-                        {row.label}
+                    <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                        {invoice.invoiceNo ? `Invoice ${invoice.invoiceNo}` : 'Invoice'}
                       </Text>
-                      {checked && !done ? (
-                        <Text className="text-[10px] text-text-muted mt-0.5">
-                          Tap Done to confirm.
+                      <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                        {invoice.generatedAt ? `Generated ${fmtStatusWhen(invoice.generatedAt)}` : 'Generated'}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#035C6C', marginLeft: 8 }} numberOfLines={1}>
+                      ₹{Number(invoice.finalPayableAmount ?? invoice.netPayableAmount ?? 0).toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                  {Number(invoice.amountPaid) > 0 || Number(invoice.advancePaid) > 0 ? (
+                    <View style={{ flexDirection: 'row', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                      <Text style={{ flex: 1, fontSize: 12, color: '#6B7280' }}>
+                        Paid ₹{(Number(invoice.amountPaid || 0) + Number(invoice.advancePaid || 0)).toLocaleString('en-IN')}
+                      </Text>
+                      {Number(invoice.netPayableAmount) - Number(invoice.amountPaid || 0) > 0 ? (
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#B45309' }}>
+                          Balance ₹{(Number(invoice.netPayableAmount) - Number(invoice.amountPaid || 0)).toLocaleString('en-IN')}
                         </Text>
-                      ) : done ? (
-                        <Text className="text-[10px] mt-0.5" style={{ color: '#035C6C' }}>
-                          Recorded{entry?.at ? ` · ${formatProgressTime(entry.at)}` : ''}
-                        </Text>
-                      ) : blocker ? (
-                        <Text className="text-[10px] text-text-muted mt-0.5" numberOfLines={1}>
-                          Opens after {blocker}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-
-                    {/* Right action area: changes by state (vertically centered). */}
-                    <View style={{ justifyContent: 'center' }}>
-                      {done ? (
-                        <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
-                          <Text className="text-[10px] font-extrabold" style={{ color: '#035C6C' }}>DONE</Text>
-                        </View>
-                      ) : checked ? (
-                        <View className="flex-row items-center">
-                          {/* Done — fires the emit (READY first prompts for IMEI). */}
-                          <TouchableOpacity
-                            onPress={() => onProgressDone(row)}
-                            disabled={busy}
-                            className="rounded-full flex-row items-center"
-                            style={{
-                              backgroundColor: '#035C6C',
-                              paddingHorizontal: 14, paddingVertical: 7,
-                              opacity: busy ? 0.6 : 1,
-                              shadowColor: '#035C6C', shadowOpacity: 0.3, shadowRadius: 4,
-                              shadowOffset: { width: 0, height: 2 }, elevation: 2,
-                            }}
-                          >
-                            {busy
-                              ? <ActivityIndicator color="#FFFFFF" size="small" />
-                              : (
-                                <>
-                                  <Check size={12} color="#FFFFFF" />
-                                  <Text className="text-[11px] font-extrabold text-white ml-1">Done</Text>
-                                </>
-                              )}
-                          </TouchableOpacity>
-                          {/* Cancel — clears the tick, no emit. */}
-                          <TouchableOpacity
-                            onPress={toggleTick}
-                            disabled={busy}
-                            className="rounded-full flex-row items-center ml-2"
-                            style={{
-                              backgroundColor: '#FFFFFF',
-                              borderWidth: 1, borderColor: '#D1D5DB',
-                              paddingHorizontal: 12, paddingVertical: 6,
-                            }}
-                          >
-                            <X size={11} color="#6B7280" />
-                            <Text className="text-[11px] font-extrabold ml-1" style={{ color: '#6B7280' }}>Cancel</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : blocker ? (
-                        <View className="rounded-full" style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 7 }}>
-                          <Text className="text-[11px] font-extrabold" style={{ color: '#9AA39A' }}>Locked</Text>
-                        </View>
                       ) : (
-                        // Idle: a Mark chip that ticks the row. The next actionable
-                        // step is tinted green so it reads as the call-to-action.
-                        <TouchableOpacity
-                          onPress={toggleTick}
-                          className="rounded-full"
-                          style={{
-                            backgroundColor: isNext ? '#E5F3F5' : '#E5F3F5',
-                            paddingHorizontal: 16, paddingVertical: 7,
-                          }}
-                        >
-                          <Text
-                            className="text-[11px] font-extrabold"
-                            style={{ color: isNext ? BRAND_GREEN_DARK : '#6B7280' }}
-                          >
-                            Mark
-                          </Text>
-                        </TouchableOpacity>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#476B26' }}>Settled</Text>
                       )}
                     </View>
+                  ) : null}
+                  <Pressable
+                    onPress={() => navigation.navigate('DeliveryInvoiceReport', { ticketId: ticket.id })}
+                    accessibilityRole="button"
+                    className="items-center justify-center active:opacity-85"
+                    style={{ marginTop: 10, height: 42, borderRadius: 12, borderWidth: 1.5, borderColor: '#035C6C', flexDirection: 'row' }}
+                  >
+                    <Eye size={15} color="#035C6C" />
+                    <Text style={{ marginLeft: 6, fontSize: 13.5, fontWeight: '800', color: '#035C6C' }}>View Invoice</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => navigation.navigate('InvoiceGenerator', { ticketId: ticket.id })}
+                  accessibilityRole="button"
+                  className="active:opacity-90"
+                  style={[cardShadow, { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#357D89', backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' }}>
+                    <FileText size={18} color="#357D89" strokeWidth={2.2} />
                   </View>
-                );
-              });
-            })()}
-          </View>
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>No invoice yet</Text>
+                    <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>Ready for delivery — generate the bill</Text>
+                  </View>
+                  <View style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#FFFFFF' }}>Generate</Text>
+                  </View>
+                </Pressable>
+              )}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Technician — one tappable card; opens Assign / Change Technician. ── */}
+        <SectionHeader icon={Users} label="TECHNICIAN" />
+        <View className="px-4">
+          <Pressable
+            onPress={goToAssign}
+            disabled={!canChangeTech}
+            accessibilityRole="button"
+            accessibilityLabel={hasTechnician ? `Technician ${techName}` : 'Assign technician'}
+            className="active:opacity-90"
+            style={[cardShadow, { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
+          >
+            {hasTechnician ? (
+              <View className="items-center justify-center" style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: ACCENT_GREEN }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>
+                  {String(techName || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+                </Text>
+              </View>
+            ) : (
+              <View className="items-center justify-center" style={{ height: 44, width: 44, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: ACCENT_GREEN, backgroundColor: '#E5F3F5' }}>
+                <UserPlus size={19} color={ACCENT_GREEN} strokeWidth={2} />
+              </View>
+            )}
+            <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                {hasTechnician ? techName : 'No technician assigned'}
+                {hasTechnician && techCode ? <Text style={{ color: '#6B7280', fontWeight: '600' }}> · {techCode}</Text> : null}
+              </Text>
+              {hasTechnician ? (
+                <View style={{ flexDirection: 'row', marginTop: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: techAccepted ? '#EDF4E7' : '#FFF4DB' }}>
+                    {techAccepted ? <CheckCircle2 size={11} color="#476B26" /> : <AlertCircle size={11} color="#B45309" />}
+                    <Text style={{ marginLeft: 4, fontSize: 10.5, fontWeight: '800', color: techAccepted ? '#476B26' : '#B45309' }}>
+                      {techAccepted ? 'Accepted' : 'Waiting for acceptance'}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                  {isDelivered ? 'Delivered without a technician' : 'Assign a technician to start the repair'}
+                </Text>
+              )}
+            </View>
+            {canChangeTech ? (
+              <View
+                style={{
+                  flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 32, borderRadius: 16, marginLeft: 8,
+                  backgroundColor: hasTechnician ? '#FFFFFF' : ACCENT_GREEN, borderWidth: 1.5, borderColor: ACCENT_GREEN,
+                }}
+              >
+                {hasTechnician ? <RefreshCcw size={12} color={ACCENT_GREEN} strokeWidth={2.5} /> : <UserPlus size={13} color="#FFFFFF" strokeWidth={2.5} />}
+                <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '800', color: hasTechnician ? ACCENT_GREEN : '#FFFFFF' }}>
+                  {hasTechnician ? 'Change' : 'Assign'}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
         </View>
+
         </View>
       </ScrollView>
 
-      {/* ── Bottom action bar — Contact Customer + Update Status ── */}
+      {/* ── Bottom action menu — hidden behind a handle; open it for every
+          booking action, 4 per row. ── */}
       <View
         style={{
           position: 'absolute',
           left: 0, right: 0, bottom: 0,
-          flexDirection: 'row',
           backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          shadowColor: '#000000',
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: -2 },
+          elevation: 12,
           // Tablets: line the buttons up with the capped content column.
-          paddingHorizontal: Math.max(16, (winW - contentW) / 2 + 16),
-          paddingTop: 12,
-          paddingBottom: insets.bottom + 12,
-          gap: 12,
+          paddingHorizontal: Math.max(8, (winW - contentW) / 2 + 8),
+          paddingBottom: insets.bottom + (menuOpen ? 8 : 4),
         }}
       >
-        <Pressable
-          onPress={contactCustomer}
-          className="flex-1 flex-row items-center justify-center rounded-2xl active:opacity-80"
-          style={{ borderWidth: 1.5, borderColor: ACCENT_GREEN, paddingVertical: 14 }}
+        <View
+          {...menuPan.panHandlers}
+          style={{ alignItems: 'center', paddingTop: 8, paddingBottom: menuOpen ? 6 : 8 }}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={menuOpen ? 'Hide booking actions' : 'Show booking actions'}
+          accessibilityState={{ expanded: menuOpen }}
         >
-          <Phone size={16} color={ACCENT_GREEN} />
-          <Text className="text-[13px] font-extrabold ml-2 flex-shrink" style={{ color: ACCENT_GREEN }} numberOfLines={1}>
-            Contact Customer
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => (isDelivered ? onAction('reservice') : setStatusOpen(true))}
-          className="flex-1 rounded-2xl overflow-hidden active:opacity-90"
-        >
-          <LinearGradient
-            colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-          >
-            {isDelivered ? <RefreshCcw size={16} color="#FFFFFF" /> : <ClipboardList size={16} color="#FFFFFF" />}
-            <Text className="text-white text-[13px] font-extrabold ml-2 flex-shrink" numberOfLines={1}>{isDelivered ? 'Re-Service' : 'Update Status'}</Text>
-          </LinearGradient>
-        </Pressable>
+          {/* Brand Red pill, white arrow: ▲ opens the actions, ▼ hides them (tap or swipe). */}
+          <View style={{ width: 58, height: 24, borderRadius: 12, backgroundColor: '#F32C26', alignItems: 'center', justifyContent: 'center' }}>
+            {menuOpen
+              ? <ChevronDownIcon size={18} color="#FFFFFF" strokeWidth={3} />
+              : <ChevronUp size={18} color="#FFFFFF" strokeWidth={3} />}
+          </View>
+        </View>
+        {menuOpen ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {(isDelivered ? DELIVERED_TILES : ACTION_TILES).map((a, i) => {
+          const Icon = a.icon;
+          return (
+            <Pressable
+              key={a.key}
+              onPress={() => { setMenuOpen(false); onAction(a.key); }}
+              className="items-center active:opacity-70"
+              style={{ width: '25%', paddingVertical: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
+            >
+              <View className="items-center justify-center" style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: HOME_TILE_TONES[i % HOME_TILE_TONES.length] }}>
+                <Icon size={18} color="#FFFFFF" />
+              </View>
+              <Text className="text-[11px] font-extrabold text-text text-center" style={{ marginTop: 4 }} numberOfLines={1}>{a.label}</Text>
+            </Pressable>
+          );
+        })}
+        </View>
+        ) : null}
       </View>
 
-      {/* ── Share Image sheet — same component BookingHistoryScreen uses,
+      <ImageViewerModal
+        visible={photoIndex != null}
+        images={photoUrls.map((uri, i) => ({ uri, label: `Photo ${i + 1}` }))}
+        index={photoIndex || 0}
+        onClose={() => setPhotoIndex(null)}
+      />
+
+      <RescheduleSheet visible={rescheduleOpen} booking={ticket} onClose={() => setRescheduleOpen(false)} onUpdated={load} />
+
+      {/* ── Share Image sheet — same component JobsScreen uses,
           so the experience is identical wherever it is reached from. ── */}
       <ShareReceiptSheet
         visible={shareOpen}
@@ -1193,49 +1298,31 @@ export default function TicketDetailScreen({ route, navigation }) {
                   </Pressable>
                 </View>
                 <Text className="text-[11px] text-text-muted mb-3">
-                  Booking #{trackingId} moves forward one stage at a time.
+                  Booking #{trackingId} · moves forward one stage at a time.
                 </Text>
 
-                {/* Current stage — read-only */}
-                <View
-                  className="rounded-2xl border px-3.5 py-3 mb-1"
-                  style={{ backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' }}
-                >
-                  <Text className="text-[10px] uppercase font-extrabold text-gray-400 mb-1.5" style={{ letterSpacing: 0.8 }}>
-                    Current Stage
-                  </Text>
-                  <View className="flex-row items-center">
-                    <View className="w-2.5 h-2.5 rounded-full mr-2.5" style={{ backgroundColor: statusTone.fg }} />
-                    <Text className="flex-1 text-[13px] font-extrabold text-text">{statusMeta.label}</Text>
-                    <View className="flex-row items-center">
-                      <CheckCircle2 size={14} color={BRAND_GREEN_DARK} />
-                      <Text className="text-[10.5px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Current</Text>
-                    </View>
+                {/* Current status — read-only card */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA', borderRadius: 16, padding: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: BRAND_GREEN, alignItems: 'center', justifyContent: 'center' }}>
+                    <Settings size={21} color="#FFFFFF" strokeWidth={2.2} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                    <Text style={{ fontSize: 11.5, color: '#6B7280', fontWeight: '600' }}>Current Status</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>{statusMeta.label}</Text>
+                    <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>{fmtStatusWhen(ticket.updatedAt || ticket.createdAt)}</Text>
                   </View>
                 </View>
 
                 {(() => {
                   const next = nextStage(statusKey);
-                  const nextMeta = next ? (STATUS_VARIANT[next] || { label: next, tone: 'green' }) : null;
-                  const advancing = statusBusy === next;
-                  const advanceBlockedBy = next && ADVANCE_STEP[next]
-                    ? stepBlockedBy(recordedKeys, ADVANCE_STEP[next])
-                    : null;
-
                   if (!next) {
                     const cancelled = statusKey === 'CANCELLED';
                     return (
                       <View
-                        className="rounded-2xl px-3.5 py-4 items-center mt-1.5"
-                        style={{
-                          backgroundColor: cancelled ? '#FEF2F2' : '#E5F3F5',
-                          borderWidth: 1,
-                          borderColor: cancelled ? '#FECACA' : '#C7E6EA',
-                        }}
+                        className="rounded-2xl px-3.5 py-4 items-center mt-3"
+                        style={{ backgroundColor: cancelled ? '#FDEBEA' : '#E5F3F5', borderWidth: 1, borderColor: cancelled ? '#F9C5C3' : '#C7E6EA' }}
                       >
-                        {cancelled
-                          ? <AlertCircle size={20} color="#B91C1C" />
-                          : <CheckCircle2 size={20} color={BRAND_GREEN_DARK} />}
+                        {cancelled ? <AlertCircle size={20} color="#C81E1A" /> : <CheckCircle2 size={20} color={BRAND_GREEN_DARK} />}
                         <Text className="text-[13px] font-extrabold text-text mt-1.5">
                           {cancelled ? 'This booking was cancelled.' : 'Final stage reached.'}
                         </Text>
@@ -1246,48 +1333,142 @@ export default function TicketDetailScreen({ route, navigation }) {
                     );
                   }
 
+                  // Upcoming stages in order; only the very next one (and Cancel)
+                  // can be picked — status still moves one stage at a time.
+                  const rank = STATUS_RANK[statusKey] ?? 0;
+                  const upcoming = ADVANCE_FLOW.filter((s) => (STATUS_RANK[s] ?? 0) > rank);
+                  const blockedBy = ADVANCE_STEP[next] ? stepBlockedBy(recordedKeys, ADVANCE_STEP[next]) : null;
+                  const qcDone = recordedKeys.includes('QUALITY_CHECK_COMPLETED');
+                  const qcBlockedBy = qcDone ? null : stepBlockedBy(recordedKeys, 'QUALITY_CHECK_COMPLETED');
+                  const dpDone = statusKey === 'DELIVERED_PROCESSING' || recordedKeys.includes('DELIVERED_PROCESSING');
+                  // Invoice Generated comes from the invoice screen (it saves the
+                  // invoice and records the step), so it opens that screen.
+                  const invDone = dpDone || recordedKeys.includes('INVOICE_GENERATED')
+                    || ['INVOICE_GENERATED', 'INVOICE_READY'].includes(statusKey);
+                  // Customer Rejected: before the repair is ready, and only while
+                  // the customer hasn't approved / rejected already.
+                  const canReject = rank < (STATUS_RANK.READY ?? 5)
+                    && !recordedKeys.includes('CUSTOMER_REJECTED') && !recordedKeys.includes('CUSTOMER_APPROVED');
+                  const options = [
+                    ...upcoming.flatMap((k) => (
+                      k === 'READY' && !qcDone ? ['QUALITY_CHECK', k]
+                        : k === 'DELIVERED' && !dpDone ? [...(invDone ? [] : ['INVOICE_GENERATED']), 'DELIVERED_PROCESSING', k]
+                        : [k])),
+                    ...(canReject ? ['CUSTOMER_REJECTED'] : []),
+                    'CANCELLED',
+                  ];
+                  // Pickable now: the next stage, Cancel, Customer Rejected, QC once
+                  // Ready is next and Dispatched once Delivered is next.
+                  const selectable = (k) => k === 'CANCELLED' || k === 'CUSTOMER_REJECTED' || k === next
+                    || (k === 'QUALITY_CHECK' && next === 'READY')
+                    || ((k === 'DELIVERED_PROCESSING' || k === 'INVOICE_GENERATED') && next === 'DELIVERED');
+                  // A re-estimate waiting on the customer holds the repair back.
+                  const awaitingApproval = statusKey === 'QUOTED';
+                  const blockerFor = (k) => (
+                    k === next ? (awaitingApproval ? AWAIT_APPROVAL : blockedBy)
+                      : k === 'QUALITY_CHECK' ? qcBlockedBy
+                      : k === 'DELIVERED_PROCESSING' || k === 'CUSTOMER_REJECTED' || k === 'INVOICE_GENERATED' ? stepBlockedBy(recordedKeys, k)
+                      : null);
+                  const picked = pickedStatus && options.includes(pickedStatus) ? pickedStatus : null;
+                  const pickedMeta = picked ? STATUS_OPTION[picked] : null;
+                  const isCancel = picked === 'CANCELLED';
+                  const isStep = !!STEP_OPTION_KEY[picked];
+                  const isReject = picked === 'CUSTOMER_REJECTED';
+                  const isInvoice = picked === 'INVOICE_GENERATED';
+                  const reasonOk = !isReject || rejectReason.trim().length >= 3;
+                  const busy = statusBusy != null;
+                  const canApply = !!picked && !busy && selectable(picked) && !blockerFor(picked) && reasonOk;
                   return (
                     <>
-                      <View className="items-center my-1.5">
-                        <ArrowDown size={16} color="#9CA3AF" />
-                      </View>
-                      {advanceBlockedBy ? (
-                        <Text className="text-[11px] font-bold text-center mb-2" style={{ color: '#B45309' }}>
-                          Record &quot;{advanceBlockedBy}&quot; first — Service History moves one step at a time.
-                        </Text>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#1C3053', marginTop: 14, marginBottom: 8 }}>Next Status Options</Text>
+                      <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                        {options.map((key, idx) => {
+                          const meta = STATUS_OPTION[key] || { title: STATUS_VARIANT[key]?.label || key, sub: '', Icon: ListChecks, tone: BRAND_GREEN };
+                          const OptIcon = meta.Icon;
+                          const locked = !selectable(key);
+                          const rowBlocker = locked ? null : blockerFor(key);
+                          const blocked = !!rowBlocker;
+                          const off = locked || blocked || busy;
+                          const on = picked === key;
+                          const prevTitle = idx > 0 ? (STATUS_OPTION[options[idx - 1]]?.title || '') : '';
+                          const sub = blocked
+                            ? (rowBlocker === AWAIT_APPROVAL ? 'Waiting for the customer to approve the re-estimate' : `Record "${rowBlocker}" first`)
+                            : locked ? `Available after ${prevTitle}` : meta.sub;
+                          return (
+                            <Pressable
+                              key={key}
+                              onPress={off ? undefined : () => setPickedStatus(key)}
+                              disabled={off}
+                              accessibilityRole="radio"
+                              accessibilityState={{ selected: on, disabled: off }}
+                              accessibilityLabel={`${meta.title}. ${sub}`}
+                              style={{
+                                flexDirection: 'row', alignItems: 'center', minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
+                                borderRadius: 14, borderWidth: on ? 1.5 : 1, borderColor: on ? BRAND_GREEN : '#E5E7EB',
+                                backgroundColor: on ? '#F0F9FA' : '#FFFFFF', opacity: locked || blocked ? 0.5 : 1,
+                              }}
+                            >
+                              <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? BRAND_GREEN : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
+                                {on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: BRAND_GREEN }} /> : null}
+                              </View>
+                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center', marginLeft: 12 }}>
+                                <OptIcon size={19} color="#FFFFFF" strokeWidth={2.2} />
+                              </View>
+                              <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
+                                <Text style={{ fontSize: 12, color: blocked ? '#B45309' : '#6B7280', marginTop: 2 }} numberOfLines={2}>{sub}</Text>
+                              </View>
+                              {locked ? <Lock size={15} color="#9CA3AF" style={{ marginLeft: 8 }} /> : null}
+                              {statusBusy === key ? <ActivityIndicator size="small" color={meta.tone} style={{ marginLeft: 8 }} /> : null}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+
+                      {isReject ? (
+                        <View style={{ marginBottom: 10 }}>
+                          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
+                            Reason for rejection<Text style={{ color: '#F32C26' }}> *</Text>
+                          </Text>
+                          <TextInput
+                            value={rejectReason}
+                            onChangeText={setRejectReason}
+                            placeholder="e.g. Repair cost too high, customer will buy a new phone"
+                            placeholderTextColor="#9CA3AF"
+                            multiline
+                            maxLength={300}
+                            textAlignVertical="top"
+                            cursorColor={BRAND_GREEN}
+                            style={{ minHeight: 70, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
+                          />
+                        </View>
                       ) : null}
-                      <TouchableOpacity
-                        onPress={() => applyStatus(next)}
-                        disabled={statusBusy != null || !!advanceBlockedBy}
-                        activeOpacity={0.9}
-                        className="rounded-2xl overflow-hidden"
-                        style={{ opacity: advanceBlockedBy ? 0.45 : statusBusy != null && !advancing ? 0.6 : 1 }}
-                      >
-                        <LinearGradient
-                          colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
-                        >
-                          <View className="flex-1">
-                            <Text className="text-[10px] uppercase font-extrabold" style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8 }}>
-                              Advance To
-                            </Text>
-                            <Text className="text-white text-[13px] font-extrabold mt-0.5">{nextMeta.label}</Text>
-                          </View>
-                          {advancing
-                            ? <ActivityIndicator size="small" color="#FFFFFF" />
-                            : <ChevronRight size={20} color="#FFFFFF" />}
-                        </LinearGradient>
-                      </TouchableOpacity>
 
                       <TouchableOpacity
-                        onPress={cancelBooking}
-                        disabled={statusBusy != null}
-                        className="rounded-2xl border mt-2.5 py-3 items-center"
-                        style={{ borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}
+                        onPress={() => (
+                          isCancel ? cancelBooking()
+                            : isInvoice ? (setStatusOpen(false), navigation.navigate('InvoiceGenerator', { ticketId: ticket.id }))
+                            : isStep ? recordStep(picked, isReject ? rejectReason.trim() : null)
+                            : applyStatus(picked))}
+                        disabled={!canApply}
+                        activeOpacity={0.9}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !canApply }}
+                        style={{
+                          marginTop: 4, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row',
+                          backgroundColor: isCancel ? '#F32C26' : isReject ? '#E08E00' : BRAND_GREEN, opacity: canApply ? 1 : 0.45,
+                        }}
                       >
-                        <Text className="text-[12px] font-extrabold" style={{ color: '#B91C1C' }}>Cancel booking</Text>
+                        {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
+                            {!pickedMeta ? 'Select a status'
+                              : isCancel ? 'Cancel Booking'
+                              : isReject ? (reasonOk ? 'Mark Customer Rejected' : 'Enter the rejection reason')
+                              : isInvoice ? 'Generate Invoice'
+                              : isStep ? `Mark ${pickedMeta.title}`
+                              : `Update to ${pickedMeta.title}`}
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     </>
                   );
@@ -1418,6 +1599,18 @@ function DetailRow({ icon: Icon, label, value }) {
       <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={2}>{value}</Text>
     </View>
   );
+}
+
+// Device lock as entered at booking: "None", the PIN / password, or the pattern
+// dots joined with ">" (same order the lock popup shows them).
+function formatSecurity(type, value) {
+  const t = String(type || 'NONE').toUpperCase();
+  if (t === 'NONE') return 'None';
+  const label = t === 'PIN' ? 'PIN' : t === 'PASSWORD' ? 'Password' : t === 'PATTERN' ? 'Pattern'
+    : t.charAt(0) + t.slice(1).toLowerCase();
+  let v = value == null ? '' : String(value).trim();
+  if (t === 'PATTERN') v = v.split(',').map((d) => d.trim()).filter(Boolean).join(' > ');
+  return v ? `${label} · ${v}` : label;
 }
 
 // Pretty-print an Instant/ISO string from the ticket as a fallback when display

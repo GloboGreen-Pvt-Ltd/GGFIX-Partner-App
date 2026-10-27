@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Image, ScrollView, Text, View } from 'react-native';
-import { ChevronRight, Smartphone, Store, User } from 'lucide-react-native';
+import { Smartphone, Store, User } from 'lucide-react-native';
 import { DashboardSection } from './DashboardSection';
 import { Touchable } from './theme';
 import { normalizeDeviceImageUrl } from '../../utils/images';
@@ -10,7 +10,6 @@ const G = '#035C6C';
 const G_LIGHT = '#E5F3F5';
 const DARK = '#111111';
 const MUTED = '#6B7280';
-const LIGHT = '#F3F4F6';
 
 export interface NearbyDeal {
   _key: string;
@@ -34,16 +33,24 @@ interface Props {
   onViewAll: () => void;
 }
 
-function DealImage({ uri }: { uri?: string | null }) {
+function DealImage({ uri, tag }: { uri?: string | null; tag?: string | null }) {
   const [broken, setBroken] = useState(false);
   const src = uri ? normalizeDeviceImageUrl(uri) : null;
   return (
-    <View style={{ height: 68, borderRadius: 10, backgroundColor: '#FFFFFF', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ aspectRatio: 1.1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
       {src && !broken ? (
-        <Image source={{ uri: src }} style={{ width: '86%', height: '86%' }} resizeMode="contain" onError={() => setBroken(true)} />
+        <Image source={{ uri: src }} style={{ width: '74%', height: '74%' }} resizeMode="contain" onError={() => setBroken(true)} />
       ) : (
-        <Smartphone size={24} color={G} />
+        <Smartphone size={28} color={G} />
       )}
+      {tag ? (
+        <View style={{ position: 'absolute', top: 0, left: 0, maxWidth: '86%', backgroundColor: G, paddingHorizontal: 7, paddingVertical: 3, borderBottomRightRadius: 10 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }} numberOfLines={1}>{tag}</Text>
+        </View>
+      ) : null}
+      <View pointerEvents="none" style={{ position: 'absolute', right: 5, bottom: 5, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: G, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 2 }}>
+        <Text style={{ color: G, fontSize: 10, fontWeight: '800' }}>VIEW</Text>
+      </View>
     </View>
   );
 }
@@ -75,45 +82,32 @@ export function DashboardNearbyDeals({ deals, pad, cardWidth, gap, onOpen, onVie
                 backgroundColor: '#FFFFFF',
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: LIGHT,
-                padding: 7,
-                shadowColor: '#111111',
-                shadowOpacity: 0.04,
-                shadowRadius: 6,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 1,
+                borderColor: '#E5E7EB',
+                overflow: 'hidden',
               }}
               pressedStyle={{ opacity: 0.85 }}
             >
-              <DealImage uri={d.productImage} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: DARK, marginTop: 5 }} numberOfLines={1}>
-                {d.productName || 'Device'}
-              </Text>
-              {spec ? (
-                <Text style={{ fontSize: 10, color: MUTED, marginTop: 1 }} numberOfLines={1}>{spec}</Text>
-              ) : null}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                {isCustomer ? <User size={10} color={MUTED} /> : <Store size={10} color={MUTED} />}
-                <Text style={{ flex: 1, fontSize: 10, fontWeight: '600', color: DARK, marginLeft: 3 }} numberOfLines={1}>
-                  {listingSellerLabel(d)}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              {/* Same tile as a Jobs card: image panel (condition tag · VIEW) on top. */}
+              <DealImage uri={d.productImage} tag={d.condition || null} />
+              <View style={{ paddingHorizontal: 7, paddingBottom: 7 }}>
                 {price ? (
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    {quote ? (
-                      <View style={{ alignSelf: 'flex-start', backgroundColor: G_LIGHT, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 9, fontWeight: '700', color: G }} numberOfLines={1}>{price}</Text>
-                      </View>
-                    ) : (
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: G }} numberOfLines={1}>{price}</Text>
-                    )}
+                  <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                    <View style={{ backgroundColor: quote ? G_LIGHT : G, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, maxWidth: '100%' }}>
+                      <Text style={{ fontSize: quote ? 9 : 12, fontWeight: '800', color: quote ? G : '#FFFFFF' }} numberOfLines={1}>{price}</Text>
+                    </View>
                   </View>
-                ) : (
-                  <View style={{ flex: 1 }} />
-                )}
-                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: G_LIGHT, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}>
-                  <ChevronRight size={12} color={G} strokeWidth={2.4} />
+                ) : null}
+                <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: '800', color: DARK, marginTop: 4 }} numberOfLines={2}>
+                  {d.productName || 'Device'}
+                </Text>
+                {spec ? (
+                  <Text style={{ fontSize: 10.5, color: MUTED, marginTop: 1 }} numberOfLines={1}>{spec}</Text>
+                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                  {isCustomer ? <User size={10} color={MUTED} /> : <Store size={10} color={MUTED} />}
+                  <Text style={{ flex: 1, fontSize: 10.5, color: MUTED, marginLeft: 3 }} numberOfLines={1}>
+                    {listingSellerLabel(d)}
+                  </Text>
                 </View>
               </View>
             </Touchable>

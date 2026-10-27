@@ -13,7 +13,7 @@
 // the Share Receipt sheet in TicketDetailScreen, so they look native here.
 //
 // The receipt PNG is captured from a hidden <ViewShot> owned by the *host*
-// screen (see BookingHistoryScreen) rather than by these modals: a view inside
+// screen (see JobsScreen) rather than by these modals: a view inside
 // a closed Modal isn't mounted, so captureRef would fail. The host passes the
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -211,7 +211,7 @@ const TINT = {
 // first and then offers only that flow's statuses — the two lists are never
 // on screen together.
 //
-// The shared endings (Invoice Generated, Out for Delivery, Delivered to
+// The shared endings (Invoice Generated, Dispatched, Delivered to
 // Customer, Repair Cancelled) appear under BOTH types on purpose: both paths
 // raise an invoice, hand the device over, and can be cancelled.
 //
@@ -235,7 +235,7 @@ const TINT = {
 // hands off to the Invoice Generator screen; that screen emits the status when
 // the invoice saves. See ServiceStatusSheet#submit.
 //
-// The stages are the Service History rows in the same order, Out for Delivery
+// The stages are the Service History rows in the same order, Dispatched
 // included — skipping it here left a gap on the timeline between Invoice
 // Generated and Delivered. A stage whose step before it isn't on the timeline
 // yet (Ready for Delivery before Quality Check, say) is shown but can't be
@@ -248,7 +248,7 @@ const SERVICE_STATUS_TYPES = [
     stages: [
       [{ key: 'READY',                label: 'Ready for Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -263,7 +263,7 @@ const SERVICE_STATUS_TYPES = [
       ],
       [{ key: 'RETURN_DELIVERY',      label: 'Return Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -827,7 +827,7 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
 //
 // An invoice is the document that ties a repair to a physical handset, so it
 // must not be raised against a missing IMEI. The gate is only opened for a
-// booking that HAS no number (BookingHistoryScreen sends one that already has
+// booking that HAS no number (JobsScreen sends one that already has
 // an IMEI straight to the generator). It opens straight on the IMEI field —
 // type it, or SCAN from the button inside the field (the scanner hands the
 // number back pre-filled for review) — plus "Customer didn't provide IMEI".

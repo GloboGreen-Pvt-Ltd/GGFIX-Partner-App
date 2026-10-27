@@ -1,7 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Image, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { railSizes } from '../../components/report/ReportRail';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -9,7 +12,6 @@ import {
   ChartColumn,
   Smartphone,
   Laptop,
-  User,
   UserCog,
   Clock,
   Inbox,
@@ -17,15 +19,14 @@ import {
   WifiOff,
   Wrench,
   ScanLine,
+  Search,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
 import { getModelsByBrand } from '../../api/masterData';
 import { notify } from '../../components/confirm';
 import { SearchBar } from '../../components/rnr/SearchBar';
-import TicketCard from '../../components/TicketCard';
 import { resolveDeviceImageSource } from '../../utils/images';
-import { useResponsive } from '../../theme/responsive';
-import { rf, rs } from '../../utils/responsive';
+import { estimatedTotalOf } from './AllBooking/ReceiptCard';
 
 /**
  * Job's Report — the same screen as the Employee app's Job Report
@@ -165,27 +166,22 @@ function ticketRef(t) {
 }
 
 // ---------------------------------------------------------------------------
-// Visual tokens
+// Visual tokens (brand sheet — same as the Jobs screen)
 // ---------------------------------------------------------------------------
 const C = {
-  green: '#035C6C',
+  green: '#035C6C', // Primary Teal
+  navy: '#1C3053',
+  blue: '#0788C9',
+  leaf: '#609138',
   red: '#F32C26',
   yellow: '#FAA700',
-  blue: '#0788C9',
   ink: '#111111',
   bg: '#F3F4F6',
+  tint: '#E5F3F5',
   white: '#FFFFFF',
-  muted: '#7A7A7A',
+  muted: '#6B7280',
   faint: '#A3A3A3',
-  line: '#EFEFEF',
-};
-
-const TONES = {
-  red: { fg: C.red, bg: '#FEECEC' },
-  yellow: { fg: C.yellow, bg: '#FFF4D6' },
-  green: { fg: C.green, bg: '#E5F3F5' },
-  blue: { fg: C.blue, bg: '#E8F0FE' },
-  ink: { fg: C.ink, bg: '#E5E7EB' },
+  line: '#E5E7EB',
 };
 
 function statusPill(t) {
@@ -226,14 +222,31 @@ function filterByChip(list, chip) {
 
 const byRecent = (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
 
+// Bill amount when the ticket has one (final price, else the estimate).
+const amountOf = (t) => Number(t?.finalPrice ?? estimatedTotalOf(t)) || 0;
+const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+// Left rail — the report's status filters (same buckets as before), coloured
+// from the brand sheet like the Jobs rail. `stat` is the old stat-card key.
+const RAIL = [
+  { key: 'All', stat: 'total', label: 'All', tone: C.green, Icon: ChartColumn },
+  { key: 'In Process', stat: 'process', label: 'In Process', tone: C.yellow, Icon: RefreshCw },
+  { key: 'Pending', stat: 'pending', label: 'Pending', tone: C.red, Icon: CircleAlert },
+  { key: 'Completed', stat: 'completed', label: 'Completed', tone: C.leaf, Icon: Check },
+];
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 export default function OwnerJobReportScreen({ route, navigation }) {
-  // Tablet: cap the column and centre it; phones are unaffected.
-  const r = useResponsive();
-  const contentW = r.isTablet ? Math.min(r.width - rs(32), 700) : undefined;
-  const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
+  const insets = useSafeAreaInsets();
+  const tabSpace = insets.bottom + 16;
+  const { width: winW } = useWindowDimensions();
+  const isSmall = winW < 360;
+  // Same geometry as Jobs: status rail on the left, one tile per row on
+  // phones, two when the list is wide (tablets).
+  const railW = winW >= 680 ? 104 : (isSmall ? 70 : 78);
+  const numCols = winW - railW >= 680 ? 2 : 1;
   const employee = route.params?.employee;
   const allMode = !employee?.id;
 
@@ -246,6 +259,8 @@ export default function OwnerJobReportScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
+  // Search bar is hidden until the header's Search icon opens it.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [filter, setFilter] = useState('All');
   // Latest event key per ticket id — the card's "Status" line shows the real
   // current phase; falls back to the macro status until events arrive.
@@ -336,140 +351,194 @@ export default function OwnerJobReportScreen({ route, navigation }) {
   const openTicket = (t) => navigation.navigate('TicketDetail', { ticketId: t.id });
   const openHistory = (t) => navigation.navigate('BookingTimeline', { ticketId: t.id });
   const onStatPress = (key) => setFilter({ process: 'In Process', pending: 'Pending', completed: 'Completed' }[key] || 'All');
+  const countFor = { total: counts.total, process: counts.inProcess, pending: counts.pending, completed: counts.completed };
 
   const phaseFor = (t) => eventLabel(eventStatusById[t.id]) || statusLabel(t.status);
   const showInitialSpinner = loading && list.length === 0;
   const showError = error && list.length === 0 && !loading;
 
+  // Pad to an even count in 2-col mode so the last lone tile stays half-width.
+  const listData = numCols > 1 && shown.length % 2 === 1 ? [...shown, { id: '__ghost__', _ghost: true }] : shown;
+  const capW = numCols === 1 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null;
+
+  const renderItem = ({ item }) => {
+    if (item._ghost) return <View style={{ flex: 1 }} />;
+    return (
+      <ReportTile
+        ticket={item}
+        row={numCols === 1}
+        phase={phaseFor(item)}
+        technician={allMode ? (techNameById[item.assignedTechnicianId] || 'Technician') : null}
+        onPress={() => openTicket(item)}
+        onHistory={() => openHistory(item)}
+      />
+    );
+  };
+
+  const emptyNode = showInitialSpinner ? (
+    <View style={styles.stateBox}>
+      <ActivityIndicator size="small" color={C.green} />
+      <Text style={styles.stateText}>Loading jobs…</Text>
+    </View>
+  ) : showError ? (
+    <View style={[styles.stateCard, styles.stateBox]}>
+      <View style={[styles.stateIcon, { backgroundColor: C.red }]}>
+        <WifiOff size={20} color={C.white} />
+      </View>
+      <Text style={styles.stateTitle}>Couldn't load jobs</Text>
+      <Text style={styles.stateText}>Check your connection and try again.</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={() => load()} activeOpacity={0.85}>
+        <Text style={styles.retryText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <EmptyRow text={query.trim() ? `No jobs match "${query.trim()}".` : filter === 'All' ? 'No jobs this month.' : `No ${filter.toLowerCase()} jobs this month.`} />
+  );
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Header: back · centred title */}
-      <View style={styles.headerBar}>
-        <View style={{ width: rs(36) }}>
+    <View style={styles.safe}>
+      {/* ── White header: back · centred title · Search + Scan ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.headerRow}>
           {navigation.canGoBack() ? (
-            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} accessibilityLabel="Back" activeOpacity={0.7} style={styles.headerBack}>
-              <ChevronLeft size={rs(20)} color="#111111" strokeWidth={2.4} />
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={6} accessibilityLabel="Back" activeOpacity={0.7} style={styles.headerBack}>
+              <ArrowLeft size={19} color={C.ink} />
             </TouchableOpacity>
           ) : null}
+          <View pointerEvents="none" style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{allMode ? 'Job Report' : 'Job Record'}</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>{allMode ? 'Working Jobs' : (employee?.name || 'Technician')}</Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity
+            onPress={() => { if (searchOpen) setQuery(''); setSearchOpen((v) => !v); }}
+            hitSlop={6} accessibilityRole="button" accessibilityLabel={searchOpen ? 'Close search' : 'Search jobs'} activeOpacity={0.8}
+            style={[styles.headerBtn, { backgroundColor: searchOpen ? C.green : C.tint }]}
+          >
+            <Search size={16} color={searchOpen ? C.white : C.green} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ScanQrCode')}
+            hitSlop={6} accessibilityRole="button" accessibilityLabel="Scan job QR code" activeOpacity={0.8}
+            style={[styles.headerBtn, { backgroundColor: C.tint, marginLeft: 8 }]}
+          >
+            <ScanLine size={16} color={C.green} strokeWidth={2.2} />
+          </TouchableOpacity>
         </View>
-        <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{allMode ? "Job's Report" : 'Working Record'}</Text>
-          <Text style={styles.headerSub} numberOfLines={1}>{allMode ? 'Working Jobs' : (employee?.name || 'Technician')}</Text>
-        </View>
-        <View style={{ width: rs(36) }} />
       </View>
 
-      {/* Search + scan a job QR */}
-      <View style={[styles.searchWrap, capStyle]}>
-        <SearchBar
-          value={query}
-          onChangeText={setQuery}
-          placeholder={allMode ? 'Search job, device, customer, technician' : 'Search job, device, customer'}
-          onClear={() => setQuery('')}
-          rightAccessory={(
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ScanQrCode')}
-              hitSlop={8} accessibilityLabel="Scan job QR code" activeOpacity={0.7}
-              style={styles.scanBtn}
-            >
-              <ScanLine size={rs(18)} color={C.green} strokeWidth={2.2} />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      <ScrollView
-        style={{ backgroundColor: C.bg }}
-        contentContainerStyle={[styles.content, capStyle]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.green} colors={[C.green]} />}
-      >
-        {/* Month */}
-        <View style={styles.monthRow}>
-          <View style={styles.monthPill}>
-            <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={8} accessibilityLabel="Previous month">
-              <ChevronLeft size={rs(15)} color={C.white} strokeWidth={2.4} />
-            </TouchableOpacity>
-            <Text style={styles.monthPillText} numberOfLines={1}>{MONTHS[month - 1].slice(0, 3)} {year}</Text>
-            <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={8} accessibilityLabel="Next month">
-              <ChevronRight size={rs(15)} color={C.white} strokeWidth={2.4} />
-            </TouchableOpacity>
-          </View>
+      {/* ── Search bar — only while the header's Search icon has it open ── */}
+      {searchOpen || query ? (
+        <View style={styles.searchWrap}>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder={allMode ? 'Search job, device, customer, technician' : 'Search job, device, customer'}
+            onClear={() => setQuery('')}
+            autoFocus
+          />
         </View>
+      ) : null}
 
-        {/* Stat cards */}
-        <View style={styles.statRow}>
-          <StatCard value={counts.total} label="Total" tone="ink" Icon={ChartColumn} onPress={() => onStatPress('total')} active={filter === 'All'} />
-          <StatCard value={counts.inProcess} label="In Process" tone="yellow" Icon={RefreshCw} onPress={() => onStatPress('process')} active={filter === 'In Process'} />
-          <StatCard value={counts.pending} label="Pending" tone="red" Icon={CircleAlert} onPress={() => onStatPress('pending')} active={filter === 'Pending'} />
-          <StatCard value={counts.completed} label="Completed" tone="green" Icon={Check} onPress={() => onStatPress('completed')} active={filter === 'Completed'} />
-        </View>
+      {/* ── Left: status rail · Right: month + job tiles ── */}
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        <ScrollView
+          style={{ width: railW, flexGrow: 0, borderRightWidth: 1, borderRightColor: C.line, backgroundColor: C.white }}
+          contentContainerStyle={{ paddingVertical: 6, paddingHorizontal: 5, paddingBottom: tabSpace }}
+          showsVerticalScrollIndicator={false}
+        >
+          {RAIL.map((s) => {
+            const Icon = s.Icon;
+            const active = filter === s.key;
+            const tone = s.tone;
+            const rz = railSizes(winW);
+            const disc = rz.disc;
+            const n = countFor[s.stat] ?? 0;
+            return (
+              <TouchableOpacity
+                key={s.key}
+                onPress={() => onStatPress(s.stat)}
+                activeOpacity={0.8}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${s.label}, ${n}`}
+                style={{
+                  marginVertical: 4, borderRadius: 14, backgroundColor: C.white,
+                  shadowColor: tone, shadowOpacity: active ? 0.12 : 0.06, shadowRadius: 4,
+                  shadowOffset: { width: 0, height: 2 }, elevation: active ? 2 : 1,
+                }}
+              >
+                <LinearGradient
+                  colors={['#FFFFFF', `${tone}${active ? '24' : '10'}`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={{
+                    alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
+                    borderWidth: active ? 1.5 : 1, borderColor: active ? tone : `${tone}22`,
+                  }}
+                >
+                  <View>
+                    <View style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
+                    </View>
+                    <View style={[styles.railCount, { borderColor: tone }]}>
+                      <Text style={{ fontSize: rz.badge, fontWeight: '800', color: tone }} numberOfLines={1}>{n > 99 ? '99+' : n}</Text>
+                    </View>
+                  </View>
+                  <Text
+                    style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: active ? '800' : '700', color: tone, textAlign: 'center' }}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}
+                  >
+                    {s.label}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-        {showInitialSpinner && (
-          <View style={styles.stateBox}>
-            <ActivityIndicator size="small" color={C.green} />
-            <Text style={styles.stateText}>Loading jobs…</Text>
-          </View>
-        )}
-
-        {showError && (
-          <View style={[styles.card, styles.stateBox]}>
-            <View style={[styles.stateIcon, { backgroundColor: TONES.red.bg }]}>
-              <WifiOff size={rs(20)} color={C.red} />
+        <View style={{ flex: 1 }}>
+          {/* Month — the report's period; search spans every month. */}
+          <View style={styles.monthWrap}>
+            <View style={[styles.monthBar, capW]}>
+              <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={8} accessibilityLabel="Previous month" activeOpacity={0.8} style={styles.monthBtn}>
+                <ChevronLeft size={16} color={C.white} strokeWidth={2.4} />
+              </TouchableOpacity>
+              <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
+                <Text style={styles.monthText} numberOfLines={1}>{MONTHS[month - 1]} {year}</Text>
+                <Text style={styles.monthSub} numberOfLines={1}>
+                  {query.trim() ? `${shown.length} found · all months` : `${shown.length} ${shown.length === 1 ? 'job' : 'jobs'}`}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={8} accessibilityLabel="Next month" activeOpacity={0.8} style={styles.monthBtn}>
+                <ChevronRight size={16} color={C.white} strokeWidth={2.4} />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.stateTitle}>Couldn't load jobs</Text>
-            <Text style={styles.stateText}>Check your connection and try again.</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => load()} activeOpacity={0.85}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
           </View>
-        )}
 
-        {!showInitialSpinner && !showError && (
-          shown.length === 0 ? (
-            <EmptyRow text={query.trim() ? `No jobs match "${query.trim()}".` : filter === 'All' ? 'No jobs this month.' : `No ${filter.toLowerCase()} jobs this month.`} />
-          ) : shown.map((t) => (
-            <ReportCard
-              key={t.id}
-              ticket={t}
-              phase={phaseFor(t)}
-              technician={allMode ? (techNameById[t.assignedTechnicianId] || 'Technician') : null}
-              onPress={() => openTicket(t)}
-              onHistory={() => openHistory(t)}
-            />
-          ))
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          <FlatList
+            data={listData}
+            key={numCols}
+            numColumns={numCols}
+            columnWrapperStyle={numCols > 1 ? { gap: 12 } : undefined}
+            keyExtractor={(item, index) => String(item.id || index)}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.green} colors={[C.green]} />}
+            contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: tabSpace, ...capW }}
+            ListEmptyComponent={emptyNode}
+          />
+        </View>
+      </View>
+    </View>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Pieces
 // ---------------------------------------------------------------------------
-const STAT_TONE = { yellow: '#FAA700', red: '#F32C26', green: '#609138', ink: '#1C3053' };
-
-// Solid icon disc + count badge + label (the Employee app's BadgeIconTile).
-function StatCard({ value, label, tone, Icon, onPress, active }) {
-  const color = STAT_TONE[tone] || C.green;
-  const size = rs(42);
-  const n = Number(value) || 0;
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={`${label}: ${n}`}>
-      <View style={{ alignItems: 'center', minWidth: 0 }}>
-        <View style={{ padding: rs(3), borderRadius: 999, borderWidth: 2, borderColor: active ? color : 'transparent' }}>
-          <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon size={size * 0.44} color="#FFFFFF" strokeWidth={2.2} />
-          </View>
-          <View style={[styles.countBadge, { borderColor: color }]}>
-            <Text style={{ fontSize: rf(10.5), fontWeight: '800', color }} numberOfLines={1}>{n > 99 ? '99+' : String(n)}</Text>
-          </View>
-        </View>
-        <Text style={[styles.statLabel, { color: active ? color : C.ink }]} numberOfLines={2}>{label}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 // brandId → Promise<models[]>, shared by all rows so each brand is fetched once.
 const modelsByBrand = new Map();
@@ -487,10 +556,9 @@ function modelImageFor(ticket) {
   });
 }
 
-// Real device photo (ticket image → catalogue model image); icon fallback.
-function DeviceBadge({ ticket, tone }) {
-  const t = TONES[tone] || TONES.green;
-  const DevIcon = isLaptop(ticket) ? Laptop : Smartphone;
+// Real device photo (ticket image → catalogue model image); else a white
+// device icon on a solid brand disc.
+function DeviceImage({ ticket, row }) {
   const direct = resolveDeviceImageSource({
     url: ticket.deviceImageUrl || ticket.modelImageUrl,
     base64: ticket.deviceImageBase64 || ticket.modelImageBase64,
@@ -503,12 +571,15 @@ function DeviceBadge({ ticket, tone }) {
     modelImageFor(ticket).then((s) => { if (alive) setSrc(s); });
     return () => { alive = false; };
   }, [ticket.id, ticket.brandId, ticket.modelId]);
-  const showImg = src && !failed;
+  if (src && !failed) {
+    return <Image source={{ uri: src }} style={{ width: '76%', height: '76%' }} resizeMode="contain" onError={() => setFailed(true)} />;
+  }
+  const laptop = isLaptop(ticket);
+  const DevIcon = laptop ? Laptop : Smartphone;
+  const disc = row ? 52 : 64;
   return (
-    <View style={[styles.devBadge, { backgroundColor: showImg ? C.white : t.bg, overflow: 'hidden' }, showImg && { borderWidth: 1, borderColor: C.line }]}>
-      {showImg
-        ? <Image source={{ uri: src }} style={{ width: rs(26), height: rs(26) }} resizeMode="contain" onError={() => setFailed(true)} />
-        : <DevIcon size={rs(17)} color={t.fg} strokeWidth={2.1} />}
+    <View style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: laptop ? C.blue : C.green, alignItems: 'center', justifyContent: 'center' }}>
+      <DevIcon size={Math.round(disc * 0.46)} color={C.white} strokeWidth={2.1} />
     </View>
   );
 }
@@ -522,35 +593,70 @@ function splitDevice(ticket) {
   return { model: parts[0] || 'Device', specs: parts.slice(1).join(' - '), color: clean(ticket.color || '') };
 }
 
-// Device (left) · status/date/time (right), then Customer (+ Technician in the
-// all-jobs view), Issue and Status (current phase — tap for the history).
-function ReportCard({ ticket, phase, technician, onPress, onHistory }) {
+// Jobs-style tile: image panel (status tag · VIEW) on the left (phones) or on
+// top (tablet two-up), then ref · amount, model, specs, customer, technician
+// (all-jobs view), issue, date · time and the current phase (tap → history).
+function ReportTile({ ticket, row, phase, technician, onPress, onHistory }) {
   const pill = statusPill(ticket);
+  const color = TONE_COLOR[pill.tone] || C.green;
   const d = splitDevice(ticket);
   const done = pill.tone === 'green' || pill.tone === 'ink';
-  const iconTone = done || pill.tone === 'red' ? pill.tone : (isLaptop(ticket) ? 'blue' : 'green');
   const when = done ? (ticket.updatedAt || ticket.createdAt) : ticket.createdAt;
+  const time = timeOf(when);
   return (
-    <TicketCard
-      badge={<DeviceBadge ticket={ticket} tone={iconTone} />}
-      refId={ticketRef(ticket)} title={d.model}
-      subtitle={d.specs || null} subtitle2={d.color ? `Colour: ${d.color}` : null}
-      status={pill.label} statusColor={TONE_COLOR[pill.tone]}
-      date={formatDate(when)} time={timeOf(when)}
-      rows={[
-        [{ icon: User, label: 'Customer', value: ticket.customerName }, technician ? { icon: UserCog, label: 'Technician', value: technician } : null],
-        [{ icon: Wrench, label: 'Issue', value: issueText(ticket) }, null],
-        [{ icon: Clock, label: 'Status', value: phase, onPress: onHistory }, null],
-      ]}
+    <TouchableOpacity
       onPress={onPress}
-    />
+      activeOpacity={0.9}
+      accessibilityRole="button"
+      accessibilityLabel={`${d.model}, ${ticketRef(ticket)}, ${pill.label}`}
+      style={[styles.tileCard, row && { flexDirection: 'row' }]}
+    >
+      <View style={[styles.tilePanel, row ? styles.tilePanelRow : styles.tilePanelCol]}>
+        <DeviceImage ticket={ticket} row={row} />
+        <View style={[styles.statusTag, { backgroundColor: color }]}>
+          <Text style={styles.statusTagText} numberOfLines={1}>{pill.label}</Text>
+        </View>
+        <View pointerEvents="none" style={[styles.viewBtn, row ? styles.viewBtnRow : styles.viewBtnCol]}>
+          <Text style={[styles.viewBtnText, { fontSize: row ? 11 : 12 }]}>VIEW</Text>
+        </View>
+      </View>
+
+      <View style={row ? styles.tileTextRow : styles.tileTextCol}>
+        <View style={styles.refRow}>
+          <Text style={styles.refText} numberOfLines={1}>{ticketRef(ticket)}</Text>
+        </View>
+        <Text style={styles.model} numberOfLines={2}>{d.model}</Text>
+        <Text style={styles.customer} numberOfLines={1}>{ticket.customerName || '-'}</Text>
+        {technician ? (
+          <View style={styles.infoRow}>
+            <UserCog size={11} color={C.muted} />
+            <Text style={styles.infoText} numberOfLines={1}>{technician}</Text>
+          </View>
+        ) : null}
+        <View style={styles.infoRow}>
+          <Wrench size={11} color={C.muted} />
+          <Text style={styles.infoText} numberOfLines={1}>{issueText(ticket)}</Text>
+        </View>
+        <View style={styles.dateRow}>
+          <Text style={styles.dateText} numberOfLines={1}>{formatDate(when)}</Text>
+          {time ? <Text style={[styles.dateText, { marginLeft: 6 }]} numberOfLines={1}>{time}</Text> : null}
+        </View>
+        <TouchableOpacity onPress={onHistory} hitSlop={6} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`Status: ${phase}. View history`} style={styles.phaseRow}>
+          <Clock size={11} color={C.green} />
+          <Text style={styles.phaseText} numberOfLines={1}>{phase}</Text>
+          <ChevronRight size={12} color={C.green} strokeWidth={2.4} />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 function EmptyRow({ text }) {
   return (
     <View style={styles.emptyRow}>
-      <Inbox size={rs(18)} color={C.faint} />
+      <View style={[styles.stateIcon, { backgroundColor: C.green }]}>
+        <Inbox size={20} color={C.white} />
+      </View>
       <Text style={styles.emptyText}>{text}</Text>
     </View>
   );
@@ -562,40 +668,62 @@ function EmptyRow({ text }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.white },
 
-  headerBar: { flexDirection: 'row', alignItems: 'center', gap: rs(10), backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingHorizontal: rs(14), paddingVertical: rs(10) },
-  headerBack: { width: rs(36), height: rs(36), borderRadius: rs(18), backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: rf(17), fontWeight: '800', color: '#1C3053', textAlign: 'center' },
-  headerSub: { fontSize: rf(12), color: '#6B7280', marginTop: 1, textAlign: 'center' },
-  searchWrap: { backgroundColor: C.bg, paddingHorizontal: rs(14), paddingTop: rs(10) },
-  scanBtn: { marginLeft: rs(8), paddingLeft: rs(10), borderLeftWidth: 1, borderLeftColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  header: { backgroundColor: C.white, borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: 12, paddingHorizontal: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  // Title centred on the SCREEN; padded so it never runs under the buttons.
+  headerTitleWrap: { position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 96 },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: C.ink, textAlign: 'center' },
+  headerSub: { fontSize: 11, fontWeight: '700', color: C.muted, marginTop: 1, textAlign: 'center' },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  searchWrap: { paddingHorizontal: 16, marginTop: 10 },
 
-  content: { paddingHorizontal: rs(14), paddingTop: rs(8), paddingBottom: rs(20) },
-
-  card: {
-    backgroundColor: C.white, borderRadius: rs(18),
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  railCount: {
+    position: 'absolute', top: -4, right: -8, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8,
+    backgroundColor: C.white, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
 
-  monthRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: rs(8) },
-  monthPill: { flexDirection: 'row', alignItems: 'center', gap: rs(8), backgroundColor: C.green, borderRadius: 999, paddingVertical: rs(6), paddingHorizontal: rs(10) },
-  monthPillText: { fontSize: rf(12.5), fontWeight: '700', color: C.white },
+  monthWrap: { paddingHorizontal: 10, paddingTop: 10 },
+  monthBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.line, paddingVertical: 6, paddingHorizontal: 6 },
+  monthBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
+  monthText: { fontSize: 13.5, fontWeight: '800', color: C.navy },
+  monthSub: { fontSize: 11, color: C.muted, marginTop: 1 },
 
-  statRow: { flexDirection: 'row', gap: rs(4), marginBottom: rs(10), backgroundColor: '#FFFFFF', borderRadius: rs(16), borderWidth: 1, borderColor: '#E5E7EB', paddingVertical: rs(10), paddingHorizontal: rs(6) },
-  countBadge: {
-    position: 'absolute', top: -rs(4), right: -rs(6), minWidth: rs(20), height: rs(20), borderRadius: rs(10), paddingHorizontal: rs(4),
-    backgroundColor: '#FFFFFF', borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
-  },
-  statLabel: { fontSize: rf(11), lineHeight: rf(14), fontWeight: '700', marginTop: rs(5), textAlign: 'center', paddingHorizontal: 2 },
+  tileCard: { flex: 1, marginBottom: 12, borderRadius: 16, backgroundColor: C.white, overflow: 'hidden', borderWidth: 1, borderColor: C.line },
+  tilePanel: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: C.white },
+  tilePanelRow: { width: 116, minHeight: 116, alignSelf: 'stretch', borderRightWidth: 1, borderRightColor: C.line },
+  tilePanelCol: { aspectRatio: 1 },
+  tileTextRow: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingBottom: 8 },
+  tileTextCol: { paddingHorizontal: 8, paddingBottom: 8 },
+  statusTag: { position: 'absolute', top: 0, left: 0, maxWidth: '78%', paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 },
+  statusTagText: { color: C.white, fontSize: 9.5, fontWeight: '800' },
+  viewBtn: { position: 'absolute', backgroundColor: C.white, borderWidth: 1.5, borderColor: C.green, borderRadius: 10 },
+  viewBtnRow: { right: 6, bottom: 6, paddingHorizontal: 10, paddingVertical: 3 },
+  viewBtnCol: { right: 8, bottom: 8, paddingHorizontal: 14, paddingVertical: 5 },
+  viewBtnText: { color: C.green, fontWeight: '800' },
 
-  devBadge: { width: rs(32), height: rs(32), borderRadius: rs(16), alignItems: 'center', justifyContent: 'center' },
+  refRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  refText: { flex: 1, fontSize: 11, fontWeight: '800', color: C.green },
+  amountChip: { marginLeft: 6, backgroundColor: C.green, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  amountText: { color: C.white, fontSize: 14, fontWeight: '800' },
+  model: { marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16, color: C.ink },
+  spec: { marginTop: 1, fontSize: 11, color: C.muted },
+  customer: { marginTop: 2, fontSize: 12, color: C.muted },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  infoText: { flex: 1, minWidth: 0, fontSize: 11, color: C.muted },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+  dateText: { fontSize: 11, color: C.muted },
+  phaseRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5, alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: C.tint, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
+  phaseText: { flexShrink: 1, fontSize: 11, fontWeight: '700', color: C.green },
 
-  emptyRow: { alignItems: 'center', paddingVertical: rs(16), gap: rs(6) },
-  emptyText: { fontSize: rf(12), color: C.muted, textAlign: 'center' },
+  emptyRow: { alignItems: 'center', paddingVertical: 24, gap: 8 },
+  emptyText: { fontSize: 12, color: C.muted, textAlign: 'center' },
 
-  stateBox: { alignItems: 'center', paddingVertical: rs(24), paddingHorizontal: rs(16), marginBottom: rs(12), gap: rs(6) },
-  stateIcon: { width: rs(44), height: rs(44), borderRadius: rs(22), alignItems: 'center', justifyContent: 'center' },
-  stateTitle: { fontSize: rf(14), fontWeight: '800', color: C.ink },
-  stateText: { fontSize: rf(12), color: C.muted, textAlign: 'center' },
-  retryBtn: { marginTop: rs(6), backgroundColor: C.green, borderRadius: 999, paddingHorizontal: rs(22), paddingVertical: rs(8) },
-  retryText: { color: C.white, fontWeight: '700', fontSize: rf(12) },
+  stateCard: { backgroundColor: C.white, borderRadius: 16, borderWidth: 1, borderColor: C.line },
+  stateBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16, marginBottom: 12, gap: 6 },
+  stateIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: 14, fontWeight: '800', color: C.ink },
+  stateText: { fontSize: 12, color: C.muted, textAlign: 'center' },
+  retryBtn: { marginTop: 6, backgroundColor: C.green, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 8 },
+  retryText: { color: C.white, fontWeight: '700', fontSize: 12 },
 });

@@ -139,7 +139,7 @@ const RECEIPT_STATUS_LABEL = {
   READY: 'Ready for Delivery',
   INVOICE_GENERATED: 'Invoice Generated',
   INVOICE_READY: 'Invoice Ready',
-  DELIVERED_PROCESSING: 'Delivered Processing',
+  DELIVERED_PROCESSING: 'Dispatched',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
   RETURNED: 'Returned',

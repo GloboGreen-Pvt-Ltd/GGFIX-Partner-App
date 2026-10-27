@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Image, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import { Asset } from 'expo-asset';
-import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { type LucideIcon } from 'lucide-react-native';
 import { Touchable, withAlpha } from './theme';
 
 export interface DashboardShortcut {
@@ -34,9 +35,9 @@ interface Props {
  * Repair / Buy / Sell — the three big entry cards above Overview. Three equal
  * columns (flex: 1) so they always share the row evenly at any width.
  */
-// Card padding 10 + icon row 36 + gap 10 + title ~21 + subtitle ~16 ≈ 93: the
-// photo's top stays below this line so it never covers the title/subtitle.
-const TEXT_BOTTOM = 96;
+// Card padding 10 + title ~21 ≈ 31: the photo's top stays below this line so
+// it never covers the title.
+const TEXT_BOTTOM = 36;
 
 /**
  * A bundled photo's own pixel size. RN's Image.resolveAssetSource doesn't exist
@@ -75,7 +76,7 @@ export function DashboardShortcutCards({ items, pad, gap = 10, height = 150 }: P
   const [rowW, setRowW] = useState(0);
   const inner = (rowW || winW) - pad * 2;
   const cardW = Math.max(0, (inner - gap * (items.length - 1)) / items.length);
-  const maxPhotoW = cardW * 0.76;
+  const maxPhotoW = cardW * 0.8;
   const maxPhotoH = Math.max(40, height - TEXT_BOTTOM);
   return (
     <View
@@ -99,65 +100,47 @@ export function DashboardShortcutCards({ items, pad, gap = 10, height = 150 }: P
               minWidth: 0,
               height,
               borderRadius: 18,
-              backgroundColor: it.bg,
+              backgroundColor: '#FFFFFF',
               overflow: 'hidden',
-              padding: 10,
               borderWidth: 1,
-              borderColor: 'rgba(16,24,40,0.05)',
+              borderColor: withAlpha(it.tone, 0.14),
+              // Soft shadow in the card's own colour.
+              shadowColor: it.tone,
+              shadowOpacity: 0.14,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 2,
             }}
             pressedStyle={{ opacity: 0.85 }}
           >
-            {/* Photo / decoration: pinned to the card's bottom-right corner. */}
-            {it.image ? (
-              <Image
-                source={typeof it.image === 'string' ? { uri: it.image } : it.image}
-                resizeMode="contain"
-                // -2 cancels the ~2% transparent strip at the bottom of each PNG.
-                style={{ position: 'absolute', right: 0, bottom: -2, ...photoBox(it.image, maxPhotoW, maxPhotoH) }}
-              />
-            ) : Deco ? (
-              <View pointerEvents="none" style={{ position: 'absolute', right: 4, bottom: 4, opacity: 0.9 }}>
-                <Deco size={48} color={it.tone} strokeWidth={1.6} />
-              </View>
-            ) : null}
+            {/* White at the top fading into the card's tint at the bottom. */}
+            <LinearGradient
+              pointerEvents="none"
+              colors={['#FFFFFF', it.bg]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+            />
 
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: it.iconBg ?? withAlpha(it.tone, 0.16),
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon size={it.iconColor ? 22 : 20} color={it.iconColor ?? it.accent} strokeWidth={2.3} />
-              </View>
-              <View
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 13,
-                  backgroundColor: '#FFFFFF',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  shadowColor: '#111111',
-                  shadowOpacity: 0.08,
-                  shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 2,
-                }}
-              >
-                <ChevronRight size={15} color={it.accent} strokeWidth={2.4} />
-              </View>
+            {/* Photo / decoration: centred along the card's bottom edge. */}
+            <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: -2, alignItems: 'center' }}>
+              {it.image ? (
+                <Image
+                  source={typeof it.image === 'string' ? { uri: it.image } : it.image}
+                  resizeMode="contain"
+                  // -2 (on the wrapper) cancels the ~2% transparent strip at the bottom of each PNG.
+                  style={photoBox(it.image, maxPhotoW, maxPhotoH)}
+                />
+              ) : Deco ? (
+                <View style={{ marginBottom: 8, opacity: 0.9 }}>
+                  <Deco size={44} color={it.tone} strokeWidth={1.6} />
+                </View>
+              ) : null}
             </View>
 
-            <Text style={{ marginTop: 8, fontSize: 17, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+            {/* Title only, in the card's colour (subtitle and arrow removed). */}
+            <Text style={{ paddingHorizontal: 8, paddingTop: 10, fontSize: 16, lineHeight: 21, fontWeight: '800', color: it.tone, textAlign: 'center' }} numberOfLines={1}>
               {it.label}
-            </Text>
-            <Text style={{ marginTop: 1, fontSize: 11.5, color: '#6B7280', fontWeight: '500' }} numberOfLines={1}>
-              {it.sub}
             </Text>
           </Touchable>
         );

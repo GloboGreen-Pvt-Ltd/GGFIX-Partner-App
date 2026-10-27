@@ -85,7 +85,7 @@ const ACCENT_20 = '#C7E6EA'; // mint border
 // the admin has actually named the category (mobile/laptop/tablet/smartwatch/
 // audio groups all use different wording for similar concepts). Falls back to
 // Wrench for anything unmatched, same as every group's icon used to be.
-function groupIconFor(name) {
+export function groupIconFor(name) {
   // Same trim + whitespace-collapse as `iconFor` below, for the same reason:
   // a category label with stray spacing shouldn't fall through matches it'd
   // otherwise hit.
@@ -132,10 +132,10 @@ function groupIconFor(name) {
 // Warranty is typed as months and saved as readable text ("6 Months") —
 // invoices and reports print the stored value as-is. Older bookings saved
 // codes like W_6M; both read back as the number of months.
-const warrantyMonths = (w) => String(w ?? '').match(/(\d+)/)?.[1] || '';
-const warrantyText = (m) => { const n = parseInt(m, 10); return n > 0 ? `${n} Month${n === 1 ? '' : 's'}` : null; };
+export const warrantyMonths = (w) => String(w ?? '').match(/(\d+)/)?.[1] || '';
+export const warrantyText = (m) => { const n = parseInt(m, 10); return n > 0 ? `${n} Month${n === 1 ? '' : 's'}` : null; };
 
-const priceNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
+export const priceNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
 
 const formatINR = (n) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -716,7 +716,7 @@ function IssueTile({ name, Icon, picked, onPress, open = false }) {
 
 // One picked issue: icon, name and remove on top; then one row with
 // "Price [₹ box]" on the left and "Warranty [box Months]" on the right.
-function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, warranty, onWarrantyChange, onRemove }) {
+export function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, charge, onChargeChange, warranty, onWarrantyChange, onRemove }) {
   const box = {
     flexShrink: 1, height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
     borderRadius: 10, borderWidth: 1, borderColor: BORDER_SOFT, backgroundColor: '#FFFFFF',
@@ -744,8 +744,54 @@ function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, warranty, onW
         </Pressable>
       </View>
 
-      {/* Compact fixed-width boxes (they shrink on very narrow phones):
-          Price on the left, Warranty on the right. */}
+      {onChargeChange ? (
+        // Re-Estimate: Price | Service Charge | Warranty, labels on top.
+        <View className="flex-row" style={{ marginTop: 10, gap: 8 }}>
+          {[['Price', price, onPriceChange], ['Service Charge', charge, onChargeChange]].map(([l, v, on]) => (
+            <View key={l} style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[label, { marginBottom: 4 }]} numberOfLines={1}>{l}</Text>
+              <View style={box}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: MUTED, marginRight: 4 }}>₹</Text>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor={PLACEHOLDER}
+                  keyboardType="numeric"
+                  value={String(v ?? '')}
+                  onChangeText={on}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="none"
+                  cursorColor={ICON_TINT}
+                  accessibilityLabel={l}
+                  style={{ flex: 1, paddingVertical: 0, fontSize: 14, fontWeight: '700', color: INK }}
+                />
+              </View>
+            </View>
+          ))}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[label, { marginBottom: 4 }]} numberOfLines={1}>Warranty</Text>
+            <View style={box}>
+              <TextInput
+                placeholder="0"
+                placeholderTextColor={PLACEHOLDER}
+                keyboardType="number-pad"
+                maxLength={3}
+                value={String(warranty ?? '')}
+                onChangeText={onWarrantyChange}
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
+                cursorColor={ICON_TINT}
+                accessibilityLabel="Warranty months"
+                style={{ flex: 1, paddingVertical: 0, fontSize: 14, fontWeight: '700', color: INK }}
+              />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, marginLeft: 4 }}>Mo</Text>
+            </View>
+          </View>
+        </View>
+      ) : (
+      /* Compact fixed-width boxes (they shrink on very narrow phones):
+          Price on the left, Warranty on the right. */
       <View className="flex-row" style={{ marginTop: 10, gap: 10, justifyContent: 'space-between' }}>
         <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center' }}>
           <Text style={label}>Price</Text>
@@ -787,6 +833,7 @@ function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, warranty, onW
           </View>
         </View>
       </View>
+      )}
     </View>
   );
 }
@@ -796,7 +843,7 @@ function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, warranty, onW
 // entry: Earpiece/Microphone/Speaker/No Sound) don't carry a distinct code of
 // their own today, so `name` is matched as a fallback, same keyword-matching
 // approach as `groupIconFor` above. Wrench only when neither resolves anything.
-function iconFor(code, name) {
+export function iconFor(code, name) {
   switch (code) {
     case 'DISPLAY': return Smartphone;
     case 'BATTERY': return BatteryMedium;

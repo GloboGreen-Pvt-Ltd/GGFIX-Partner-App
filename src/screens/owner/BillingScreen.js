@@ -60,7 +60,7 @@ const STATUS_META = {
   READY:                { label: 'Ready for Delivery',   color: '#B45309', tint: '#FEF3C7', hint: 'Device is ready for billing & delivery.' },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    color: '#B45309', tint: '#FEF3C7', hint: 'Billing started — invoice created.' },
   INVOICE_READY:        { label: 'Invoice Ready',        color: '#B45309', tint: '#FEF3C7', hint: 'Invoice is finalized for handover.' },
-  DELIVERED_PROCESSING: { label: 'Out for Delivery',     color: '#B45309', tint: '#FEF3C7', hint: 'Handover to customer in progress.' },
+  DELIVERED_PROCESSING: { label: 'Dispatched',     color: '#B45309', tint: '#FEF3C7', hint: 'Handover to customer in progress.' },
   DELIVERED:            { label: 'Delivered',            color: BRAND_GREEN_DARK, tint: '#E5F3F5', hint: 'Device has been delivered.' },
   CANCELLED:            { label: 'Cancelled',            color: '#B91C1C', tint: '#FEE2E2', hint: 'Booking was cancelled.' },
   RETURNED:             { label: 'Returned',             color: '#B91C1C', tint: '#FEE2E2', hint: 'Device was returned.' },

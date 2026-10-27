@@ -109,7 +109,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
       navigation.navigate('BookingTimeline', { ticketId: n.ticketId });
       return;
     }
-    navigation.navigate('OwnerTabs', { screen: 'Bookings' });
+    navigation.navigate('BookingList');
   };
 
   const onMarkAll = async () => {

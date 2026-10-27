@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, FlatList, Image, Linking, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { railSizes } from '../../../components/report/ReportRail';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Smartphone,
@@ -30,6 +31,7 @@ import {
   Copy,
   Calculator,
   ScanLine,
+  Search,
 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ResponsiveModal } from '../../../components/responsive';
@@ -59,7 +61,6 @@ import {
 } from './BookingActionSheets';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, primeModelCategory, resolveRecordCategory } from '../../../utils/imeiPolicy';
-import { useTabBarSpace } from '../../../navigation/tabBarMetrics';
 import { estimatedTotalOf, paymentFromTicket } from './ReceiptCard';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
@@ -80,7 +81,7 @@ const STATUS_VARIANT = {
   READY:                { label: 'Ready for Delivery',   tone: 'green' },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    tone: 'amber' },
   INVOICE_READY:        { label: 'Invoice Ready',        tone: 'amber' },
-  DELIVERED_PROCESSING: { label: 'Delivered Processing', tone: 'amber' },
+  DELIVERED_PROCESSING: { label: 'Dispatched', tone: 'amber' },
   DELIVERED:            { label: 'Delivered',            tone: 'green' },
   CANCELLED:            { label: 'Cancelled',            tone: 'red' },
   RETURNED:             { label: 'Returned',             tone: 'red' },
@@ -201,8 +202,13 @@ function payRowsFor(item) {
         : { label: 'Payment', short: 'Pay', value: 'on delivery', fg: '#6B7280', bg: '#F3F4F6' },
     balanceNum > 0
       ? { label: 'Balance', short: 'Bal', value: inr(balanceNum), fg: '#B45309', bg: '#FFEDD5' }
-      : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
-  ];
+      // ₹0 balance is only "Settled" once something was actually settled: the
+      // booking is delivered, fully paid, or a real estimate is covered. A ₹0
+      // estimate with pay-on-delivery has no balance, so no Bal chip at all.
+      : deliveredPaid || pay?.label === 'Full Payment' || billTotal > 0
+        ? { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' }
+        : null,
+  ].filter(Boolean);
 }
 
 // The booking card's right-side amount: invoice total once raised, else the estimate.
@@ -248,22 +254,34 @@ function formatTime(d) {
 
 // Home screen tool-tile disc colours (DashboardScreen), cycled across the tiles.
 const HOME_TILE_TONES = ['#357D89', '#5E9440', '#3B82F6', '#6B7280'];
+// Left menu colours (Jobs + Pickup), from the brand sheet (theme/colors.js `brand`).
+const SCOPE_TONE = {
+  ALL: '#035C6C',                // Primary Teal
+  ACTIVE: '#0788C9',             // Bright Blue
+  RE_ESTIMATED: '#FAA700',       // Orange
+  READY_FOR_DELIVERY: '#609138', // Green
+  INVOICE_GENERATED: '#357D89',  // Deep Teal
+  DISPATCHED: '#0571A8',         // Deep Blue
+  CANCELLED: '#F32C26',          // Red
+  RETURNED: '#1C3053',           // Navy
+  DELIVERED: '#035C6C',          // Primary Teal
+  PICKUP_ALL: '#035C6C',
+  PICKUP_REQUEST: '#FAA700',
+  PICKUP_ACCEPTED: '#0788C9',
+};
 
-export default function BookingHistoryScreen({ navigation, route }) {
+export default function JobsScreen({ navigation, route }) {
   // The tab bar floats over the page; keep the last items clear of it.
-  const tabSpace = useTabBarSpace();
   const insets = useSafeAreaInsets();
+  // Full-screen stack page now (no bottom tab bar): just clear the home indicator.
+  const tabSpace = insets.bottom + 16;
   const { width: winW, height: winH } = useWindowDimensions();
-  const numCols = winW >= 680 ? 2 : 1;
   const isSmall = winW < 360;
-  // Scope-tile icon metrics — scaled off the window so the grid stays
-  // proportional from a 320px phone up.
-  // Scope tiles are deliberately small: three rows of them sit between the
-  // search bar and the first booking, so every pixel they take is a pixel of
-  // list the shop owner has to scroll past on every visit.
-  const chipIcon  = isSmall ? 20 : 22;
-  const chipGlyph = isSmall ? 11 : 12.5;
+  // Left side: the scope menu as a vertical rail; right side: the bookings list.
+  const railW = winW >= 680 ? 104 : (isSmall ? 70 : 78);
   const [query, setQuery] = useState('');
+  // Search bar is hidden until the header's Search icon opens it.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [items, setItems] = useState([]);       // tickets (ticket-service)
   const [pickups, setPickups] = useState([]);   // pickup repair-bookings (order-service)
   const [loading, setLoading] = useState(true);
@@ -279,19 +297,6 @@ export default function BookingHistoryScreen({ navigation, route }) {
   );
   const defaultScope = menuList[0] || SCOPES.ALL;
 
-  // Scope tiles per row. A phone keeps the 2-up grid — at 3-up the label had
-  // barely 50px and wrapped mid-word. A TABLET puts the whole set on ONE line:
-  // every menu is 4 tiles or fewer (4 default / 4 pickup / 2 re-estimated /
-  // 1 invoice), and at that width a 768pt tablet leaves plenty of label room
-  // for the longest one ("Ready for Delivery").
-  // That is two rows of vertical space handed back above the first booking.
-  // A one-tile menu (Invoice) spans the row instead of sitting at half width.
-  // Phone: 4 per row, each tile stacked (icon + count over the label).
-  // Tablet: the whole set on one row, tiles laid out side by side.
-  // Up to six scopes sit on one row on a phone too (Bookings · Active ·
-  // Delivery Ready · Delivered · Cancelled · Returned); a longer set wraps at 4.
-  const chipCols = numCols > 1 || menuList.length <= 6 ? Math.max(1, menuList.length) : 4;
-  const chipStacked = numCols === 1;
 
   // Where a tapped ticket row goes. Default is nowhere — the card's own button
   // row names every destination, so a bare tap has nothing unambiguous to mean.
@@ -331,6 +336,8 @@ export default function BookingHistoryScreen({ navigation, route }) {
 
   const scope = SCOPES[scopeKey] || defaultScope;
   const isPickupScope = scope.source === 'PICKUP';
+  // One booking per row; two only when the list is wide (tablets).
+  const numCols = winW - railW >= 680 ? 2 : 1;
   const onDefaultScope = scope.key === defaultScope.key;
   const eyebrowText = (onDefaultScope && paramEyebrow) || scope.eyebrow;
   const nounText = (onDefaultScope && paramNoun) || scope.noun;
@@ -623,14 +630,11 @@ export default function BookingHistoryScreen({ navigation, route }) {
     navigation.navigate('BarcodePrint', { ticketId: b.id, mode: 'barcode' });
   }, [closeSheets, navigation]);
 
-  // "Details" opens Device Details, not the Booking Details working screen —
-  // what this list is for is looking a booking up, and Device Details is the
-  // read-only view of it. Booking Details is still reachable from there.
+  // "Details" opens the Booking Details screen.
   const goDetailsFor = useCallback((b) => {
-    console.log('[BookingHistory][DEBUG] goDetailsFor, b.id =', b?.id, 'b.trackingId =', b?.trackingId);
     if (!b?.id) return;
     closeSheets();
-    navigation.navigate('DeviceDetail', { ticketId: b.id });
+    navigation.navigate('TicketDetail', { ticketId: b.id });
   }, [closeSheets, navigation]);
 
   // Into the booking's status history. This is now the only way in: the
@@ -809,7 +813,7 @@ export default function BookingHistoryScreen({ navigation, route }) {
           setItems([...enriched]);
         }
       } catch (e) {
-        setError(e.message || 'Failed to load bookings');
+        setError(e.message || 'Failed to load jobs');
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -943,72 +947,68 @@ export default function BookingHistoryScreen({ navigation, route }) {
     const dateStr = formatDate(rowDate(item));
     const timeStr = formatTime(item.createdAt);
 
+    const phone = item.customerMobile || '';
+
+    // Same tile as a booking: left panel (status tag · call · VIEW) with the
+    // pickup truck, right: ref · Pickup By, services, customer, address, date / time.
     return (
-      <Pressable
-        onPress={() => setPickupMenuFor(item)}
-        className="bg-card rounded-2xl mb-3 active:opacity-90"
-        style={{
-          flex: numCols > 1 ? 1 : undefined,
-          padding: 12,
-          borderWidth: 1,
-          borderColor: '#E5E7EB',
-          shadowColor: '#111111',
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}
-      >
-        <View className="flex-row items-start">
-          <View className="h-16 w-16 rounded-2xl items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
-            <Truck size={26} color="#035C6C" />
+      <Pressable onPress={() => setPickupMenuFor(item)} className="active:opacity-90" style={tileCard}>
+        <View className="items-center justify-center overflow-hidden" style={{ ...tilePanel, backgroundColor: '#E5F3F5' }}>
+          <Truck size={tileRow ? 34 : 44} color="#035C6C" />
+          <View className="absolute" style={{ top: 0, left: 0, maxWidth: '86%', backgroundColor: tone.fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta.label}</Text>
           </View>
-
-          <View className="flex-1 flex-row">
-            <View className="flex-1 pr-2">
-              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
-                <Text className="text-[9.5px] font-extrabold" style={{ color: '#035C6C' }}>#{ref}</Text>
-              </View>
-              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>Repair Pickup</Text>
-              {item.pickupAddressText ? (
-                <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={2}>{item.pickupAddressText}</Text>
-              ) : null}
-            </View>
-
-            <View className="items-end" style={{ maxWidth: 118 }}>
-              <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}>
-                <Text className="text-[9px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>
-                  {statusMeta.label.toUpperCase()}
-                </Text>
-              </View>
-              {dateStr ? (
-                <View className="flex-row items-center mt-2">
-                  <Calendar size={11} color="#6B7280" />
-                  <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
-                </View>
-              ) : null}
-              {timeStr ? <Text className="text-[10.5px] text-text-muted mt-0.5">{timeStr}</Text> : null}
-            </View>
+          <View pointerEvents="none" className="absolute" style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}>
+            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
         </View>
 
-        <View className="h-px bg-border my-2.5" />
-        {/* 2 × 2 grid: Customer · Mobile, then Services · Pickup By. */}
-        <View className="flex-row">
-          <InfoCell icon={<User size={11} color="#6B7280" />} label="Customer" value={item.customerName || '-'} />
-          <InfoCell align="right" icon={<Phone size={11} color="#6B7280" />} label="Mobile" value={item.customerMobile || '-'} />
+        <View style={tileText}>
+        <View className="flex-row items-center" style={{ marginTop: 8 }}>
+          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }} numberOfLines={1}>#{ref}</Text>
+          <Text style={{ marginLeft: 6, fontSize: 11, fontWeight: '800', color: item.pickupPersonName ? '#15803D' : '#9CA3AF' }} numberOfLines={1}>
+            {item.pickupPersonName || 'Not assigned'}
+          </Text>
         </View>
-        <View className="flex-row" style={{ marginTop: 6 }}>
-          <InfoCell icon={<Wrench size={11} color="#6B7280" />} label="Services" value={services || '—'} />
-          <InfoCell
-            align="right"
-            icon={<UserCheck size={11} color="#6B7280" />}
-            label="Pickup By"
-            value={item.pickupPersonName || 'Not assigned'}
-            valueColor={item.pickupPersonName ? '#111111' : '#9CA3AF'}
-          />
+        <Text className="text-text" style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16 }} numberOfLines={2}>{services || 'Repair Pickup'}</Text>
+        <Text className="text-text-muted" style={{ marginTop: 2, fontSize: 12 }} numberOfLines={1}>{item.customerName || '-'}</Text>
+        {item.pickupAddressText ? (
+          <Text className="text-text-muted" style={{ marginTop: 1, fontSize: 11 }} numberOfLines={1}>{item.pickupAddressText}</Text>
+        ) : null}
+        {dateStr || timeStr ? (
+          <View className="flex-row items-center justify-between" style={{ marginTop: 1 }}>
+            <Text className="text-text-muted" style={{ fontSize: 11 }} numberOfLines={1}>{dateStr}</Text>
+            <Text className="text-text-muted" style={{ fontSize: 11, marginLeft: 6 }} numberOfLines={1}>{timeStr}</Text>
+          </View>
+        ) : null}
+        {/* Call (left) + copy (right), on the line after date / time. */}
+        {phone ? (
+          <View className="flex-row items-center justify-between" style={{ marginTop: 4 }}>
+              <>
+                <Pressable
+                  onPress={() => callPhone(phone)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${phone}`}
+                  className="items-center justify-center active:opacity-70"
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                >
+                  <Phone size={12} color={ACCENT_GREEN} />
+                </Pressable>
+                <Pressable
+                  onPress={() => copyPhone(phone)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy mobile number ${phone}`}
+                  className="items-center justify-center active:opacity-70"
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                >
+                  <Copy size={12} color={ACCENT_GREEN} />
+                </Pressable>
+              </>
+          </View>
+        ) : null}
         </View>
-        {/* Status / Assign / History / Details moved into the tap sheet. */}
       </Pressable>
     );
   };
@@ -1033,81 +1033,89 @@ export default function BookingHistoryScreen({ navigation, route }) {
   // ── Card row ──────────────────────────────────────────────────────
   // ── Bulk booking card — one card for every device of GTS-001-A, -B …; a tap
   // opens the device list, never an action on the parent number.
+  // Outer card shared by the booking and bulk-booking tiles. One column (phone):
+  // the earlier card layout — image on the left, the same details on the right.
+  // Two columns (tablet): image on top.
+  const tileRow = numCols === 1;
+  const tileCard = {
+    flex: 1, marginBottom: 12, borderRadius: 16, backgroundColor: '#FFFFFF', overflow: 'hidden',
+    borderWidth: 1, borderColor: '#E5E7EB',
+    ...(tileRow ? { flexDirection: 'row' } : null),
+  };
+  const tilePanel = tileRow
+    ? { width: 116, minHeight: 116, alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: '#E5E7EB' }
+    : { aspectRatio: 1, backgroundColor: '#FFFFFF' };
+  const tileText = tileRow
+    ? { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingBottom: 8 }
+    : { paddingHorizontal: 8, paddingBottom: 8 };
+  const viewBtn = tileRow
+    ? { right: 6, bottom: 6, paddingHorizontal: 10, paddingVertical: 3 }
+    : { right: 8, bottom: 8, paddingHorizontal: 14, paddingVertical: 5 };
+
   const renderBulk = (group) => {
     const first = group.devices[0] || {};
     const newest = group.devices.reduce((acc, d) => (new Date(d.createdAt || 0) > new Date(acc.createdAt || 0) ? d : acc), first);
     const customerName = first.customerName || first.customerFullName || first.customer?.name || '-';
-    const phone = first.customerPhone || first.customer?.phone || '';
     const dateStr = formatDate(newest.createdAt);
     const timeStr = formatTime(newest.createdAt);
+    const image = group.devices.map((d) => d._modelImage || d.deviceImageUrl).find(Boolean) || null;
+    // Same tile as a single booking: image panel (BULK tag · VIEW), booking
+    // number · total, one line per device (ticket + status), customer, date / time.
     return (
-      <Pressable
-        onPress={() => setDevicePickerFor(group)}
-        className="bg-card rounded-2xl mb-2 active:opacity-90"
-        style={{
-          flex: numCols > 1 ? 1 : undefined,
-          padding: 10,
-          borderWidth: 1,
-          borderColor: '#E5E7EB',
-          shadowColor: '#111111',
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}
-      >
-        <View className="flex-row items-start">
-          <View className="h-12 w-12 rounded-2xl bg-success/10 items-center justify-center mr-2.5">
-            <Smartphone size={22} color={ACCENT_GREEN} />
+      <Pressable onPress={() => setDevicePickerFor(group)} className="active:opacity-90" style={tileCard}>
+        <View className="items-center justify-center overflow-hidden" style={tilePanel}>
+          {image ? (
+            <Image source={{ uri: image }} style={{ width: '76%', height: '76%' }} resizeMode="contain" />
+          ) : (
+            <Smartphone size={40} color={ACCENT_GREEN} />
+          )}
+          <View className="absolute" style={{ top: 0, left: 0, maxWidth: '86%', backgroundColor: ACCENT_GREEN, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>Bulk · {bulkCountLabel(group.devices)}</Text>
           </View>
-          <View className="flex-1 pr-2">
-            <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
-              <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>BULK BOOKING · #{group.bookingNumber}</Text>
-            </View>
-            <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{bulkCountLabel(group.devices)}</Text>
-            <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>
-              {group.devices.map((d) => d.trackingId).join(' · ')}
-            </Text>
+          <View pointerEvents="none" className="absolute" style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}>
+            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
-          <View className="items-end" style={{ maxWidth: 118 }}>
-            {dateStr ? (
-              <View className="flex-row items-center">
-                <Calendar size={11} color="#6B7280" />
-                <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
-              </View>
-            ) : null}
-            {timeStr ? <Text className="text-[10.5px] text-text-muted mt-0.5">{timeStr}</Text> : null}
-            {/* Whole booking: every device's amount added up. */}
-            <Text className="text-[12px] font-extrabold mt-0.5" style={{ color: ACCENT_GREEN }} numberOfLines={1}>
+        </View>
+
+        <View style={tileText}>
+        <View className="flex-row items-center" style={{ marginTop: 8 }}>
+          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }} numberOfLines={1}>#{group.bookingNumber}</Text>
+          {/* Whole booking: every device's amount added up. */}
+          <View style={{ marginLeft: 6, backgroundColor: ACCENT_GREEN, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>
               {inrAmount(group.devices.reduce((sum, d) => sum + deviceAmount(d), 0))}
             </Text>
           </View>
         </View>
-
-        <View className="h-px bg-border my-2" />
-        <View className="flex-row items-center py-0.5">
-          <View className="w-4 items-center mr-1.5"><User size={11} color="#6B7280" /></View>
-          <Text className="text-[10px] text-text-muted w-16">Customer</Text>
-          <Text className="text-[11px] text-text font-semibold" style={{ flexShrink: 1 }} numberOfLines={1}>
-            {customerName}{phone ? ` · ${phone}` : ''}
-          </Text>
-        </View>
-        {/* One line per device: its own ticket number, model and status. */}
+        {/* One line per device: its ticket number (left) and status (right). */}
         {group.devices.map((d) => {
           const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
           const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
           return (
-            <View key={d.id} className="flex-row items-center" style={{ marginTop: 5 }}>
-              <Text className="text-[10.5px] font-extrabold" style={{ color: ACCENT_GREEN, width: 78 }} numberOfLines={1}>{d.trackingId}</Text>
-              <Text className="text-[11px] text-text font-semibold" style={{ flex: 1, minWidth: 0, marginRight: 6 }} numberOfLines={1}>
-                {d._modelName || d.deviceDisplayName || d.deviceModelName || d.modelName || 'Device'}
-              </Text>
-              <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border, maxWidth: 110 }}>
-                <Text className="text-[8.5px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>{meta.label.toUpperCase()}</Text>
-              </View>
+            <View key={d.id} className="flex-row items-center" style={{ marginTop: 4 }}>
+              <Text style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{d.trackingId}</Text>
+              <Text style={{ marginLeft: 4, fontSize: 9.5, fontWeight: '800', color: tone.fg }} numberOfLines={1}>{meta.label}</Text>
             </View>
           );
         })}
+        {/* Assignment progress across the booking's device tickets. */}
+        {(() => {
+          const n = group.devices.length;
+          const done = group.devices.filter((d) => d.assignedTechnicianId || d.assignedTechnicianName).length;
+          return (
+            <Text style={{ marginTop: 4, fontSize: 11, fontWeight: '800', color: done === n ? '#609138' : done ? '#B45309' : '#6B7280' }} numberOfLines={1}>
+              {done} Assigned{n - done ? ` · ${n - done} Unassigned` : ''}
+            </Text>
+          );
+        })()}
+        <Text className="text-text-muted" style={{ marginTop: 2, fontSize: 12 }} numberOfLines={1}>{customerName}</Text>
+        {dateStr || timeStr ? (
+          <View className="flex-row items-center justify-between" style={{ marginTop: 1 }}>
+            <Text className="text-text-muted" style={{ fontSize: 11 }} numberOfLines={1}>{dateStr}</Text>
+            <Text className="text-text-muted" style={{ fontSize: 11, marginLeft: 6 }} numberOfLines={1}>{timeStr}</Text>
+          </View>
+        ) : null}
+        </View>
       </Pressable>
     );
   };
@@ -1117,163 +1125,109 @@ export default function BookingHistoryScreen({ navigation, route }) {
     if (item._bulk) return renderBulk(item);
     const deviceName = item._modelName || item.deviceDisplayName || item.deviceModelName || item.modelName || 'Device';
     const deviceImage = item._modelImage || item.deviceImageUrl || null;
-    const specs = [item._modelNumber, item._ramStorage].filter(Boolean).join(' - ');
-    const color = item.color;
     const trackingId = item.trackingId || (item.id ? item.id.slice(0, 8).toUpperCase() : '-');
     const statusMeta = STATUS_VARIANT[String(item.status || '').toUpperCase()] || { label: item.status || 'Pending', tone: 'amber' };
     const customerName = item.customerName || item.customerFullName || item.customer?.name || '-';
     const phone = item.customerPhone || item.customer?.phone || '';
-    const services = item.repairServicesSummary || (item.services?.map?.((s) => s.serviceName).join(', ')) || '';
     const tone = TONE_STYLE[statusMeta.tone] || TONE_STYLE.amber;
     const dateStr = formatDate(item.createdAt);
     const timeStr = formatTime(item.createdAt);
-    // Invoice total (finalPrice) once one is raised, otherwise the estimate —
-    // summed from the line items when estimatedPrice is null. Always shown,
-    // ₹0 included, so a missing price reads as zero rather than a blank card.
-    const amountNum = deviceAmount(item);
-    const amountStr = `₹${amountNum.toLocaleString('en-IN')}`;
+    const amountStr = `₹${deviceAmount(item).toLocaleString('en-IN')}`;
+    // Price block, from the same rows as the old chips: [Est | Bill], [Adv | Full
+    // Paid | Paid | Pay on delivery], [Bal] (no Bal row for a ₹0 estimate).
     const payRows = payRowsFor(item);
+    const payRow = payRows[1] || null;
+    const balRow = payRows.find((x) => x.short === 'Bal') || null;
+    const paidStr = payRow && payRow.value !== 'on delivery' ? payRow.value : null;
 
-    // A card tap opens Update Service Status. Every *destination* the card could
-    // navigate to is already a labelled button in the row underneath, so the tap
-    // is free for the one thing that isn't a destination — changing where the
-    // booking is in its flow. The Re-Estimated mount keeps its edit shortcut on
-    // the "Re-Est" button rather than on the card itself.
-    const onCardPress = () => setBookingMenuFor(item);
+    const onCardPress = () => goDetailsFor(item);
 
-return (
-      <Pressable
-        onPress={onCardPress || undefined}
-        // Without this the card still dims on touch, which reads as "that did
-        // nothing" rather than "that isn't a button".
-        disabled={!onCardPress}
-        className="bg-card rounded-2xl mb-2 active:opacity-90"
-        style={{
-          flex: numCols > 1 ? 1 : undefined,
-          padding: 10,
-          borderWidth: 1,
-          borderColor: '#E5E7EB',
-          shadowColor: '#111111',
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}
-      >
-        {/* Top: image + info (left) + status/date/time (right) */}
-        <View className="flex-row items-start">
-          <View className="h-12 w-12 rounded-2xl bg-success/10 items-center justify-center mr-2.5 overflow-hidden">
-            {deviceImage ? (
-              <Image source={{ uri: deviceImage }} style={{ width: 48, height: 48 }} resizeMode="cover" />
-            ) : (
-              <Smartphone size={22} color={ACCENT_GREEN} />
-            )}
+    // Product-card tile: image panel (status tag · call · VIEW), price chip,
+    // balance line, device name, then specs and customer.
+    return (
+      <Pressable onPress={onCardPress} className="active:opacity-90" style={tileCard}>
+        <View
+          className="items-center justify-center overflow-hidden"
+          style={tilePanel}
+        >
+          {deviceImage ? (
+            <Image source={{ uri: deviceImage }} style={{ width: '76%', height: '76%' }} resizeMode="contain" />
+          ) : (
+            <Smartphone size={40} color={ACCENT_GREEN} />
+          )}
+          {/* Status tag, top-left corner. */}
+          <View
+            className="absolute"
+            style={{ top: 0, left: 0, maxWidth: '78%', backgroundColor: tone.fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta.label}</Text>
           </View>
-
-          <View className="flex-1 flex-row">
-            {/* left info column */}
-            <View className="flex-1 pr-2">
-              <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
-                <Text className="text-[9.5px] font-extrabold" style={{ color: ACCENT_GREEN }}>#{trackingId}</Text>
-              </View>
-              {item.parentTicketId ? (
-                <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: '#FFF8E1' }}>
-                  <Text className="text-[9.5px] font-extrabold" style={{ color: '#8A6A00' }}>
-                    RE-SERVICE{item.parentTrackingId ? ` · #${item.parentTrackingId}` : ''}
-                  </Text>
-                </View>
-              ) : null}
-              <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{deviceName}</Text>
-              {specs ? (
-                <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{specs}</Text>
-              ) : null}
-              {color ? (
-                <Text className="text-[10.5px] text-text-muted mt-0.5" numberOfLines={1}>{color}</Text>
-              ) : null}
-              {/* Estimate · Advance / Full Paid · Balance — compact chips under the colour. */}
-              <View className="flex-row flex-wrap mt-1" style={{ gap: 3 }}>
-                {payRows.map((r) => (
-                  <View key={r.label} style={{ paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 5, backgroundColor: r.bg }}>
-                    <Text className="text-[9px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>
-                      {r.short} {r.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* right meta column: status pill, then date + time */}
-            <View className="items-end" style={{ maxWidth: 118 }}>
-              <View
-                className="rounded-full px-2 py-0.5"
-                style={{ backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border }}
-              >
-                <Text className="text-[9px] font-extrabold" style={{ color: tone.fg }} numberOfLines={1}>
-                  {statusMeta.label.toUpperCase()}
-                </Text>
-              </View>
-              {dateStr ? (
-                <View className="flex-row items-center mt-1.5">
-                  <Calendar size={11} color="#6B7280" />
-                  <Text className="text-[10.5px] text-text-muted font-semibold ml-1">{dateStr}</Text>
-                </View>
-              ) : null}
-              {timeStr ? (
-                <Text className="text-[10.5px] text-text-muted mt-0.5">{timeStr}</Text>
-              ) : null}
-              {amountStr ? (
-                <Text className="text-[12px] font-extrabold mt-0.5" style={{ color: ACCENT_GREEN }} numberOfLines={1}>{amountStr}</Text>
-              ) : null}
-            </View>
+          {/* VIEW, bottom-right — the whole tile opens Booking Details too. */}
+          <View
+            pointerEvents="none"
+            className="absolute"
+            style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}
+          >
+            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
         </View>
 
-        {/* Divider + detail rows */}
-        <View className="h-px bg-border my-2" />
-        {/* Customer - mobile on one line, with a small copy button for the number. */}
-        <View className="flex-row items-center py-0.5">
-          <View className="w-4 items-center mr-1.5"><User size={11} color="#6B7280" /></View>
-          <Text className="text-[10px] text-text-muted w-16">Customer</Text>
-          <Text className="text-[11px] text-text font-semibold" style={{ flexShrink: 1 }} numberOfLines={1}>{customerName}</Text>
-          {phone ? (
-            <>
-              <Text className="text-[11px] text-text-muted"> - </Text>
-              <Text className="text-[11px] text-text font-semibold">{phone}</Text>
-              <Pressable
-                onPress={() => callPhone(phone)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Call ${phone}`}
-                className="items-center justify-center active:opacity-60"
-                style={{ marginLeft: 6, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(96, 145, 56, 0.14)' }}
-              >
-                <Phone size={10} color="#609138" />
-              </Pressable>
-              <Pressable
-                onPress={() => copyPhone(phone)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Copy mobile number ${phone}`}
-                className="items-center justify-center active:opacity-60"
-                style={{ marginLeft: 6, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(3, 92, 108, 0.12)' }}
-              >
-                <Copy size={10} color={ACCENT_GREEN} />
-              </Pressable>
-            </>
-          ) : null}
-        </View>
-
-        {/* Services footer line — every service, in full. */}
-        <View className="flex-row items-start mt-1">
-          <View className="flex-1 flex-row items-start pr-2">
-            <View className="w-4 items-center mr-1.5" style={{ marginTop: 2 }}><Wrench size={11} color="#6B7280" /></View>
-            <Text className="text-[10px] text-text-muted w-16" style={{ marginTop: 1 }}>Services</Text>
-            <Text className="text-[11px] text-text flex-1 font-semibold">{services || '—'}</Text>
+        <View style={tileText}>
+        {/* Tracking ID (left) · Est (right), then Bal (left) · Paid (right). */}
+        <View className="flex-row items-center" style={{ marginTop: 8 }}>
+          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }} numberOfLines={1}>#{trackingId}</Text>
+          <View style={{ marginLeft: 6, backgroundColor: ACCENT_GREEN, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{amountStr}</Text>
           </View>
         </View>
-
-        {/* Actions (Update Status, Assign, History, Receipt, Barcode,
-            Details…) open as a grid when the card is tapped. */}
+        {balRow || paidStr ? (
+          <View className="flex-row items-center" style={{ marginTop: 5 }}>
+            {balRow ? (
+              <Text style={{ fontSize: 11.5, fontWeight: '800', color: balRow.fg }} numberOfLines={1}>Bal {balRow.value}</Text>
+            ) : null}
+            <View style={{ flex: 1 }} />
+            {paidStr ? (
+              <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#15803D' }} numberOfLines={1}>Paid {paidStr}</Text>
+            ) : null}
+          </View>
+        ) : null}
+        <Text className="text-text" style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16 }} numberOfLines={2}>{deviceName}</Text>
+        <Text className="text-text-muted" style={{ marginTop: 2, fontSize: 12 }} numberOfLines={1}>{customerName}</Text>
+        {/* Date left, time right. */}
+        {dateStr || timeStr ? (
+          <View className="flex-row items-center justify-between" style={{ marginTop: 1 }}>
+            <Text className="text-text-muted" style={{ fontSize: 11 }} numberOfLines={1}>{dateStr}</Text>
+            <Text className="text-text-muted" style={{ fontSize: 11, marginLeft: 6 }} numberOfLines={1}>{timeStr}</Text>
+          </View>
+        ) : null}
+        {/* Call (left) + copy (right), on the line after date / time. */}
+        {phone ? (
+          <View className="flex-row items-center justify-between" style={{ marginTop: 4 }}>
+              <>
+                <Pressable
+                  onPress={() => callPhone(phone)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${phone}`}
+                  className="items-center justify-center active:opacity-70"
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                >
+                  <Phone size={12} color={ACCENT_GREEN} />
+                </Pressable>
+                <Pressable
+                  onPress={() => copyPhone(phone)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy mobile number ${phone}`}
+                  className="items-center justify-center active:opacity-70"
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                >
+                  <Copy size={12} color={ACCENT_GREEN} />
+                </Pressable>
+              </>
+          </View>
+        ) : null}
+        </View>
       </Pressable>
     );
   };
@@ -1295,7 +1249,7 @@ return (
           </Pressable>
           {/* Title block centred on the SCREEN (not between the two buttons,
               which differ in width); padded so it never runs under them. */}
-          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 56 }}>
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 96 }}>
             <Text className="text-text-muted text-[11px] font-bold tracking-widest text-center" numberOfLines={1}>{eyebrowText}</Text>
             <Text className="text-text text-[17px] font-extrabold mt-0.5 text-center" numberOfLines={1}>
               {counts[scope.key] ?? 0}{' '}
@@ -1303,84 +1257,56 @@ return (
             </Text>
           </View>
           <View className="flex-1" />
-          {/* Filters — icon only: white on the medium teal, darker teal while
-              open / filtering; the active-filter count rides as a badge. */}
+          {/* Search (opens the search bar) + Scan booking QR, top right. */}
           <Pressable
-            onPress={() => setShowFilters((v) => !v)}
+            onPress={() => { if (searchOpen) setQuery(''); setSearchOpen((v) => !v); }}
+            hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filters'}
+            accessibilityLabel={searchOpen ? 'Close search' : 'Search jobs'}
             className="h-9 w-9 rounded-full items-center justify-center active:opacity-80"
-            style={{ backgroundColor: showFilters || activeFilters > 0 ? ACCENT_GREEN : '#357D89' }}
+            style={{ backgroundColor: searchOpen ? ACCENT_GREEN : '#E5F3F5' }}
           >
-            <Filter size={16} color="#FFFFFF" />
-            {activeFilters > 0 ? (
-              <View
-                className="absolute items-center justify-center rounded-full"
-                style={{ top: -3, right: -3, minWidth: 16, height: 16, paddingHorizontal: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: ACCENT_GREEN }}
-              >
-                <Text className="text-[9px] font-extrabold" style={{ color: ACCENT_GREEN }}>{activeFilters}</Text>
-              </View>
-            ) : null}
+            <Search size={16} color={searchOpen ? '#FFFFFF' : ACCENT_GREEN} />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate('ScanQrCode')}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Scan booking QR code"
+            className="h-9 w-9 rounded-full items-center justify-center ml-2 active:opacity-80"
+            style={{ backgroundColor: '#E5F3F5' }}
+          >
+            <ScanLine size={16} color={ACCENT_GREEN} strokeWidth={2.2} />
           </Pressable>
         </View>
       </View>
 
-      {/* ── Full-width search bar ────────────────────────────────── */}
-      <View className="px-4" style={{ marginTop: 10 }}>
-        <SearchBar
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search by Tracking ID, Customer name, Mobile…"
-          onClear={() => setQuery('')}
-          // Scan the booking's QR (job sheet / slip) to open it straight away.
-          rightAccessory={(
-            <Pressable
-              onPress={() => navigation.navigate('ScanQrCode')}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Scan booking QR code"
-              className="items-center justify-center active:opacity-60"
-              style={{ marginLeft: 8, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: '#E5E7EB' }}
-            >
-              <ScanLine size={18} color={ACCENT_GREEN} strokeWidth={2.2} />
-            </Pressable>
-          )}
-        />
-      </View>
+      {/* ── Search bar — only while the header's Search icon has it open ── */}
+      {searchOpen || query ? (
+        <View className="px-4" style={{ marginTop: 10 }}>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search by Tracking ID, Customer name, Mobile…"
+            onClear={() => setQuery('')}
+            autoFocus
+          />
+        </View>
+      ) : null}
 
-      {/* ── Scope grid (wraps downward — no sideways scrolling) ──────────
-          Every scope in the mounted set is on screen at once, so the selected one
-          is always visible and nothing has to be swiped into view. This
-          replaces the horizontal rail, which put Out for Delivery / Delivered
-          off the right edge and — as a bare flex child of this column — also
-          fought the booking list for vertical space. A plain wrapping View
-          sizes to its own content, so the grid's height no longer depends on
-          how many bookings are underneath.
-
-          Each tile reads left-to-right as icon → count → label. Column count
-          is responsive — see `chipCols`: two per row on a phone (at 3-up the
-          label had barely 50px and wrapped mid-word), and the entire set on one
-          row on a tablet, where the width is there for the taking and three
-          rows of half-empty tiles were pure waste. */}
-      {chipStacked ? (
-        // Phone: the Home screen Services-grid look — one white panel, each
-        // scope a white icon on a medium teal / green / blue / grey disc (the
-        // same cycle as Home's tool tiles), the count as a badge
-        // on the disc and the label underneath. The selected scope gets a
-        // ring in its colour and a coloured label.
-        <View
-          style={{
-            marginHorizontal: 12, marginTop: 8, paddingVertical: 6,
-            backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB',
-            flexDirection: 'row', flexWrap: 'wrap',
-          }}
+      {/* ── Left: scope menu rail · Right: bookings list ── */}
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        <ScrollView
+          style={{ width: railW, flexGrow: 0, borderRightWidth: 1, borderRightColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+          contentContainerStyle={{ paddingVertical: 6, paddingHorizontal: 5, paddingBottom: tabSpace }}
+          showsVerticalScrollIndicator={false}
         >
           {menuList.map((s, idx) => {
             const Icon = s.icon;
             const active = scope.key === s.key;
-            const tone = HOME_TILE_TONES[idx % HOME_TILE_TONES.length];
-            // Six to a row leaves ~56px a tile on a phone — a slightly smaller disc.
-            const disc = chipCols >= 6 ? (isSmall ? 28 : 30) : (isSmall ? 32 : 34);
+            const tone = SCOPE_TONE[s.key] || HOME_TILE_TONES[idx % HOME_TILE_TONES.length];
+            const rz = railSizes(winW);
+            const disc = rz.disc;
             return (
               <Pressable
                 key={s.key}
@@ -1388,92 +1314,50 @@ return (
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${s.chipLabel || s.label}, ${counts[s.key] ?? 0}`}
-                className="items-center active:opacity-80"
-                style={{ width: `${100 / chipCols}%`, paddingVertical: 5, paddingHorizontal: 4 }}
+                className="active:opacity-80"
+                style={{
+                  marginVertical: 4, borderRadius: 14, backgroundColor: '#FFFFFF',
+                  // Soft coloured drop shadow under each menu tile.
+                  shadowColor: tone, shadowOpacity: active ? 0.12 : 0.06, shadowRadius: 4,
+                  shadowOffset: { width: 0, height: 2 }, elevation: active ? 2 : 1,
+                }}
               >
-                <View style={{ padding: 2, borderRadius: 999, borderWidth: 2, borderColor: active ? tone : 'transparent' }}>
+                {/* White at the top fading to a light tint of the tile's colour. */}
+                <LinearGradient
+                  colors={['#FFFFFF', `${tone}${active ? '24' : '10'}`]} // lighter tint (~14% active, ~6% idle)
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={{
+                    alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
+                    borderWidth: active ? 1.5 : 1, borderColor: active ? tone : `${tone}22`,
+                  }}
+                >
+                <View>
                   <View className="items-center justify-center" style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone }}>
-                    <Icon size={chipCols >= 6 ? (isSmall ? 13 : 14) : (isSmall ? 15 : 16)} color="#FFFFFF" strokeWidth={2.2} />
+                    <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
                   </View>
                   <View
                     className="absolute items-center justify-center"
-                    style={{ top: -4, right: -6, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: tone }}
+                    style={{ top: -4, right: -8, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: tone }}
                   >
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: tone }} numberOfLines={1}>{counts[s.key] ?? 0}</Text>
+                    <Text style={{ fontSize: rz.badge, fontWeight: '800', color: tone }} numberOfLines={1}>{counts[s.key] ?? 0}</Text>
                   </View>
                 </View>
                 <Text
-                  style={{ marginTop: 4, fontSize: isSmall ? 10 : 11, lineHeight: isSmall ? 13 : 14, fontWeight: active ? '800' : '600', color: active ? tone : '#111111', textAlign: 'center' }}
+                  style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: active ? '800' : '700', color: tone, textAlign: 'center' }}
                   numberOfLines={2}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.8}
+                  minimumFontScale={0.85}
                 >
                   {s.chipLabel || s.label}
                 </Text>
+                </LinearGradient>
               </Pressable>
             );
           })}
-        </View>
-      ) : (
-      <View
-        style={{
-          paddingHorizontal: 10,
-          paddingTop: 6,
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-        }}
-      >
-        {menuList.map((s) => {
-          const Icon = s.icon;
-          const active = scope.key === s.key;
-          return (
-            <View key={s.key} style={{ width: `${100 / chipCols}%`, padding: 2.5 }}>
-              <Pressable
-                onPress={() => selectScope(s.key)}
-                className="flex-row items-center rounded-xl active:opacity-80"
-                style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: isSmall ? 7 : 8,
-                  // Each scope's own tint; the selected one gets its colour as the border.
-                  backgroundColor: s.bg,
-                  borderWidth: active ? 1.5 : 1,
-                  borderColor: active ? s.color : s.bg,
-                }}
-              >
-                <>
-                <View
-                  className="rounded-full items-center justify-center mr-1.5"
-                  style={{ height: chipIcon, width: chipIcon, backgroundColor: '#FFFFFF' }}
-                >
-                  <Icon size={chipGlyph} color={s.color} strokeWidth={2.3} />
-                </View>
-                <Text
-                  className="font-extrabold text-text mr-1"
-                  style={{ fontSize: isSmall ? 12 : 13 }}
-                  numberOfLines={1}
-                >
-                  {counts[s.key] ?? 0}
-                </Text>
-                <Text
-                  className="font-semibold flex-1"
-                  style={{
-                    fontSize: isSmall ? 9.5 : 10.5,
-                    color: active ? s.color : '#1F2937',
-                  }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {s.chipLabel || s.label}
-                </Text>
-                </>
-              </Pressable>
-            </View>
-          );
-        })}
-      </View>
-      )}
+        </ScrollView>
 
+        <View style={{ flex: 1 }}>
       {error ? (
         <View className="mx-4 mt-2 rounded-xl px-3 py-2"
           style={{ backgroundColor: 'rgba(220, 38, 38, 0.10)', borderWidth: 1, borderColor: 'rgba(220, 38, 38, 0.35)' }}
@@ -1483,7 +1367,7 @@ return (
       ) : null}
 
       {loading && items.length === 0 ? (
-        <Loader label="Loading bookings..." />
+        <Loader label="Loading jobs..." />
       ) : (
         <FlatList
           data={listData}
@@ -1501,11 +1385,11 @@ return (
             />
           }
           // Single column (phones, narrow tablets): cap the cards so they don't stretch.
-          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: tabSpace, ...(numCols === 1 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null) }}
+          contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: tabSpace, ...(numCols === 1 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null) }}
           ListEmptyComponent={
             <EmptyState
               icon={<ClipboardList size={26} color={ACCENT_GREEN} />}
-              title={narrowed ? 'No bookings found' : scope.emptyTitle}
+              title={narrowed ? 'No jobs found' : scope.emptyTitle}
               description={narrowed ? 'Try clearing filters.' : scope.emptyDescription}
               actionLabel={narrowed ? 'Clear filters' : null}
               onAction={() => { setQuery(''); setDateFilter(null); }}
@@ -1513,6 +1397,8 @@ return (
           }
         />
       )}
+        </View>
+      </View>
 
       {/* ── Filter popup (modal, slides up from bottom) ──────────── */}
       <SafeModal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
@@ -1657,7 +1543,7 @@ return (
           </Pressable>
         ) : null}
         <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
-          {bookingMenuFor ? (bookingMenuFor._modelName || bookingMenuFor.deviceDisplayName || bookingMenuFor.deviceModelName || bookingMenuFor.modelName || 'Booking') : ''}
+          {bookingMenuFor ? (bookingMenuFor._modelName || bookingMenuFor.deviceDisplayName || bookingMenuFor.deviceModelName || bookingMenuFor.modelName || 'Job') : ''}
         </Text>
         <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
           #{bookingMenuFor ? (bookingMenuFor.trackingId || String(bookingMenuFor.id || '').slice(0, 8).toUpperCase()) : ''}
@@ -1692,7 +1578,7 @@ return (
       <ResponsiveModal visible={!!devicePickerFor} onClose={() => setDevicePickerFor(null)} scrollable>
         <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', marginBottom: 12 }} />
         <View className="self-start rounded-md px-1.5 py-0.5 mb-1" style={{ backgroundColor: 'rgba(3, 92, 108, 0.12)' }}>
-          <Text style={{ fontSize: 10, fontWeight: '800', color: ACCENT_GREEN }}>BULK BOOKING · {devicePickerFor?.bookingNumber}</Text>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: ACCENT_GREEN }}>BULK JOB · {devicePickerFor?.bookingNumber}</Text>
         </View>
         <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
           {devicePickerFor
@@ -1709,7 +1595,7 @@ return (
           return (
             <Pressable
               key={d.id}
-              onPress={() => openDeviceActions(devicePickerFor, d)}
+              onPress={() => { setDevicePickerFor(null); goDetailsFor(d); }}
               accessibilityRole="button"
               accessibilityLabel={`${d.trackingId} actions`}
               className="flex-row items-center active:opacity-80"

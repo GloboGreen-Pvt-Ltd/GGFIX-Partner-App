@@ -36,7 +36,7 @@ const STATUS_META = {
   APPROVED:             { label: 'Approved',      color: '#035C6C', bg: '#E5F3F5' },
   IN_REPAIR:            { label: 'In Repair',     color: '#B45309', bg: '#FEF3C7' },
   READY:                { label: 'Ready',         color: BRAND_GREEN_DARK, bg: '#E5F3F5' },
-  DELIVERED_PROCESSING: { label: 'Delivering',    color: '#035C6C', bg: '#E5F3F5' },
+  DELIVERED_PROCESSING: { label: 'Dispatched',    color: '#035C6C', bg: '#E5F3F5' },
   DELIVERED:            { label: 'Delivered',     color: BRAND_GREEN_DARK, bg: '#E5F3F5' },
   CANCELLED:            { label: 'Cancelled',     color: '#B91C1C', bg: '#FEE2E2' },
 };

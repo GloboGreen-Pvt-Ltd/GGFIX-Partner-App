@@ -135,7 +135,7 @@ export default function ProductScanScreen({ navigation }) {
     if (result?.scanId) params.scanId = result.scanId;
     navigation.replace('OwnerSearch', Object.keys(params).length ? params : undefined);
   };
-  const openTicket = (ticket) => navigation.replace('DeviceDetail', { ticketId: ticket.id });
+  const openTicket = (ticket) => navigation.replace('TicketDetail', { ticketId: ticket.id });
 
   const onAction = (key, item) => {
     if (!navigateDeviceAction(navigation, key, item.row)) {

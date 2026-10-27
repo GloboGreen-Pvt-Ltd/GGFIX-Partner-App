@@ -442,7 +442,7 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
       });
       // There is no folder picker to dismiss now — saveToDownloads either
       // writes into Download/ or throws, and the catch below reports it.
-      notify(`Saved to ${saved.location}`, saved.name, { preset: 'done', haptic: 'success' });
+      if (!saved.shared) notify(`Saved to ${saved.location}`, saved.name, { preset: 'done', haptic: 'success' });
       await notifyDownloaded(saved);
     } catch (e) {
       notify(

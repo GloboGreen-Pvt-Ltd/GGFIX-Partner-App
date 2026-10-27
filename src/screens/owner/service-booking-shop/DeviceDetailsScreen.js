@@ -458,7 +458,14 @@ export default function DeviceDetailsScreen({ navigation, route }) {
       }
       return;
     }
-    navigation.navigate('DeviceServices', { ...base, ...variantParams });
+    // Edit Booking's "Change device": hand the pick back and close the picker.
+    if (typeof params.onPicked === 'function') {
+      params.onPicked({ ...base, ...variantParams });
+      navigation.goBack();
+      return;
+    }
+    // Devices & Repair — issues, prices, photos, parts and security on one screen.
+    navigation.navigate('ServicePriceEstimate', { ...base, ...variantParams });
   };
 
   // Brand › Series › Model — the category is already in its own field above.

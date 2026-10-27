@@ -15,7 +15,31 @@
  *   Light Gray  #F3F4F6 — page / section backgrounds, soft fills.
  *   Border Gray #E5E7EB — borders, dividers (#D1D5DB strong).
  *   Red #F84141 danger · Yellow #F3BF23 attention (dark text only).
+ *
+ * Brand colour sheet (Oct 2026) — `brand.*` below, and `navy` / `brandBlue` /
+ * `brandOrange` / `brandRed` in tailwind.config.js:
+ *   Primary Teal #035C6C — primary buttons, header, key UI.
+ *   Navy         #1C3053 — headings, navigation, important text.
+ *   Bright Blue  #0788C9 — links, secondary buttons, icons.
+ *   Green        #609138 — success, in stock, positive states.
+ *   Orange       #FAA700 — offers, CTA buttons, highlights.
+ *   Red          #F32C26 — sale badges, discounts, urgent alerts.
+ *   White        #FFFFFF — page background, cards, content.
+ *   Light Gray   #F3F4F6 — section backgrounds, borders, dividers.
+ *   Black        #111111 — body text, icons, high contrast.
  */
+export const brand = {
+  teal: '#035C6C',
+  navy: '#1C3053',
+  blue: '#0788C9',
+  green: '#609138',
+  orange: '#FAA700',
+  red: '#F32C26',
+  white: '#FFFFFF',
+  lightGray: '#F3F4F6',
+  black: '#111111',
+};
+
 const tokens = {
   // Primary — the interactive green
   primary: '#035C6C',
@@ -63,6 +87,12 @@ const tokens = {
   error: '#F84141',
   // No blue in the palette; "info" was only ever a neutral notice.
   info: '#035C6C',
+
+  // Brand sheet extras (see `brand` above).
+  navy: '#1C3053',
+  brandBlue: '#0788C9',
+  brandOrange: '#FAA700',
+  brandRed: '#F32C26',
 };
 
 export const radii = {

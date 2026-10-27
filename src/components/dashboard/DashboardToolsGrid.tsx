@@ -4,6 +4,9 @@ import type { DashboardTool } from '../../types/dashboard';
 import { BREAKPOINTS, LARGE_PHONE_MIN, TILE_COLUMNS } from '../../theme/responsive';
 import { DashboardToolCard } from './DashboardToolCard';
 
+// Icon discs cycle the brand sheet: Teal, Bright Blue, Green, Orange, Navy, Red.
+export const BRAND_DISCS = ['#035C6C', '#0788C9', '#609138', '#FAA700', '#1C3053', '#F32C26'];
+
 export interface DashboardToolsGridProps {
   items: DashboardTool[];
   /** This section's own inner horizontal inset — applied as padding, not part of the width math (the caller already folded it in). */
@@ -54,8 +57,9 @@ export function DashboardToolsGrid({ items, pad, columns, cardWidth, gap, onPres
           <DashboardToolCard
             key={tool.label}
             tool={tool}
+            discColor={BRAND_DISCS[i % BRAND_DISCS.length]}
             width={cardWidth}
-            style={{ marginRight: col === columns - 1 ? 0 : gap, marginBottom: gap }}
+            style={{ marginRight: col === columns - 1 ? 0 : gap, marginBottom: 6 }}
             onPress={onPress}
           />
         );

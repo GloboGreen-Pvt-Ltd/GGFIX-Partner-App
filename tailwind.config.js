@@ -13,6 +13,8 @@
  *   Page   #F3F4F6 — `background` / `surface-muted`, behind white `card`s.
  *   Border #E5E7EB.
  *   Yellow #F3BF23 — `attention` / `warning`. DARK text only.
+ *   Brand sheet extras: Navy #1C3053 `navy` · Bright Blue #0788C9 `brandBlue`
+ *   · Orange #FAA700 `brandOrange` · Red #F32C26 `brandRed` (see theme/colors.js `brand`).
  */
 
 // Primary ramp around the brand teal (#035C6C at 500) — the Home screen's
@@ -157,6 +159,11 @@ module.exports = {
         error: red[500],
         // No blue in the palette; "info" was only ever a neutral notice.
         info: green[500],
+        // Brand sheet extras (theme/colors.js `brand`).
+        navy: '#1C3053',
+        brandBlue: '#0788C9',
+        brandOrange: '#FAA700',
+        brandRed: '#F32C26',
       },
       fontFamily: {
         sans: ['System'],

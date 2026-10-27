@@ -77,7 +77,7 @@ import { DashboardShortcutCards, type DashboardShortcut } from '../../components
 import { ion, mci } from '../../components/dashboard/solidIcons';
 import { RepairCategoryModal, type PickedRepairCategory } from '../../components/dashboard/RepairCategoryModal';
 import { getDashboardToolColumns } from '../../components/dashboard/DashboardToolsGrid';
-import { DashboardMenuTabs } from '../../components/dashboard/DashboardMenuTabs';
+import { DashboardToolGroups } from '../../components/dashboard/DashboardToolGroups';
 import { DashboardBookingCard } from '../../components/dashboard/DashboardBookingCard';
 import { DashboardNearbyDeals, type NearbyDeal } from '../../components/dashboard/DashboardNearbyDeals';
 import { fetchNearbyListings, getListingOrigin, sortNearestFirst, toListingCard } from '../../api/nearbyListings';
@@ -196,36 +196,33 @@ const TOOL_TONES = ACCENT_TONES;
 // above (category picker → Customer Details), the home banner, or Search.
 export const QUICK_ACTIONS: DashboardTool[] = [
   // Solid glyphs on pastel circles, per the Home design reference.
-  // Order: Booking · Pickups · Invoice · Customer · Enquiry · Model Compatibility · Sell Requests.
-  { key: 'Bookings', label: 'Booking', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#3B82F6' },
-  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
-  // The bookings list again, narrowed to the bookings whose invoice is generated
-  // (scopeListFor 'INVOICE') — same cards and layout as Bookings.
-  { key: 'BookingList', label: 'Invoice', icon: mci('receipt-text'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent', params: { menu: 'INVOICE' } },
-  { key: 'OwnerSearch', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
-  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
-  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent' },
+  // Order: Booking · Pickups · Customer · Enquiry · Model Compatibility · Sell Requests.
+  { key: 'BookingList', label: 'Job', via: 'parent', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#0788C9' },
+  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
+  { key: 'OwnerSearch', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
+  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
   // Customer sell listings near the shop (marketplace /buy/nearby, sellerType CUSTOMER).
-  { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
+  { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
 ];
 
 // Five tiles — one full row at the 5-column breakpoint. All are siblings of
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
-  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent', params: { mode: 'attendance' } },
-  { key: 'OwnerEmployeeWorkingRecord', label: "Job's Report", icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
-  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#6B7280', via: 'parent' },
-  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
-  { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
+  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
+  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { mode: 'attendance' } },
+  { key: 'OwnerEmployeeWorkingRecord', label: 'Job Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
+  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
+  { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
-  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#357D89', via: 'parent' },
-  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#5E9440', via: 'parent' },
-  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#3B82F6', via: 'parent' },
+  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
+  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
+  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
 ];
 
 function greetingFor(date: Date = new Date()): string {
@@ -235,6 +232,13 @@ function greetingFor(date: Date = new Date()): string {
   if (h < 17) return 'Good afternoon';
   if (h < 21) return 'Good evening';
   return 'Good night';
+}
+
+function formatBookingTime(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 function formatBookingDate(iso: string | undefined): string {
@@ -561,6 +565,19 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // to the owner navigator without that role.
   const canAddShop = session?.loginScope !== 'SHOP' && (session?.roles || []).includes('SHOP_OWNER');
   const greeting = useMemo(() => greetingFor(), []);
+  // Header folds its avatar / greeting row away while scrolling down (search
+  // stays pinned) and brings it back on any scroll up or near the top.
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [headerH, setHeaderH] = useState(0); // floating header's height — the scroll content starts below it
+  const lastScrollY = useRef(0);
+  const onHomeScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollY.current;
+    lastScrollY.current = y;
+    if (y < 40) setHeaderCollapsed(false);
+    else if (dy > 6) setHeaderCollapsed(true);
+    else if (dy < -6) setHeaderCollapsed(false);
+  }, []);
   // No per-shop `verified` column exists — the only reviewed, admin-approved
   // signal is the OWNER's KYC status, which is owner-wide.
   const isVerified = kycStatus === 'APPROVED';
@@ -792,7 +809,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // preset, and its count comes from the same scope predicate the list
   // filters by, so the figure always matches the length of the list it opens.
   const overview: OverviewStatItem[] = [
-    { label: 'Service Orders', caption: 'All services', value: total, icon: Package, color: OV_TONE.total, onPress: () => navigation.navigate('Bookings') },
+    { label: 'Service Orders', caption: 'All services', value: total, icon: Package, color: OV_TONE.total, onPress: () => gotoParent('BookingList') },
     { label: 'Active Jobs', caption: 'In progress', value: activeCount, icon: Clock, color: OV_TONE.active, onPress: () => gotoParent('BookingList', { preset: 'ACTIVE' }) },
     { label: 'Pickup Queue', caption: 'All pickups', value: pickupCounts.all, icon: Truck, color: OV_TONE.pickups, onPress: () => gotoParent('BookingList', { menu: 'PICKUP', preset: 'PICKUP_ALL' }) },
     { label: 'Pickup Requests', caption: 'New requests', value: pickupCounts.request, icon: Package, color: OV_TONE.request, onPress: () => gotoParent('BookingList', { menu: 'PICKUP', preset: 'PICKUP_REQUEST' }) },
@@ -831,12 +848,13 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   const toolCardStyle = {
     marginHorizontal: PAD,
     // Breathing room between the Services / Employee / Reports switcher and the panel.
-    marginTop: 12,
+    marginTop: 8,
     backgroundColor: C.card,
     borderRadius: toolPanelRadius,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
     shadowColor: '#111111',
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -853,6 +871,8 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   return (
     <View style={{ flex: 1, backgroundColor: C.groupedBg }}>
       <DashboardHeader
+        collapsed={headerCollapsed}
+        onHeightChange={(h) => { if (Math.abs(h - headerH) > 0.5) setHeaderH(h); }}
         insetsTop={insets.top}
         pad={PAD}
         greeting={greeting}
@@ -887,8 +907,10 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
       <Animated.ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: scrollBottomPad }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.placeholder} colors={[C.tint]} />}
+        onScroll={onHomeScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingTop: headerH, paddingBottom: scrollBottomPad }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.placeholder} colors={[C.tint]} progressViewOffset={headerH} />}
       >
         {/* Hero banner — "Slider-1" from the admin-managed master_banners
             table. Height is driven by the image's OWN real ratio
@@ -900,11 +922,11 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
             icon) if there's no active Slider-1 row, no usable image, or
             the image itself fails to load. */}
         {bannersLoading ? (
-          <View style={{ marginTop: 16, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center', paddingHorizontal: PAD }}>
+          <View style={{ marginTop: 4, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center', paddingHorizontal: PAD }}>
             <View style={{ height: bannerHeight, borderRadius: 20, backgroundColor: C.fill }} />
           </View>
         ) : heroBanners.length > 0 && !bannerImageFailed ? (
-          <View style={{ marginTop: 16, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center' }}>
+          <View style={{ marginTop: 4, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center' }}>
             <ScrollView
               ref={heroRef}
               horizontal
@@ -946,20 +968,21 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
         ) : null}
 
         <View style={{ marginTop: bannersLoading || (heroBanners.length > 0 && !bannerImageFailed) ? 0 : 16 }}>
-          <DashboardShortcutCards items={shortcuts} pad={PAD} />
+          <DashboardShortcutCards items={shortcuts} pad={PAD} height={isTablet ? 104 : 86} />
         </View>
 
         <View style={{ marginTop: SECTION_GAP }}>
-          <DashboardSection title="Overview" action="Today's Summary" onAction={() => gotoParent('BookingStatus')} pad={PAD} />
+          <DashboardSection title="Overview" pad={PAD} />
           <DashboardOverviewGrid items={overview} pad={PAD} />
         </View>
 
         <View style={{ marginTop: SECTION_GAP }}>
-          <DashboardMenuTabs
-            tabs={[
-              { label: 'Services', items: QUICK_ACTIONS, icon: LayoutGrid },
-              { label: 'Employee', items: EMPLOYEE_ACTIONS, icon: UsersRound },
-              { label: 'Reports', items: REPORT_ACTIONS, icon: BarChart3 },
+          {/* Every tool visible at once, grouped — no tabs to switch. */}
+          <DashboardToolGroups
+            groups={[
+              { label: 'Services', items: QUICK_ACTIONS, icon: LayoutGrid, color: '#035C6C' },
+              { label: 'Employee', items: EMPLOYEE_ACTIONS, icon: UsersRound, color: '#0788C9' },
+              { label: 'Reports', items: REPORT_ACTIONS, icon: BarChart3, color: '#609138' },
             ]}
             pad={PAD}
             panelStyle={toolCardStyle}
@@ -974,7 +997,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
 
         {latest.length > 0 ? (
           <View style={{ marginTop: SECTION_GAP }}>
-            <DashboardSection title="Recent Bookings" action="See All" onAction={() => navigation.navigate('Bookings')} pad={PAD} />
+            <DashboardSection title="Recent Jobs" action="See All" onAction={() => gotoParent('BookingList')} pad={PAD} />
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -995,9 +1018,11 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
                     ticketNo={num}
                     customer={customer}
                     date={formatBookingDate(t.createdAt)}
+                    time={formatBookingTime(t.createdAt)}
+                    amount={`₹${(Number(t.finalPrice ?? t.estimatedPrice) || 0).toLocaleString('en-IN')}`}
                     status={status}
                     tone={tone}
-                    onPress={() => navigation.navigate('DeviceDetail', { ticketId: t.id })}
+                    onPress={() => navigation.navigate('TicketDetail', { ticketId: t.id })}
                   />
                 );
               }}

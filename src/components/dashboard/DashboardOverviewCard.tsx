@@ -3,11 +3,14 @@ import { Text, View, useWindowDimensions } from 'react-native';
 import type { OverviewStatItem } from '../../types/dashboard';
 import { Touchable, withAlpha } from './theme';
 
-// Overview stat card: icon top-left, count top-right, label along the bottom.
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Overview stat card — same look as the Repair / Buy / Sell cards:
 //
-//   [icon]            2
-//      Service Orders
-const RC_HEIGHT = 78;
+//   Service Orders   (icon)
+//   69
+//   All services
+const RC_HEIGHT = 70;
 
 export interface DashboardOverviewCardProps {
   item: OverviewStatItem;
@@ -23,11 +26,10 @@ export interface DashboardOverviewCardProps {
 export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverviewCardProps) {
   const Icon = item.icon;
   const { width: winW } = useWindowDimensions();
-  // Smaller phones: slightly smaller icon and label, count stays centred.
   const small = winW < 380;
-  const circle = small ? 32 : 36;
-  const iconSize = small ? 16 : 18;
-  const labelSize = small ? 9.5 : 10.5;
+  const circle = small ? 22 : 24;
+  const iconSize = small ? 12 : 13;
+  const labelSize = small ? 10 : 11;
 
   return (
     <View style={{ width, marginRight: last ? 0 : gap }}>
@@ -37,59 +39,55 @@ export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverv
         accessibilityLabel={`${item.label}, ${item.value}`}
         style={{
           height: RC_HEIGHT,
-          backgroundColor: withAlpha(item.color, 0.07),
-          borderRadius: 18,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 16,
           borderWidth: 1,
-          borderColor: withAlpha(item.color, 0.14),
-          padding: 8,
+          borderColor: withAlpha(item.color, 0.16),
           overflow: 'hidden',
+          shadowColor: item.color,
+          shadowOpacity: 0.12,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 2,
         }}
         pressedStyle={{ opacity: 0.7 }}
       >
-        {/* Top row: icon left, count right. */}
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View
-            style={{
-              width: circle,
-              height: circle,
-              borderRadius: circle / 2,
-              backgroundColor: item.color,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon size={iconSize} color="#FFFFFF" strokeWidth={2.2} />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFFFF', withAlpha(item.color, 0.12)]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+        />
+        <View style={{ flex: 1, paddingHorizontal: 9, paddingVertical: 6, justifyContent: 'space-between' }}>
+          {/* Label left, small icon right. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text
+              style={{ flex: 1, minWidth: 0, marginRight: 4, fontSize: labelSize, fontWeight: '700', color: '#111111' }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {item.label}
+            </Text>
+            <View style={{ width: circle, height: circle, borderRadius: circle / 2, backgroundColor: item.color, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon size={iconSize} color="#FFFFFF" strokeWidth={2.2} />
+            </View>
           </View>
-          <Text
-            style={{
-              flex: 1,
-              minWidth: 0,
-              marginLeft: 6,
-              textAlign: 'right',
-              fontSize: small ? 20 : 22,
-              lineHeight: small ? 24 : 26,
-              fontWeight: '800',
-              color: item.color,
-            }}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {item.value}
-          </Text>
-        </View>
-
-        {/* Label along the bottom, centred, max 2 lines. */}
-        <View style={{ flex: 1, justifyContent: 'center', marginTop: 2 }}>
-          <Text
-            style={{ fontSize: labelSize, lineHeight: labelSize + 3, fontWeight: '600', color: '#111111', textAlign: 'center' }}
-            numberOfLines={2}
-            // Shrinks a long word slightly rather than breaking it mid-word.
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
-          >
-            {item.label}
-          </Text>
+          {/* Big count, caption under it. */}
+          <View>
+            <Text
+              style={{ fontSize: small ? 16 : 18, lineHeight: small ? 20 : 22, fontWeight: '800', color: item.color }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {item.value}
+            </Text>
+            {item.caption ? (
+              <Text style={{ fontSize: small ? 9 : 9.5, color: '#6B7280', fontWeight: '500' }} numberOfLines={1}>{item.caption}</Text>
+            ) : null}
+          </View>
         </View>
       </Touchable>
     </View>

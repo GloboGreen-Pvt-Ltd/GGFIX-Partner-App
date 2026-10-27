@@ -63,6 +63,9 @@ export interface RecentTicket {
   trackingId?: string;
   status?: string;
   createdAt?: string;
+  /** Estimate / invoice total — the Recent Jobs card's amount chip. */
+  estimatedPrice?: number | string | null;
+  finalPrice?: number | string | null;
   brandId?: string;
   modelId?: string;
   deviceImageUrl?: string | null;

@@ -11,16 +11,25 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Download, Share2, Pencil, Trash2 } from 'lucide-react-native';
+import {
+  ChevronDown, ChevronLeft, CircleAlert, CircleCheckBig, Download, Eye, FileText, Pencil,
+  Printer, Share2, Smartphone, Store, Trash2, Truck, UserRound, Wrench,
+} from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
-import { saveToDownloads, notifyDownloaded } from '../../../lib/downloads';
+import { saveToDownloads, notifyDownloaded, shareLocalFile, viewLocalFile } from '../../../lib/downloads';
 import { ticketApi, authApi } from '../../../api/client';
 import { getSession } from '../../../auth/session';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
 import { getModel, parseModelNumbers } from '../../../api/masterData';
-import { splitDisplayName } from './DeviceDetailScreen';
 import { useResponsive } from '../../../theme/responsive';
+
+// "Apple iPhone 11 · A2221 (64 GB / Black)" → { name: "Apple iPhone 11", modelNumber: "A2221" }.
+function splitDisplayName(raw) {
+  const str = String(raw || '').trim();
+  const m = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(str);
+  return { name: (m?.[1] || str).trim(), modelNumber: m?.[2]?.trim() || null };
+}
 
 // expo-print / expo-sharing / expo-file-system are platform-native; require
 // lazily so the web bundle (and dev environments without the modules
@@ -31,18 +40,6 @@ const getPrintModule = () => {
 };
 const getSharingModule = () => {
   try { return require('expo-sharing'); } catch { return null; }
-};
-// expo-file-system v19+ ships two surfaces:
-//   - top-level `Paths` / `File` / `Directory` classes (the new API)
-//   - `expo-file-system/legacy` with the old `cacheDirectory` /
-//     `copyAsync` / `deleteAsync` (the top-level legacy fns THROW
-//     at runtime — they only stay as type-level shims).
-// Try the new API first, then fall back to the legacy submodule.
-const getFileSystemModule = () => {
-  try { return require('expo-file-system'); } catch { return null; }
-};
-const getLegacyFileSystem = () => {
-  try { return require('expo-file-system/legacy'); } catch { return null; }
 };
 
 // Sanitise a string for safe use as a filename on Android / iOS / Windows.
@@ -119,6 +116,10 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [delivering, setDelivering] = useState(false);
+  const [openRows, setOpenRows] = useState({});       // expanded repair-item rows
   const showImei = useImeiApplies(ticket); // mobile phones only
 
   const load = useCallback(async () => {
@@ -370,7 +371,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
         mimeType: 'application/pdf',
         sourceUri: printed.uri,
       });
-      notify('Invoice downloaded successfully to Downloads.', saved.name, { preset: 'done' });
+      if (!saved.shared) notify('Invoice downloaded successfully to Downloads.', saved.name, { preset: 'done' });
       notifyDownloaded(saved);
     } catch (e) {
       fail('Download failed', e?.message || 'Could not save the invoice.');
@@ -424,24 +425,14 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
         return;
       }
 
-      // Step 2: best-effort rename. The renamed file makes the receiving app
-      // (WhatsApp/Drive/Gmail) display a friendly filename. If anything
-      // breaks here we silently keep the temp URI — share must still fire.
-      const fileBase = `Mobile_service_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}`;
-      const fileName = `${fileBase}.pdf`;
-      let sharedUri = tempUri;
+      // Step 2: share under a friendly filename (WhatsApp/Drive/Gmail show it).
+      // shareLocalFile renames next to the print output — a path expo-sharing
+      // is always allowed to read — and falls back to the temp URI if refused.
+      // Don't gate on isAvailableAsync — on Android it can return false in some
+      // build types even though shareAsync works fine.
+      const fileName = `Mobile_service_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}.pdf`;
       try {
-        sharedUri = await renamePdf(tempUri, fileName) || tempUri;
-      } catch (_) { /* fall through with tempUri */ }
-
-      // Step 3: share. Don't gate on isAvailableAsync — on Android it can
-      // return false in some build types even though shareAsync works fine.
-      try {
-        await Sharing.shareAsync(sharedUri, {
-          mimeType: 'application/pdf',
-          UTI: 'com.adobe.pdf',
-          dialogTitle: fileName,
-        });
+        await shareLocalFile(tempUri, fileName, 'application/pdf');
       } catch (e) {
         // Some Android versions throw "User did not share" on cancel — that
         // isn't a real failure. Surface only message-bearing errors.
@@ -457,571 +448,468 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
     }
   };
 
-  // Best-effort PDF rename. Tries new expo-file-system v19+ API first
-  // (`Paths.cache` + `new File(...).copy()`), then the legacy submodule.
-  // Returns the renamed URI or null when both paths fail.
-  const renamePdf = async (sourceUri, fileName) => {
-    const FileSystem = getFileSystemModule();
-    if (FileSystem && FileSystem.Paths && FileSystem.File) {
-      try {
-        const cacheDir = FileSystem.Paths.cache;
-        const dest = new FileSystem.File(cacheDir, fileName);
-        try { dest.delete(); } catch (_) {}
-        const src = new FileSystem.File(sourceUri);
-        const maybePromise = src.copy(dest);
-        if (maybePromise && typeof maybePromise.then === 'function') await maybePromise;
-        return dest.uri;
-      } catch (_) { /* fall through to legacy */ }
+  /** System print dialog (Wi-Fi / USB / cloud printers, or Save as PDF) —
+   *  works on every build, with or without the Bluetooth label printer. */
+  const handlePrint = async () => {
+    const Print = getPrintModule();
+    if (!Print) {
+      Alert.alert('PDF module not installed', 'expo-print is missing from this build.');
+      return;
     }
-    const Legacy = getLegacyFileSystem();
-    if (Legacy?.cacheDirectory && Legacy?.copyAsync) {
-      try {
-        const targetUri = Legacy.cacheDirectory + fileName;
-        try { await Legacy.deleteAsync(targetUri, { idempotent: true }); } catch (_) {}
-        await Legacy.copyAsync({ from: sourceUri, to: targetUri });
-        return targetUri;
-      } catch (_) { /* give up */ }
+    setPrinting(true);
+    try {
+      await Print.printAsync({ html: buildInvoiceHtml() });
+    } catch (e) {
+      const msg = e?.message || '';
+      if (!/cancel|dismiss/i.test(msg)) Alert.alert('Print failed', msg || 'Could not open the printer.');
+    } finally {
+      setPrinting(false);
     }
-    return null;
   };
 
-  const Cell = ({ children, w, bold, right, mono }) => (
-    <Text
-      className={`text-[10px] ${bold ? 'font-extrabold text-gray-900' : 'text-gray-700'} ${right ? 'text-right' : ''}`}
-      style={{ width: w, paddingHorizontal: 4, paddingVertical: 6 }}
-      numberOfLines={2}
-    >
-      {children}
-    </Text>
-  );
+  /** Render the exact PDF that Download / Share produce and open it. */
+  const handlePreview = async () => {
+    const Print = getPrintModule();
+    if (!Print) {
+      Alert.alert('PDF module not installed', 'expo-print is missing from this build.');
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const { uri } = await Print.printToFileAsync({ html: buildInvoiceHtml(), base64: false });
+      try {
+        await viewLocalFile(uri, 'application/pdf');
+      } catch (_) {
+        // No PDF viewer installed (or iOS): the print preview shows the same file.
+        await Print.printAsync({ uri });
+      }
+    } catch (e) {
+      const msg = e?.message || '';
+      if (!/cancel|dismiss/i.test(msg)) Alert.alert('Preview failed', msg || 'Could not open the PDF.');
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
-  const HeaderCell = ({ children, w, right }) => (
-    <Text
-      className={`text-[9px] font-extrabold text-gray-700 ${right ? 'text-right' : ''}`}
-      style={{ width: w, paddingHorizontal: 4, paddingVertical: 6, letterSpacing: 0.4 }}
-    >
-      {children}
-    </Text>
-  );
+  /** Existing status transition; success only after the server accepts it. */
+  const handleConfirmDelivery = async () => {
+    const ok = await confirm({
+      title: 'Confirm delivery?',
+      message: `${trackingId} will be marked Delivered to Customer.`,
+      confirmText: 'Confirm Delivery',
+    });
+    if (!ok) return;
+    setDelivering(true);
+    try {
+      await ticketApi.patch(`/tickets/${ticketId}/status`, { query: { status: 'DELIVERED' } });
+      notify('Delivered', `${trackingId} delivered to the customer.`, { preset: 'done' });
+      load();
+    } catch (e) {
+      notify('Delivery not confirmed', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
+    } finally {
+      setDelivering(false);
+    }
+  };
+
+  const busy = downloading || sharing || printing || previewing;
+  const wide = r.isTablet;
+  const statusKey = String(ticket?.status || '').toUpperCase();
+  const statusLabel = STATUS_LABEL[statusKey] || 'Invoice Ready';
+  const delivered = statusKey === 'DELIVERED';
+  const canConfirmDelivery = statusKey === 'DELIVERED_PROCESSING';
+  const paidTotal = advancePaid + amountPaid;
+  const modelNumber = shownDevice.modelNumber || ticket?.modelNumber || '';
+  const deviceName = shownDevice.name || model?.name || ticket?.modelName || '';
+  const serialNumber = String(ticket?.serialNumber || '').trim();
+  const toggleRow = (key) => setOpenRows((o) => ({ ...o, [key]: !o[key] }));
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View className="flex-1" style={{ backgroundColor: C.bg }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
+      {/* Header — title, invoice number and the three document actions. */}
       <View
         style={{
           backgroundColor: '#FFFFFF',
           paddingTop: insets.top + 6,
-          paddingBottom: 14,
+          paddingBottom: 10,
           paddingHorizontal: 16,
           borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB',
+          borderBottomColor: C.border,
         }}
       >
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            className="w-10 h-10 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
           >
-            <ChevronLeft size={22} color="#111111" />
+            <ChevronLeft size={22} color={C.text} />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-            Deliver Invoice
-          </Text>
-          {/* Ticket no · Download · Share. These used to be a sticky bar across
-              the bottom of the screen, which cost a whole row of the invoice on
-              every scroll for two buttons. The number is a label, not a button,
-              so it stays flat; the two actions get tap targets. */}
-          <View
-            className="px-2 py-1 rounded-full bg-surface-muted"
-            style={{ maxWidth: 108 }}
-          >
-            <Text className="text-text text-[10.5px] font-extrabold" numberOfLines={1}>
+          <View className="flex-1 mr-2">
+            <Text className="text-[17px] font-extrabold" style={{ color: C.text }} numberOfLines={1}>
+              Deliver Invoice
+            </Text>
+            <Text className="text-[11.5px] font-extrabold" style={{ color: C.teal }} numberOfLines={1}>
               #{invoice.invoiceNo}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={handleDownload}
-            disabled={downloading || sharing}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Download invoice PDF"
-            className="w-9 h-9 rounded-full items-center justify-center ml-1.5 bg-surface-muted"
-            style={{ opacity: downloading || sharing ? 0.5 : 1 }}
-          >
-            {downloading
-              ? <ActivityIndicator size="small" color={BRAND_GREEN_DARK} />
-              : <Download size={18} color={BRAND_GREEN_DARK} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleShare}
-            disabled={downloading || sharing}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Share invoice PDF"
-            className="w-9 h-9 rounded-full items-center justify-center ml-1.5 bg-surface-muted"
-            style={{ opacity: downloading || sharing ? 0.5 : 1 }}
-          >
-            {sharing
-              ? <ActivityIndicator size="small" color={BRAND_GREEN_DARK} />
-              : <Share2 size={17} color={BRAND_GREEN_DARK} />}
-          </TouchableOpacity>
+          <HeaderAction icon={Download} label="Download invoice PDF" onPress={handleDownload} busy={downloading} disabled={busy} />
+          <HeaderAction icon={Share2} label="Share invoice PDF" onPress={handleShare} busy={sharing} disabled={busy} />
+          <HeaderAction icon={Printer} label="Print invoice" onPress={handlePrint} busy={printing} disabled={busy} />
         </View>
-
-        {/* Hero — key number surfaced in the header so the owner sees the
-            payable amount immediately, without scrolling to the summary. */}
-        <View className="flex-row items-end justify-between mt-3">
-          <View>
-            <Text className="text-[9.5px] font-bold text-text-muted" style={{ letterSpacing: 0.8 }}>
-              INVOICE TOTAL
-            </Text>
-            <Text className="text-text text-[22px] font-extrabold" style={{ marginTop: 1, letterSpacing: -0.5 }}>
-              ₹{fmt(invoice.finalPayableAmount)}
-            </Text>
-          </View>
-          <View className="flex-1 items-end pb-1 ml-3">
-            <Text className="text-[9.5px] text-text-muted">Delivery date</Text>
-            <Text className="text-text text-[11px] font-bold mt-0.5" numberOfLines={1}>
-              {formatDateTime(invoice.generatedAt || invoice.deliveryDate)}
-            </Text>
-          </View>
-        </View>
-
-        {invoiceEditable ? (
-          <View className="flex-row mt-3">
-            <TouchableOpacity
-              onPress={handleEdit}
-              disabled={deleting}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Edit invoice"
-              className="flex-1 flex-row items-center justify-center h-10 rounded-xl mr-2 bg-surface-muted"
-              style={{ opacity: deleting ? 0.5 : 1 }}
-            >
-              <Pencil size={15} color={BRAND_GREEN_DARK} />
-              <Text className="text-[12.5px] font-extrabold ml-1.5" style={{ color: BRAND_GREEN_DARK }}>
-                Edit Invoice
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDelete}
-              disabled={deleting}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Delete invoice"
-              className="flex-1 flex-row items-center justify-center h-10 rounded-xl"
-              style={{ backgroundColor: '#FEE2E2', opacity: deleting ? 0.5 : 1 }}
-            >
-              {deleting
-                ? <ActivityIndicator size="small" color="#B91C1C" />
-                : <Trash2 size={15} color="#B91C1C" />}
-              <Text className="text-[12.5px] font-extrabold ml-1.5" style={{ color: '#B91C1C' }}>
-                Delete Invoice
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
       </View>
 
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
+        contentContainerStyle={{ padding: 14, paddingBottom: 20, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
       >
-        {/* Letterhead + Meta — shop legal name on the left, invoice
-            metadata on the right. Delivery Date now reflects the moment
-            the invoice was generated (not the booking's estimated delivery)
-            so the line tracks the actual invoice timestamp. */}
-        <View className="px-4" style={{ marginTop: 12 }}>
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <View className="flex-row items-start">
-              <View className="flex-1 pr-3">
-                <Text className="text-[17px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-                  {shopName}
-                </Text>
-                {ownerDisplayName ? (
-                  <Text className="text-[11px] font-semibold text-gray-700 mt-0.5">
-                    {ownerDisplayName}
-                  </Text>
-                ) : null}
-                {shopMobile ? (
-                  <Text className="text-[10.5px] text-gray-500 mt-1">Mobile : {shopMobile}</Text>
-                ) : null}
-              </View>
-              <View>
-                <Text className="text-[10px] font-extrabold text-gray-500 text-right" style={{ letterSpacing: 0.4 }}>
-                  Original for Deliver Receipt
-                </Text>
-                <MetaRow label="Invoice No" value={invoice.invoiceNo} />
-                <MetaRow label="Ticket Date" value={formatDateTime(invoice.ticketDate)} />
-                <MetaRow label="Delivery Date" value={formatDateTime(invoice.generatedAt || invoice.deliveryDate)} />
-                {shopGst ? <MetaRow label="GST No" value={shopGst} /> : null}
-              </View>
-            </View>
-
-            <View className="my-3" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }} />
-
-            {/* Bill To / From */}
-            <View className="flex-row">
-              <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-extrabold text-gray-500" style={{ letterSpacing: 0.4 }}>
-                  TO:
-                </Text>
-                <Text className="text-[13px] font-extrabold text-gray-900 mt-1">
-                  {ticket?.customerName || '—'}
-                </Text>
-                {customerAddress ? (
-                  <Text className="text-[11px] text-gray-600 mt-1 leading-4">
-                    {customerAddress}
-                  </Text>
-                ) : null}
-                {ticket?.customerPhone ? (
-                  <Text className="text-[11px] text-gray-700 mt-2 font-semibold">
-                    Mobile : {ticket.customerPhone}
-                  </Text>
-                ) : null}
-                {deviceModel ? (
-                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
-                    Device : {deviceModel}
-                  </Text>
-                ) : null}
-                {deviceImei ? (
-                  <Text className="text-[11px] text-gray-700 mt-1 font-semibold">
-                    IMEI : {deviceImei}
-                  </Text>
-                ) : null}
-              </View>
-              <View className="flex-1 pl-2 items-end">
-                <Text className="text-[10px] font-extrabold text-gray-500" style={{ letterSpacing: 0.4 }}>
-                  FROM:
-                </Text>
-                <Text className="text-[13px] font-extrabold text-gray-900 mt-1 text-right">
-                  {shopName}
-                </Text>
-                {shopMobile ? (
-                  <Text className="text-[11px] text-gray-700 mt-1 text-right font-semibold">
-                    Mobile : {shopMobile}
-                  </Text>
-                ) : null}
-                {shopAddress ? (
-                  <Text className="text-[11px] text-gray-600 mt-1 text-right leading-4">
-                    {shopAddress}
-                  </Text>
-                ) : null}
-                {shopGst ? (
-                  <Text className="text-[11px] text-gray-700 mt-1 text-right font-semibold">
-                    GSTIN : {shopGst}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* (A) Service — 8 columns matching the reference (adds Total). */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl overflow-hidden" style={cardShadow}>
-            <View className="px-4 pt-3 pb-1">
-              <SectionLabel>(A) Service</SectionLabel>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View>
-                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
-                  <HeaderCell w={28}>Sl</HeaderCell>
-                  <HeaderCell w={130}>Description</HeaderCell>
-                  <HeaderCell w={70} right>Rate (₹)</HeaderCell>
-                  <HeaderCell w={82} right>Taxable Value</HeaderCell>
-                  <HeaderCell w={60} right>CGST</HeaderCell>
-                  <HeaderCell w={60} right>SGST</HeaderCell>
-                  <HeaderCell w={72} right>Total GST</HeaderCell>
-                  <HeaderCell w={70} right>Total</HeaderCell>
-                </View>
-                {serviceLines.length === 0 ? (
-                  <View className="px-3 py-3"><Text className="text-[11px] text-gray-500">—</Text></View>
-                ) : serviceLines.map((row, i) => {
-                  const br = serviceBreaks[i];
-                  return (
-                    <View
-                      key={i}
-                      className="flex-row"
-                      style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
-                    >
-                      <Cell w={28}>{row.slNo || i + 1}</Cell>
-                      <Cell w={130}>{row.description}</Cell>
-                      <Cell w={70} right>{fmt(row.rate)}</Cell>
-                      <Cell w={82} right>{fmt(br.base)}</Cell>
-                      <Cell w={60} right>{fmt(br.cgst)}</Cell>
-                      <Cell w={60} right>{fmt(br.sgst)}</Cell>
-                      <Cell w={72} right bold>{fmt(br.totalGst)}</Cell>
-                      <Cell w={70} right bold>{fmt(br.total)}</Cell>
-                    </View>
-                  );
-                })}
-                <View
-                  className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
-                >
-                  <Cell w={28} bold></Cell>
-                  <Cell w={130} bold>Total Amount (₹)</Cell>
-                  <Cell w={70} right bold>{fmt(totalServiceGross)}</Cell>
-                  <Cell w={82} right bold>{fmt(totalServiceBreak.base)}</Cell>
-                  <Cell w={60} right bold>{fmt(totalServiceBreak.cgst)}</Cell>
-                  <Cell w={60} right bold>{fmt(totalServiceBreak.sgst)}</Cell>
-                  <Cell w={72} right bold>{fmt(totalServiceBreak.totalGst)}</Cell>
-                  <Cell w={70} right bold>{fmt(totalServiceBreak.total)}</Cell>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-
-        {/* (B) Spares table — also horizontal-scrollable so the right-edge
-            GST column can't slip behind a floating overflow menu. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl overflow-hidden" style={cardShadow}>
-            <View className="px-4 pt-3 pb-1">
-              <SectionLabel>(B) Spares</SectionLabel>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View>
-                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
-                  <HeaderCell w={28}>Sl</HeaderCell>
-                  <HeaderCell w={130}>Description</HeaderCell>
-                  <HeaderCell w={64}>Warranty</HeaderCell>
-                  <HeaderCell w={44} right>Qty</HeaderCell>
-                  <HeaderCell w={68} right>Rate</HeaderCell>
-                  <HeaderCell w={82} right>Taxable Value</HeaderCell>
-                  <HeaderCell w={60} right>CGST</HeaderCell>
-                  <HeaderCell w={60} right>SGST</HeaderCell>
-                  <HeaderCell w={72} right>Total GST</HeaderCell>
-                  <HeaderCell w={70} right>Total</HeaderCell>
-                </View>
-                {spareLines.length === 0 ? (
-                  <View className="px-3 py-3"><Text className="text-[11px] text-gray-500">—</Text></View>
-                ) : spareLines.map((row, i) => {
-                  const br = spareBreaks[i];
-                  return (
-                    <View
-                      key={i}
-                      className="flex-row"
-                      style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
-                    >
-                      <Cell w={28}>{row.slNo || i + 1}</Cell>
-                      <Cell w={130}>{row.description}</Cell>
-                      <Cell w={64}>{row.warranty || '—'}</Cell>
-                      <Cell w={44} right>{Number(row.qty || 1).toFixed(2)}</Cell>
-                      <Cell w={68} right>{fmt(row.rate)}</Cell>
-                      <Cell w={82} right>{fmt(br.base)}</Cell>
-                      <Cell w={60} right>{fmt(br.cgst)}</Cell>
-                      <Cell w={60} right>{fmt(br.sgst)}</Cell>
-                      <Cell w={72} right bold>{fmt(br.totalGst)}</Cell>
-                      <Cell w={70} right bold>{fmt(br.total)}</Cell>
-                    </View>
-                  );
-                })}
-                <View
-                  className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
-                >
-                  <Cell w={28} bold></Cell>
-                  <Cell w={130} bold>Total Amount (₹)</Cell>
-                  <Cell w={64}></Cell>
-                  <Cell w={44}></Cell>
-                  <Cell w={68} right bold>{fmt(totalSpareGross)}</Cell>
-                  <Cell w={82} right bold>{fmt(totalSpareBreak.base)}</Cell>
-                  <Cell w={60} right bold>{fmt(totalSpareBreak.cgst)}</Cell>
-                  <Cell w={60} right bold>{fmt(totalSpareBreak.sgst)}</Cell>
-                  <Cell w={72} right bold>{fmt(totalSpareBreak.totalGst)}</Cell>
-                  <Cell w={70} right bold>{fmt(totalSpareBreak.total)}</Cell>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-
-        {/* Tax Summary — consolidated Service + Spares + Grand Total. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl overflow-hidden" style={cardShadow}>
-            <View className="px-4 pt-3 pb-1">
-              <SectionLabel>Tax Summary</SectionLabel>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View>
-                <View style={{ backgroundColor: '#F3F4F6', flexDirection: 'row' }}>
-                  <HeaderCell w={28}>Sl</HeaderCell>
-                  <HeaderCell w={120}>Description</HeaderCell>
-                  <HeaderCell w={92} right>Taxable Value</HeaderCell>
-                  <HeaderCell w={68} right>CGST</HeaderCell>
-                  <HeaderCell w={68} right>SGST</HeaderCell>
-                  <HeaderCell w={80} right>Total GST</HeaderCell>
-                  <HeaderCell w={80} right>Total</HeaderCell>
-                </View>
-                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
-                  <Cell w={28}>1</Cell>
-                  <Cell w={120}>Service</Cell>
-                  <Cell w={92} right>{fmt(totalServiceBreak.base)}</Cell>
-                  <Cell w={68} right>{fmt(totalServiceBreak.cgst)}</Cell>
-                  <Cell w={68} right>{fmt(totalServiceBreak.sgst)}</Cell>
-                  <Cell w={80} right>{fmt(totalServiceBreak.totalGst)}</Cell>
-                  <Cell w={80} right bold>{fmt(totalServiceBreak.total)}</Cell>
-                </View>
-                <View className="flex-row" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
-                  <Cell w={28}>2</Cell>
-                  <Cell w={120}>Spares</Cell>
-                  <Cell w={92} right>{fmt(totalSpareBreak.base)}</Cell>
-                  <Cell w={68} right>{fmt(totalSpareBreak.cgst)}</Cell>
-                  <Cell w={68} right>{fmt(totalSpareBreak.sgst)}</Cell>
-                  <Cell w={80} right>{fmt(totalSpareBreak.totalGst)}</Cell>
-                  <Cell w={80} right bold>{fmt(totalSpareBreak.total)}</Cell>
-                </View>
-                <View
-                  className="flex-row"
-                  style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#E5F3F5' }}
-                >
-                  <Cell w={28} bold></Cell>
-                  <Cell w={120} bold>Total payable by customer (₹)</Cell>
-                  <Cell w={92} right bold>{fmt(grandTotalBreak.base)}</Cell>
-                  <Cell w={68} right bold>{fmt(grandTotalBreak.cgst)}</Cell>
-                  <Cell w={68} right bold>{fmt(grandTotalBreak.sgst)}</Cell>
-                  <Cell w={80} right bold>{fmt(grandTotalBreak.totalGst)}</Cell>
-                  <Cell w={80} right bold>{fmt(grandTotalBreak.total)}</Cell>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-
-        {/* Total Payable Summary — Taxable Amount → Total GST → Discount →
-            Invoice Total (matches the requested 4-row structure). */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionLabel>Total Payable Summary</SectionLabel>
-            <View className="flex-row justify-between py-1">
-              <Text className="text-[12px] text-gray-700">Taxable Amount</Text>
-              <Text className="text-[12px] font-bold text-gray-900">₹{fmt(grandTotalBreak.base)}</Text>
-            </View>
-            <View className="flex-row justify-between py-1">
-              <Text className="text-[12px] text-gray-700">Total GST Tax (₹)</Text>
-              <Text className="text-[12px] font-bold text-gray-900">₹{fmt(grandTotalBreak.totalGst)}</Text>
-            </View>
-            <View
-              className="flex-row justify-between py-1"
-              style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5', borderStyle: 'dashed' }}
-            >
-              <Text className="text-[12px] text-gray-700">Discount</Text>
-              <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>− ₹{fmt(invoice.discount)}</Text>
-            </View>
-            <View
-              className="mt-3 p-3 rounded-2xl flex-row items-center justify-between"
-              style={{ backgroundColor: BRAND_GREEN_DARK }}
-            >
-              <Text className="text-white text-[13px] font-extrabold">Invoice Total</Text>
-              <Text className="text-white text-[17px] font-extrabold">
+        {/* Invoice summary */}
+        <View className="rounded-2xl p-4" style={{ backgroundColor: C.light }}>
+          <View className="flex-row items-start justify-between">
+            <View className="flex-1 pr-2">
+              <Text className="text-[10px] font-bold" style={{ color: C.muted, letterSpacing: 0.8 }}>INVOICE TOTAL</Text>
+              <Text className="text-[24px] font-extrabold" style={{ color: C.text, letterSpacing: -0.5 }}>
                 ₹{fmt(invoice.finalPayableAmount)}
               </Text>
             </View>
-            {invoice.amountInWords ? (
-              <Text className="text-[11px] text-gray-600 mt-2 italic">
-                In words: {invoice.amountInWords}
-              </Text>
-            ) : null}
-
-            {/* Payment & credit. Rendered only when money has actually moved or
-                is still owed — on a plain cash-and-carry bill (nothing advanced,
-                nothing outstanding) these rows would be four zeroes and noise. */}
-            {payShown ? (
-              <View
-                className="mt-3 pt-3"
-                style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}
-              >
-                {advancePaid > 0 ? (
-                  <View className="flex-row justify-between py-1">
-                    <Text className="text-[12px] text-gray-700">Advance Already Paid</Text>
-                    <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>
-                      − ₹{fmt(advancePaid)}
-                    </Text>
-                  </View>
-                ) : null}
-                <View className="flex-row justify-between py-1">
-                  <Text className="text-[12px] text-gray-700">Net Payable</Text>
-                  <Text className="text-[12px] font-bold text-gray-900">₹{fmt(netPayable)}</Text>
-                </View>
-                {amountPaid > 0 ? (
-                  <View className="flex-row justify-between py-1">
-                    <Text className="text-[12px] text-gray-700">Amount Paid</Text>
-                    <Text className="text-[12px] font-bold" style={{ color: '#B45309' }}>
-                      − ₹{fmt(amountPaid)}
-                    </Text>
-                  </View>
-                ) : null}
-                <View
-                  className="mt-2 p-3 rounded-2xl flex-row items-center justify-between"
-                  style={{ backgroundColor: creditAmount > 0 ? '#FEF3C7' : '#E5F3F5' }}
-                >
-                  <Text
-                    className="text-[12px] font-extrabold"
-                    style={{ color: creditAmount > 0 ? '#B45309' : BRAND_GREEN_DARK }}
-                  >
-                    {creditAmount > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}
-                  </Text>
-                  <Text
-                    className="text-[15px] font-extrabold"
-                    style={{ color: creditAmount > 0 ? '#B45309' : BRAND_GREEN_DARK }}
-                  >
-                    ₹{fmt(creditAmount)}
-                  </Text>
-                </View>
-                {creditAmount > 0 && invoice.paymentNote ? (
-                  <Text className="text-[11px] text-gray-600 mt-2 italic">
-                    Note: {invoice.paymentNote}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
+            <Pill label={statusLabel} tone={delivered ? 'success' : 'teal'} />
           </View>
-        </View>
-
-        {/* Signature + declaration — the customer's name stands under the
-            label on its own; the ruled line it used to sit below is gone, since
-            nothing is signed by hand on a screen. The right tile carries the
-            legal shop name AND the logged-in owner's name. The shared PDF keeps
-            its own ruled line, which is the copy that does get signed. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <View className="flex-row">
-              <View className="flex-1 pr-2">
-                <Text className="text-[11px] text-gray-700">Customer Signature :</Text>
-                {customerName ? (
-                  <Text className="text-[11px] font-extrabold text-gray-800 mt-1">
-                    {customerName}
-                  </Text>
-                ) : null}
-              </View>
-              <View
-                className="flex-1 ml-2 rounded-xl p-3 items-center"
-                style={{ backgroundColor: '#E5F3F5' }}
-              >
-                <Text className="text-[11px] font-extrabold text-gray-800" numberOfLines={2}>
-                  {shopName}
-                </Text>
-                {ownerDisplayName ? (
-                  <Text className="text-[10.5px] font-semibold text-gray-700 mt-0.5" numberOfLines={1}>
-                    {ownerDisplayName}
-                  </Text>
-                ) : null}
-                <Text className="text-[10px] text-gray-500 mt-1">Authorised Signatory</Text>
-              </View>
-            </View>
-            <Text className="text-[10px] font-extrabold text-gray-700 mt-4">Declaration</Text>
-            <Text className="text-[10.5px] text-gray-600 mt-1 leading-4">
-              We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+          <View className="flex-row items-center mt-1.5">
+            <Text className="text-[11.5px]" style={{ color: C.muted }}>Delivery Date  </Text>
+            <Text className="text-[11.5px] font-bold" style={{ color: C.text }}>
+              {formatDate(invoice.generatedAt || invoice.deliveryDate)}
             </Text>
           </View>
+          {invoiceEditable ? (
+            <View className="flex-row mt-3">
+              <TouchableOpacity
+                onPress={handleEdit}
+                disabled={deleting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Edit invoice"
+                className="flex-1 flex-row items-center justify-center h-9 rounded-xl mr-2 bg-white"
+                style={{ opacity: deleting ? 0.5 : 1 }}
+              >
+                <Pencil size={14} color={C.teal} />
+                <Text className="text-[12px] font-extrabold ml-1.5" style={{ color: C.teal }}>Edit Invoice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDelete}
+                disabled={deleting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Delete invoice"
+                className="flex-1 flex-row items-center justify-center h-9 rounded-xl"
+                style={{ backgroundColor: '#FEE2E2', opacity: deleting ? 0.5 : 1 }}
+              >
+                {deleting ? <ActivityIndicator size="small" color="#B91C1C" /> : <Trash2 size={14} color="#B91C1C" />}
+                <Text className="text-[12px] font-extrabold ml-1.5" style={{ color: '#B91C1C' }}>Delete Invoice</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
+
+        {/* Shop details */}
+        <Card icon={Store} title="Shop Details" caption="Original for Deliver Receipt">
+          <View style={{ flexDirection: wide ? 'row' : 'column' }}>
+            <View style={{ flex: wide ? 1 : undefined }}>
+              <Text className="text-[16px] font-extrabold" style={{ color: C.teal }}>{shopName}</Text>
+              {ownerDisplayName ? <Text className="text-[12px] font-semibold mt-0.5" style={{ color: C.text }}>{ownerDisplayName}</Text> : null}
+              {shopMobile ? <Text className="text-[11.5px] mt-0.5" style={{ color: C.muted }}>Mobile: {shopMobile}</Text> : null}
+              {shopAddress ? <Text className="text-[11.5px] mt-0.5 leading-4" style={{ color: C.muted }}>{shopAddress}</Text> : null}
+              {shopGst ? <Text className="text-[11.5px] font-semibold mt-0.5" style={{ color: C.text }}>GSTIN: {shopGst}</Text> : null}
+            </View>
+            <View style={wide ? { marginLeft: 16 } : { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border }}>
+              <MetaRow label="Invoice No" value={invoice.invoiceNo} />
+              <MetaRow label="Ticket Date" value={formatDateTime(invoice.ticketDate)} />
+              <MetaRow label="Delivery Date" value={formatDateTime(invoice.generatedAt || invoice.deliveryDate)} />
+            </View>
+          </View>
+        </Card>
+
+        {/* Customer & device */}
+        <Card icon={UserRound} title="Customer & Device">
+          <View style={{ flexDirection: wide ? 'row' : 'column' }}>
+            <View style={{ flex: wide ? 1 : undefined }}>
+              <Text className="text-[14px] font-extrabold" style={{ color: C.text }}>{customerName || '—'}</Text>
+              {ticket?.customerPhone ? <KV label="Mobile" value={ticket.customerPhone} /> : null}
+              {customerAddress ? <KV label="Address" value={customerAddress} /> : null}
+            </View>
+            <View style={wide ? { flex: 1, marginLeft: 16 } : { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border }}>
+              <View className="flex-row items-center">
+                <Smartphone size={14} color={C.teal} />
+                <Text className="text-[13px] font-extrabold ml-1.5 flex-1" style={{ color: C.text }} numberOfLines={2}>
+                  {deviceName || 'Device'}
+                </Text>
+              </View>
+              {ticket?.categoryName ? <KV label="Category" value={ticket.categoryName} /> : null}
+              {ticket?.brandName ? <KV label="Brand" value={ticket.brandName} /> : null}
+              {modelNumber ? <KV label="Model No" value={modelNumber} /> : null}
+              {deviceImei ? <KV label="IMEI" value={deviceImei} /> : null}
+              {serialNumber ? <KV label="Serial No" value={serialNumber} /> : null}
+            </View>
+          </View>
+        </Card>
+
+        {/* Repair items — rows instead of wide tables; tap a row for its tax split. */}
+        <Card icon={Wrench} title="Repair Items">
+          <SubHead label="A · Service Charges" total={serviceLines.length ? totalServiceBreak.total : null} />
+          {serviceLines.length === 0 ? (
+            <Text className="text-[12px] py-2" style={{ color: C.muted }}>No service charges</Text>
+          ) : serviceLines.map((row, i) => (
+            <ItemRow
+              key={`s${i}`}
+              title={row.description || `Service ${i + 1}`}
+              meta={`Rate ₹${fmt(row.rate)}${serviceBreaks[i].totalGst ? ` · GST ₹${fmt(serviceBreaks[i].totalGst)}` : ''}`}
+              total={serviceBreaks[i].total}
+              br={serviceBreaks[i]}
+              open={!!openRows[`s${i}`]}
+              onToggle={() => toggleRow(`s${i}`)}
+            />
+          ))}
+
+          <View style={{ height: 12 }} />
+          <SubHead label="B · Spare Parts" total={spareLines.length ? totalSpareBreak.total : null} />
+          {spareLines.length === 0 ? (
+            <Text className="text-[12px] py-2" style={{ color: C.muted }}>No spare parts</Text>
+          ) : spareLines.map((row, i) => (
+            <ItemRow
+              key={`p${i}`}
+              title={row.description || `Part ${i + 1}`}
+              meta={`Qty ${Number(row.qty || 1)} · Rate ₹${fmt(row.rate)} · Warranty ${row.warranty || '—'}`}
+              total={spareBreaks[i].total}
+              br={spareBreaks[i]}
+              open={!!openRows[`p${i}`]}
+              onToggle={() => toggleRow(`p${i}`)}
+            />
+          ))}
+        </Card>
+
+        {/* Tax & payment */}
+        <Card icon={FileText} title="Tax & Payment">
+          <KVRow label="Taxable Amount" value={`₹${fmt(grandTotalBreak.base)}`} />
+          {gstPct > 0 ? (
+            <>
+              <KVRow label={`CGST (${halfGst}%)`} value={`₹${fmt(grandTotalBreak.cgst)}`} />
+              <KVRow label={`SGST (${halfGst}%)`} value={`₹${fmt(grandTotalBreak.sgst)}`} />
+            </>
+          ) : (
+            <KVRow label="GST" value="Not applied" muted />
+          )}
+          {Number(invoice.discount) > 0 ? (
+            <KVRow label="Discount" value={`− ₹${fmt(invoice.discount)}`} color="#B45309" />
+          ) : null}
+          <View className="mt-2 px-3 py-2.5 rounded-xl flex-row items-center justify-between" style={{ backgroundColor: C.teal }}>
+            <Text className="text-white text-[13px] font-extrabold">Invoice Total</Text>
+            <Text className="text-white text-[17px] font-extrabold">₹{fmt(invoice.finalPayableAmount)}</Text>
+          </View>
+          {invoice.amountInWords ? (
+            <Text className="text-[11px] mt-1.5 italic" style={{ color: C.muted }}>In words: {invoice.amountInWords}</Text>
+          ) : null}
+
+          <View className="mt-3 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: C.border }}>
+            {payShown ? (
+              <>
+                {advancePaid > 0 ? <KVRow label="Advance Paid" value={`₹${fmt(advancePaid)}`} /> : null}
+                {advancePaid > 0 ? <KVRow label="Net Payable" value={`₹${fmt(netPayable)}`} /> : null}
+                <KVRow label="Amount Paid" value={`₹${fmt(paidTotal)}`} />
+                <KVRow
+                  label="Balance Payable"
+                  value={`₹${fmt(creditAmount)}`}
+                  color={creditAmount > 0 ? '#B45309' : C.text}
+                  bold
+                />
+                <View className="mt-2 flex-row">
+                  {creditAmount > 0
+                    ? <Pill label={`Balance due ₹${fmt(creditAmount)}`} tone="amber" icon={CircleAlert} />
+                    : <Pill label="Payment Completed" tone="success" icon={CircleCheckBig} />}
+                </View>
+                {creditAmount > 0 && invoice.paymentNote ? (
+                  <Text className="text-[11px] mt-1.5 italic" style={{ color: C.muted }}>Note: {invoice.paymentNote}</Text>
+                ) : null}
+              </>
+            ) : (
+              <Text className="text-[11.5px]" style={{ color: C.muted }}>No payment recorded on this invoice.</Text>
+            )}
+          </View>
+        </Card>
+
+        <Text className="text-[10.5px] mt-3 px-1 leading-4" style={{ color: C.muted }}>
+          <Text className="font-extrabold">Declaration: </Text>
+          We declare that this invoice shows the actual charges for the goods and services described above and that its particulars are true and correct.
+        </Text>
       </ScrollView>
 
+      {/* Sticky actions */}
+      <View style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: C.border, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 }}>
+        <View className="flex-row" style={{ width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
+          <TouchableOpacity
+            onPress={handlePreview}
+            disabled={busy}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            className="flex-1 h-12 rounded-xl flex-row items-center justify-center"
+            style={{ borderWidth: 1.5, borderColor: C.teal, backgroundColor: '#FFFFFF', opacity: busy ? 0.6 : 1 }}
+          >
+            {previewing ? <ActivityIndicator size="small" color={C.teal} /> : <Eye size={16} color={C.teal} />}
+            <Text className="text-[13px] font-extrabold ml-1.5" style={{ color: C.teal }}>
+              Preview PDF
+            </Text>
+          </TouchableOpacity>
+          {canConfirmDelivery ? (
+            <TouchableOpacity
+              onPress={handleConfirmDelivery}
+              disabled={delivering}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              className="flex-1 h-12 rounded-xl flex-row items-center justify-center ml-2"
+              style={{ backgroundColor: C.teal, opacity: delivering ? 0.6 : 1 }}
+            >
+              {delivering ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Truck size={16} color="#FFFFFF" />}
+              <Text className="text-[13px] font-extrabold ml-1.5 text-white">Confirm Delivery</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+
     </View>
+  );
+}
+
+/* ── presentational pieces ─────────────────────────────────────────────── */
+
+const C = {
+  teal: '#035C6C',
+  bg: '#F3F4F6',
+  light: '#E5F3F5',
+  text: '#111111',
+  muted: '#6B7280',
+  success: '#609138',
+  border: '#E5E7EB',
+};
+
+const STATUS_LABEL = {
+  DELIVERED: 'Delivered',
+  DELIVERED_PROCESSING: 'Dispatched',
+  INVOICE_GENERATED: 'Invoice Ready',
+  INVOICE_READY: 'Invoice Ready',
+  READY: 'Ready for Delivery',
+  RETURN_DELIVERY: 'Return Delivery',
+  CANCELLED: 'Cancelled',
+  RETURNED: 'Returned',
+};
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function HeaderAction({ icon: Icon, label, onPress, busy, disabled }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="w-9 h-9 rounded-full items-center justify-center ml-1.5 bg-surface-muted"
+      style={{ opacity: disabled && !busy ? 0.5 : 1 }}
+    >
+      {busy ? <ActivityIndicator size="small" color={C.teal} /> : <Icon size={17} color={C.teal} />}
+    </TouchableOpacity>
+  );
+}
+
+function Card({ icon: Icon, title, caption, children }) {
+  return (
+    <View className="bg-white rounded-2xl p-4 mt-3" style={cardShadow}>
+      <View className="flex-row items-center mb-2.5">
+        {Icon ? <Icon size={15} color={C.teal} /> : null}
+        <Text className="flex-1 text-[13px] font-extrabold ml-1.5" style={{ color: C.text }}>{title}</Text>
+        {caption ? <Text className="text-[10.5px] font-bold" style={{ color: C.muted }}>{caption}</Text> : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function Pill({ label, tone = 'teal', icon: Icon }) {
+  const t = {
+    teal: { bg: '#FFFFFF', fg: C.teal },
+    success: { bg: '#EAF3E2', fg: C.success },
+    amber: { bg: '#FEF3C7', fg: '#B45309' },
+    muted: { bg: '#F3F4F6', fg: C.muted },
+  }[tone];
+  return (
+    <View className="flex-row items-center px-2.5 py-1 rounded-full" style={{ backgroundColor: t.bg }}>
+      {Icon ? <Icon size={12} color={t.fg} /> : null}
+      <Text className="text-[11px] font-extrabold" style={{ color: t.fg, marginLeft: Icon ? 4 : 0 }}>{label}</Text>
+    </View>
+  );
+}
+
+function KV({ label, value }) {
+  return (
+    <View className="flex-row mt-1">
+      <Text className="text-[11.5px]" style={{ color: C.muted, width: 72 }}>{label}</Text>
+      <Text className="flex-1 text-[11.5px] font-semibold leading-4" style={{ color: C.text }}>{value}</Text>
+    </View>
+  );
+}
+
+function KVRow({ label, value, color, bold, muted }) {
+  return (
+    <View className="flex-row justify-between py-1">
+      <Text className="text-[12px]" style={{ color: bold ? C.text : '#374151', fontWeight: bold ? '800' : '400' }}>{label}</Text>
+      <Text className="text-[12px]" style={{ color: muted ? C.muted : color || C.text, fontWeight: muted ? '400' : '700' }}>{value}</Text>
+    </View>
+  );
+}
+
+function SubHead({ label, total }) {
+  return (
+    <View className="flex-row items-center justify-between pb-1.5" style={{ borderBottomWidth: 1, borderBottomColor: C.border }}>
+      <Text className="text-[11px] font-extrabold" style={{ color: C.teal, letterSpacing: 0.4 }}>{label}</Text>
+      {total != null ? <Text className="text-[12px] font-extrabold" style={{ color: C.text }}>₹{fmt(total)}</Text> : null}
+    </View>
+  );
+}
+
+function ItemRow({ title, meta, total, br, open, onToggle }) {
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      className="py-2"
+      style={{ borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}
+    >
+      <View className="flex-row items-start">
+        <View className="flex-1 pr-2">
+          <Text className="text-[12.5px] font-bold" style={{ color: C.text }}>{title}</Text>
+          <Text className="text-[11px] mt-0.5" style={{ color: C.muted }}>{meta}</Text>
+        </View>
+        <Text className="text-[12.5px] font-extrabold" style={{ color: C.text }}>₹{fmt(total)}</Text>
+        <ChevronDown size={15} color={C.muted} style={{ marginLeft: 4, marginTop: 1, transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+      </View>
+      {open ? (
+        <View className="mt-1.5 px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: '#F8FAFB' }}>
+          <KVRow label="Taxable value" value={`₹${fmt(br.base)}`} />
+          <KVRow label="CGST" value={`₹${fmt(br.cgst)}`} />
+          <KVRow label="SGST" value={`₹${fmt(br.sgst)}`} />
+          <KVRow label="Total GST" value={`₹${fmt(br.totalGst)}`} />
+        </View>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
@@ -1031,19 +919,6 @@ function MetaRow({ label, value }) {
       <Text className="text-[10px] text-gray-500" style={{ width: 84 }}>{label}</Text>
       <Text className="text-[10px] text-gray-700 font-semibold">: </Text>
       <Text className="text-[10px] font-bold text-gray-900" numberOfLines={1}>{value}</Text>
-    </View>
-  );
-}
-
-// Consistent section label: a green accent bar + uppercase-ish title, mirroring
-// the `.sec` style used in the printable PDF so screen and paper match.
-function SectionLabel({ children, color = BRAND_GREEN_DARK }) {
-  return (
-    <View className="flex-row items-center mb-2">
-      <View style={{ width: 3, height: 13, borderRadius: 2, backgroundColor: BRAND_GREEN, marginRight: 7 }} />
-      <Text className="text-[11px] font-extrabold" style={{ color, letterSpacing: 0.4 }}>
-        {children}
-      </Text>
     </View>
   );
 }
@@ -1060,14 +935,14 @@ function esc(v) {
 function fmtH(n) {
   return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function fmtDateH(iso) {
+const MONTHS_H = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// "27 Oct 2026 · 16:27" — the date style of the printed invoice.
+function fmtStampH(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-IN', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())} ${MONTHS_H[d.getMonth()]} ${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Render the on-screen invoice as a printable HTML document. The
@@ -1138,64 +1013,57 @@ function buildHtml({
   const spareBreaks = spareLines.map((row) => breakLine(row, Number(row.totalAmount) || ((Number(row.taxableValue) || 0) * (Number(row.qty) || 1))));
   const serviceTotal = accumulate(serviceBreaks);
   const sparesTotal = accumulate(spareBreaks);
-  const grandTotal = {
-    base: +(serviceTotal.base + sparesTotal.base).toFixed(2),
-    cgst: +(serviceTotal.cgst + sparesTotal.cgst).toFixed(2),
-    sgst: +(serviceTotal.sgst + sparesTotal.sgst).toFixed(2),
-    totalGst: +(serviceTotal.totalGst + sparesTotal.totalGst).toFixed(2),
-    total: +(serviceTotal.total + sparesTotal.total).toFixed(2),
+
+  // Device line as "Vivo Y20G (V2037)": deviceModel arrives "name · model no".
+  const [deviceName, ...deviceNos] = String(deviceModel || '').split(' · ');
+  const deviceLabel = deviceNos.length ? `${deviceName} (${deviceNos.join(' · ')})` : deviceName;
+  const phoneH = (m) => {
+    const d = String(m || '').replace(/\D/g, '');
+    return d.length === 10 ? `+91 ${d}` : String(m || '');
+  };
+  const qtyH = (q) => {
+    const n = Number(q) || 1;
+    return Number.isInteger(n) ? String(n) : n.toFixed(2);
   };
 
-  const serviceRows = serviceLines.map((row, i) => {
+  const serviceRows = serviceLines.length ? serviceLines.map((row, i) => {
     const br = serviceBreaks[i];
     return `<tr>
-      <td>${esc(row.slNo || i + 1)}</td>
-      <td>${esc(row.description)}</td>
-      <td class="r">${fmtH(row.rate)}</td>
-      <td class="r">${fmtH(br.base)}</td>
-      <td class="r">${fmtH(br.cgst)}</td>
-      <td class="r">${fmtH(br.sgst)}</td>
-      <td class="r b">${fmtH(br.totalGst)}</td>
-      <td class="r b">${fmtH(br.total)}</td>
+      <td>${esc(row.description || `Service ${i + 1}`)}</td>
+      <td class="r">₹${fmtH(row.rate)}</td>
+      <td class="r">₹${fmtH(br.base)}</td>
+      <td class="r">₹${fmtH(br.totalGst)}</td>
+      <td class="r t">₹${fmtH(br.total)}</td>
     </tr>`;
-  }).join('');
+  }).join('') : '<tr><td colspan="5" class="none">No service charges</td></tr>';
 
-  const spareRows = spareLines.map((row, i) => {
+  const spareRows = spareLines.length ? spareLines.map((row, i) => {
     const br = spareBreaks[i];
     return `<tr>
-      <td>${esc(row.slNo || i + 1)}</td>
-      <td>${esc(row.description)}</td>
-      <td>${esc(row.warranty || '—')}</td>
-      <td class="r">${Number(row.qty || 1).toFixed(2)}</td>
-      <td class="r">${fmtH(row.rate)}</td>
-      <td class="r">${fmtH(br.base)}</td>
-      <td class="r">${fmtH(br.cgst)}</td>
-      <td class="r">${fmtH(br.sgst)}</td>
-      <td class="r b">${fmtH(br.totalGst)}</td>
-      <td class="r b">${fmtH(br.total)}</td>
+      <td>${esc(row.description || `Part ${i + 1}`)}</td>
+      <td class="c">${esc(row.warranty || '—')}</td>
+      <td class="c">${qtyH(row.qty)}</td>
+      <td class="r">₹${fmtH(row.rate)}</td>
+      <td class="r">₹${fmtH(br.totalGst)}</td>
+      <td class="r t">₹${fmtH(br.total)}</td>
     </tr>`;
-  }).join('');
+  }).join('') : '<tr><td colspan="6" class="none">No spare parts</td></tr>';
 
-  // Compact one-page sharing receipt — paper-thin top header (no big green
-  // band), four-up meta strip, side-by-side parties block with both addresses,
-  // tight tables, prominent total band, and a single-line "Customer
-  // Signature : <name>" + "Authorised Signatory : <shop / owner>" footer.
-  // Padding and font sizes tuned so the whole receipt fits one A4 page.
-  const gt = grandTotalBreak || { base: 0, totalGst: 0, total: 0 };
-  const taxableAmount   = gt.base;
-  const totalGstTax     = gt.totalGst;
+  const gt = grandTotalBreak || { base: 0, cgst: 0, sgst: 0, totalGst: 0, total: 0 };
   const discountAmount  = Number(invoice.discount) || 0;
   const invoiceTotal    = Number(invoice.finalPayableAmount) || 0;
 
-  // Payment & credit, mirroring the on-screen card so the PDF the customer is
-  // handed carries the same outstanding figure the shop is chasing. Suffixed
-  // to stay distinct from the screen-scope copies — buildHtml is a module-level
-  // function and shares no scope with the component.
+  // Payment & credit, read off the invoice row exactly like the on-screen
+  // card, so the PDF carries the same outstanding figure the Cash Book holds.
+  // A bill with nothing paid or owed shows no Paid / Balance rows rather than
+  // a "₹0.00 due" it cannot vouch for.
   const advancePaidH  = Number(invoice.advancePaid) || 0;
   const amountPaidH   = Number(invoice.amountPaid) || 0;
   const creditAmountH = Number(invoice.creditAmount) || 0;
-  const netPayableH   = Number(invoice.netPayableAmount) || Math.max(0, invoiceTotal - advancePaidH);
   const payShownH     = advancePaidH > 0 || amountPaidH > 0 || creditAmountH > 0;
+  const dueTone = creditAmountH > 0
+    ? { bg: '#FEF3C7', fg: '#B45309' }
+    : { bg: '#E7F4EC', fg: '#2F8F5B' };
   // Filename hint for Android share sheets: many viewers (WhatsApp,
   // Drive, etc.) suggest the HTML <title> as the saved filename when
   // the file is shared, so we set it to match the renamed PDF.
@@ -1206,385 +1074,205 @@ function buildHtml({
 <title>${esc(fileTitle)}</title>
 <style>
   @page { size: A4; margin: 10mm; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    margin: 0; padding: 0;
-    color: #111111;
-    background: #ffffff;
-    font-size: 10.5px;
-    line-height: 1.4;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #111827; font-size: 11px; line-height: 1.35;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  .page { max-width: 760px; margin: 0 auto; padding: 10px 14px; }
+  .card { border: 1px solid #E1E8EB; border-radius: 12px; padding: 11px 14px 12px; margin-top: 9px; page-break-inside: avoid; break-inside: avoid; }
+  .lbl { font-size: 8.5px; color: #6B7280; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .sec { display: flex; align-items: center; font-size: 11px; font-weight: 800; color: #035C6C; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 8px; }
+  .sec::before { content: ''; width: 4px; height: 13px; background: #035C6C; border-radius: 2px; margin-right: 10px; }
 
-  /* Receipt-style header — green left bar + brand + invoice meta. No big band. */
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 10px 12px 12px 14px;
-    border-left: 4px solid #035C6C;
-    border-bottom: 2px solid #035C6C;
-    background: #E5F3F5;
-    border-radius: 6px 6px 0 0;
-  }
-  .head .brand { font-size: 19px; font-weight: 900; color: #035C6C; line-height: 1.05; }
-  .head .sub   { font-size: 10.5px; color: #111111; margin-top: 2px; font-weight: 600; }
-  .head .right { text-align: right; font-size: 10px; }
-  .pill {
-    display: inline-block;
-    background: #E5F3F5;
-    color: #035C6C;
-    border: 1px solid #357D89;
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-size: 9px;
-    letter-spacing: .5px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  .head .inv { font-size: 13px; font-weight: 900; color: #111111; margin-top: 4px; }
+  /* Header band */
+  .hdr { background: #E5F3F5; border-left: 5px solid #035C6C; border-radius: 14px; padding: 11px 18px 13px; page-break-inside: avoid; }
+  .hdr .top { display: flex; justify-content: space-between; }
+  .pill { background: #FFFFFF; color: #035C6C; font-weight: 700; font-size: 9px; letter-spacing: .4px; padding: 4px 18px; border-radius: 999px; }
+  .hdr .body { display: flex; align-items: center; margin-top: 7px; }
+  .hdr .shop { flex: 1; padding-right: 16px; }
+  .hdr h1 { font-size: 23px; font-weight: 800; color: #035C6C; letter-spacing: -.3px; }
+  .hdr .who { font-size: 11.5px; margin-top: 3px; }
+  .hdr .addr { font-size: 9.5px; color: #6B7280; margin-top: 4px; }
+  .hdr .tot { border-left: 1px solid #B7D7DD; padding: 4px 0 4px 18px; text-align: right; min-width: 170px; }
+  .hdr .tot .v { font-size: 22px; font-weight: 800; color: #035C6C; margin-top: 3px; }
 
-  /* Meta strip — four in a row, no gaps, divider style like Amazon receipt */
-  .meta-strip {
-    display: flex;
-    border: 1px solid #E5E7EB;
-    border-top: 0;
-    border-radius: 0 0 6px 6px;
-    background: #E5F3F5;
-  }
-  .meta-strip .col {
-    flex: 1;
-    padding: 6px 10px;
-    border-right: 1px solid #E5E7EB;
-  }
-  .meta-strip .col:last-child { border-right: 0; }
-  .meta-strip .k {
-    font-size: 8.5px;
-    color: #6B7280;
-    letter-spacing: .35px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  .meta-strip .v { font-size: 11px; color: #111111; font-weight: 800; margin-top: 1px; }
+  /* Invoice meta strip */
+  .meta { display: flex; background: #F5FAFB; border: 1px solid #DCE7EA; border-radius: 10px; margin-top: 8px; page-break-inside: avoid; }
+  .meta > div { flex: 1; padding: 7px 14px 8px; }
+  .meta > div + div { border-left: 1px solid #DCE7EA; }
+  .meta .v { font-size: 11.5px; font-weight: 700; margin-top: 4px; }
 
-  /* Cards */
-  .card {
-    background: #ffffff;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin-top: 8px;
-  }
-  .sec {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 9.5px;
-    font-weight: 900;
-    color: #035C6C;
-    letter-spacing: .6px;
-    text-transform: uppercase;
-    margin-bottom: 5px;
-  }
-  .sec::before {
-    content: "";
-    display: inline-block;
-    width: 3px; height: 11px;
-    border-radius: 2px;
-    background: #035C6C;
-  }
-
-  /* Bill To / From */
-  .tofrom { display: flex; gap: 12px; }
-  .tofrom > div { flex: 1; }
-  .tofrom .lbl { color: #6B7280; font-size: 9px; letter-spacing: .4px; font-weight: 800; text-transform: uppercase; }
-  .tofrom .nm  { font-size: 12px; font-weight: 900; margin-top: 2px; color: #111111; }
-  .tofrom .ln  { font-size: 10.5px; color: #6B7280; margin-top: 1px; }
+  /* Parties */
+  .parties { display: flex; }
+  .parties > div { flex: 1; }
+  .parties > div + div { border-left: 1px solid #E5E7EB; padding-left: 18px; }
+  .parties .name { font-size: 14px; font-weight: 800; margin-top: 3px; }
+  .parties .ln { font-size: 10px; color: #6B7280; margin-top: 3px; }
+  .parties .ln.d { color: #111827; }
 
   /* Tables */
-  table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 10px;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  th, td { padding: 5px 7px; vertical-align: top; }
-  th {
-    background: #E5F3F5;
-    color: #035C6C;
-    font-size: 8.5px;
-    letter-spacing: .35px;
-    text-transform: uppercase;
-    text-align: left;
-    border-bottom: 1px solid #E5E7EB;
-    font-weight: 800;
-  }
-  th.r { text-align: right; }
-  tbody tr + tr td { border-top: 1px solid #E5F3F5; }
-  tbody tr:nth-child(even) td { background: #E5F3F5; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #F1F6F7; color: #6B7280; font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; text-align: left; padding: 6px 10px; }
+  td { font-size: 11px; padding: 7px 10px; border-bottom: 1px solid #E5E7EB; }
   .r { text-align: right; }
-  .b { font-weight: 800; }
-  .totalrow td {
-    background: #E5F3F5 !important;
-    font-weight: 800;
-    border-top: 2px solid #E5F3F5;
-    color: #035C6C;
-  }
+  .c { text-align: center; }
+  .t { color: #035C6C; font-weight: 700; }
+  .none { color: #6B7280; font-style: italic; }
+  tr.sub td { border-bottom: none; color: #6B7280; font-size: 10px; font-weight: 600; padding: 6px 10px 1px; }
+  tr.sub td.t { color: #035C6C; font-size: 11px; font-weight: 700; }
+  tr.tax td { border-bottom: none; font-size: 12px; font-weight: 700; padding-top: 8px; padding-bottom: 2px; }
 
-  /* Bill summary */
-  .sum-card {
-    margin-top: 8px;
-    background: #ffffff;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
-    padding: 8px 12px;
-  }
-  .row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 3px 0;
-    font-size: 11px;
-    color: #111111;
-  }
-  .row b { color: #111111; }
-  .row.sep { border-top: 1px dashed #E5E7EB; margin-top: 3px; padding-top: 5px; }
-  .final {
-    margin-top: 6px;
-    background: linear-gradient(135deg, #035C6C 0%, #035C6C 100%);
-    color: #fff;
-    padding: 9px 14px;
-    border-radius: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .final .lbl { font-weight: 800; letter-spacing: .2px; font-size: 11.5px; }
-  .final .amt { font-size: 16px; font-weight: 900; }
-  .words {
-    font-size: 10px;
-    color: #6B7280;
-    margin-top: 5px;
-    font-style: italic;
-  }
+  /* Payment */
+  .pay { display: flex; }
+  .pay .lft { flex: 1; padding-right: 16px; border-right: 1px solid #E5E7EB; }
+  .pay .rgt { flex: 1; padding-left: 16px; }
+  .row { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; color: #6B7280; }
+  .row b { color: #111827; font-weight: 700; }
+  .words { font-size: 9px; color: #6B7280; font-style: italic; margin-top: 4px; }
+  .totbox { background: #035C6C; color: #FFFFFF; border-radius: 10px; padding: 8px 14px 9px; }
+  .totbox .l { font-size: 9px; font-weight: 700; letter-spacing: .4px; }
+  .totbox .v { font-size: 19px; font-weight: 800; text-align: right; margin-top: 1px; }
+  .due { display: flex; justify-content: space-between; align-items: center; border-radius: 8px; padding: 6px 12px; margin-top: 4px; }
+  .due .l { font-size: 9px; font-weight: 700; letter-spacing: .4px; }
+  .due .v { font-size: 15px; font-weight: 800; }
 
-  /* Single-line signatures + declaration */
-  .sigs {
-    margin-top: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
-    background: #E5F3F5;
-    font-size: 10.5px;
-  }
-  .sigs .l { color: #6B7280; font-weight: 800; text-transform: uppercase; font-size: 9px; letter-spacing: .4px; }
-  .sigs .v { font-weight: 800; color: #111111; margin-left: 4px; font-size: 11px; }
-  .sigs .v small { font-weight: 600; color: #111111; }
-
-  .decl {
-    margin-top: 8px;
-    padding: 6px 12px;
-    background: #FFFBEB;
-    border: 1px dashed #FDE68A;
-    border-radius: 6px;
-    font-size: 9.5px;
-    color: #92400E;
-  }
-  .decl b { color: #92400E; }
-
-  .thank { margin-top: 6px; text-align: center; font-size: 9.5px; color: #6B7280; font-style: italic; }
-</style>
-</head>
+  /* Footer: declaration, then customer / authorised person names, then thanks.
+     One unit for pagination — never split, never alone on a blank page. */
+  .foot { margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
+  .decl { background: #F3F8F9; border-radius: 10px; padding: 8px 14px 9px; font-size: 9.5px; line-height: 1.45; color: #374151; }
+  .decl .dh { color: #035C6C; font-weight: 800; text-transform: uppercase; font-size: 9.5px; letter-spacing: .3px; margin-bottom: 2px; }
+  .names { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 11px; padding: 0 2px; }
+  .names .v { font-weight: 800; color: #111111; font-size: 12.5px; margin-top: 4px; }
+  .names .s { color: #6B7280; font-size: 9.5px; margin-top: 2px; }
+  .thank { margin-top: 10px; padding-top: 7px; border-top: 1px solid #E5E7EB; text-align: center; font-size: 10px; color: #6B7280; }
+</style></head>
 <body>
-  <div class="page">
+  <div class="hdr">
+    <div class="top"><span class="pill">TAX INVOICE</span><span class="pill">ORIGINAL COPY</span></div>
+    <div class="body">
+      <div class="shop">
+        <h1>${esc(shopName)}</h1>
+        <div class="who">${ownerDisplayName ? `${esc(ownerDisplayName)}&nbsp;&nbsp;|&nbsp;&nbsp;` : ''}${esc(phoneH(shopMobile))}</div>
+        ${shopAddress ? `<div class="addr">${esc(shopAddress)}</div>` : ''}
+        ${shopGst ? `<div class="addr">GSTIN : ${esc(shopGst)}</div>` : ''}
+      </div>
+      <div class="tot">
+        <div class="lbl">Invoice Total</div>
+        <div class="v">₹${fmtH(invoiceTotal)}</div>
+      </div>
+    </div>
+  </div>
 
-    <!-- Compact receipt header -->
-    <div class="head">
+  <div class="meta">
+    <div><div class="lbl">Invoice No</div><div class="v">${esc(invoice.invoiceNo)}</div></div>
+    <div><div class="lbl">Ticket Date</div><div class="v">${esc(fmtStampH(invoice.ticketDate))}</div></div>
+    <div><div class="lbl">Delivered On</div><div class="v">${esc(fmtStampH(invoice.generatedAt || invoice.deliveryDate))}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec">Parties &amp; Device</div>
+    <div class="parties">
       <div>
-        <span class="pill">Tax Invoice</span>
-        <div class="brand" style="margin-top:4px">${esc(shopName)}</div>
-        ${ownerDisplayName ? `<div class="sub">${esc(ownerDisplayName)}${shopMobile ? ` · ${esc(shopMobile)}` : ''}</div>` : (shopMobile ? `<div class="sub">${esc(shopMobile)}</div>` : '')}
+        <div class="lbl">Billed To</div>
+        <div class="name">${esc(customerName || '—')}</div>
+        ${ticket?.customerPhone ? `<div class="ln">Mobile&nbsp;·&nbsp;${esc(ticket.customerPhone)}</div>` : ''}
+        ${customerAddress ? `<div class="ln">${esc(customerAddress)}</div>` : ''}
+        ${deviceLabel ? `<div class="ln d">Device&nbsp;·&nbsp;${esc(deviceLabel)}</div>` : ''}
+        ${deviceImei ? `<div class="ln d">IMEI&nbsp;·&nbsp;${esc(deviceImei)}</div>` : ''}
       </div>
-      <div class="right">
-        <span class="pill" style="background:#fff;border-color:#035C6C">Original Copy</span>
-      </div>
-    </div>
-
-    <!-- Meta strip (Amazon-style horizontal info row) -->
-    <div class="meta-strip">
-      <div class="col"><div class="k">Invoice No</div><div class="v">${esc(invoice.invoiceNo)}</div></div>
-      <div class="col"><div class="k">Ticket Date</div><div class="v">${fmtDateH(invoice.ticketDate)}</div></div>
-      <div class="col"><div class="k">Delivery Date</div><div class="v">${fmtDateH(invoice.generatedAt || invoice.deliveryDate)}</div></div>
-      ${shopGst ? `<div class="col"><div class="k">GSTIN</div><div class="v">${esc(shopGst)}</div></div>` : ''}
-    </div>
-
-    <!-- Bill To / From -->
-    <div class="card">
-      <div class="sec">Parties</div>
-      <div class="tofrom">
-        <div>
-          <div class="lbl">Billed To</div>
-          <div class="nm">${esc(customerName || '—')}</div>
-          ${customerAddress ? `<div class="ln">${esc(customerAddress)}</div>` : ''}
-          ${ticket?.customerPhone ? `<div class="ln">Mobile · ${esc(ticket.customerPhone)}</div>` : ''}
-          ${deviceModel ? `<div class="ln">Device · ${esc(deviceModel)}</div>` : ''}
-          ${deviceImei ? `<div class="ln">IMEI · ${esc(deviceImei)}</div>` : ''}
-        </div>
-        <div style="text-align:right">
-          <div class="lbl">Issued By</div>
-          <div class="nm">${esc(shopName)}</div>
-          ${shopMobile ? `<div class="ln">Mobile · ${esc(shopMobile)}</div>` : ''}
-          ${shopAddress ? `<div class="ln">${esc(shopAddress)}</div>` : ''}
-          ${shopGst ? `<div class="ln">GSTIN · ${esc(shopGst)}</div>` : ''}
-        </div>
-      </div>
-    </div>
-
-    <!-- (A) Service — adds Total (₹) column matching the reference layout -->
-    <div class="card">
-      <div class="sec">(A) Service</div>
-      <table>
-        <thead><tr>
-          <th>Sl</th><th>Description</th>
-          <th class="r">Rate (₹)</th>
-          <th class="r">Taxable Value (₹)</th>
-          <th class="r">CGST (₹)</th>
-          <th class="r">SGST (₹)</th>
-          <th class="r">Total GST (₹)</th>
-          <th class="r">Total (₹)</th>
-        </tr></thead>
-        <tbody>
-          ${serviceRows || '<tr><td colspan="8" style="text-align:center;color:#9CA3AF">—</td></tr>'}
-          <tr class="totalrow">
-            <td></td><td>Total Amount (₹)</td>
-            <td class="r">${fmtH(totalServiceGross)}</td>
-            <td class="r">${fmtH(serviceTotal.base)}</td>
-            <td class="r">${fmtH(serviceTotal.cgst)}</td>
-            <td class="r">${fmtH(serviceTotal.sgst)}</td>
-            <td class="r">${fmtH(serviceTotal.totalGst)}</td>
-            <td class="r">${fmtH(serviceTotal.total)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- (B) Spares — adds CGST / SGST / Total GST / Total (₹) columns -->
-    <div class="card">
-      <div class="sec">(B) Spares</div>
-      <table>
-        <thead><tr>
-          <th>Sl</th><th>Description</th><th>Warranty</th>
-          <th class="r">Qty</th>
-          <th class="r">Rate (₹)</th>
-          <th class="r">Taxable Value (₹)</th>
-          <th class="r">CGST (₹)</th>
-          <th class="r">SGST (₹)</th>
-          <th class="r">Total GST (₹)</th>
-          <th class="r">Total (₹)</th>
-        </tr></thead>
-        <tbody>
-          ${spareRows || '<tr><td colspan="10" style="text-align:center;color:#9CA3AF">—</td></tr>'}
-          <tr class="totalrow">
-            <td></td><td>Total Amount (₹)</td><td></td><td></td>
-            <td class="r">${fmtH(totalSpareGross)}</td>
-            <td class="r">${fmtH(sparesTotal.base)}</td>
-            <td class="r">${fmtH(sparesTotal.cgst)}</td>
-            <td class="r">${fmtH(sparesTotal.sgst)}</td>
-            <td class="r">${fmtH(sparesTotal.totalGst)}</td>
-            <td class="r">${fmtH(sparesTotal.total)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Consolidated tax summary — rolls (A) Service and (B) Spares into one
-         table the reference receipt shows above the Bill Summary. -->
-    <div class="card">
-      <div class="sec">Tax Summary</div>
-      <table>
-        <thead><tr>
-          <th>Sl</th><th>Description</th>
-          <th class="r">Taxable Value (₹)</th>
-          <th class="r">CGST (₹)</th>
-          <th class="r">SGST (₹)</th>
-          <th class="r">Total GST (₹)</th>
-          <th class="r">Total (₹)</th>
-        </tr></thead>
-        <tbody>
-          <tr>
-            <td>1</td><td>Service</td>
-            <td class="r">${fmtH(serviceTotal.base)}</td>
-            <td class="r">${fmtH(serviceTotal.cgst)}</td>
-            <td class="r">${fmtH(serviceTotal.sgst)}</td>
-            <td class="r">${fmtH(serviceTotal.totalGst)}</td>
-            <td class="r b">${fmtH(serviceTotal.total)}</td>
-          </tr>
-          <tr>
-            <td>2</td><td>Spares</td>
-            <td class="r">${fmtH(sparesTotal.base)}</td>
-            <td class="r">${fmtH(sparesTotal.cgst)}</td>
-            <td class="r">${fmtH(sparesTotal.sgst)}</td>
-            <td class="r">${fmtH(sparesTotal.totalGst)}</td>
-            <td class="r b">${fmtH(sparesTotal.total)}</td>
-          </tr>
-          <tr class="totalrow">
-            <td></td><td>Total payable by customer (₹)</td>
-            <td class="r">${fmtH(grandTotal.base)}</td>
-            <td class="r">${fmtH(grandTotal.cgst)}</td>
-            <td class="r">${fmtH(grandTotal.sgst)}</td>
-            <td class="r">${fmtH(grandTotal.totalGst)}</td>
-            <td class="r">${fmtH(grandTotal.total)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Total Payable Summary — Taxable Amount → Total GST → Discount →
-         Invoice Total (matches the requested 4-row structure). -->
-    <div class="sum-card">
-      <div class="sec">Total Payable Summary</div>
-      <div class="row"><span>Taxable Amount</span><b>₹${fmtH(taxableAmount)}</b></div>
-      <div class="row"><span>Total GST Tax (₹)</span><b>₹${fmtH(totalGstTax)}</b></div>
-      <div class="row sep"><span>Discount</span><b style="color:#b45309">− ₹${fmtH(discountAmount)}</b></div>
-      <div class="final"><span class="lbl">Invoice Total</span><span class="amt">₹${fmtH(invoiceTotal)}</span></div>
-      ${invoice.amountInWords ? `<div class="words">In words : ${esc(invoice.amountInWords)}</div>` : ''}
-      ${payShownH ? `
-      ${advancePaidH > 0 ? `<div class="row sep" style="margin-top:6px">
-        <span>Advance Already Paid</span><b style="color:#b45309">− ₹${fmtH(advancePaidH)}</b>
-      </div>` : ''}
-      <div class="row"><span>Net Payable</span><b>₹${fmtH(netPayableH)}</b></div>
-      ${amountPaidH > 0 ? `<div class="row"><span>Amount Paid</span><b style="color:#b45309">− ₹${fmtH(amountPaidH)}</b></div>` : ''}
-      <div class="final" style="background:${creditAmountH > 0 ? '#fef3c7' : '#E5F3F5'}">
-        <span class="lbl" style="color:${creditAmountH > 0 ? '#b45309' : '#035C6C'}">${creditAmountH > 0 ? 'Credit / Balance Payable' : 'Balance Payable'}</span>
-        <span class="amt" style="color:${creditAmountH > 0 ? '#b45309' : '#035C6C'}">₹${fmtH(creditAmountH)}</span>
-      </div>
-      ${creditAmountH > 0 && invoice.paymentNote ? `<div class="words">Note : ${esc(invoice.paymentNote)}</div>` : ''}
-      ` : ''}
-    </div>
-
-    <!-- Single-line signature row: customer name + authorised signatory -->
-    <div class="sigs">
       <div>
-        <span class="l">Customer Signature :</span>
-        <span class="v">${esc(customerName || '—')}</span>
+        <div class="lbl">Issued By</div>
+        <div class="name">${esc(shopName)}</div>
+        ${shopMobile ? `<div class="ln">Mobile&nbsp;·&nbsp;${esc(shopMobile)}</div>` : ''}
+        ${shopAddress ? `<div class="ln">${esc(shopAddress)}</div>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec">A&nbsp;&nbsp;/&nbsp;&nbsp;Service Charges</div>
+    <table>
+      <thead><tr><th>Description</th><th class="r">Rate</th><th class="r">Taxable</th><th class="r">GST</th><th class="r">Total</th></tr></thead>
+      <tbody>
+        ${serviceRows}
+        <tr class="sub"><td colspan="4">Service Subtotal</td><td class="r t">₹${fmtH(serviceTotal.total)}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="sec">B&nbsp;&nbsp;/&nbsp;&nbsp;Spare Parts</div>
+    <table>
+      <thead><tr><th>Description</th><th class="c">Warranty</th><th class="c">Qty</th><th class="r">Rate</th><th class="r">Tax</th><th class="r">Total</th></tr></thead>
+      <tbody>
+        ${spareRows}
+        <tr class="sub"><td colspan="5">Spare Parts Subtotal</td><td class="r t">₹${fmtH(sparesTotal.total)}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="sec">Tax Summary</div>
+    <table>
+      <thead><tr>
+        <th>Taxable Value</th>
+        <th class="r">CGST${halfGst ? ` (${halfGst}%)` : ''}</th>
+        <th class="r">SGST${halfGst ? ` (${halfGst}%)` : ''}</th>
+        <th class="r">IGST</th>
+        <th class="r">Total Tax</th>
+      </tr></thead>
+      <tbody><tr class="tax">
+        <td>₹${fmtH(gt.base)}</td>
+        <td class="r">₹${fmtH(gt.cgst)}</td>
+        <td class="r">₹${fmtH(gt.sgst)}</td>
+        <td class="r">₹${fmtH(0)}</td>
+        <td class="r t">₹${fmtH(gt.totalGst)}</td>
+      </tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="sec">Payment Summary</div>
+    <div class="pay">
+      <div class="lft">
+        <div class="row"><span>Taxable amount</span><b>₹${fmtH(gt.base)}</b></div>
+        <div class="row"><span>GST</span><b>₹${fmtH(gt.totalGst)}</b></div>
+        <div class="row"><span>Discount</span><b style="color:#C2410C">− ₹${fmtH(discountAmount)}</b></div>
+        ${invoice.amountInWords ? `<div class="words">In words : ${esc(invoice.amountInWords)}</div>` : ''}
+      </div>
+      <div class="rgt">
+        <div class="totbox"><div class="l">INVOICE TOTAL</div><div class="v">₹${fmtH(invoiceTotal)}</div></div>
+        ${payShownH ? `
+        ${advancePaidH > 0 ? `<div class="row" style="margin-top:4px"><span>Advance paid</span><b>₹${fmtH(advancePaidH)}</b></div>` : ''}
+        <div class="row" style="${advancePaidH > 0 ? '' : 'margin-top:4px'}"><span>${advancePaidH > 0 ? 'Paid now' : 'Paid'}</span><b>₹${fmtH(amountPaidH)}</b></div>
+        <div class="due" style="background:${dueTone.bg};color:${dueTone.fg}">
+          <span class="l">BALANCE DUE</span><span class="v">₹${fmtH(creditAmountH)}</span>
+        </div>
+        ${creditAmountH > 0 && invoice.paymentNote ? `<div class="words">Note : ${esc(invoice.paymentNote)}</div>` : ''}
+        ` : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer: Declaration → Customer Name (left) + Authorised Person (right)
+       → Thank you. Names only, no signature boxes. -->
+  <div class="foot">
+    <div class="decl">
+      <div class="dh">Declaration</div>
+      We declare that this invoice shows the actual charges for the goods and services described above and that its particulars are true and correct.
+    </div>
+    <div class="names">
+      <div>
+        <div class="lbl">Customer Name</div>
+        <div class="v">${esc(customerName || '—')}</div>
       </div>
       <div style="text-align:right">
-        <span class="l">Authorised Signatory :</span>
-        <span class="v">${esc(shopName)}${ownerDisplayName ? ` <small>· ${esc(ownerDisplayName)}</small>` : ''}</span>
+        <div class="lbl">Authorised Person</div>
+        <div class="v">${esc(ownerDisplayName || shopName)}</div>
+        ${ownerDisplayName ? `<div class="s">${esc(shopName)}</div>` : ''}
       </div>
     </div>
-
-    <div class="decl">
-      <b>Declaration :</b> We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
-    </div>
-
     <div class="thank">Thank you for choosing ${esc(shopName)}</div>
   </div>
 </body></html>`;
