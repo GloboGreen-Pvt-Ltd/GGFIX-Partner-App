@@ -632,7 +632,6 @@ export default function JobsScreen({ navigation, route }) {
 
   // "Details" opens the Booking Details screen.
   const goDetailsFor = useCallback((b) => {
-    console.log('[BookingHistory][DEBUG] goDetailsFor, b.id =', b?.id, 'b.trackingId =', b?.trackingId);
     if (!b?.id) return;
     closeSheets();
     navigation.navigate('TicketDetail', { ticketId: b.id });
