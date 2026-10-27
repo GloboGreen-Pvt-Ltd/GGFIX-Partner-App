@@ -23,6 +23,7 @@ import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
+import { useResponsive } from '../../../theme/responsive';
 
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -60,10 +61,10 @@ const HANDOFF_STEPS = [
   },
   {
     key: 'DELIVERED_PROCESSING',
-    label: 'Delivered to Customer Processing',
+    label: 'Dispatched',
     hint: 'Mark when the handover has started but the customer has not yet received the device.',
-    confirmTitle: 'Start delivery handover?',
-    confirmMessage: 'Record that the delivery handover is in progress. The booking will move to "Delivered Processing" — it does NOT mark the device as delivered.',
+    confirmTitle: 'Mark as dispatched?',
+    confirmMessage: 'Record that the delivery handover is in progress. The booking will move to "Dispatched" — it does NOT mark the device as delivered.',
     Icon: Truck,
   },
   {
@@ -94,8 +95,13 @@ function priceItemsFromTicket(ticket) {
       if (Array.isArray(parsed)) return parsed;
     } catch (_) {}
   }
-  return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price, warranty: s.warranty })) || [];
 }
+
+// Warranty the booking entered per issue ("3 Months"); the fixed 30-day line is
+// only the fallback when no issue carries one.
+const hasItemWarranty = (items) => items.some((i) => String(i.warranty || '').trim());
+const warrantyNote = (items) => (hasItemWarranty(items) ? 'Warranty as listed per service.' : '30-day repair warranty included.');
 
 function buildReceiptText(t) {
   const items = priceItemsFromTicket(t);
@@ -115,13 +121,13 @@ function buildReceiptText(t) {
     `${t.customerAddress || ''}\n\n` +
     `Device: ${t.deviceDisplayName || t.deviceModelName || t.modelName || '—'}\n\n` +
     `â”€â”€â”€ Services â”€â”€â”€\n` +
-    items.map((i, idx) => `${idx + 1}. ${i.label}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}`).join('\n') +
+    items.map((i, idx) => `${idx + 1}. ${i.label}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}${i.warranty ? `  (Warranty: ${i.warranty})` : ''}`).join('\n') +
     `\n\nSubtotal: ₹${subtotal.toLocaleString('en-IN')}\n` +
     `GST (18%): ₹${tax.toLocaleString('en-IN')}\n` +
     `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n` +
     `Total: ₹${total.toLocaleString('en-IN')}\n\n` +
     `Thank you for choosing Near G Fix!\n` +
-    `30-day repair warranty included.`
+    warrantyNote(items)
   );
 }
 
@@ -167,6 +173,10 @@ function DetailRow({ icon: Icon, label, value }) {
 
 export default function DeliveryInvoiceScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: cap the invoice column and centre it (sticky bar matches via padding).
+  const formW = r.maxWidth('form');
+  const barPadX = Math.max(16, (r.width - formW) / 2);
   const ticketId = route?.params?.ticketId;
   const [ticket, setTicket] = useState(null);
   const [events, setEvents] = useState([]);
@@ -312,7 +322,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120, width: '100%', maxWidth: formW, alignSelf: 'center' }}
       >
         {/* From (shop) letterhead */}
         <View className="px-4" style={{ marginTop: 12 }}>
@@ -426,7 +436,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
               <Text className="text-[10px] font-extrabold text-gray-400 flex-1" style={{ letterSpacing: 0.6 }}>DESCRIPTION</Text>
               <Text
                 className="text-[10px] font-extrabold text-gray-400 text-right"
-                style={{ width: 76, letterSpacing: 0.6 }}
+                style={{ minWidth: 76, letterSpacing: 0.6 }}
               >
                 AMOUNT
               </Text>
@@ -454,12 +464,19 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                     {i + 1}
                   </Text>
                 </View>
-                <Text className="text-[12px] text-gray-800 flex-1 pl-2 pr-2" numberOfLines={2}>
-                  {item.label}
-                </Text>
+                <View className="flex-1 pl-2 pr-2">
+                  <Text className="text-[12px] text-gray-800" numberOfLines={2}>
+                    {item.label}
+                  </Text>
+                  {item.warranty ? (
+                    <Text className="text-[10.5px] text-gray-500 mt-0.5">
+                      Warranty : {item.warranty}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text
                   className="text-[12px] font-bold text-gray-900 text-right"
-                  style={{ width: 76 }}
+                  style={{ minWidth: 76 }}
                 >
                   ₹{Number(item.amount || 0).toLocaleString('en-IN')}
                 </Text>
@@ -516,7 +533,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             <SectionHeader icon={ListChecks} label="BILLING & HANDOVER" />
             <Text className="text-[11px] text-gray-500 mb-3 leading-4">
               Record each step as it happens. The booking advances through
-              Invoice Generated → Invoice Ready → Delivered Processing →
+              Invoice Generated → Invoice Ready → Dispatched →
               Delivered to Customer.
             </Text>
             {HANDOFF_STEPS.map((step) => {
@@ -602,7 +619,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
           >
             <Text className="text-[10.5px] text-gray-600 leading-4">
-              We declare that this invoice shows the actual price of the goods described above and all particulars are true and correct. 30-day repair warranty included.
+              We declare that this invoice shows the actual price of the goods described above and all particulars are true and correct. {warrantyNote(items)}
             </Text>
           </View>
         </View>
@@ -610,8 +627,9 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
 
       {/* Sticky action bar */}
       <View
-        className="absolute left-0 right-0 bottom-0 flex-row px-4 pt-3"
+        className="absolute left-0 right-0 bottom-0 flex-row pt-3"
         style={{
+          paddingHorizontal: barPadX,
           paddingBottom: insets.bottom + 12,
           backgroundColor: 'rgba(229, 243, 245, 0.96)',
           borderTopWidth: 1,

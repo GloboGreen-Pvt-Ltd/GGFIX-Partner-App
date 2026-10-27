@@ -21,6 +21,7 @@ import {
 import { ErrorState, Loader, ScreenHeader, SearchBar } from '../../components/rnr';
 import DeviceImage from '../../components/DeviceImage';
 import ImageViewerModal from '../../components/ImageViewerModal';
+import { useResponsive } from '../../theme/responsive';
 import { resolveDeviceImageSource } from '../../utils/images';
 import {
   getAllModels,
@@ -182,6 +183,7 @@ function boxMatches(box, needle) {
 
 export default function OwnerModelCompatibilityScreen({ navigation }) {
   const { width: winW } = useWindowDimensions();
+  const { insets } = useResponsive();
   // Model whose photo is open in the full-screen popup.
   const [viewerModel, setViewerModel] = useState(null);
   const [rows, setRows] = useState(null);
@@ -436,7 +438,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.green} colors={[C.green]} />
         }
-        contentContainerStyle={{ paddingHorizontal: GRID_PAD, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: GRID_PAD, paddingTop: 8, paddingBottom: 28 + insets.bottom, flexGrow: 1 }}
         ListHeaderComponent={
           <View>
             {/* A refresh that fails still leaves the previously-loaded catalogue
@@ -516,6 +518,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
  * body of the card and the box label is its heading.
  */
 function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh, onRetry }) {
+  const r = useResponsive();
   if (loading && !boxes.length) return <Loader label={`Loading ${typeName}…`} />;
   if (error && !boxes.length) {
     return <ErrorState title="Couldn’t load boxes" description={error} onRetry={onRetry} />;
@@ -529,7 +532,7 @@ function BoxList({ boxes, loading, error, query, typeName, refreshing, onRefresh
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.green} colors={[C.green]} />
       }
-      contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 28, flexGrow: 1 }}
+      contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 28 + r.insets.bottom, flexGrow: 1, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
       ListHeaderComponent={
         <View>
           {error ? (
@@ -707,6 +710,7 @@ function BoxCard({ box, query }) {
 /* ── Detail ──────────────────────────────────────────────────────────────── */
 
 function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }) {
+  const r = useResponsive();
   const entry = index?.byId.get(model.id) || model;
 
   const interchangeable = useMemo(() => findInterchangeable(index, entry), [index, entry]);
@@ -720,7 +724,7 @@ function CompatibilityDetail({ index, model, onBack, onOpenModel, onLookupCode }
       <ScreenHeader title={entry.name} subtitle={entry.brandName || undefined} onBack={onBack} />
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 32 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -899,7 +903,7 @@ function ModelCard({ model, width, onPress, onImagePress }) {
         <Thumb model={model} size={thumb} />
       )}
       <Text
-        style={{ height: 30, marginTop: 6, fontSize: 11.5, lineHeight: 15, fontWeight: '800', color: C.ink, textAlign: 'center' }}
+        style={{ minHeight: 30, marginTop: 6, fontSize: 11.5, lineHeight: 15, fontWeight: '800', color: C.ink, textAlign: 'center' }}
         numberOfLines={2}
       >
         {model.name}

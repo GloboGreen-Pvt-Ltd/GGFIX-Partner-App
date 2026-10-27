@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { saveOwnerKycDocuments } from '../../api/shops';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const ORDER = ['aadharFront', 'aadharBack', 'pan'];
 const KEY_TO_URL_FIELD = { aadharFront: 'aadharFrontUrl', aadharBack: 'aadharBackUrl', pan: 'panUrl' };
@@ -23,6 +24,8 @@ function isPdf(url) {
 export default function OwnerKycReviewScreen({ route, navigation }) {
   const uploaded = route?.params?.uploaded || {};
   const [submitting, setSubmitting] = useState(false);
+  // Tablet: cap and centre the review column (phones: full width).
+  const r = useResponsive();
 
   // Build a stable list of cards to render — only the documents the user actually
   // uploaded show up here, in the canonical order. Optional docs (GST / Udyam)
@@ -64,7 +67,7 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }]}>
         {/* Status header */}
         <View style={styles.statusCard}>
           <View style={styles.statusIconWrap}>
@@ -134,6 +137,7 @@ export default function OwnerKycReviewScreen({ route, navigation }) {
 
         <TouchableOpacity
           style={styles.editBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => navigation.goBack()}
           activeOpacity={0.85}
         >

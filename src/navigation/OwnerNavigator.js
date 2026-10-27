@@ -6,10 +6,11 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withT
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ClipboardList, House, Settings, ShoppingBag, Tag } from 'lucide-react-native';
+import { ArrowLeft, ClipboardList, Handbag, House, LayoutGrid, Store } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 import BackButton from '../components/BackButton';
-import { getTabBarContentHeight, isTabletWidth, MIN_SAFE_BOTTOM } from './tabBarMetrics';
+import { getTabBarBottomGap, getTabBarContentHeight, isTabletWidth } from './tabBarMetrics';
 import { rf, rs } from '../utils/responsive';
 
 // White-tinted back arrow for the green-header screens (Shop Info, Pickup
@@ -37,7 +38,7 @@ function GreenHeaderBack({ onPress }) {
 import DashboardScreen from '../screens/owner/DashboardScreen';
 import MyAccountScreen from '../screens/owner/MyAccountScreen';
 // All booking-related screens are now grouped under owner/AllBooking/
-import BookingHistoryScreen from '../screens/owner/AllBooking/BookingHistoryScreen';
+import JobsScreen from '../screens/owner/AllBooking/JobsScreen';
 import BookingStatusScreen from '../screens/owner/BookingStatusScreen';
 import BookingStatusReportScreen from '../screens/owner/BookingStatusReportScreen';
 import BookingPreviousReportScreen from '../screens/owner/BookingPreviousReportScreen';
@@ -52,7 +53,10 @@ import ProductScanScreen from '../screens/owner/ProductScanScreen';
 import OwnerBuyHomeScreen from '../screens/owner/OwnerBuyHomeScreen';
 import OwnerSellHubScreen from '../screens/owner/OwnerSellHubScreen';
 import TicketDetailScreen from '../screens/owner/AllBooking/TicketDetailScreen';
-import DeviceDetailScreen from '../screens/owner/AllBooking/DeviceDetailScreen';
+import EditBookingScreen from '../screens/owner/AllBooking/EditBookingScreen';
+import ReEstimateScreen from '../screens/owner/AllBooking/ReEstimateScreen';
+import PriceRevisedScreen from '../screens/owner/AllBooking/PriceRevisedScreen';
+import TechnicianAssignScreen from '../screens/owner/AllBooking/TechnicianAssignScreen';
 import BookingSummaryScreen from '../screens/owner/AllBooking/BookingSummaryScreen';
 import BookingTimelineScreen from '../screens/owner/AllBooking/BookingTimelineScreen';
 import PickupHistoryScreen from '../screens/owner/AllBooking/PickupHistoryScreen';
@@ -121,6 +125,7 @@ import OwnerQrCodeScreen from '../screens/owner/OwnerQrCodeScreen';
 import OwnerModelCompatibilityScreen from '../screens/owner/OwnerModelCompatibilityScreen';
 import RepairServiceBookingShop from '../screens/owner/service-booking-shop/RepairServiceBookingShop';
 import ScanImeiScreen from '../screens/owner/service-booking-shop/ScanImeiScreen';
+import DevicePhotoCaptureScreen from '../screens/owner/service-booking-shop/DevicePhotoCaptureScreen';
 import ScanQrCodeScreen from '../screens/owner/service-booking-shop/ScanQrCodeScreen';
 import ShopServiceStatusScreen from '../screens/owner/ShopServiceStatusScreen';
 import OwnerLeaveRequestsScreen from '../screens/owner/OwnerLeaveRequestsScreen';
@@ -137,9 +142,9 @@ const Tab = createBottomTabNavigator();
 const OWNER_TAB_ICONS = {
   Home: House,
   Bookings: ClipboardList,
-  Buy: ShoppingBag,
-  Sell: Tag,
-  MyAccount: Settings,
+  Buy: Handbag,
+  Sell: Store,
+  MyAccount: LayoutGrid, // "More" — the categories grid icon
 };
 
 // Routes registered on the tab navigator but intentionally NOT shown in the
@@ -150,8 +155,8 @@ const HIDDEN_TABS = [];
 // ── Bottom bar — "liquid glass" (iOS 26 / WhatsApp reference) ─────────────
 // Frosted pill floating over the page: real blur of the content behind it
 // (expo-blur), a white wash + top sheen, a white inner rim and a hairline
-// outline. The active tab is a raised teal circle (white ring + white icon)
-// that glides between tabs; every tab keeps its label (active in teal).
+// outline. Every tab shows icon + label; the active one sits in a light-teal
+// pill (teal icon + label).
 //
 // expo-blur is native: it only works in a build that includes it (a new
 // dev / EAS build). Older builds get a near-opaque white bar instead of a
@@ -164,14 +169,17 @@ const blurTargetRef = React.createRef();
 const GLASS_WASH = HAS_BLUR ? 'rgba(255,255,255,0.9)' : '#FFFFFF';
 const GLASS_RIM = '#FFFFFF'; // bright white glass edge
 const RIM_W = 3;             // its width — the circle's position accounts for it
-const GLASS_OUTLINE = 'rgba(17,17,17,0.08)';
+const GLASS_OUTLINE = '#ECECEC'; // thin light-grey edge, as in the reference bar
 // Active tab: raised brand-teal circle, white ring + white icon.
 const NAV_TEAL = '#035C6C';
-const ICON_ON = NAV_TEAL;       // active label
-const ICON_OFF = '#6B7280';     // inactive icon + label
+// Active tab: brand Red #F32C26 (sale badges / alerts colour) icon + label.
+const ICON_ON = '#F32C26';      // active icon + label
+const ICON_OFF = '#374151';     // inactive icon + label (dark grey, like the reference)
+const PILL_INSET = 5;           // pill's gap to the bar edge — top, left, right and bottom
+const ACTIVE_PILL = '#FEEAE9';  // active tab's pill — solid light tint of #F32C26
 
-/** One tab: icon + label; the active icon is drawn in the floating circle. */
-const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPress, onLongPress, iconSize, activeIconSize, labelSize }) {
+/** One tab: icon + label; the active tab is highlighted with a pill. */
+const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPress, onLongPress, iconSize, activeIconSize, labelSize, pillRadius }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -183,22 +191,30 @@ const TabBarItem = React.memo(function TabBarItem({ Icon, label, isFocused, onPr
       onAccessibilityAction={onPress}
       onLongPress={onLongPress}
       hitSlop={6}
-      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+      // Same gap on all four sides of the pill (PILL_INSET); the bar adds none.
+      style={{ flex: 1, minHeight: 40, alignItems: 'stretch', justifyContent: 'center', padding: PILL_INSET }}
     >
-      {/* The active icon is drawn in the floating circle; keep its slot. */}
-      {isFocused ? <View style={{ width: iconSize, height: iconSize }} /> : (
-        <Icon size={iconSize} color={ICON_OFF} strokeWidth={2} />
-      )}
-      {/* Label only on the active tab (semi-bold); others are icon-only. */}
-      {isFocused ? (
+      {/* Every tab shows icon + label; the active one sits in a light-teal pill. */}
+      <View
+        style={{
+          flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: pillRadius, overflow: 'hidden',
+          backgroundColor: isFocused ? ACTIVE_PILL : 'transparent',
+        }}
+      >
+        {/* Active: bolder teal outline (keeps every icon's detail); inactive: thin dark grey. */}
+        <Icon
+          size={iconSize}
+          color={isFocused ? ICON_ON : ICON_OFF}
+          strokeWidth={isFocused ? 2.4 : 1.75}
+        />
         <Text
           numberOfLines={1}
           allowFontScaling={false}
-          style={{ fontSize: labelSize, marginTop: rs(3), color: ICON_ON, fontWeight: '800' }}
+          style={{ fontSize: labelSize, marginTop: rs(2), color: isFocused ? ICON_ON : ICON_OFF, fontWeight: isFocused ? '700' : '500' }}
         >
           {label}
         </Text>
-      ) : null}
+      </View>
     </Pressable>
   );
 });
@@ -243,34 +259,15 @@ function GlassTabBar({ state, descriptors, navigation }) {
 
   const barHeight = getTabBarContentHeight(isTablet);
   const radius = barHeight / 2;
-  const iconSize = rs(isTablet ? 24 : 22);
-  const activeIconSize = rs(isTablet ? 26 : 24);
-  const labelSize = rf(isTablet ? 12 : 11);
-  const padH = rs(6);
+  const iconSize = rs(isTablet ? 20 : 18);
+  const activeIconSize = iconSize;
+  const labelSize = rf(isTablet ? 11 : 10);
+  const padH = 0; // the pill's own inset is the side gap, so it matches top / bottom
+  // Centre Scan button: an extra slot right after the Buy tab.
+  const scanAfter = routes.findIndex((r) => r.name === 'Buy');
+  const slotCount = routes.length + (scanAfter >= 0 ? 1 : 0);
+  const scanSize = rs(isTablet ? 60 : 54);
 
-  // Capsule geometry from the measured bar width (plain numbers — the
-  // worklets below must not call rs()/rf()).
-  const [barW, setBarW] = useState(0);
-  const itemW = barW > 0 ? (barW - RIM_W * 2 - padH * 2) / Math.max(routes.length, 1) : 0;
-  const circ = rs(isTablet ? 56 : 50);
-  const circTop = -Math.round(circ * 0.38); // rises above the glass
-
-  const pos = useSharedValue(activeIndex);
-  const stretch = useSharedValue(1);
-  useEffect(() => {
-    // Quick ease-out glide (~180ms) — snappy, never overshoots Home / Settings.
-    pos.value = withTiming(activeIndex, { duration: 180, easing: Easing.out(Easing.cubic) });
-    // Liquid feel: the circle swells as it lands on the new tab, then settles.
-    // Quick, small pulse (~180ms total) — no long springy zoom.
-    stretch.value = withSequence(withTiming(1.08, { duration: 70 }), withTiming(1, { duration: 110 }));
-  }, [activeIndex, pos, stretch]);
-  const circleStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: RIM_W + padH + pos.value * itemW + (itemW - circ) / 2 },
-      { scale: stretch.value },
-    ],
-  }), [itemW, circ, padH]);
-  const ActiveIcon = OWNER_TAB_ICONS[routes[activeIndex]?.name] || House;
 
   return (
     <View
@@ -282,7 +279,7 @@ function GlassTabBar({ state, descriptors, navigation }) {
         bottom: 0,
         backgroundColor: 'transparent',
         paddingHorizontal: rs(isTablet ? 20 : 14),
-        paddingBottom: Math.max(insets.bottom, MIN_SAFE_BOTTOM),
+        paddingBottom: getTabBarBottomGap(insets.bottom),
       }}
     >
       {/* Outline + soft shadow live on this wrapper; the glass itself clips. */}
@@ -292,24 +289,24 @@ function GlassTabBar({ state, descriptors, navigation }) {
           maxWidth: isTablet ? 660 : '100%',
           alignSelf: 'center',
           borderRadius: radius,
-          borderWidth: StyleSheet.hairlineWidth,
+          borderWidth: 1,
           borderColor: GLASS_OUTLINE,
-          shadowColor: '#111111',
-          shadowOpacity: 0.1,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
+          // Soft, even light shadow round the bar (elevation needs a background on Android).
+          backgroundColor: '#FFFFFF',
+          shadowColor: '#000000',
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 6,
         }}
       >
         <View
-          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
           style={{
             flexDirection: 'row',
             height: barHeight,
             paddingHorizontal: padH,
             borderRadius: radius,
             overflow: 'hidden',
-            borderWidth: RIM_W,
-            borderColor: GLASS_RIM,
           }}
         >
           {HAS_BLUR ? (
@@ -344,51 +341,60 @@ function GlassTabBar({ state, descriptors, navigation }) {
             const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
 
             return (
-              <TabBarItem
-                key={route.key}
-                Icon={Icon}
-                label={label}
-                isFocused={isFocused}
-                onPress={onPress}
-                onLongPress={onLongPress}
-                iconSize={iconSize}
-                activeIconSize={activeIconSize}
-                labelSize={labelSize}
-              />
+              <React.Fragment key={route.key}>
+                <TabBarItem
+                  Icon={Icon}
+                  label={label}
+                  isFocused={isFocused}
+                  onPress={onPress}
+                  onLongPress={onLongPress}
+                  iconSize={iconSize}
+                  activeIconSize={activeIconSize}
+                  labelSize={labelSize}
+                  pillRadius={(barHeight - PILL_INSET * 2) / 2}
+                />
+                {/* Empty slot after Buy — the raised Scan button sits over it. */}
+                {index === scanAfter ? <View style={{ flex: 1 }} /> : null}
+              </React.Fragment>
             );
           })}
         </View>
 
-        {/* Active tab: teal circle + white ring, floating above the glass
-            (outside its clip) and gliding between tabs. */}
-        {itemW > 0 ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              {
-                position: 'absolute',
-                left: 0,
-                top: circTop,
-                width: circ,
-                height: circ,
-                borderRadius: circ / 2,
-                backgroundColor: NAV_TEAL,
-                borderWidth: rs(4),
-                borderColor: '#FFFFFF',
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: '#111111',
-                shadowOpacity: 0.16,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 3 },
-                elevation: 5,
-              },
-              circleStyle,
-            ]}
+        {/* Ticket scan (PhonePe-style): a big raised teal circle in the middle
+            slot, outside the bar's clip so it can rise above it. Opens the
+            booking QR / barcode scanner. */}
+        {scanAfter >= 0 ? (
+          <Pressable
+            onPress={() => navigation.navigate('ScanSearch', { mode: 'qr' })}
+            accessibilityRole="button"
+            accessibilityLabel="Scan ticket QR code"
+            hitSlop={6}
+            // Plain style object — NativeWind drops a style={({ pressed }) => …} function.
+            style={{
+              position: 'absolute',
+              top: (barHeight - scanSize) / 2 - rs(10),
+              left: `${((scanAfter + 1.5) / slotCount) * 100}%`,
+              marginLeft: -scanSize / 2,
+              width: scanSize,
+              height: scanSize,
+              borderRadius: scanSize / 2,
+              backgroundColor: NAV_TEAL,
+              borderWidth: rs(3),
+              borderColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#111111',
+              shadowOpacity: 0.18,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 8,
+            }}
           >
-            <ActiveIcon size={activeIconSize} color="#FFFFFF" strokeWidth={2.3} />
-          </Animated.View>
+            {/* PhonePe-style scanner glyph: corner frame with a QR inside. */}
+            <MaterialCommunityIcons name="qrcode-scan" size={rs(isTablet ? 28 : 26)} color="#FFFFFF" />
+          </Pressable>
         ) : null}
+
       </View>
     </View>
   );
@@ -411,7 +417,7 @@ function OwnerTabs({ onLogout }) {
       <Tab.Screen name="Home" options={{ title: 'Home' }}>
         {(props) => <DashboardScreen {...props} onLogout={onLogout} />}
       </Tab.Screen>
-      <Tab.Screen name="Bookings" component={BookingHistoryScreen} />
+      {/* Jobs is no longer a bottom tab — it opens as the full-screen BookingList (no tab bar). */}
       <Tab.Screen name="Buy" component={OwnerBuyHomeScreen} options={{ title: 'Buy' }} />
       <Tab.Screen
         name="Sell"
@@ -419,7 +425,7 @@ function OwnerTabs({ onLogout }) {
         options={{ title: 'Sell' }}
         initialParams={{ flow: 'OWNER_LIST' }}
       />
-      <Tab.Screen name="MyAccount" options={{ title: 'Settings' }}>
+      <Tab.Screen name="MyAccount" options={{ title: 'Settings', tabBarLabel: 'More' }}>
         {(props) => <MyAccountScreen {...props} onLogout={onLogout} />}
       </Tab.Screen>
     </Tab.Navigator>
@@ -498,12 +504,16 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="RepairServiceBookingShop" component={RepairServiceBookingShop} options={{ headerShown: false }} />
       <Stack.Screen name="ScanQrCode" component={ScanQrCodeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ScanImei" component={ScanImeiScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="DevicePhotoCapture" component={DevicePhotoCaptureScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopServiceStatus" component={ShopServiceStatusScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="DeviceDetail" component={DeviceDetailScreen} options={{ headerShown: false }} />
-      {/* Removed: EditBooking + Legacy device screens — registered but never
-          navigated to. The live Edit flow uses the RepairServiceBookingShop
-          wizard, and EditBooking also carried customerApproved/field bugs. */}
+      {/* Edit Booking — booking details only (Booking Details → Edit). */}
+      <Stack.Screen name="EditBooking" component={EditBookingScreen} options={{ headerShown: false }} />
+      {/* Re-Estimate — additional issues + charges only (Booking Details → Re-Est). */}
+      <Stack.Screen name="ReEstimate" component={ReEstimateScreen} options={{ headerShown: false }} />
+      {/* Price Revised — change / cancel existing services only. */}
+      <Stack.Screen name="PriceRevised" component={PriceRevisedScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="TechnicianAssign" component={TechnicianAssignScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BookingSummary" component={BookingSummaryScreen} options={{ title: 'Booking Successful' }} />
       <Stack.Screen name="BookingTimeline" component={BookingTimelineScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BarcodePrint" component={BarcodePrintScreen} options={{ headerShown: false }} />
@@ -514,7 +524,7 @@ export default function OwnerNavigator({ session, onLogout }) {
           status preset — e.g. { preset: 'ACTIVE' } from the Home snapshot —
           lives on its own screen instance with a real back button, instead of
           sticking to the Bookings tab the next time the bar is tapped. */}
-      <Stack.Screen name="BookingList" component={BookingHistoryScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BookingList" component={JobsScreen} options={{ headerShown: false }} />
       {/* The BookingHistoryLog mount is gone with the Home "History" shortcut
           that was its only entry point — it was a third copy of this same list
           whose only difference was what a card tap did. A booking's history is
@@ -608,7 +618,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeeAttendance"
         component={OwnerEmployeeAttendanceScreen}
-        options={{
+        options={{ headerShown: false,
           title: 'Attendance',
           headerTitleAlign: 'center',
           headerTintColor: '#035C6C',
@@ -619,7 +629,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeeLeave"
         component={OwnerEmployeeLeaveScreen}
-        options={{
+        options={{ headerShown: false,
           title: 'Leave details',
           headerTitleAlign: 'center',
           headerTintColor: '#035C6C',
@@ -629,7 +639,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeePermission"
         component={OwnerEmployeePermissionScreen}
-        options={{
+        options={{ headerShown: false,
           title: 'Permission Report',
           headerTitleAlign: 'center',
           headerTintColor: '#035C6C',
@@ -639,7 +649,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeeSalaryReport"
         component={OwnerEmployeeSalaryReportScreen}
-        options={{
+        options={{ headerShown: false,
           title: 'Salary Report',
           headerTitleAlign: 'center',
           headerTintColor: '#035C6C',
@@ -659,7 +669,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeeShiftDetails"
         component={OwnerEmployeeShiftDetailsScreen}
-        options={{
+        options={{ headerShown: false,
           title: 'Shift details',
           headerTitleAlign: 'center',
           headerTintColor: '#035C6C',
@@ -681,9 +691,8 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen
         name="OwnerEmployeePickupReport"
         component={OwnerEmployeePickupReportScreen}
-        options={({ route }) => ({
-          title: route?.params?.employee ? 'Pickup report' : 'Pickup Report',
-        })}
+        // Draws its own header (Job Report layout).
+        options={{ headerShown: false }}
       />
       <Stack.Screen name="OwnerEmployeeAddAdvance" component={OwnerEmployeeAddAdvanceScreen} options={{ title: 'Add advance' }} />
       <Stack.Screen

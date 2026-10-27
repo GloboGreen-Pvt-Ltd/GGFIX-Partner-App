@@ -395,7 +395,7 @@ export default function SelectVariantScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
 
         {isEditingSellOrder ? (
           <View className="bg-warning/10 border border-warning/30 rounded-xl px-3 py-2 mb-3 flex-row items-center">

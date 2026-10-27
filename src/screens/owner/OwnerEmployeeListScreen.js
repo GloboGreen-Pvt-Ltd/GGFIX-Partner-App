@@ -1,15 +1,17 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,6 +25,9 @@ import {
   Wrench,
   Info,
   ShieldCheck,
+  Search,
+  X,
+  UserCog,
 } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { ticketApi } from '../../api/client';
@@ -30,6 +35,7 @@ import { assignPickupPerson } from '../../api/orders';
 import { notify } from '../../components/confirm';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
+import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette — green #035C6C (fills, rings, dots) with #035C6C for green
 // text/icons; ink #111111; neutrals #F3F4F6 / #F3F4F6; yellow #F3BF23.
@@ -47,6 +53,22 @@ const cardShadow = {
 };
 
 const PICKUP_ROLE = 'Pickup Person';
+
+// Role chips + filters (roles from Employee Detail: Technician, Staff, Pickup Person).
+const ROLE_FILTERS = [
+  { key: 'ALL', label: 'All', match: () => true },
+  { key: 'TECH', label: 'Technician', match: (r) => /technician/i.test(r) },
+  { key: 'STAFF', label: 'Staff', match: (r) => /^staff$/i.test(r.trim()) },
+  { key: 'PICKUP', label: 'Pickup', match: (r) => r.toLowerCase() === PICKUP_ROLE.toLowerCase() },
+];
+const roleTone = (role) => {
+  const r = String(role || '').toLowerCase();
+  if (r === PICKUP_ROLE.toLowerCase()) return { fg: '#B45309', bg: '#FFF4DB', Icon: Truck };
+  if (/technician/.test(r)) return { fg: '#035C6C', bg: '#E5F3F5', Icon: Wrench };
+  return { fg: '#0571A8', bg: '#E1F1FA', Icon: UserCog };
+};
+const AVATAR_TONES = ['#035C6C', '#0788C9', '#609138', '#E08E00', '#1C3053', '#357D89'];
+const initialsOf = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 // Amber for "at the ceiling" — the shop is not broken, it is full.
 const BRAND_AMBER      = '#F3BF23';
@@ -99,9 +121,11 @@ function ProgressRing({ active, total, size = 52, stroke = 5 }) {
 }
 
 export default function OwnerEmployeeListScreen({ navigation, route }) {
-  const { width: winW } = useWindowDimensions();
-  const cols = winW >= 700 ? 2 : 1;
-  const capStyle = winW >= 768 ? { width: Math.min(winW - 32, 1000), alignSelf: 'center' } : null;
+  // Live breakpoints from the app's responsive system: tablets (600+) get two
+  // columns and a capped, centred column; phones stay single-column.
+  const r = useResponsive();
+  const cols = r.isTablet ? 2 : 1;
+  const capStyle = r.isTablet ? { width: Math.min(r.width - 32, r.maxWidth('wide')), alignSelf: 'center' } : null;
   const assignFor = route?.params?.assignFor || null;
   const bookingId = route?.params?.bookingId || null;
   const isPickupPicker = assignFor === 'pickup' && !!bookingId;
@@ -115,6 +139,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(null);
   const [assigning, setAssigning] = useState(null);
+  const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -236,37 +262,47 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
   const ringActive = isPickupPicker ? activeCount : seatUsage;
   const ringTotal = (isPickupPicker || !seats) ? visibleList.length : seatLimit;
 
+  // Search + role filter (All / Technician / Staff / Pickup Person).
+  const roleOf = (e) => e.roleLabel || 'Technician';
+  const roleCounts = ROLE_FILTERS.reduce((acc, f) => {
+    acc[f.key] = f.key === 'ALL' ? visibleList.length : visibleList.filter((e) => f.match(roleOf(e))).length;
+    return acc;
+  }, {});
+  const q = query.trim().toLowerCase();
+  const shownList = visibleList
+    .filter((e) => roleFilter === 'ALL' || ROLE_FILTERS.find((f) => f.key === roleFilter)?.match(roleOf(e)))
+    .filter((e) => !q || `${e.name || ''} ${e.phone || ''} ${e.email || ''} ${roleOf(e)}`.toLowerCase().includes(q));
+  const inactiveCount = visibleList.length - activeCount;
+
   return (
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            paddingTop: 6,
-            paddingBottom: 11,
-            paddingHorizontal: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: '#E5E7EB',
-          }}
-        >
+        <View style={{ backgroundColor: '#FFFFFF', paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
           <View className="flex-row items-center" style={capStyle}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
-              className="w-9 h-9 rounded-full items-center justify-center mr-2.5 bg-surface-muted"
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              className="items-center justify-center"
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: '#E5E7EB' }}
             >
               <ChevronLeft size={20} color="#111111" />
             </TouchableOpacity>
-            <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-              {isPickupPicker ? 'Select Pickup Person' : 'Employees'}
-            </Text>
+            <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 8 }}>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                {isPickupPicker ? 'Select Pickup Person' : 'Employees'}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>
+                {activeCount} active · {visibleList.length} total
+              </Text>
+            </View>
             {!isPickupPicker ? (
               // Kept visible but disabled when the plan is full, rather than
-              // hidden: a button that vanishes reads as a broken screen, while
-              // a greyed one that explains itself on tap tells the owner what
-              // is actually going on and offers the way out.
+              // hidden: a greyed button that explains itself on tap tells the
+              // owner what is going on and offers the way out.
               <Pressable
                 onPress={onAddEmployee}
                 hitSlop={6}
@@ -275,18 +311,15 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                 accessibilityLabel={canAdd
                   ? 'Add Employee'
                   : `Employee limit reached. Your ${planLabel} plan allows up to ${seats?.limit} per shop. Tap for upgrade options.`}
-                className="flex-row items-center px-3 py-1.5 rounded-full"
-                style={{ backgroundColor: canAdd ? BRAND_GREEN : '#FFF8E1' }}
+                className="flex-row items-center active:opacity-85"
+                style={{ height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: canAdd ? BRAND_GREEN : '#FFF8E1' }}
               >
-                <UserPlus size={14} color={canAdd ? '#FFFFFF' : BRAND_AMBER_DARK} />
-                <Text
-                  className="ml-1.5 text-[11px] font-extrabold"
-                  style={{ color: canAdd ? '#FFFFFF' : BRAND_AMBER_DARK }}
-                >
-                  {canAdd ? 'Add Employee' : 'Limit reached'}
+                <UserPlus size={15} color={canAdd ? '#FFFFFF' : BRAND_AMBER_DARK} />
+                <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: '800', color: canAdd ? '#FFFFFF' : BRAND_AMBER_DARK }}>
+                  {canAdd ? 'Add' : 'Limit'}
                 </Text>
               </Pressable>
-            ) : null}
+            ) : <View style={{ width: 36 }} />}
           </View>
         </View>
       </SafeAreaView>
@@ -296,260 +329,214 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
           <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
         </View>
       ) : (
-        <>
-          <ScrollView
-            contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }, capStyle]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => load(true)}
-                tintColor={BRAND_GREEN_DARK}
-                colors={[BRAND_GREEN_DARK]}
-              />
-            }
-          >
-            {/* Summary card with active / total progress ring */}
-            <View
-              className="rounded-2xl p-3 mb-2.5 flex-row items-center"
-              style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', ...cardShadow }}
-            >
-              <View style={{ position: 'relative' }}>
-                <View
-                  className="w-11 h-11 rounded-full items-center justify-center"
-                  style={{ backgroundColor: MINT }}
-                >
-                  <Users size={21} color={BRAND_GREEN_DARK} />
-                </View>
-                <View
-                  style={{
-                    position: 'absolute', right: 0, bottom: 1,
-                    width: 11, height: 11, borderRadius: 6,
-                    backgroundColor: BRAND_GREEN, borderWidth: 2, borderColor: '#FFFFFF',
-                  }}
+        <ScrollView
+          contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 28 }, capStyle]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={BRAND_GREEN_DARK} colors={[BRAND_GREEN_DARK]} />
+          }
+        >
+          {/* Summary — seats ring (allowance) + active / inactive counts. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12, ...cardShadow }}>
+            <ProgressRing active={ringActive} total={ringTotal} size={56} />
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                {isPickupPicker ? 'Pickup-eligible staff' : 'Your Team'}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                {isPickupPicker || !seats
+                  ? `${visibleList.length} on file`
+                  : seatLimit != null ? `${seatUsage} of ${seatLimit} seats used · ${planLabel} plan` : `${seatUsage} active · unlimited seats`}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <StatPill value={activeCount} label="Active" color="#476B26" bg="#EDF4E7" />
+              <StatPill value={inactiveCount} label="Inactive" color="#6B7280" bg="#F3F4F6" />
+            </View>
+          </View>
+
+          {/*
+            Shown only when the backend has actually refused — the same
+            `allowed` flag the create API enforces.
+          */}
+          {showLimitNotice ? (
+            <View style={{ marginTop: 10, borderRadius: 16, padding: 12, backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F8E3A0' }}>
+              <View className="flex-row items-center">
+                <ShieldCheck size={15} color={BRAND_AMBER_DARK} />
+                <Text style={{ marginLeft: 8, fontSize: 12.5, fontWeight: '800', color: BRAND_AMBER_DARK }}>
+                  {seats?.expired ? 'Subscription expired' : 'Employee limit reached'}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11.5, color: '#4B5563', marginTop: 6, lineHeight: 17 }}>
+                {seats?.message || `Your ${planLabel} plan allows up to ${seats?.limit} active employees per shop.`}
+              </Text>
+              <Pressable onPress={goUpgrade} accessibilityRole="button" className="items-center active:opacity-85" style={{ marginTop: 10, borderRadius: 999, paddingVertical: 8, backgroundColor: BRAND_AMBER }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#3A2606' }}>Upgrade Plan</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {visibleList.length > 0 ? (
+            <>
+              {/* Search */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', height: 44, marginTop: 12, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}>
+                <Search size={17} color="#9CA3AF" />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search by name or mobile"
+                  placeholderTextColor="#9CA3AF"
+                  cursorColor={BRAND_GREEN}
+                  style={{ flex: 1, marginLeft: 8, fontSize: 14, color: '#111111', paddingVertical: 0, includeFontPadding: false }}
                 />
+                {query ? (
+                  <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+                    <X size={16} color="#6B7280" />
+                  </Pressable>
+                ) : null}
               </View>
-              <View className="flex-1 ml-3">
-                <Text className="text-[13px] font-extrabold text-gray-900">
-                  {isPickupPicker ? 'Pickup-eligible staff' : 'All Employees'}
-                </Text>
-                {/* "3 active · 5 total" — the ring carries the allowance, so
-                    this line stays a plain headcount. Total is every employee
-                    on file including deactivated ones, which is what makes the
-                    two numbers differ and shows that an inactive employee is
-                    not holding a seat. */}
-                <Text className="text-[11px] text-gray-500 mt-0.5">
-                  {isPickupPicker
-                    ? `${activeCount} active · ${visibleList.length} total`
-                    : `${seatUsage} active · ${list.length} total`}
-                </Text>
-              </View>
-              <View className="items-center">
-                <ProgressRing active={ringActive} total={ringTotal} />
-                <Text
-                  className="text-[10px] font-extrabold mt-1"
-                  style={{ color: showLimitNotice ? BRAND_AMBER_DARK : BRAND_GREEN_DARK }}
-                >
-                  Active
-                </Text>
-              </View>
-            </View>
 
-            {/*
-              Shown only when the backend has actually refused — the same
-              `allowed` flag the create API enforces, so this notice cannot
-              appear on a shop that could still hire, or stay hidden on one
-              that cannot.
-            */}
-            {showLimitNotice ? (
-              <View
-                className="rounded-2xl p-3.5 mb-2.5"
-                style={{ backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F8E3A0' }}
-              >
-                <View className="flex-row items-center">
-                  <ShieldCheck size={15} color={BRAND_AMBER_DARK} />
-                  <Text className="ml-2 text-[12px] font-extrabold" style={{ color: BRAND_AMBER_DARK }}>
-                    {seats?.expired ? 'Subscription expired' : 'Employee limit reached'}
-                  </Text>
-                </View>
-                <Text className="text-[11px] text-gray-600 mt-1.5 leading-[17px]">
-                  {seats?.message
-                    || `Your ${planLabel} plan allows up to ${seats?.limit} active employees per shop.`}
-                </Text>
-                <Pressable
-                  onPress={goUpgrade}
-                  accessibilityRole="button"
-                  className="mt-2.5 rounded-full py-2 items-center"
-                  style={{ backgroundColor: BRAND_AMBER }}
-                >
-                  <Text className="text-[12px] font-extrabold" style={{ color: '#3A2606' }}>
-                    Upgrade Plan
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-            {visibleList.length === 0 ? (
-              <View className="items-center pt-8 px-8">
-                <View
-                  className="w-16 h-16 rounded-full items-center justify-center mb-3.5"
-                  style={{ backgroundColor: MINT }}
-                >
-                  <Users size={26} color={BRAND_GREEN_DARK} />
-                </View>
-                <Text className="text-[13px] font-extrabold text-gray-700 text-center">
-                  {isPickupPicker ? 'No pickup persons yet' : 'No employees yet'}
-                </Text>
-                <Text className="text-[11px] text-gray-500 mt-1.5 text-center leading-[17px]">
-                  {isPickupPicker
-                    ? 'Add staff with the "Pickup Person" role to assign pickups.'
-                    : 'Tap "Add" to add your first staff member.'}
-                </Text>
-              </View>
-            ) : (
-            <View className="flex-row flex-wrap" style={{ marginHorizontal: cols === 2 ? -5 : 0 }}>
-            {visibleList.map((e) => {
-              const isActive = e.isAvailable !== false;
-              const initial = (e.name || '?').trim().charAt(0).toUpperCase();
-              const role = e.roleLabel || 'Technician';
-              const isPickup = role.toLowerCase() === PICKUP_ROLE.toLowerCase();
-              const RoleIcon = isPickup ? Truck : Wrench;
-              const roleTint = isPickup ? '#FFF8E1' : MINT;
-              const roleAccent = isPickup ? BRAND_AMBER_DARK : BRAND_GREEN_DARK;
-              return (
-                <View key={e.id} style={{ width: cols === 2 ? '50%' : '100%', paddingHorizontal: cols === 2 ? 5 : 0 }}>
-                <TouchableOpacity
-                  onPress={() =>
-                    isPickupPicker
-                      ? handlePickPickupPerson(e)
-                      : navigation.navigate('OwnerEmployeeDetail', { employee: e })
-                  }
-                  activeOpacity={0.85}
-                  disabled={isPickupPicker && (assigning !== null || !isActive)}
-                  className="bg-white rounded-2xl p-3 mb-2.5 flex-row items-center"
-                  style={[cardShadow, { borderWidth: 1, borderColor: '#F3F4F6', opacity: isActive ? 1 : 0.72 }]}
-                >
-                  {/* Avatar */}
-                  <View style={{ position: 'relative' }}>
-                    <View
-                      style={{
-                        width: 46, height: 46, borderRadius: 23,
-                        backgroundColor: isActive ? MINT : '#F3F4F6',
-                        alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
-                      <Text
-                        className="text-[17px] font-extrabold"
-                        style={{ color: isActive ? BRAND_GREEN_DARK : '#9CA3AF' }}
-                      >
-                        {initial}
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        position: 'absolute',
-                        right: 0, bottom: 1,
-                        width: 12, height: 12, borderRadius: 6,
-                        backgroundColor: isActive ? BRAND_GREEN : '#9CA3AF',
-                        borderWidth: 2, borderColor: '#FFFFFF',
-                      }}
-                    />
-                  </View>
-
-                  <View className="flex-1 ml-2.5 pr-1">
-                    <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>
-                      {e.name || '—'}
-                    </Text>
-                    <View className="flex-row items-center mt-1">
-                      <Phone size={11} color={BRAND_GREEN} />
-                      <Text className="text-[11px] text-gray-600 ml-1.5" numberOfLines={1}>
-                        {e.phone || e.email || '—'}
-                      </Text>
-                    </View>
-                    <View
-                      className="flex-row items-center self-start px-2 py-0.5 rounded-full mt-1.5"
-                      style={{ backgroundColor: roleTint }}
-                    >
-                      <RoleIcon size={11} color={roleAccent} />
-                      <Text
-                        className="ml-1 text-[10.5px] font-extrabold"
-                        style={{ color: roleAccent, letterSpacing: 0.3 }}
-                      >
-                        {role}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Right side */}
-                  {isPickupPicker ? (
-                    <View>
-                      {assigning === e.id ? (
-                        <ActivityIndicator size="small" color={BRAND_GREEN_DARK} />
-                      ) : (
-                        <ChevronRight size={17} color={BRAND_GREEN_DARK} />
-                      )}
-                    </View>
-                  ) : (
-                    <View className="flex-row items-center">
-                      <View className="items-center mr-1">
-                        <Text
-                          className="text-[10px] font-extrabold mb-0.5"
-                          style={{ color: isActive ? BRAND_GREEN_DARK : '#9CA3AF' }}
-                        >
-                          {isActive ? 'Active' : 'Inactive'}
-                        </Text>
-                        {toggling === e.id ? (
-                          <ActivityIndicator size="small" color={BRAND_GREEN} />
-                        ) : (
-                          <Switch
-                            style={{ transform: [{ scale: 0.85 }] }}
-                            value={isActive}
-                            onValueChange={(v) => onToggleActive(e, v)}
-                            trackColor={{ false: '#D1D5DB', true: '#C7E6EA' }}
-                            thumbColor={isActive ? BRAND_GREEN : '#9CA3AF'}
-                          />
-                        )}
-                      </View>
+              {/* Role filter */}
+              {!isPickupPicker ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 10 }}>
+                  {ROLE_FILTERS.map((f) => {
+                    const on = roleFilter === f.key;
+                    return (
                       <Pressable
-                        onPress={() => navigation.navigate('OwnerEmployeeDetail', { employee: e })}
-                        hitSlop={8}
-                        className="ml-0.5"
+                        key={f.key}
+                        onPress={() => setRoleFilter(f.key)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        className="flex-row items-center active:opacity-80"
+                        style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, borderWidth: on ? 0 : 1, borderColor: '#E5E7EB', backgroundColor: on ? BRAND_GREEN : '#FFFFFF' }}
                       >
-                        <ChevronRight size={18} color="#9CA3AF" />
+                        <Text style={{ fontSize: 12.5, fontWeight: on ? '800' : '600', color: on ? '#FFFFFF' : '#111111' }}>{f.label}</Text>
+                        <Text style={{ marginLeft: 5, fontSize: 11.5, fontWeight: '700', color: on ? '#C7E6EA' : '#9CA3AF' }}>{roleCounts[f.key]}</Text>
                       </Pressable>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                </View>
-              );
-            })}
-            </View>
-            )}
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+            </>
+          ) : null}
 
-            {!isPickupPicker && visibleList.length > 0 ? (
-              <View
-                className="rounded-2xl p-3 mt-1 flex-row items-center"
-                style={{ backgroundColor: MINT }}
-              >
-                <View
-                  className="w-8 h-8 rounded-full items-center justify-center mr-2.5"
-                  style={{ backgroundColor: BRAND_GREEN }}
-                >
-                  <Info size={15} color="#FFFFFF" />
-                </View>
-                <Text className="flex-1 text-[11px] text-gray-600 leading-[16px]">
-                  You can add, edit or deactivate employees. Only active employees can access the shop.
-                </Text>
-                <View
-                  className="w-8 h-8 rounded-full items-center justify-center ml-2"
-                  style={{ backgroundColor: '#FFFFFF' }}
-                >
-                  <ShieldCheck size={16} color={BRAND_GREEN_DARK} />
-                </View>
+          {visibleList.length === 0 ? (
+            <View className="items-center" style={{ paddingTop: 36, paddingHorizontal: 32 }}>
+              <View className="items-center justify-center" style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: MINT, marginBottom: 12 }}>
+                <Users size={26} color={BRAND_GREEN_DARK} />
               </View>
-            ) : null}
-          </ScrollView>
-        </>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#374151', textAlign: 'center' }}>
+                {isPickupPicker ? 'No pickup persons yet' : 'No employees yet'}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6, textAlign: 'center', lineHeight: 17 }}>
+                {isPickupPicker
+                  ? 'Add staff with the "Pickup Person" role to assign pickups.'
+                  : 'Tap "Add" to add your first staff member.'}
+              </Text>
+            </View>
+          ) : shownList.length === 0 ? (
+            <Text style={{ fontSize: 12.5, color: '#6B7280', textAlign: 'center', paddingVertical: 28 }}>No employee matches this search.</Text>
+          ) : (
+            <View className="flex-row flex-wrap" style={{ marginTop: 12, marginHorizontal: cols === 2 ? -5 : 0 }}>
+              {shownList.map((e, i) => {
+                const isActive = e.isAvailable !== false;
+                const role = roleOf(e);
+                const tone = roleTone(role);
+                const RoleIcon = tone.Icon;
+                const avatarBg = isActive ? AVATAR_TONES[i % AVATAR_TONES.length] : '#D1D5DB';
+                const phone = e.phone || '';
+                return (
+                  <View key={e.id} style={{ width: cols === 2 ? '50%' : '100%', paddingHorizontal: cols === 2 ? 5 : 0 }}>
+                    <TouchableOpacity
+                      onPress={() => (isPickupPicker ? handlePickPickupPerson(e) : navigation.navigate('OwnerEmployeeDetail', { employee: e }))}
+                      activeOpacity={0.85}
+                      disabled={isPickupPicker && (assigning !== null || !isActive)}
+                      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12, marginBottom: 8, opacity: isActive ? 1 : 0.7, ...cardShadow }}
+                    >
+                      {/* Avatar: photo when there is one, else coloured initials; dot = active. */}
+                      <View>
+                        {e.photoUrl ? (
+                          <Image source={{ uri: e.photoUrl }} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6' }} />
+                        ) : (
+                          <View className="items-center justify-center" style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: avatarBg }}>
+                            <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFFFFF' }}>{initialsOf(e.name)}</Text>
+                          </View>
+                        )}
+                        <View style={{ position: 'absolute', right: 0, bottom: 1, width: 13, height: 13, borderRadius: 7, backgroundColor: isActive ? '#609138' : '#9CA3AF', borderWidth: 2, borderColor: '#FFFFFF' }} />
+                      </View>
+
+                      <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                        <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{e.name || '—'}</Text>
+                        <View className="flex-row items-center" style={{ marginTop: 5, gap: 6 }}>
+                          <View className="flex-row items-center" style={{ paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: tone.bg, flexShrink: 1 }}>
+                            <RoleIcon size={11} color={tone.fg} strokeWidth={2.4} />
+                            <Text style={{ marginLeft: 4, fontSize: 11, fontWeight: '800', color: tone.fg, flexShrink: 1 }} numberOfLines={1}>{role}</Text>
+                          </View>
+                          <Text style={{ fontSize: 11.5, color: '#6B7280', flexShrink: 1 }} numberOfLines={1}>{phone || e.email || ''}</Text>
+                        </View>
+                      </View>
+
+                      {isPickupPicker ? (
+                        assigning === e.id ? <ActivityIndicator size="small" color={BRAND_GREEN_DARK} /> : <ChevronRight size={18} color={BRAND_GREEN_DARK} />
+                      ) : (
+                        <View className="flex-row items-center" style={{ marginLeft: 6 }}>
+                          {phone ? (
+                            <Pressable
+                              onPress={() => Linking.openURL(`tel:${phone}`).catch(() => {})}
+                              hitSlop={6}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Call ${e.name || 'employee'}`}
+                              className="items-center justify-center active:opacity-70"
+                              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: MINT, marginRight: 4 }}
+                            >
+                              <Phone size={15} color={BRAND_GREEN} />
+                            </Pressable>
+                          ) : null}
+                          <View className="items-center" style={{ width: 52 }}>
+                            {toggling === e.id ? (
+                              <ActivityIndicator size="small" color={BRAND_GREEN} style={{ height: 30 }} />
+                            ) : (
+                              <Switch
+                                style={{ transform: [{ scale: 0.85 }] }}
+                                value={isActive}
+                                onValueChange={(v) => onToggleActive(e, v)}
+                                trackColor={{ false: '#D1D5DB', true: '#C7E6EA' }}
+                                thumbColor={isActive ? BRAND_GREEN : '#9CA3AF'}
+                              />
+                            )}
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: isActive ? '#476B26' : '#9CA3AF', marginTop: -2 }}>
+                              {isActive ? 'Active' : 'Inactive'}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {!isPickupPicker && visibleList.length > 0 ? (
+            <View className="flex-row items-center" style={{ marginTop: 4, paddingHorizontal: 4 }}>
+              <Info size={13} color="#9CA3AF" />
+              <Text style={{ flex: 1, marginLeft: 6, fontSize: 11, color: '#6B7280', lineHeight: 16 }}>
+                Tap an employee to edit. Only active employees can access the shop.
+              </Text>
+            </View>
+          ) : null}
+        </ScrollView>
       )}
+    </View>
+  );
+}
+
+function StatPill({ value, label, color, bg }) {
+  return (
+    <View className="items-center justify-center" style={{ minWidth: 52, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, backgroundColor: bg }}>
+      <Text style={{ fontSize: 15, fontWeight: '800', color }}>{value}</Text>
+      <Text style={{ fontSize: 9.5, fontWeight: '700', color, marginTop: 1 }}>{label}</Text>
     </View>
   );
 }

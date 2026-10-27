@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, View, Text, ScrollView, Pressable, Image, Alert, TextInput } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts, specRequestFields } from '../../../utils/deviceSpecs';
 import { imeiApplies } from '../../../utils/imeiPolicy';
+import { StepProgress } from './BookingSteps';
 
 // One deep green for the whole screen, matching the rest of the booking flow.
 // Explicit values rather than `text-primary`/`bg-success` classes: NativeWind
@@ -75,13 +76,26 @@ function priceItemsJsonFor(device) {
   return items.length ? JSON.stringify(items) : null;
 }
 
-export default function ServiceBookingDevicesListScreen({ navigation, route }) {
-  const params = route?.params || {};
-  const insets = useSafeAreaInsets();
+// Order-free "issue|amount" key of a priceItemsJson, to compare a saved
+// booking's issues with the edited ones.
+function priceItemsKey(json) {
+  let items = [];
+  try { items = JSON.parse(json || '[]'); } catch (_) {}
+  if (!Array.isArray(items)) items = [];
+  return items
+    .map((i) => `${String(i?.label || i?.name || '').trim().toLowerCase()}|${Number(i?.amount ?? i?.price) || 0}`)
+    .sort()
+    .join(',');
+}
 
-  // Build a device record from the just-finished flow: a catalogue model (modelId)
-  // or one typed through "Other" (customModel — modelId null, typed modelName).
-  const newDevice = (params.modelId || (params.customModel && params.modelName)) ? {
+/**
+ * Build a device record from the just-finished flow: a catalogue model (modelId)
+ * or one typed through "Other" (customModel — modelId null, typed modelName).
+ * Shared with Devices & Repair's "Add Another Device", which saves the current
+ * device into `existingDevices` before opening the next one.
+ */
+export function deviceFromParams(params = {}) {
+  return (params.modelId || (params.customModel && params.modelName)) ? {
     modelName: params.modelName,
     modelNumber: params.modelNumber,
     modelId: params.modelId || null,
@@ -116,6 +130,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     estimatedDeliveryIso: params.estimatedDeliveryIso,
     customerApproved: params.customerApproved,
   } : null;
+}
+
+export default function ServiceBookingDevicesListScreen({ navigation, route }) {
+  const params = route?.params || {};
+  const insets = useSafeAreaInsets();
+
+  const newDevice = deviceFromParams(params);
 
   const existing = Array.isArray(params.existingDevices) ? params.existingDevices : [];
   // Priority: pre-built devices list > existing + new > existing > new alone.
@@ -156,6 +177,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
 
   const paidAmount = Number(paidText) || 0;
   const balanceDue = Math.max(0, grandTotal - paidAmount);
+  // Payment opens only once the grand total has a value (prices entered).
+  useEffect(() => {
+    if (grandTotal <= 0 && (paymentType || paidText)) {
+      setPaymentType(null);
+      setPaidText('');
+    }
+  }, [grandTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Choosing Full Payment fills in the grand total — it is the only amount that
   // mode can mean. Still editable afterwards, since a counter discount makes
@@ -165,6 +193,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     if (value === 'FULL') setPaidText(grandTotal > 0 ? String(Math.round(grandTotal)) : '');
     else setPaidText('');
   }, [grandTotal]);
+
+  // Typing an amount before picking a mode defaults it to Advance — the field
+  // stays editable because toggling `editable` on Android can leave it unfocusable.
+  const onChangeAmount = useCallback((t) => {
+    setPaidText(t);
+    if (t) setPaymentType((p) => p || 'ADVANCE');
+  }, []);
 
   // One booking, one payment — but each device becomes its own ticket, so the
   // amount is split across them in proportion to what each device is estimated
@@ -205,6 +240,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       customerId: params.customerId,
       customer: params.customer,
       existingDevices: devices,
+      // Keep joining the existing booking (Add Device) across "add another".
+      ...(params.addToBookingNumber ? { addToBookingNumber: params.addToBookingNumber } : {}),
     });
   };
 
@@ -263,6 +300,11 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       notify('Payment', 'Choose Advance or Full Payment for the amount entered');
       return;
     }
+    // ₹0 total = price not estimated yet — no payment can be taken then.
+    if (grandTotal <= 0 && paidAmount > 0) {
+      notify('Payment', 'Enter the service prices first — the grand total is ₹0.');
+      return;
+    }
     if (paidAmount > grandTotal) {
       notify('Payment', `Amount collected can't be more than the grand total ₹${formatINR(grandTotal)}`);
       return;
@@ -280,7 +322,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
           await ticketApi.post(`/tickets/${params.editTicketId}/reopen`);
           reopenedRef.current = true;
         }
-        const res = await ticketApi.put(`/tickets/${params.editTicketId}`, { body: buildTicketBody(d) });
+        // reEstimate tells the server which action this is: only Re-Estimate may
+        // re-quote the booking. Edit / Price Revised / Re-Service send false, so
+        // the ticket keeps its status (e.g. IN_REPAIR stays IN_REPAIR).
+        const res = await ticketApi.put(`/tickets/${params.editTicketId}`, {
+          body: { ...buildTicketBody(d), reEstimate: !!params.reEstimate },
+        });
         if (params.reService) {
           navigation.replace('BookingThankYou', { customer: params.customer, devices, tickets: [res], editMode: true });
           return;
@@ -298,12 +345,31 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         //
         // Not fatal if it fails — the re-estimate itself is saved by then, and
         // losing the whole submit over a badge would be worse than a stale one.
-        try {
-          await ticketApi.patch(`/tickets/${params.editTicketId}/status`, {
-            query: { status: 'QUOTED' },
-          });
-        } catch (statusErr) {
-          console.log('Re-estimate saved, status → QUOTED failed:', statusErr?.message);
+        //
+        // Only the Re-Estimate action re-estimates (and only when an issue or
+        // price actually changed). Edit Booking never does — even a price
+        // change there keeps the booking's status.
+        const reEstimated = !!params.reEstimate && (params.originalPriceItemsJson === undefined
+          || priceItemsKey(params.originalPriceItemsJson) !== priceItemsKey(priceItemsJsonFor(d)));
+        if (reEstimated) {
+          try {
+            await ticketApi.patch(`/tickets/${params.editTicketId}/status`, {
+              query: { status: 'QUOTED' },
+            });
+          } catch (statusErr) {
+            console.log('Re-estimate saved, status → QUOTED failed:', statusErr?.message);
+          }
+        } else if (!params.reEstimate) {
+          // Edit Booking: record "Booking Edited" on the history (status unchanged).
+          // Not fatal — the edit itself is saved; a server without the
+          // BOOKING_EDITED step just rejects the history row.
+          try {
+            await ticketApi.post(`/tickets/${params.editTicketId}/progress-events`, {
+              body: { statusKey: 'BOOKING_EDITED', note: 'Booking Edited', actor: 'SHOP' },
+            });
+          } catch (evtErr) {
+            console.log('Edit saved, "Booking Edited" history row failed:', evtErr?.message);
+          }
         }
         navigation.replace('BookingThankYou', {
           customer: params.customer,
@@ -317,9 +383,16 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       // Post each device, remembering which ones already succeeded so a retry
       // after a partial failure only re-submits the devices that still failed —
       // otherwise tapping Submit again would duplicate the already-created tickets.
+      // Numbering: one device → GTS-001. Several → the first draws the booking
+      // number as GTS-001-A and the rest join it (-B, -C …). Adding to an
+      // existing booking (params.addToBookingNumber) joins every device to it.
       for (let i = 0; i < devices.length; i++) {
         if (createdRef.current[i]) continue; // already booked on a previous attempt
-        const res = await ticketApi.post('/tickets', { body: buildTicketBody(devices[i], i) });
+        const bookingNumber = params.addToBookingNumber || createdRef.current[0]?.bookingNumber;
+        const numbering = bookingNumber
+          ? { bookingNumber }
+          : (devices.length > 1 ? { multiDevice: true } : {});
+        const res = await ticketApi.post('/tickets', { body: { ...buildTicketBody(devices[i], i), ...numbering } });
         createdRef.current[i] = res;
       }
       const created = devices.map((_, i) => createdRef.current[i]);
@@ -367,7 +440,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
           device (new bookings only; an edit is one ticket), else a spacer
           that keeps the title centred. ─────────────────────────────────── */}
       <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(12), paddingHorizontal: rs(14), borderBottomWidth: 1, borderBottomColor: BORDER }}
+        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + rs(8), paddingBottom: rs(4), paddingHorizontal: rs(14), borderBottomWidth: 1, borderBottomColor: BORDER }}
       >
         <View className="flex-row items-center" style={colStyle}>
           <Pressable
@@ -379,26 +452,18 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
           </Pressable>
           <View className="flex-1" style={{ paddingHorizontal: rs(8) }}>
             <Text className="text-center" style={{ color: INK, fontSize: 17, fontWeight: '800' }} numberOfLines={1}>
-              Service Booking Devices List
+              Review & Confirm
             </Text>
             <Text className="text-center" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
-              Review customer devices and services
+              Check the devices, services and payment
             </Text>
           </View>
-          {params.editMode ? (
-            <View style={{ width: 36 }} />
-          ) : (
-            <Pressable
-              onPress={addMore}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Add another device"
-              className="items-center justify-center active:opacity-80"
-              style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: ACCENT }}
-            >
-              <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-          )}
+          {/* No header "+" — Add Another Device lives on Devices & Repair. */}
+          <View style={{ width: 36 }} />
+        </View>
+        {/* ✓ Customer → ✓ Devices → 3 Confirm */}
+        <View style={colStyle}>
+          <StepProgress active={2} />
         </View>
       </View>
 
@@ -661,7 +726,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             balanceDue={balanceDue}
             grandTotal={grandTotal}
             onChangeMode={onChangeMode}
-            onChangeAmount={setPaidText}
+            onChangeAmount={onChangeAmount}
             colStyle={colStyle}
           />
         ) : null}
@@ -752,7 +817,8 @@ const PaymentSection = memo(function PaymentSection({
   const [pickerOpen, setPickerOpen] = useState(false);
   const selectedLabel = labelForMode(paymentType);
   const paid = Number(paidText) || 0;
-  const overTotal = paid > grandTotal;
+  const locked = !(grandTotal > 0);
+  const overTotal = !locked && paid > grandTotal;
 
   return (
     <>
@@ -782,9 +848,11 @@ const PaymentSection = memo(function PaymentSection({
             <View className="flex-row items-center flex-wrap" style={{ gap: rs(8) }}>
               {/* Mode dropdown */}
               <Pressable
-                onPress={() => setPickerOpen(true)}
+                onPress={locked ? undefined : () => setPickerOpen(true)}
+                disabled={locked}
+                accessibilityState={{ disabled: locked }}
                 className="flex-row items-center active:opacity-70"
-                style={{ flex: 1, minWidth: rs(140), borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: SOFT_MINT }}
+                style={{ flex: 1, minWidth: rs(140), borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: SOFT_MINT, opacity: locked ? 0.5 : 1 }}
               >
                 <Text
                   className="flex-1"
@@ -802,16 +870,17 @@ const PaymentSection = memo(function PaymentSection({
                 style={{
                   width: rs(122), borderRadius: 10, paddingHorizontal: 11,
                   borderWidth: 1, borderColor: overTotal ? '#F84141' : BORDER, backgroundColor: SOFT_MINT,
+                  opacity: locked ? 0.5 : 1,
                 }}
               >
                 <Text style={{ fontSize: 13, fontWeight: '800', color: PRIMARY }}>₹</Text>
                 <TextInput
                   value={paidText}
                   onChangeText={(t) => onChangeAmount(sanitizeAmount(t))}
+                  editable={!locked}
                   keyboardType="number-pad"
                   placeholder="0"
                   placeholderTextColor="#9CA3AF"
-                  editable={!!paymentType}
                   className="flex-1 font-extrabold"
                   style={{ color: INK, paddingVertical: 9, paddingLeft: 4, fontSize: 13, textAlign: 'right' }}
                 />
@@ -820,7 +889,11 @@ const PaymentSection = memo(function PaymentSection({
 
             {/* Consequence line — what the customer still owes, or why the field
                 is inert. Both answer the question the row just raised. */}
-            {!paymentType ? (
+            {locked ? (
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(10) }}>
+                Grand Total is ₹0 — enter the service prices to take a payment.
+              </Text>
+            ) : !paymentType ? (
               <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(10) }}>
                 Pick a mode to record money collected now. Leave it blank if the customer pays on delivery.
               </Text>

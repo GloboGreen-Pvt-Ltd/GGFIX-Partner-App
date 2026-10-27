@@ -27,6 +27,7 @@ import {
 import { ticketApi } from '../../api/client';
 import { getModelsByBrand } from '../../api/masterData';
 import { resolveDeviceImageSource } from '../../utils/images';
+import { useResponsive } from '../../theme/responsive';
 
 // Swiggy / Zomato green palette — matches AllBooking screens.
 const BRAND_GREEN = '#035C6C';
@@ -59,7 +60,7 @@ const STATUS_META = {
   READY:                { label: 'Ready for Delivery',   color: '#B45309', tint: '#FEF3C7', hint: 'Device is ready for billing & delivery.' },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    color: '#B45309', tint: '#FEF3C7', hint: 'Billing started — invoice created.' },
   INVOICE_READY:        { label: 'Invoice Ready',        color: '#B45309', tint: '#FEF3C7', hint: 'Invoice is finalized for handover.' },
-  DELIVERED_PROCESSING: { label: 'Out for Delivery',     color: '#B45309', tint: '#FEF3C7', hint: 'Handover to customer in progress.' },
+  DELIVERED_PROCESSING: { label: 'Dispatched',     color: '#B45309', tint: '#FEF3C7', hint: 'Handover to customer in progress.' },
   DELIVERED:            { label: 'Delivered',            color: BRAND_GREEN_DARK, tint: '#E5F3F5', hint: 'Device has been delivered.' },
   CANCELLED:            { label: 'Cancelled',            color: '#B91C1C', tint: '#FEE2E2', hint: 'Booking was cancelled.' },
   RETURNED:             { label: 'Returned',             color: '#B91C1C', tint: '#FEE2E2', hint: 'Device was returned.' },
@@ -90,6 +91,9 @@ function parsePriceItems(json) {
 
 export default function BillingScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: header, search and cards share one capped, centred column.
+  const cap = { width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' };
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -256,7 +260,7 @@ export default function BillingScreen({ navigation }) {
           >
             <Phone size={12} color={ACCENT_GREEN} />
           </View>
-          <Text className="text-[12px] font-semibold text-gray-800" numberOfLines={1}>
+          <Text className="text-[12px] font-semibold text-gray-800 shrink" numberOfLines={1}>
             {phone}
           </Text>
         </View>
@@ -345,7 +349,7 @@ export default function BillingScreen({ navigation }) {
           borderBottomColor: '#E5E7EB',
         }}
       >
-        <View className="flex-row items-center">
+        <View className="flex-row items-center" style={cap}>
           <View className="flex-1">
             <Text className="text-text text-[20px] font-extrabold" style={{ letterSpacing: 0.2 }}>
               Invoices
@@ -365,7 +369,7 @@ export default function BillingScreen({ navigation }) {
       </View>
 
       {/* Search bar below the hero */}
-      <View className="px-4" style={{ marginTop: 10 }}>
+      <View className="px-4" style={[{ marginTop: 10 }, cap]}>
         <View
           className="bg-white rounded-2xl flex-row items-center px-3 py-2.5"
           style={cardShadow}
@@ -400,7 +404,7 @@ export default function BillingScreen({ navigation }) {
       </View>
 
       {error ? (
-        <View className="px-4 mt-3">
+        <View className="px-4 mt-3" style={cap}>
           <View
             className="rounded-2xl px-4 py-3"
             style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}
@@ -424,7 +428,7 @@ export default function BillingScreen({ navigation }) {
             tintColor={BRAND_GREEN}
           />
         }
-        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
+        contentContainerStyle={[{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }, cap]}
         ListEmptyComponent={
           <View className="items-center pt-16 px-8">
             <View
@@ -468,7 +472,7 @@ function Action({ icon: Icon, label, onPress, primary }) {
           }}
         >
           <Icon size={14} color="#FFFFFF" />
-          <Text className="ml-1.5 text-white text-[12px] font-extrabold">{label}</Text>
+          <Text className="ml-1.5 text-white text-[12px] font-extrabold" numberOfLines={1}>{label}</Text>
         </LinearGradient>
       </TouchableOpacity>
     );
@@ -488,6 +492,7 @@ function Action({ icon: Icon, label, onPress, primary }) {
       <Text
         className="ml-1.5 text-[12px] font-extrabold"
         style={{ color: BRAND_GREEN_DARK }}
+        numberOfLines={1}
       >
         {label}
       </Text>

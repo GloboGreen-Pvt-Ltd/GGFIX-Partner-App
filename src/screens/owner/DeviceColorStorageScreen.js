@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image } from 'react-native';
+import { View, Text, Image } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Cpu, HardDrive } from 'lucide-react-native';
 import {
   AppHeader, Card, Input, BottomActionBar, ScreenContainer, useBottomBarInset,
@@ -7,6 +8,7 @@ import {
 import { tokens } from '../../theme/colors';
 import { getMasterImageSource } from '../../api/masterDataImages';
 import { useRamOptions, useStorageOptions } from '../../api/hooks/useMasterData';
+import { useResponsive } from '../../theme/responsive';
 
 const labelForOption = (o) => (o?.valueGb != null ? `${o.valueGb}GB` : o?.label || '');
 
@@ -81,6 +83,7 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
   const { ramOptions } = useRamOptions();
   const { storageOptions } = useStorageOptions();
   const insetBottom = useBottomBarInset();
+  const r = useResponsive();
 
   const modelDone = !isCustomModel || !!customModelName.trim();
   const canContinue = !!ramText.trim() && !!storageText.trim() && modelDone;
@@ -131,7 +134,11 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
   return (
     <ScreenContainer>
       <AppHeader title="Variant" subtitle="Pick the model variant" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 80 }}>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 12, paddingBottom: insetBottom + 80, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
+      >
         <Card>
           <View className="flex-row items-center">
             <View className="h-12 w-12 rounded-2xl bg-surface-muted items-center justify-center overflow-hidden mr-2.5">
@@ -157,7 +164,7 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
                 </Text>
               )}
               {brandLabel ? (
-                <Text className="text-[11px] text-text-muted mt-0.5">{brandLabel}</Text>
+                <Text className="text-[11px] text-text-muted mt-0.5" numberOfLines={1}>{brandLabel}</Text>
               ) : null}
             </View>
           </View>
@@ -187,7 +194,7 @@ export default function DeviceColorStorageScreen({ route, navigation }) {
           </View>
           <Input value={storageText} onChangeText={setStorageText} placeholder="e.g. 128 GB" />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomActionBar
         title="Continue"

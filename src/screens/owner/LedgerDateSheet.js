@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 import { rs } from '../../theme/metrics';
 import { C, S, SIZE, T } from './ledgerUi';
 import SafeModal from '../../components/SafeModal';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 /* ── date sheet ───────────────────────────────────────────────────────────
    A hand-rolled month grid rather than @react-native-community/datetimepicker:
@@ -81,7 +82,8 @@ export default function LedgerDateSheet({
         <Pressable
           onPress={() => {}}
           className="w-full bg-card"
-          style={{ borderRadius: SIZE.radius, padding: S.lg }}
+          // Tablets: a dialog, not a full-width slab.
+          style={{ borderRadius: SIZE.radius, padding: S.lg, maxWidth: CONTENT_MAX.form }}
         >
           {title ? (
             <Text
@@ -111,7 +113,7 @@ export default function LedgerDateSheet({
             >
               <ChevronLeft size={rs(16)} color={C.ink} />
             </Pressable>
-            <Text className="flex-1 text-center font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }}>
+            <Text className="flex-1 text-center font-extrabold" style={{ fontSize: T.rowTitle, color: C.ink }} numberOfLines={1}>
               {cursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
             </Text>
             <Pressable

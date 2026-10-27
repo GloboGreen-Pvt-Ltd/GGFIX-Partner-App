@@ -3,14 +3,17 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
-  ScrollView,
   TextInput,
   Image,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// safe-area-context, not RN's SafeAreaView: RN's pads nothing on Android, so
+// the custom header sat under the status bar.
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { CONTENT_MAX } from '../../theme/responsive';
 import { useRepairServices } from '../../api/hooks/useMasterData';
 import { getMasterImageSource } from '../../api/masterDataImages';
 import { useImeiApplies } from '../../utils/imeiPolicy';
@@ -95,16 +98,16 @@ export default function DeviceServicesScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
-        <Text style={styles.title}>Device Services</Text>
+        <Text style={styles.title} numberOfLines={1}>Device Services</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={24}>
         <View style={styles.deviceCard}>
           <Image
             source={getMasterImageSource(model, 'https://dummyassets.local/models/galaxy-z-fold-7.png')}
@@ -187,7 +190,7 @@ export default function DeviceServicesScreen({ route, navigation }) {
           <Text style={styles.continueText}>Continue</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -195,15 +198,16 @@ export default function DeviceServicesScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
-    height: 48,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
-  content: { padding: 12, paddingBottom: 24 },
+  title: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: '#111111' },
+  // Tablets: cap and centre the form column.
+  content: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' },
   deviceCard: {
     flexDirection: 'row',
     alignItems: 'center',

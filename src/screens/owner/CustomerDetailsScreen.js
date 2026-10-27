@@ -213,10 +213,10 @@ export default function CustomerDetailsScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
-        <Text style={styles.title}>Customer Details</Text>
+        <Text style={styles.title} numberOfLines={1}>Customer Details</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -403,14 +403,14 @@ function Label2({ label }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
-    height: 48,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
+  title: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: '#111111' },
   content: { padding: 12, paddingBottom: 24 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   sectionTitle: { marginLeft: 6, fontSize: 13, fontWeight: '700', color: '#111111' },

@@ -22,8 +22,17 @@ import {
   Pause,
   Trash2,
   Eraser,
+  Pencil,
+  Plus,
+  User,
+  Smartphone,
+  Clock,
 } from 'lucide-react-native';
+import RepairIssuesPicker, { SERVICE_CHARGE_CODE } from './RepairIssuesPicker';
+import { StepProgress } from './BookingSteps';
+import { deviceFromParams } from './ServiceBookingDevicesListScreen';
 import DeviceSecurityLockSheet from './DeviceSecurityLockSheet';
+import MissingPartsChecklist, { seedMissingParts, flaggedMissingParts } from './MissingPartsChecklist';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
 import ImageViewerModal from '../../../components/ImageViewerModal';
@@ -103,6 +112,10 @@ const LOCK_FIELD_OPTIONS = [
 // Device photos (optional, up to 5). Stored in devicePhotosJson as
 // { front, back, photo3, photo4, photo5 } so every existing reader — customer
 // app, staff app, booking edit — still finds the first two as front / back.
+// Reasons offered when the customer doesn't give an IMEI.
+const IMEI_OTHER = 'Other';
+const IMEI_SKIP_REASONS = ['Customer refused', 'Device not powering on', 'IMEI not visible / damaged', IMEI_OTHER];
+
 const PHOTO_KEYS = ['front', 'back', 'photo3', 'photo4', 'photo5'];
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // master-data /media/upload limit
 
@@ -180,7 +193,12 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const params = restored ? { ...(route?.params || {}), ...restored } : (route?.params || {});
   const insets = useSafeAreaInsets();
   const r = useResponsive();
-  const services = params.services || [];
+  // Repair issues / services are picked right here (RepairIssuesPicker), seeded
+  // from an earlier pass or an edit's saved line items.
+  const [services, setServices] = useState(() => (
+    Array.isArray(params.services) && params.services.length ? params.services
+      : Array.isArray(params.prefillServices) ? params.prefillServices : []
+  ));
   const total = services.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
 
   /**
@@ -202,17 +220,36 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     || (!params.reService && params.prefillEstimatedReadyIso)
     || now.toISOString();
   const [imei, setImei] = useState(params.prefillImei || '');
+  // "Customer didn't give IMEI" — closes the IMEI field and asks for a reason
+  // instead, so a booking can still go ahead without one.
+  const [noImei, setNoImei] = useState(false); // IMEI field only — no "No IMEI" option
+  const [noImeiReason, setNoImeiReason] = useState(params.prefillNoImeiReason || '');
+  const [noImeiOther, setNoImeiOther] = useState(params.prefillNoImeiOther || '');
   // Non-mobile devices (Laptop / Tablet / Smartwatch / Audio) take a serial number instead.
   const [serialNumber, setSerialNumber] = useState(params.prefillSerialNumber || params.serialNumber || '');
   // Charger, case, SIM tray … handed over with the device.
   const [accessories, setAccessories] = useState(params.prefillAccessories || params.accessories || '');
+  const [missingParts, setMissingParts] = useState(() => seedMissingParts(params.missingParts || params.prefillMissingParts));
   // Seeded from a saved lock on re-estimate; sent on as `lock`, so Device
   // Information skips its own lock popup.
   const seedLock = params.lock || params.prefillLock || null;
   const [lockType, setLockType] = useState(seedLock?.type || 'NONE');
   const [lockValue, setLockValue] = useState(seedLock?.value || '');
   const showImei = useImeiApplies(params); // mobile phones only
-  const [complaint, setComplaint] = useState(params.prefillComplaint || '');
+  // One description per picked issue ("Display: cracked glass"), plus free
+  // Notes. A saved complaint is split back into the two on re-entry.
+  const [issueNotes] = useState(() => {
+    if (params.prefillIssueNotes) return params.prefillIssueNotes;
+    const out = {};
+    String(params.prefillComplaint || '').split('\n').forEach((line) => {
+      const svc = (params.services || params.prefillServices || []).find((x) => x?.serviceName && line.startsWith(`${x.serviceName}: `));
+      if (svc) out[svc.serviceName] = line.slice(svc.serviceName.length + 2);
+    });
+    return out;
+  });
+  const [complaint, setComplaint] = useState(() => (params.prefillIssueNotes ? (params.prefillComplaint || '')
+    : String(params.prefillComplaint || '').split('\n').filter((line) => !(params.services || params.prefillServices || [])
+      .some((x) => x?.serviceName && line.startsWith(`${x.serviceName}: `))).join('\n')));
   const [duration, setDuration] = useState(() => {
     if (params.prefillEstimatedReadyIso && params.prefillEstimatedDeliveryIso) {
       const ms = new Date(params.prefillEstimatedDeliveryIso) - new Date(params.prefillEstimatedReadyIso);
@@ -387,6 +424,9 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     if (isRecording) { try { await stopRecording(); } catch (_) {} }
     await removeAudio();
     setImei('');
+    setNoImei(false);
+    setNoImeiReason('');
+    setNoImeiOther('');
     setComplaint('');
     setDuration(2);
     setReadyOverride(null);
@@ -440,9 +480,16 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   };
 
   // Continue allowed once the user has SOME description of the issue (text or
-  // audio) AND has explicitly toggled customer approval. Don't gate on IMEI —
-  // it's optional and not every device has one (laptops, audio gear).
-  const hasIssue = complaint.trim().length > 0 || !!audioUrl;
+  // audio) AND has explicitly toggled customer approval. IMEI is gated
+  // separately (imeiOk below) and only for phones — laptops / audio gear don't
+  // have one.
+  // Picker seed: services with their saved notes (the picker owns notes after this).
+  const [pickerSeed] = useState(() => services.map((s) => ({ ...s, note: s.note ?? issueNotes[s.serviceName] ?? '' })));
+  const hasIssue = services.length > 0 || complaint.trim().length > 0 || !!audioUrl;
+  // Issue lines first, then the Notes; just the issue names when nothing typed.
+  const issueLines = services.map((x) => (x.note?.trim() ? `${x.serviceName}: ${x.note.trim()}` : '')).filter(Boolean);
+  const complaintText = [...issueLines, complaint.trim()].filter(Boolean).join('\n')
+    || services.filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE).map((x) => x.serviceName).filter(Boolean).join(', ');
   // ── Device photos (moved here from Device Information) ─────────────────
   const seedPhotos = params.devicePhotos || params.prefillDevicePhotos;
   const [photoUrls, setPhotoUrls] = useState(() => (
@@ -475,13 +522,20 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       }
       return;
     }
+    // Photos and video: straight from the camera / gallery, no device check.
     try {
       const opts = isVideo
         ? { mediaTypes: 'videos', allowsEditing: false, videoMaxDuration: 15, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium }
         : { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
       const result = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
+      await uploadMediaAsset(result.assets[0], isVideo, target);
+    } catch (e) {
+      notify('Upload failed', e?.message || 'Try again');
+    }
+  };
+  const uploadMediaAsset = async (asset, isVideo, target = {}) => {
+    try {
       if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
         notify(isVideo ? 'Video too large' : 'Photo too large', isVideo
           ? 'The limit is 10 MB. Choose a shorter clip (about 5–8 seconds).'
@@ -532,6 +586,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     ...photoUrls.map((u, i) => ({ kind: 'photo', uri: u, index: i, label: `Photo ${i + 1}` })),
     ...(videoUrl ? [{ kind: 'video', uri: videoUrl, index: 0, label: 'Video' }] : []),
   ];
+  // Any device: up to 5 photos, optional.
   const canAddPhoto = photoUrls.length < PHOTO_KEYS.length;
   const canAddMedia = canAddPhoto || !videoUrl;
   // 3 thumbnails per row on phones, 5 on tablets (a hair under, so rounding never wraps).
@@ -539,7 +594,11 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 
   // At least one device photo is required; the video is optional.
   // Lock types this device can have (laptop: PIN + password; watch/audio: none).
-  const lockTypes = lockTypesFor(resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName));
+  const specCategory = resolveSpecCategory(params.deviceCategory, params.categoryCode, params.categoryName);
+  const lockTypes = lockTypesFor(specCategory);
+  // Missing / damaged parts is Mobile-only (unknown category keeps it).
+  const showMissingParts = !specCategory || specCategory === 'MOBILE';
+  const flaggedCount = flaggedMissingParts(missingParts).length;
   const lockOptions = [{ key: 'NONE', label: 'None' }, ...LOCK_FIELD_OPTIONS.filter((o) =>
     (o.key === 'ACCOUNT' ? lockTypes.includes('PATTERN') : lockTypes.includes(o.key)))];
   const patternDots = lockType === 'PATTERN' ? lockValue.split(',').filter(Boolean).length : 0;
@@ -549,28 +608,43 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     if (key === 'NONE') { setLockType('NONE'); setLockValue(''); return; }
     setLockSheet({ type: key, value: lockType === key ? lockValue : '' });
   };
-  const lockSummary = lockType === 'PIN' ? `${lockValue.length} digits`
-    : lockType === 'PASSWORD' ? `${lockValue.length} chars`
-    : lockType === 'PATTERN' ? lockValue.split(',').join('>')
-    : lockType === 'ACCOUNT' ? (lockValue || 'Set')
+  // Never the secret itself — only that one is set.
+  const lockSummary = lockType === 'PIN' ? (lockValue ? `PIN set · ${lockValue.length} digits` : '')
+    : lockType === 'PASSWORD' ? (lockValue ? 'Password set' : '')
+    : lockType === 'PATTERN' ? lockValue.split(',').filter(Boolean).join(' → ')
+    : lockType === 'ACCOUNT' ? (lockValue ? 'Account noted' : '')
     : '';
   const lockError = lockType === 'PIN' && lockValue.length < 4 ? 'Enter a 4–6 digit PIN.'
     : lockType === 'PASSWORD' && lockValue.length < 4 ? 'Enter at least 4 characters.'
     : lockType === 'PATTERN' && patternDots < 4 ? 'Draw at least 4 dots.'
     : '';
 
-  const isReady = hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && photoUrls.length > 0 && !lockError;
+  // IMEI (phones only): a valid 14–17 digit number, or "not given" + a reason.
+  // Re-estimates edit an existing ticket and aren't held up by it.
+  const imeiDigits = imei.replace(/\D/g, '');
+  const imeiValid = imeiDigits.length >= 14 && imeiDigits.length <= 17;
+  const noImeiText = noImeiReason === IMEI_OTHER ? noImeiOther.trim() : noImeiReason;
+  // IMEI is optional: empty is fine; a number that IS typed must be 14–17 digits.
+  const imeiOk = !showImei || params.reEstimate || (noImei ? !!noImeiText : (imeiDigits.length === 0 || imeiValid));
+
+  const isReady = services.length > 0 && hasIssue && approval && !uploadingAudio && !isRecording && !photoUploading && !lockError && imeiOk;
 
   // Back to Issue Description, then Next, used to open this screen empty — the
   // back press unmounts it. Keep what was entered (as the prefill* params this
   // screen already seeds from) in DRAFTS; no navigation dispatch mid-removal.
   const draftRef = useRef(null);
   draftRef.current = {
+    services,
     prefillImei: imei,
+    prefillNoImei: noImei,
+    prefillNoImeiReason: noImeiReason,
+    prefillNoImeiOther: noImeiOther,
     prefillSerialNumber: serialNumber,
     prefillAccessories: accessories,
+    prefillMissingParts: flaggedMissingParts(missingParts),
     prefillLock: { type: lockType, value: lockValue },
     prefillComplaint: complaint,
+    prefillIssueNotes: Object.fromEntries(services.filter((x) => x.note).map((x) => [x.serviceName, x.note])),
     prefillCustomerApproved: approval,
     prefillIssueAudioUrl: audioUrl || undefined,
     prefillDevicePhotos: devicePhotosParam(),
@@ -579,21 +653,25 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
     serviceStartIso: startIso,
   };
   useEffect(() => navigation.addListener('beforeRemove', (e) => {
-    if (!['GO_BACK', 'POP'].includes(e.data?.action?.type)) return;
+    // POP_TO too: "Change" on the device card jumps back to the picker.
+    if (!['GO_BACK', 'POP', 'POP_TO'].includes(e.data?.action?.type)) return;
     const key = prevRouteKey(navigation);
     if (key) DRAFTS[key] = draftRef.current;
   }), [navigation]);
 
-  const onContinue = () => {
-    if (!isReady) return;
-    navigation.navigate('DeviceInformation', {
-      ...params,
-      imei: imei.trim(),
+  // Everything this device carries on (same fields the review screen reads).
+  const deviceEntries = () => ({
+      services,
+      imei: showImei && noImei ? '' : imeiDigits,
       serialNumber: showImei ? undefined : (serialNumber.trim() || undefined),
+      // No ticket field for the reason, so it rides on the complaint where
+      // staff will see it.
+      complaint: [complaintText, showImei && noImei && noImeiText ? `IMEI not provided: ${noImeiText}` : '']
+        .filter(Boolean).join('\n'),
       devicePhotos: devicePhotosParam(),
       accessories: accessories.trim() || undefined,
+      missingParts: showMissingParts ? flaggedMissingParts(missingParts) : [],
       lock: lockOptions.length > 1 ? { type: lockType, value: lockType === 'NONE' ? '' : lockValue.trim() } : undefined,
-      complaint: complaint.trim(),
       issueAudioUrl: audioUrl || null,
       estimatedAt: `${dateLabel} ${timeLabel}, ${effectiveHours}Hr`,
       estimatedDelivery: `${deliveryDateLabel} - ${deliveryTimeLabel}`,
@@ -601,8 +679,55 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       estimatedDeliveryIso: delivery.toISOString(),
       durationHours: effectiveHours,
       customerApproved: approval,
+  });
+
+  // Save & Continue → Review & Confirm (prices are edited inline now, so the
+  // old Device Information pass is skipped).
+  const goingRef = useRef(false);
+  const onContinue = () => {
+    if (!isReady || goingRef.current) return;
+    goingRef.current = true;
+    setTimeout(() => { goingRef.current = false; }, 800);
+    navigation.navigate('ServiceBookingDevicesList', { ...params, ...deviceEntries() });
+  };
+
+  // Add Another Device: this device is saved into the booking's device list,
+  // then a blank device form opens for the SAME customer (never Customer Details).
+  const canAddAnother = !params.editMode && !params.reService && !params.reEstimate;
+  const onAddAnother = () => {
+    if (!isReady || goingRef.current) return;
+    const device = deviceFromParams({ ...params, ...deviceEntries() });
+    if (!device) { notify('Select a device', 'Choose the device model first.'); return; }
+    goingRef.current = true;
+    setTimeout(() => { goingRef.current = false; }, 800);
+    navigation.navigate('DeviceDetails', {
+      flow: 'BOOKING',
+      customerId: params.customerId,
+      customer: params.customer,
+      existingDevices: [...(Array.isArray(params.existingDevices) ? params.existingDevices : []), device],
+      ...(params.addToBookingNumber ? { addToBookingNumber: params.addToBookingNumber } : {}),
     });
   };
+
+  // Jump back to an earlier booking step that is still in this stack.
+  const inStack = (name) => (navigation.getState()?.routes || []).some((rt) => rt.name === name);
+  const backTo = (name) => { if (inStack(name)) navigation.popTo(name); };
+
+  // Compact summaries for the top cards.
+  const customer = params.customer || {};
+  const savedDevices = Array.isArray(params.existingDevices) ? params.existingDevices : [];
+  const deviceNo = savedDevices.length + 1;
+  const deviceImage = params.imageUrl || params.modelImageUrl || null;
+  const deviceSpec = [[params.ramLabel, params.storageLabel].filter(Boolean).join(' / '), params.color].filter(Boolean).join(' · ');
+  const dayWord = (d) => {
+    const a = startOfDay(d).getTime();
+    const t = startOfDay(now).getTime();
+    return a === t ? 'Today' : a === t + 86400000 ? 'Tomorrow' : formatDate(d);
+  };
+  const [durOpen, setDurOpen] = useState(false);
+  const [partsOpen, setPartsOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
+  const lockLabel = (lockOptions.find((o) => o.key === lockType) || {}).label || 'None';
 
   const recSeconds = Math.floor(recordingMs / 1000);
   const recLabel = `${String(Math.floor(recSeconds / 60)).padStart(2, '0')}:${String(recSeconds % 60).padStart(2, '0')}`;
@@ -633,7 +758,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
           back button and an equal spacer, so the title + subtitle stay centred
           at every width. Plain style objects — NativeWind drops a
           style={({ pressed }) => …} function, which left the button unsized. */}
-      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: LINE }}>
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 6, paddingBottom: 6, paddingHorizontal: 14 }}>
         <View style={[{ flexDirection: 'row', alignItems: 'center' }, colStyle]}>
           <Pressable
             onPress={() => navigation.goBack()}
@@ -648,14 +773,20 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
 
           <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' }}>
             <Text style={{ color: INK, fontSize: 17, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-              Device & Service Details
+              Devices & Repair
             </Text>
-            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1, textAlign: 'center' }} numberOfLines={2}>
-              Enter device details, issue, and estimated delivery.
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1, textAlign: 'center' }} numberOfLines={1}>
+              Add device and repair details
             </Text>
           </View>
 
           <View style={{ width: 36 }} />
+        </View>
+      </View>
+      {/* ✓ Customer → 2 Devices → 3 Confirm */}
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE }}>
+        <View style={colStyle}>
+          <StepProgress active={1} />
         </View>
       </View>
 
@@ -665,102 +796,95 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={colStyle}>
-          {/* ── Device IMEI ────────────────────────────────────────────── */}
-          {/* IMEI is captured for mobile phones only. */}
-          {showImei ? (
-          <>
-          {/* Label + one field: barcode icon · number · scan button inside. */}
-          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-              {/* Optional — Continue never waits on it (see hasIssue). */}
-              IMEI Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
-            </Text>
-            <View
-              className="flex-row items-center"
-              style={{
-                height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
-                backgroundColor: SCREEN_BG, paddingLeft: rs(12), paddingRight: rs(6),
-              }}
-            >
-              <Barcode size={rf(20)} color={INK} strokeWidth={1.75} />
-              <TextInput
-                placeholder="Enter 15-digit IMEI"
-                placeholderTextColor={SUBTLE}
-                value={imei}
-                onChangeText={setImei}
-                keyboardType="number-pad"
-                maxLength={17}
-                cursorColor={ACCENT}
-                style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
-              />
-              <Pressable
-                onPress={() => navigation.navigate('ScanImei', { onScan: (value) => setImei(value) })}
-                hitSlop={6}
-                className="items-center justify-center active:opacity-70"
-                style={{ height: rs(34), width: rs(34), borderRadius: rs(8) }}
-                accessibilityRole="button"
-                accessibilityLabel="Scan IMEI barcode"
-              >
-                <ScanLine size={rf(20)} color={INK} strokeWidth={1.75} />
-              </Pressable>
+          {/* ── Customer (from Step 1 — never asked again) ─────────────────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(12) }}>
+            <View style={[card, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: rs(12), paddingVertical: rs(9) }]}>
+              <View style={{ height: rs(32), width: rs(32), borderRadius: rs(16), backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}>
+                <User size={rf(16)} color={ACCENT} strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, marginLeft: rs(10) }}>
+                <Text style={{ fontSize: rf(11), color: MUTED }}>Customer</Text>
+                <Text style={{ fontSize: rf(14), fontWeight: '800', color: INK }} numberOfLines={1}>
+                  {customer.name || customer.fullName || '—'}
+                  {customer.phone || customer.mobile ? <Text style={{ fontWeight: '500', color: MUTED }}>{`  ·  ${customer.phone || customer.mobile}`}</Text> : null}
+                </Text>
+              </View>
+              {inStack('CustomerDetails') ? (
+                <Pressable
+                  onPress={() => backTo('CustomerDetails')}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit customer"
+                  className="items-center justify-center active:opacity-70"
+                  style={{ height: rs(32), width: rs(32), borderRadius: rs(16), backgroundColor: PAGE_BG }}
+                >
+                  <Pencil size={rf(15)} color={ACCENT} strokeWidth={2} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
-          </>
-          ) : (
-            /* Laptop / Tablet / Smartwatch / Audio: Serial Number, optional. */
-            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-                Serial Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
-              </Text>
-              <View
-                className="flex-row items-center"
-                style={{
-                  height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
-                  backgroundColor: SCREEN_BG, paddingHorizontal: rs(12),
-                }}
-              >
-                <Hash size={rf(19)} color={INK} strokeWidth={1.75} />
-                <TextInput
-                  placeholder="Enter serial number"
-                  placeholderTextColor={SUBTLE}
-                  value={serialNumber}
-                  onChangeText={setSerialNumber}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  maxLength={40}
-                  cursorColor={ACCENT}
-                  style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
-                />
-              </View>
-            </View>
-          )}
 
-          {/* ── Issue Description — label, then one box with the counter inside. */}
-          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-              Issue Description<Text style={{ color: RED_TEXT }}> *</Text>
-            </Text>
-            <View style={{ borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG }}>
-              <TextInput
-                placeholder="Describe the issue, e.g. Screen is cracked and touch not working properly."
-                placeholderTextColor={SUBTLE}
-                value={complaint}
-                onChangeText={setComplaint}
-                maxLength={500}
-                multiline
-                textAlignVertical="top"
-                cursorColor={ACCENT}
-                // No fixed lineHeight + no font padding: on Android those push typed
-                // text below the placeholder, so the first line looked like line two.
-                style={{
-                  minHeight: rs(84), fontSize: rf(14), color: INK, includeFontPadding: false, textAlignVertical: 'top',
-                  paddingHorizontal: rs(12), paddingTop: rs(10), paddingBottom: rs(4),
-                }}
-              />
-              <Text style={{ fontSize: rf(11), color: SUBTLE, textAlign: 'right', paddingHorizontal: rs(12), paddingBottom: rs(8) }}>
-                {complaint.length}/500
-              </Text>
+          {/* ── Devices already saved in this booking (bulk) ───────────────── */}
+          {savedDevices.length ? (
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(10), gap: rs(6) }}>
+              {savedDevices.map((d, i) => (
+                <View
+                  key={`saved-${i}`}
+                  className="flex-row items-center"
+                  style={{ paddingHorizontal: rs(12), paddingVertical: rs(8), borderRadius: rs(12), backgroundColor: MINT, borderWidth: 1, borderColor: ACCENT_30 }}
+                >
+                  <CircleCheck size={rf(16)} color={ACCENT} strokeWidth={2} />
+                  <Text style={{ marginLeft: rs(8), fontSize: rf(12.5), fontWeight: '800', color: ACCENT }}>Device {i + 1}</Text>
+                  <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(12.5), color: INK }} numberOfLines={1}>{d.modelName || 'Device'}</Text>
+                  <Text style={{ fontSize: rf(11.5), color: MUTED }}>
+                    {(d.services || []).length} issue{(d.services || []).length === 1 ? '' : 's'}
+                  </Text>
+                </View>
+              ))}
             </View>
+          ) : null}
+
+          {/* ── Device Information ─────────────────────────────────────────── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(14) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              Device Information{savedDevices.length ? <Text style={{ color: ACCENT }}>{`  ·  Device ${deviceNo}`}</Text> : null}
+            </Text>
+            <View style={[card, { flexDirection: 'row', alignItems: 'center', padding: rs(10) }]}>
+              <View style={{ height: rs(56), width: rs(56), borderRadius: rs(12), backgroundColor: PAGE_BG, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {deviceImage ? (
+                  <Image source={{ uri: deviceImage }} style={{ width: '88%', height: '88%' }} resizeMode="contain" />
+                ) : (
+                  <Smartphone size={rf(26)} color={MUTED} strokeWidth={1.75} />
+                )}
+              </View>
+              <View style={{ flex: 1, minWidth: 0, marginLeft: rs(10) }}>
+                <Text style={{ fontSize: rf(14), fontWeight: '800', color: INK }} numberOfLines={2}>
+                  {[params.brandName && !String(params.modelName || '').toLowerCase().startsWith(String(params.brandName).toLowerCase()) ? params.brandName : null, params.modelName].filter(Boolean).join(' ') || 'Device'}
+                </Text>
+                {deviceSpec ? <Text style={{ fontSize: rf(12), color: MUTED, marginTop: rs(1) }} numberOfLines={1}>{deviceSpec}</Text> : null}
+                {params.modelNumber ? <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: rs(1) }} numberOfLines={1}>{params.modelNumber}</Text> : null}
+              </View>
+              {inStack('DeviceDetails') ? (
+                <Pressable
+                  onPress={() => backTo('DeviceDetails')}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change device"
+                  className="active:opacity-70"
+                  style={{ paddingHorizontal: rs(12), paddingVertical: rs(6), borderRadius: rs(10), borderWidth: 1, borderColor: ACCENT }}
+                >
+                  <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: ACCENT }}>Change</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          {/* ── Repair Issues — issue groups, then the picked services with price + warranty ── */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(14) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              Repair Issues<Text style={{ color: RED_TEXT }}> *</Text>
+            </Text>
+            <RepairIssuesPicker categoryId={params.categoryId} initialServices={pickerSeed} onChange={setServices} isTablet={r.isTablet} withNotes withServiceCharge chargePerService />
           </View>
 
           {/* Voice note — the only quick-action card on this screen now
@@ -881,12 +1005,116 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* ── Device Photo or Video — at least one photo; one video optional.
+          {/* ── Device IMEI ────────────────────────────────────────────── */}
+          {/* IMEI is captured for mobile phones only. */}
+          {showImei ? (
+          <>
+          {/* Label + one field: barcode icon · number · scan button inside. */}
+          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+              {/* Optional — a typed number is still checked (imeiOk). */}
+              IMEI Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+            </Text>
+            <View
+              className="flex-row items-center"
+              style={{
+                height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                backgroundColor: SCREEN_BG, paddingLeft: rs(12), paddingRight: rs(6),
+              }}
+            >
+              <Barcode size={rf(20)} color={INK} strokeWidth={1.75} />
+              <TextInput
+                placeholder="Enter 15-digit IMEI"
+                placeholderTextColor={SUBTLE}
+                value={imei}
+                onChangeText={setImei}
+                keyboardType="number-pad"
+                maxLength={17}
+                cursorColor={ACCENT}
+                style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
+              />
+              <Pressable
+                onPress={() => navigation.navigate('ScanImei', { onScan: (value) => setImei(value) })}
+                hitSlop={6}
+                className="items-center justify-center active:opacity-70"
+                style={{ height: rs(34), width: rs(34), borderRadius: rs(8) }}
+                accessibilityRole="button"
+                accessibilityLabel="Scan IMEI barcode"
+              >
+                <ScanLine size={rf(20)} color={INK} strokeWidth={1.75} />
+              </Pressable>
+            </View>
+            {imeiDigits.length > 0 && !imeiValid ? (
+              <Text style={{ fontSize: rf(11.5), color: RED_TEXT, marginTop: rs(5) }}>
+                IMEI must be 14–17 digits ({imeiDigits.length} entered). Dial *#06# to see it.
+              </Text>
+            ) : null}
+          </View>
+          </>
+          ) : (
+            /* Laptop / Tablet / Smartwatch / Audio: Serial Number, optional. */
+            <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
+              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
+                Serial Number<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+              </Text>
+              <View
+                className="flex-row items-center"
+                style={{
+                  height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12),
+                  backgroundColor: SCREEN_BG, paddingHorizontal: rs(12),
+                }}
+              >
+                <Hash size={rf(19)} color={INK} strokeWidth={1.75} />
+                <TextInput
+                  placeholder="Enter serial number"
+                  placeholderTextColor={SUBTLE}
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={40}
+                  cursorColor={ACCENT}
+                  style={{ flex: 1, marginLeft: rs(10), paddingVertical: 0, fontSize: rf(14), color: INK }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ── Device Photo or Video — optional (photos and one video).
               Tap a thumbnail to preview / replace / remove it. ─────────────── */}
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
             <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>
-              Device Photo or Video<Text style={{ fontWeight: '400', color: MUTED }}> (Photo required)</Text>
+              Device Photo or Video<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
             </Text>
+            {/* Camera · Gallery · Video — straight to the source, no extra menu. */}
+            <View className="flex-row" style={{ gap: rs(8), marginBottom: rs(8) }}>
+              {[
+                { key: 'camera', label: 'Camera', icon: 'photo-camera', disabled: !canAddPhoto, onPress: () => pickMedia('photo', true) },
+                { key: 'gallery', label: 'Gallery', icon: 'photo-library', disabled: !canAddPhoto, onPress: () => pickMedia('photo', false) },
+                { key: 'video', label: 'Video', icon: 'videocam', disabled: !!videoUrl, onPress: () => setMediaSheet({ mode: 'add', kind: 'video' }) },
+              ].map((b) => {
+                const off = b.disabled || photoUploading;
+                return (
+                  <Pressable
+                    key={b.key}
+                    onPress={off ? undefined : b.onPress}
+                    disabled={off}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${b.label.toLowerCase()}`}
+                    accessibilityState={{ disabled: off }}
+                    className="flex-1 flex-row items-center justify-center active:opacity-80"
+                    style={{ height: rs(44), borderRadius: rs(12), borderWidth: 1, borderColor: off ? LINE : ACCENT_30, backgroundColor: off ? PAGE_BG : MINT, opacity: off ? 0.6 : 1 }}
+                  >
+                    {photoUploading && b.key !== 'video' ? (
+                      <ActivityIndicator size="small" color={ACCENT} />
+                    ) : (
+                      <MaterialIcons name={b.icon} size={rf(19)} color={off ? MUTED : ACCENT} />
+                    )}
+                    <Text style={{ marginLeft: rs(6), fontSize: rf(13), fontWeight: '700', color: off ? MUTED : ACCENT }} numberOfLines={1}>{b.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -rs(4) }}>
               {mediaItems.map((m) => (
                 <View key={m.uri} style={{ width: mediaPct, padding: rs(4) }}>
@@ -922,32 +1150,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   </Text>
                 </View>
               ))}
-              {canAddMedia ? (
-                <View style={{ width: mediaPct, padding: rs(4) }}>
-                  <Pressable
-                    onPress={() => setMediaSheet({ mode: 'add' })}
-                    disabled={photoUploading}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add media"
-                    className="items-center justify-center active:opacity-80"
-                    style={{ aspectRatio: 1, borderRadius: rs(12), borderWidth: 1.5, borderStyle: 'dashed', borderColor: ACCENT, backgroundColor: MINT }}
-                  >
-                    {photoUploading ? (
-                      <ActivityIndicator color={ACCENT} />
-                    ) : (
-                      <>
-                        <MaterialIcons name="add-photo-alternate" size={rf(30)} color={ACCENT} />
-                        <Text style={{ marginTop: rs(4), fontSize: rf(12.5), fontWeight: '700', color: ACCENT_TEXT }}>+ Add Media</Text>
-                      </>
-                    )}
-                  </Pressable>
-                  <Text style={{ marginTop: rs(4), fontSize: rf(11.5), color: 'transparent' }}> </Text>
-                </View>
-              ) : null}
             </View>
-            {!photoUrls.length ? (
-              <Text style={{ fontSize: rf(12), color: RED_TEXT, marginTop: rs(2) }}>Add at least one photo of the device.</Text>
-            ) : null}
           </View>
 
           {/* ── Device Additional Accessories ───────────────────────────────── */}
@@ -972,13 +1175,60 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* ── Device Security Lock (Optional) — PIN / Pattern / Password /
-              Account open the lock popup; the saved value shows on its row. ── */}
-          {lockOptions.length > 1 ? (
+          {/* ── More Device Details — Missing / Damaged Parts · Device Security,
+              both optional and folded; their values stay when folded. ───── */}
+          {showMissingParts || lockOptions.length > 1 ? (
             <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(4) }}>
-                Device Security Lock<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
-              </Text>
+              <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>More Device Details</Text>
+              <View style={{ borderWidth: 1, borderColor: LINE, borderRadius: rs(14), overflow: 'hidden', backgroundColor: SCREEN_BG }}>
+                {showMissingParts ? (
+                  <>
+                    <Pressable
+                      onPress={() => setPartsOpen((v) => !v)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: partsOpen }}
+                      accessibilityLabel="Missing or damaged parts, optional"
+                      className="flex-row items-center active:opacity-80"
+                      style={{ minHeight: rs(48), paddingHorizontal: rs(12) }}
+                    >
+                      <Text style={{ flex: 1, fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>
+                        Missing / Damaged Parts<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+                      </Text>
+                      {flaggedCount ? (
+                        <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: RED_TEXT, marginRight: rs(6) }}>
+                          {flaggedCount} Part{flaggedCount === 1 ? '' : 's'} Flagged
+                        </Text>
+                      ) : null}
+                      <ChevronDown size={rf(18)} color={INK} strokeWidth={2} style={{ transform: [{ rotate: partsOpen ? '180deg' : '0deg' }] }} />
+                    </Pressable>
+                    {partsOpen ? (
+                      <View style={{ paddingHorizontal: rs(12), paddingBottom: rs(12) }}>
+                        <MissingPartsChecklist value={missingParts} onChange={setMissingParts} />
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
+                {lockOptions.length > 1 ? (
+                  <>
+                    {showMissingParts ? <View style={{ height: 1, backgroundColor: LINE }} /> : null}
+                    <Pressable
+                      onPress={() => setLockOpen((v) => !v)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: lockOpen }}
+                      accessibilityLabel={`Device security, ${lockLabel}`}
+                      className="flex-row items-center active:opacity-80"
+                      style={{ minHeight: rs(48), paddingHorizontal: rs(12) }}
+                    >
+                      <Text style={{ flex: 1, fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>
+                        Device Security<Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text>
+                      </Text>
+                      <Text style={{ fontSize: rf(12), fontWeight: '700', color: lockType === 'NONE' ? MUTED : ACCENT, marginRight: rs(6) }} numberOfLines={1}>
+                        {lockType === 'NONE' ? 'None' : (lockSummary || lockLabel)}
+                      </Text>
+                      <ChevronDown size={rf(18)} color={INK} strokeWidth={2} style={{ transform: [{ rotate: lockOpen ? '180deg' : '0deg' }] }} />
+                    </Pressable>
+                    {lockOpen ? (
+                      <View style={{ paddingHorizontal: rs(12), paddingBottom: rs(8) }}>
               {lockOptions.map((o) => {
                 const on = lockType === o.key;
                 return (
@@ -1008,6 +1258,13 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   </Pressable>
                 );
               })}
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
+              </View>
+              {lockOptions.length > 1 ? (
+                <>
               <DeviceSecurityLockSheet
                 visible={!!lockSheet}
                 types={lockOptions.map((o) => o.key)}
@@ -1017,70 +1274,53 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 onConfirm={(l) => { setLockType(l.type); setLockValue(l.value || ''); setLockSheet(null); }}
                 onClose={() => setLockSheet(null)}
               />
+                </>
+              ) : null}
             </View>
           ) : null}
 
-          {/* ── Booking Date & Time — the current moment, read-only ─────────── */}
+          {/* ── Booking & Delivery — booking time is now; Estimated Delivery is
+              picked as a calendar date + clock time (Material pickers), so a
+              repair can be set hours or days (7, 9…) ahead. ──────────────── */}
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Booking Date & Time</Text>
-            <View
-              className="flex-row items-center"
-              style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: PAGE_BG, paddingHorizontal: rs(12) }}
-            >
-              <MaterialIcons name="event-available" size={rf(20)} color={INK} />
-              <Text style={{ flex: 1, marginLeft: rs(10), fontSize: rf(14), color: INK }} numberOfLines={1}>
-                {formatDateLong(now)}  ·  {timeLabel}
-              </Text>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Booking & Delivery</Text>
+            <View style={[card, { paddingHorizontal: rs(12), paddingVertical: rs(4) }]}>
+              <View className="flex-row items-center" style={{ minHeight: rs(42) }}>
+                <MaterialIcons name="event-available" size={rf(19)} color={INK} />
+                <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13), color: MUTED }}>Booking Time</Text>
+                <Text style={{ fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>{dayWord(now)}, {timeLabel}</Text>
+              </View>
             </View>
-            <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: rs(5) }}>Automatically uses the current date and time.</Text>
-          </View>
-
-          {/* ── Estimated Delivery Date & Time — booking time + hours; either
-              field opens a Google-style date / Material time picker. ─────── */}
-          <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Estimated Delivery Date & Time</Text>
-            <View className="flex-row" style={{ gap: rs(10) }}>
+            <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: INK, marginTop: rs(10), marginBottom: rs(6) }}>Estimated Delivery</Text>
+            <View className="flex-row" style={{ gap: rs(8) }}>
               <Pressable
                 onPress={openDatePicker}
                 accessibilityRole="button"
                 accessibilityLabel={`Delivery date ${formatDateLong(delivery)}. Change.`}
-                className="active:opacity-80"
-                style={{ flex: 1.15 }}
+                className="flex-row items-center active:opacity-80"
+                style={{ flex: 1.2, height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
               >
-                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: MUTED, marginBottom: rs(4) }}>Delivery Date</Text>
-                <View
-                  className="flex-row items-center"
-                  style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
-                >
-                  <MaterialIcons name="event" size={rf(20)} color={ACCENT} />
-                  <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '600', color: INK }} numberOfLines={1}>
-                    {formatDateLong(delivery)}
-                  </Text>
-                </View>
+                <MaterialIcons name="calendar-month" size={rf(19)} color={ACCENT} />
+                <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>
+                  {dayWord(delivery) === formatDate(delivery) ? formatDateLong(delivery) : `${dayWord(delivery)}, ${formatDate(delivery)}`}
+                </Text>
               </Pressable>
               <Pressable
                 onPress={openTimePicker}
                 accessibilityRole="button"
                 accessibilityLabel={`Delivery time ${deliveryTimeLabel}. Change.`}
-                className="active:opacity-80"
-                style={{ flex: 0.85 }}
+                className="flex-row items-center active:opacity-80"
+                style={{ flex: 0.8, height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
               >
-                <Text style={{ fontSize: rf(11.5), fontWeight: '600', color: MUTED, marginBottom: rs(4) }}>Delivery Time</Text>
-                <View
-                  className="flex-row items-center"
-                  style={{ height: rs(46), borderWidth: 1, borderColor: LINE, borderRadius: rs(12), backgroundColor: SCREEN_BG, paddingHorizontal: rs(10) }}
-                >
-                  <MaterialIcons name="schedule" size={rf(20)} color={ACCENT} />
-                  <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '600', color: INK }} numberOfLines={1}>
-                    {deliveryTimeLabel}
-                  </Text>
-                </View>
+                <MaterialIcons name="schedule" size={rf(19)} color={ACCENT} />
+                <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>{deliveryTimeLabel}</Text>
               </Pressable>
             </View>
             <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: rs(5) }}>
-              {readyOverride ? `Set manually · about ${effectiveHours} hr after booking` : `Booking time + ${effectiveHours} hr`}
+              Ready in {spanLabel} from booking
             </Text>
           </View>
+
 
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(6) }}>
             <View style={{ marginTop: rs(10) }}>
@@ -1123,18 +1363,32 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
         style={{ bottom: 0, paddingBottom: insets.bottom + rs(10), paddingHorizontal: rs(16), paddingTop: rs(10), backgroundColor: SCREEN_BG, borderTopWidth: 1, borderTopColor: LINE }}
       >
         <View style={colStyle}>
-          <View className="flex-row" style={{ gap: rs(12) }}>
+          <View className="flex-row" style={{ gap: rs(10) }}>
+            {canAddAnother ? (
+              <Pressable
+                onPress={onAddAnother}
+                disabled={!isReady}
+                className="flex-1 flex-row items-center justify-center active:opacity-85"
+                style={{ height: rs(48), borderRadius: rs(12), borderWidth: 1.5, borderColor: ACCENT, backgroundColor: '#FFFFFF', opacity: isReady ? 1 : 0.45 }}
+                accessibilityRole="button"
+                accessibilityLabel="Add another device"
+                accessibilityState={{ disabled: !isReady }}
+              >
+                <Plus size={rf(17)} color={ACCENT} strokeWidth={2.4} />
+                <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: ACCENT, marginLeft: rs(6) }} numberOfLines={1}>Add Another Device</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={onContinue}
               disabled={!isReady}
               className="flex-1 flex-row items-center justify-center active:opacity-85"
               style={{ height: rs(48), borderRadius: rs(12), backgroundColor: ACCENT, opacity: isReady ? 1 : 0.45 }}
               accessibilityRole="button"
-              accessibilityLabel="Next"
+              accessibilityLabel="Save and continue"
               accessibilityState={{ disabled: !isReady }}
             >
-              <Text style={{ fontSize: rf(14), fontWeight: '700', color: '#FFFFFF' }}>Next</Text>
-              <ArrowRight size={rf(18)} color="#FFFFFF" strokeWidth={2.25} style={{ marginLeft: rs(8) }} />
+              <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>Save & Continue</Text>
+              <ArrowRight size={rf(17)} color="#FFFFFF" strokeWidth={2.25} style={{ marginLeft: rs(6) }} />
             </Pressable>
           </View>
 
@@ -1146,10 +1400,12 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 ? 'Stop the recording first.'
                 : photoUploading
                 ? 'Uploading device media…'
+                : !services.length
+                ? 'Select at least one repair issue.'
                 : !hasIssue
                 ? 'Add an issue description to continue.'
-                : !photoUrls.length
-                ? 'Add at least one device photo to continue.'
+                : !imeiOk
+                ? 'IMEI must be 14–17 digits, or leave it empty.'
                 : params.reEstimate ? 'Confirm customer re-estimate approval to continue.' : 'Confirm customer approval to continue.'}
             </Text>
           ) : null}
@@ -1317,12 +1573,12 @@ function SheetOption({ icon, label, onPress, danger = false, disabled = false })
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       className="flex-row items-center active:opacity-70"
-      style={{ height: rs(54), opacity: disabled ? 0.4 : 1 }}
+      style={{ minHeight: rs(54), opacity: disabled ? 0.4 : 1 }}
     >
       <View style={{ height: rs(40), width: rs(40), borderRadius: rs(20), alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? 'rgba(220, 38, 38, 0.10)' : MINT }}>
         <MaterialIcons name={icon} size={rf(21)} color={danger ? '#DC2626' : ACCENT} />
       </View>
-      <Text style={{ marginLeft: rs(14), fontSize: rf(14.5), fontWeight: '600', color: danger ? '#DC2626' : INK }}>{label}</Text>
+      <Text style={{ flex: 1, marginLeft: rs(14), fontSize: rf(14.5), fontWeight: '600', color: danger ? '#DC2626' : INK }}>{label}</Text>
     </Pressable>
   );
 }

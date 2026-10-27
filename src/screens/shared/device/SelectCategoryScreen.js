@@ -28,7 +28,9 @@ const GRID_COLUMNS = 5;
 // Below this card width the sub-caption cannot render a whole word.
 const SUB_MIN_CARD = 100;
 function gridMetrics(screenWidth) {
-  const numColumns = GRID_COLUMNS;
+  // 5 on every phone (the design); tablets use the extra width for more
+  // tiles rather than 190pt-wide ones.
+  const numColumns = screenWidth >= 840 ? 8 : screenWidth >= 600 ? 6 : GRID_COLUMNS;
   // Math.floor — see SelectBrandScreen for explanation; without it RN can
   // round subpixel widths up and wrap the last card to a new row.
   const cardWidth = Math.floor((screenWidth - HORIZONTAL_PAD * 2 - GRID_GAP * (numColumns - 1)) / numColumns);

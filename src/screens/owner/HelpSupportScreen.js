@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { ShieldCheck, Store } from 'lucide-react-native';
+import { ChevronRight, ShieldCheck, Store } from 'lucide-react-native';
 import { ion } from '../../components/dashboard/solidIcons';
-import { SERIF, T } from '../../components/dashboard/theme';
+import { T } from '../../components/dashboard/theme';
+import { brand } from '../../theme/colors';
 import { getSupportContacts } from '../../api/masterData';
 import { getSession } from '../../auth/session';
 import { notify } from '../../components/confirm';
@@ -19,27 +22,20 @@ import { useResponsive } from '../../theme/responsive';
  * the phone / email without an app release.
  */
 
-// Same palette as My Account.
-const G = '#035C6C';
+// Same palette as My Account — the Oct 2026 brand sheet.
+const G = brand.teal;
+const G_DARK = '#02414C';
 const G_LIGHT = '#E5F3F5';
-const DARK = '#111111';
+const NAVY = brand.navy;
+const DARK = brand.black;
 const MUTED = '#6B7280';
-const LIGHT = '#F3F4F6';
-const BG = '#F3F4F6';
+const LIGHT = '#E9EDF0';
+const BG = brand.lightGray;
 const ICON_STROKE = 2;
 
-// Header — same values as OwnerPersonalInfoScreen / MyAccountScreen.
-const HEADER_BORDER = '#C7E6EA';
-const HEADER_TEXT = '#111111';
+// Header — white text and translucent round buttons on the teal gradient,
+// same values as MyAccountScreen.
 const HEADER = {
-  bar: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: rs(16),
-    paddingTop: rs(8),
-    paddingBottom: rs(12),
-    borderBottomWidth: 1,
-    borderBottomColor: HEADER_BORDER,
-  },
   row: { flexDirection: 'row', alignItems: 'center' },
   iconBtn: {
     width: rs(36),
@@ -47,20 +43,28 @@ const HEADER = {
     borderRadius: rs(18),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
-    borderColor: HEADER_BORDER,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   titleWrap: { flex: 1, alignItems: 'center', marginHorizontal: rs(8) },
-  title: { color: HEADER_TEXT, fontSize: T.headline, fontWeight: '800' },
-  subtitle: { color: '#6B7280', fontSize: T.caption2, marginTop: rs(2) },
+  title: { color: '#FFFFFF', fontSize: T.headline, fontWeight: '800' },
+  subtitle: { color: 'rgba(255,255,255,0.75)', fontSize: T.caption2, marginTop: rs(2) },
 };
 
-// Home screen tool-tile disc colours.
+// Solid tile colours (white glyph on top).
 const TONE = {
-  teal: '#357D89',
-  green: '#5E9440',
-  blue: '#3B82F6',
+  teal: brand.teal,
+  whatsapp: '#25D366',
+  blue: brand.blue,
+};
+
+const softShadow = {
+  shadowColor: '#1C3053',
+  shadowOpacity: 0.06,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
 };
 
 const DEFAULT_PHONE = '+91 81241 23452';
@@ -82,6 +86,7 @@ export default function HelpSupportScreen({ navigation }) {
   const [shop, setShop] = useState({ name: '', slug: '' });
 
   const r = useResponsive();
+  const isFocused = useIsFocused();
   const contentW = r.isTablet ? Math.min(r.width - rs(32), 920) : undefined;
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
 
@@ -128,54 +133,60 @@ export default function HelpSupportScreen({ navigation }) {
 
   return (
     <View className="flex-1" style={{ backgroundColor: BG }}>
-      {/* Header — same design as Personal Information / My Account. */}
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View style={HEADER.bar}>
-          <View style={[HEADER.row, capStyle]}>
-            <Pressable
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('OwnerTabs'))}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              style={({ pressed }) => [HEADER.iconBtn, pressed && { opacity: 0.7 }]}
-            >
-              <Ionicons name="chevron-back" size={19} color={HEADER_TEXT} />
-            </Pressable>
-            <View style={HEADER.titleWrap}>
-              <Text style={HEADER.title} numberOfLines={1}>Help & Support</Text>
-              <Text style={HEADER.subtitle} numberOfLines={1}>Talk to the Near G Fix team</Text>
+      {isFocused ? <StatusBar barStyle="light-content" backgroundColor={G} /> : null}
+
+      {/* Teal header: title bar + intro, one block (same as My Account). */}
+      <LinearGradient
+        colors={[G, G_DARK]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ borderBottomLeftRadius: rs(26), borderBottomRightRadius: rs(26) }}
+      >
+        <SafeAreaView edges={['top']}>
+          <View style={[{ paddingHorizontal: rs(16), paddingTop: rs(6), paddingBottom: rs(20) }, capStyle]}>
+            <View style={HEADER.row}>
+              <Pressable
+                onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('OwnerTabs'))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                style={({ pressed }) => [HEADER.iconBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="chevron-back" size={19} color="#FFFFFF" />
+              </Pressable>
+              <View style={HEADER.titleWrap}>
+                <Text style={HEADER.title} numberOfLines={1}>Help & Support</Text>
+                <Text style={HEADER.subtitle} numberOfLines={1}>Talk to the Near G Fix team</Text>
+              </View>
+              <View style={{ width: rs(36) }} />
             </View>
-            <View style={{ width: rs(36) }} />
+
+            <View className="flex-row items-center" style={{ marginTop: rs(18) }}>
+              <View style={{ width: rs(56), height: rs(56), borderRadius: rs(18), backgroundColor: brand.orange, alignItems: 'center', justifyContent: 'center', marginRight: rs(14), borderWidth: 3, borderColor: 'rgba(255,255,255,0.9)' }}>
+                <GLYPH.support size={rf(26)} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: '#FFFFFF' }}>Need help with your shop?</Text>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: rs(3), lineHeight: rf(17) }}>
+                  Call, WhatsApp or email us — we'll get back to you as soon as possible.
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: rs(16), paddingTop: rs(12), paddingBottom: 28 }}
+        contentContainerStyle={{ paddingHorizontal: rs(16), paddingTop: rs(4), paddingBottom: 28 + r.insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
         <View style={capStyle}>
-          {/* Intro — solid brand teal, white headset disc. */}
-          <View className="flex-row items-center" style={{ backgroundColor: G, borderRadius: rs(18), padding: rs(16) }}>
-            <View style={{ width: rs(48), height: rs(48), borderRadius: rs(24), backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', marginRight: rs(12) }}>
-              <GLYPH.support size={rf(24)} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#FFFFFF' }}>Need help with your shop?</Text>
-              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: rs(3), lineHeight: rf(17) }}>
-                Call, WhatsApp or email us — we'll get back to you as soon as possible.
-              </Text>
-            </View>
-          </View>
-
-          {/* Contact options — three tiles side by side. */}
           <SectionLabel subtitle="Choose how you'd like to reach us">Contact Us</SectionLabel>
-          <View className="flex-row" style={{ marginHorizontal: -rs(4) }}>
-            <ContactTile Glyph={GLYPH.call} tone="teal" label="Call Us" value={phone} onPress={call} />
-            <ContactTile Glyph={GLYPH.whatsapp} tone="green" label="WhatsApp" value={DEFAULT_WHATSAPP} onPress={whatsapp} />
-            <ContactTile Glyph={GLYPH.email} tone="blue" label="Email" value={email} onPress={mail} />
+          <View style={LIST_STYLE}>
+            <ContactRow Glyph={GLYPH.call} tone="teal" label="Call Us" value={phone} action="Call" onPress={call} />
+            <ContactRow Glyph={GLYPH.whatsapp} tone="whatsapp" label="WhatsApp" value={DEFAULT_WHATSAPP} action="Chat" onPress={whatsapp} />
+            <ContactRow Glyph={GLYPH.email} tone="blue" label="Email" value={email} action="Mail" onPress={mail} last />
           </View>
 
           {/* The shop details that go along with WhatsApp / email messages. */}
@@ -184,23 +195,25 @@ export default function HelpSupportScreen({ navigation }) {
               <SectionLabel subtitle="Sent with your message so we can find your shop">Your Shop</SectionLabel>
               <View style={{ ...LIST_STYLE, paddingVertical: rs(12) }}>
                 <View className="flex-row items-center">
-                  <View style={{ width: rs(36), height: rs(36), borderRadius: rs(18), backgroundColor: G_LIGHT, alignItems: 'center', justifyContent: 'center', marginRight: rs(10) }}>
-                    <Store size={rf(17)} color={G} strokeWidth={ICON_STROKE} />
+                  <View style={{ width: rs(40), height: rs(40), borderRadius: rs(12), backgroundColor: G, alignItems: 'center', justifyContent: 'center', marginRight: rs(12) }}>
+                    <Store size={rf(18)} color="#FFFFFF" strokeWidth={ICON_STROKE} />
                   </View>
                   <View className="flex-1" style={{ marginRight: rs(8) }}>
                     <Text style={{ fontSize: 10.5, color: MUTED }}>Shop name</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: DARK, marginTop: 1 }} numberOfLines={1}>{shop.name}</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '700', color: DARK, marginTop: 1 }} numberOfLines={1}>{shop.name}</Text>
                   </View>
                   {shop.slug ? (
                     <View className="items-end">
                       <Text style={{ fontSize: 10.5, color: MUTED }}>Shop ID</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: G, marginTop: 1 }} numberOfLines={1}>#{shop.slug.toUpperCase()}</Text>
+                      <View style={{ marginTop: rs(2), paddingHorizontal: rs(8), paddingVertical: rs(2), borderRadius: 999, backgroundColor: G_LIGHT }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: G }} numberOfLines={1}>#{shop.slug.toUpperCase()}</Text>
+                      </View>
                     </View>
                   ) : null}
                 </View>
-                <View className="flex-row items-center" style={{ marginTop: rs(10), paddingTop: rs(10), borderTopWidth: 1, borderTopColor: LIGHT }}>
-                  <ShieldCheck size={rf(14)} color={G} strokeWidth={ICON_STROKE} />
-                  <Text style={{ flex: 1, fontSize: 11, color: MUTED, marginLeft: rs(6), lineHeight: rf(15) }}>
+                <View className="flex-row items-center" style={{ marginTop: rs(12), padding: rs(10), borderRadius: rs(12), backgroundColor: G_LIGHT }}>
+                  <ShieldCheck size={rf(15)} color={G} strokeWidth={ICON_STROKE} />
+                  <Text style={{ flex: 1, fontSize: 11, color: NAVY, marginLeft: rs(8), lineHeight: rf(15) }}>
                     Included in WhatsApp and email messages so we can help you faster.
                   </Text>
                 </View>
@@ -213,44 +226,49 @@ export default function HelpSupportScreen({ navigation }) {
   );
 }
 
+// One white card per section — same as My Account.
 const LIST_STYLE = {
   backgroundColor: '#FFFFFF',
-  borderRadius: rs(16),
-  borderWidth: 1,
-  borderColor: LIGHT,
+  borderRadius: rs(18),
   paddingHorizontal: rs(12),
+  ...softShadow,
 };
 
 function SectionLabel({ children, subtitle }) {
   return (
-    <View style={{ marginTop: rs(16), marginBottom: rs(8) }}>
-      <Text style={{ fontSize: 15, fontWeight: '700', fontFamily: SERIF, color: DARK }}>{children}</Text>
+    <View style={{ marginTop: rs(18), marginBottom: rs(8), paddingHorizontal: rs(2) }}>
+      <Text style={{ fontSize: 15, fontWeight: '800', color: NAVY }}>{children}</Text>
       {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
     </View>
   );
 }
 
-// One contact option: Home-style disc (white icon), label, and the number /
-// address under it — shrinks to fit rather than cutting the email off.
-function ContactTile({ Glyph, tone, label, value, onPress }) {
+// One contact option: [solid tile + white glyph] label / number, action pill.
+// The value shrinks to fit rather than cutting the email off.
+function ContactRow({ Glyph, tone, label, value, action, onPress, last }) {
+  const color = TONE[tone] || TONE.teal;
   return (
-    <View style={{ flex: 1, paddingHorizontal: rs(4) }}>
-      <Pressable
-        onPress={onPress}
-        android_ripple={{ color: LIGHT }}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}, ${value}`}
-        className="items-center active:opacity-80"
-        style={{ backgroundColor: '#FFFFFF', borderRadius: rs(16), borderWidth: 1, borderColor: '#E5E7EB', paddingVertical: rs(14), paddingHorizontal: rs(6) }}
-      >
-        <View style={{ width: rs(46), height: rs(46), borderRadius: rs(23), backgroundColor: TONE[tone] || TONE.teal, alignItems: 'center', justifyContent: 'center' }}>
-          <Glyph size={rf(21)} color="#FFFFFF" />
-        </View>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: DARK, marginTop: rs(8) }} numberOfLines={1}>{label}</Text>
-        <Text style={{ fontSize: 10.5, color: MUTED, marginTop: rs(2), textAlign: 'center', alignSelf: 'stretch' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+    <Pressable
+      onPress={onPress}
+      android_ripple={{ color: LIGHT }}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${value}`}
+      className="flex-row items-center"
+      style={{ minHeight: rs(66), paddingVertical: rs(11), borderBottomWidth: last ? 0 : 1, borderBottomColor: '#F1F3F5' }}
+    >
+      <View style={{ width: rs(42), height: rs(42), borderRadius: rs(12), backgroundColor: color, alignItems: 'center', justifyContent: 'center', marginRight: rs(12) }}>
+        <Glyph size={rf(20)} color="#FFFFFF" />
+      </View>
+      <View className="flex-1" style={{ marginRight: rs(8) }}>
+        <Text style={{ fontSize: 13.5, fontWeight: '700', color: DARK }} numberOfLines={1}>{label}</Text>
+        <Text style={{ fontSize: 11.5, color: MUTED, marginTop: rs(2) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {value}
         </Text>
-      </Pressable>
-    </View>
+      </View>
+      <View className="flex-row items-center" style={{ paddingHorizontal: rs(10), paddingVertical: rs(5), borderRadius: 999, backgroundColor: G_LIGHT }}>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: G }}>{action}</Text>
+        <ChevronRight size={rf(13)} color={G} strokeWidth={ICON_STROKE} />
+      </View>
+    </Pressable>
   );
 }

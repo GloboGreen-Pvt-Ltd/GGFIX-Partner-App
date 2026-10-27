@@ -12,6 +12,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { ArrowLeft, Phone, UserRound } from 'lucide-react-native';
 import { notify } from '../../components/confirm';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import { C, S, SIZE, T, bottomInset, headerStyle } from './ledgerUi';
 import {
   PARTY_CUSTOMER,
@@ -70,6 +71,9 @@ function Field({ icon, value, onChangeText, placeholder, keyboardType, maxLength
 
 export default function OwnerLedgerPartyAddScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablet: form column and save button capped and centred (phones: full width).
+  const r = useResponsive();
+  const formCap = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
   const partyType = route.params?.partyType || PARTY_CUSTOMER;
   const copy = partyCopy(partyType);
 
@@ -138,7 +142,7 @@ export default function OwnerLedgerPartyAddScreen({ navigation, route }) {
         >
           <ArrowLeft size={rs(19)} color={C.ink} />
         </Pressable>
-        <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }}>
+        <Text className="flex-1 font-extrabold" style={{ fontSize: T.screenTitle, color: C.ink }} numberOfLines={1}>
           {copy.addCta}
         </Text>
       </View>
@@ -146,11 +150,11 @@ export default function OwnerLedgerPartyAddScreen({ navigation, route }) {
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
+          contentContainerStyle={[{
             paddingHorizontal: S.lg,
             paddingTop: S.md,
             paddingBottom: S.xl,
-          }}
+          }, formCap]}
         >
           {/* No "Add from Contacts" shortcut here. The contact list is the
               screen directly behind this one — offering a way back into it would
@@ -204,13 +208,13 @@ export default function OwnerLedgerPartyAddScreen({ navigation, route }) {
             onPress={submit}
             disabled={saving}
             className="items-center justify-center active:opacity-85"
-            style={{
+            style={[{
               backgroundColor: C.green,
               paddingVertical: S.md,
               minHeight: SIZE.buttonMin,
               borderRadius: SIZE.radius,
               opacity: saving ? 0.7 : 1,
-            }}
+            }, formCap]}
           >
             {saving ? (
               <ActivityIndicator color="#FFFFFF" />

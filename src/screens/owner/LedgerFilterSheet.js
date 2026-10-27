@@ -4,6 +4,7 @@ import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import { X } from 'lucide-react-native';
 import { rs } from '../../theme/metrics';
 import { C, S, SIZE, T } from './ledgerUi';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 /* ── filter sheet ─────────────────────────────────────────────────────────
    The Cash Book account list's sort + filter, behind the control on the Net
@@ -121,7 +122,8 @@ export default function LedgerFilterSheet({ visible, value, onClose, onApply }) 
             <Pressable
               onPress={() => {}}
               className="bg-card"
-              style={{ borderTopLeftRadius: rs(20), borderTopRightRadius: rs(20) }}
+              // Tablets: cap and centre the sheet instead of spanning the screen.
+              style={{ borderTopLeftRadius: rs(20), borderTopRightRadius: rs(20), width: '100%', maxWidth: CONTENT_MAX.form, alignSelf: 'center' }}
             >
               {/* ── header ─────────────────────────────────────────────── */}
               <View

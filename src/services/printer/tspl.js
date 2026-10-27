@@ -11,9 +11,10 @@
  * "don't bury these values" requirement) once a real printer is available.
  *
  * Content/layout (no headings anywhere — matches the on-screen LabelPreview):
- *   top-center    service number
- *   left           QR code (printer-generated, not a bitmap)
- *   right          brand+model / customer name / device security (3 lines)
+ *   top-center    brand+model (scalable font, sized to fit)
+ *   left           QR code (printer-generated, not a bitmap), vertically centred
+ *   right          service number / customer name / device security (3 lines,
+ *                  spread over the QR's height)
  *   bottom-center  created-on date + time, one line
  *
  * Pure/unit-testable: takes booking fields, returns the exact command
@@ -46,6 +47,23 @@ const BIG_FONT = { name: '3', charWidth: 16, height: 24 };
 const XL_FONT = { name: '4', charWidth: 24, height: 32 };
 const bumpFont = (f) => (f.height < BIG_FONT.height ? BIG_FONT : XL_FONT);
 
+// Brand line: TSPL scalable font "0" (condensed bold), sized in points
+// (`pt`) to the largest that fits the top band — the bitmap fonts' next step
+// up (16 dots/char) can't fit a typical model name on a 38 mm label.
+// charWidth is an estimate (~0.55 × height) used for fitting and centring.
+const DOTS_PER_PT = 203 / 72;
+const BRAND_MAX_PT = 11; // ~31 dots tall: the band above the QR is ~32
+const BRAND_MIN_PT = 7;
+function brandFont(text, band) {
+  const len = Math.max(1, String(text ?? '').length);
+  for (let pt = BRAND_MAX_PT; pt >= BRAND_MIN_PT; pt -= 1) {
+    const height = Math.round(pt * DOTS_PER_PT);
+    const charWidth = Math.round(height * 0.55);
+    if (len * charWidth <= band.width || pt === BRAND_MIN_PT) return { name: '0', pt, height, charWidth };
+  }
+  return null;
+}
+
 // Per-preset sizing. The wider 50mm BarCode1 label has room for a bigger QR
 // (5-dot modules) and a bigger detail font; each detail line uses the first
 // font in `detailFonts` it fits in, the last one wrapping onto two lines.
@@ -57,12 +75,9 @@ const PRESET_TUNING = {
 };
 
 // Main row: QR on the left, three unlabeled detail lines on the right.
-const QR_Y_MM = 6;
 const QR_CELL_SIZE = 4; // dots per QR module — smaller than a full-height QR
 // so the top/bottom bands have room; still readable/scannable at 25mm tall.
 const QR_TEXT_GAP_MM = 1.5;
-// Detail lines, as offsets from the QR's top edge.
-const TEXT_LINE_OFFSETS_MM = [1.5, 6, 10.5];
 // Bottom band sits this far above the label's bottom edge.
 const BOTTOM_FROM_EDGE_MM = 4;
 
@@ -118,18 +133,29 @@ export function computeLabelLayout(preset = DEFAULT_LABEL_PRESET, qrData = '') {
   // Square QR between the top and bottom bands. QR_CELL_SIZE holds for every
   // realistic tracking id; only an unusually long one (more modules than fit
   // the band) steps the module size down so it can't run into the created-on line.
-  const qrY = mm(QR_Y_MM);
+  // The band runs from under the tallest brand line to just above the
+  // created-on line, and the QR is centred vertically in it.
+  const bandTop = top.y + Math.round(BRAND_MAX_PT * DOTS_PER_PT) + mm(0.5);
+  const bandBottom = bottomY - mm(0.5);
   const modules = qrModules(qrData);
-  const qrMaxSize = bottomY - mm(0.5) - qrY;
+  const qrMaxSize = bandBottom - bandTop;
   const cell = Math.max(2, Math.min(tuning.qrCell || QR_CELL_SIZE, Math.floor(qrMaxSize / modules)));
-  const qr = { x: Math.max(0, margin + (tuning.qrShift || 0)), y: qrY, size: modules * cell, cell };
+  const qrSize = modules * cell;
+  const qrY = bandTop + Math.max(0, Math.floor((qrMaxSize - qrSize) / 2));
+  const qr = { x: Math.max(0, margin + (tuning.qrShift || 0)), y: qrY, size: qrSize, cell };
 
   const textX = qr.x + qr.size + mm(QR_TEXT_GAP_MM) + (tuning.textShift || 0);
   const textWidth = widthDots - margin - textX;
+  // Three detail slots spread over the QR's height: first slot's top on the
+  // QR's top edge, last slot's bottom on its bottom edge, even gaps between.
+  // The security slot is one font size up (labelTexts' bumpFont).
+  const detailFonts = tuning.detailFonts;
+  const slotHeights = [detailFonts[0].height, detailFonts[0].height, bumpFont(detailFonts[0]).height];
+  const slotGap = Math.max(0, (qr.size - slotHeights.reduce((a, b) => a + b, 0)) / 2);
   const text = {
     ...TEXT_FONT,
     x: textX,
-    ys: TEXT_LINE_OFFSETS_MM.map((o) => qr.y + mm(o)),
+    ys: [qr.y, Math.round(qr.y + slotHeights[0] + slotGap), qr.y + qr.size - slotHeights[2]],
     width: textWidth,
     maxChars: Math.max(1, Math.floor(textWidth / TEXT_FONT.charWidth)),
     fonts: tuning.detailFonts,
@@ -192,13 +218,20 @@ export function labelTexts(data, layout) {
   // The three detail lines, fitted (font + one or two lines each).
   const baseFonts = layout.text.fonts || DEFAULT_TUNING.detailFonts;
   const securityText = { ...layout.text, fonts: [bumpFont(baseFonts[0]), ...baseFonts] };
-  const details = [data?.brandModel, data?.customerName, data?.deviceSecurity]
+  // Brand + model on the top line, service number (GTS-…) first beside the QR.
+  const details = [data?.trackingId, data?.customerName, data?.deviceSecurity]
     .map((v, i) => fitDetail(v, i === 2 ? securityText : layout.text));
   const joined = (d) => d.lines.map((l) => l.text).join(' ');
+  // Brand names run longer than a service number: step the top font down
+  // until it fits on one line, truncating only at the smallest font.
+  const brand = String(data?.brandModel ?? '').trim();
+  const topFont = brandFont(brand, layout.top);
+  const topText = truncate(brand, Math.floor(layout.top.width / topFont.charWidth));
   return {
-    serviceNumber: truncate(data?.trackingId, layout.top.maxChars),
+    topLine: { text: topText, font: topFont, dy: Math.round((TOP_FONT.height - topFont.height) / 2) },
+    serviceNumber: joined(details[0]),
     details,
-    brandModel: joined(details[0]),
+    brandModel: topText,
     customerName: joined(details[1]),
     deviceSecurity: joined(details[2]),
     createdLine: data?.createdOn
@@ -227,7 +260,9 @@ export function buildLabelCommand(data, opts = {}) {
     `GAP ${preset.gapMm} mm,0 mm`,
     'DIRECTION 0',
     'CLS',
-    `TEXT ${centerX(t.serviceNumber, top)},${top.y},"${top.name}",0,1,1,"${esc(t.serviceNumber)}"`,
+    ...(t.topLine.text
+      ? [`TEXT ${centerX(t.topLine.text, { ...top, charWidth: t.topLine.font.charWidth })},${top.y + t.topLine.dy},"${t.topLine.font.name}",0,${t.topLine.font.pt},${t.topLine.font.pt},"${esc(t.topLine.text)}"`]
+      : []),
     // QRCODE x,y,ECC level,cell width,mode,rotation,"data" — the exact
     // trackingId the on-screen QR already encodes (LabelPreview.js /
     // BarcodePrintScreen.js), unchanged.

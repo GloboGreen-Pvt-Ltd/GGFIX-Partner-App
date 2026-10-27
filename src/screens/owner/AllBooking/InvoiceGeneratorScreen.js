@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StatusBar,
@@ -10,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
+import { useResponsive } from '../../../theme/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -24,10 +27,20 @@ import {
   Wallet,
   BookText,
   AlertTriangle,
+  ChevronUp,
+  Eye,
+  Pencil,
+  Phone,
+  Plus,
+  Smartphone,
+  Trash2,
+  User,
+  Wrench,
+  X,
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { notify } from '../../../components/confirm';
-import SafeModal from '../../../components/SafeModal';
+import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 // The same validator the Cash Book uses, and deliberately the same rule as
@@ -132,11 +145,22 @@ function priceItemsFromTicket(ticket) {
       if (Array.isArray(parsed)) return parsed;
     } catch (_) {}
   }
-  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return ticket?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price, warranty: s.warranty })) || [];
 }
+
+// Booking's own service-charge price line (Devices & Repair → Service Charge).
+const SERVICE_CHARGE_CODE = 'SERVICE_CHARGE';
+// Taxable value per unit: the rate, unless the owner set a different one.
+// (A part priced after booking used to keep an empty taxable value, so its
+// rate never reached the total — ₹1,000 part + ₹500 service billed ₹500.)
+const taxableOf = (sp) => (sp?.taxableEdited ? Number(sp.taxableValue) || 0 : Number(sp?.rate) || 0);
 
 export default function InvoiceGeneratorScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: cap the form column and centre it (sticky bar matches via padding).
+  const formW = r.maxWidth('form');
+  const barPadX = Math.max(16, (r.width - formW) / 2);
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [existing, setExisting] = useState(null);
@@ -147,8 +171,8 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
 
   // Form state — the visible inputs the owner edits
-  const [serviceChargesStr, setServiceChargesStr] = useState('0');
-  const [discountStr, setDiscountStr] = useState('0');
+  const [serviceChargesStr, setServiceChargesStr] = useState('');
+  const [discountStr, setDiscountStr] = useState('');
   const [taxMode, setTaxMode] = useState('WITHOUT');
   const [gstPercent, setGstPercent] = useState(0);
   // Editable spare lines: [{id, description, rate, warranty, qty, taxableValue}]
@@ -165,8 +189,11 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
   // `paidNowStr` is what is being handed over at delivery; the credit is
   // whatever is left and is never typed directly, so the three figures cannot
   // contradict each other.
-  const [paidNowStr, setPaidNowStr] = useState('0');
+  const [paidNowStr, setPaidNowStr] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
+  // Compact-layout UI state: Cash Book fold, preview.
+  const [cashOpen, setCashOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -185,27 +212,35 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
       // prior invoice snapshot. If we trust the saved snapshot we end up
       // hiding items that were added (or fixing) after the first generation,
       // which is exactly the "Screen Broken missing" bug.
-      const items = priceItemsFromTicket(t);
+      const allItems = priceItemsFromTicket(t);
+      const isCharge = (it) => String(it?.code || it?.serviceCode || '').toUpperCase() === SERVICE_CHARGE_CODE;
+      const bookedCharge = allItems.filter(isCharge).reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+      const items = allItems.filter((it) => !isCharge(it));
       setSpareLines(items.map((it, i) => {
         const rate = Number(it.amount || 0);
         return {
           id: it.id || `spare-${i}`,
           description: it.label || it.serviceName || `Item ${i + 1}`,
-          rate,
+          rate: rate || '',
           warranty: it.warranty || '',
           qty: 1,
-          // Default Taxable Value = Rate. Owner can override per-row to
-          // declare a smaller taxable portion if there's a margin.
-          taxableValue: rate,
+          // Taxable value follows the rate (taxableOf) until the owner sets a
+          // different one in the part sheet.
+          taxableEdited: false,
+          taxableValue: '',
         };
       }));
 
-      // Service Charges (A) is always a fresh manual entry starting at 0.
+      // Service Charges (A) is always a fresh manual entry, starting empty
+      // (0 is the placeholder, so typing 100 doesn't read 0100).
       // The tax / GST / discount picks are user preferences worth keeping
       // across visits, so those still rehydrate from the prior invoice.
-      setServiceChargesStr('0');
+      // Service Charges: the saved invoice's figure, else the booking's own
+      // Service Charge line, else empty (0 placeholder).
+      const savedCharge = Number(inv?.serviceCharges) || 0;
+      setServiceChargesStr(savedCharge > 0 ? String(savedCharge) : bookedCharge > 0 ? String(bookedCharge) : '');
       if (inv) {
-        setDiscountStr(String(Number(inv.discount || 0)));
+        setDiscountStr(Number(inv.discount) > 0 ? String(Number(inv.discount)) : '');
         const mode = inv.taxMode || 'WITHOUT';
         setTaxMode(mode);
         // Normalised on the way IN as well as on change: an invoice saved before
@@ -217,7 +252,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
       // No advance to restore — it is read straight off the ticket every time
       // (see the state block above), so a re-generated bill deducts the same
       // deposit as the first one.
-      setPaidNowStr(String(Number(inv?.amountPaid || 0)));
+      setPaidNowStr(Number(inv?.amountPaid) > 0 ? String(Number(inv.amountPaid)) : '');
       setPaymentNote(inv?.paymentNote || '');
     } finally {
       setLoading(false);
@@ -241,7 +276,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
     const serviceCharges = Number(serviceChargesStr) || 0;
     const discount       = Number(discountStr) || 0;
     const totalRepairAmount = spareLines.reduce((s, r) => s + (Number(r.rate) || 0) * (Number(r.qty) || 1), 0);
-    const spareUtility = spareLines.reduce((s, r) => s + (Number(r.taxableValue) || 0) * (Number(r.qty) || 1), 0);
+    const spareUtility = spareLines.reduce((s, r) => s + taxableOf(r) * (Number(r.qty) || 1), 0);
     const amount2plus3 = serviceCharges + spareUtility - discount;
     const gst = Number(gstPercent) || 0;
 
@@ -302,7 +337,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
     const rows = [];
     if (totals.serviceCharges > 0) rows.push(buildRow('A', totals.serviceCharges));
     spareLines.forEach((sp, i) => {
-      const grossGross = (Number(sp.taxableValue) || 0) * (Number(sp.qty) || 1);
+      const grossGross = taxableOf(sp) * (Number(sp.qty) || 1);
       if (grossGross > 0) rows.push(buildRow(String.fromCharCode(66 + i), grossGross));
     });
     return rows;
@@ -411,12 +446,12 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
             rate: Number(sp.rate) || 0,
             warranty: sp.warranty || '',
             qty: Number(sp.qty) || 1,
-            taxableValue: Number(sp.taxableValue) || 0,
+            taxableValue: taxableOf(sp),
             cgst: bd?.cgst ?? 0,
             sgst: bd?.sgst ?? 0,
             roundedValue: bd?.rounded ?? 0,
             totalGst: bd?.totalGst ?? 0,
-            totalAmount: bd?.total ?? ((Number(sp.taxableValue) || 0) * (Number(sp.qty) || 1)),
+            totalAmount: bd?.total ?? (taxableOf(sp) * (Number(sp.qty) || 1)),
           };
         })),
         serviceLinesJson: JSON.stringify(serviceLines),
@@ -470,620 +505,412 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
 
   if (loading) return <Loader label="Loading invoice generator..." />;
 
+  // ── Display bits ──────────────────────────────────────────────────────
+  const shownDevice = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(String(ticket?.deviceDisplayName || '').trim()) || [];
+  const modelName = (shownDevice[1] || '').trim() || ticket?.deviceModelName || ticket?.modelName || 'Device';
+  const specLine = [ticket?.modelNumber || (shownDevice[2] || '').trim(), (shownDevice[3] || '').replace(/ \/ /g, ' · ')]
+    .filter(Boolean).join(' · ');
+  const deviceImg = ticket?.deviceImageUrl || ticket?.modelImageUrl || null;
+  const payStatus = pay.credit <= 0 ? 'Paid' : (pay.paidNow > 0 || pay.advance > 0) ? 'Partially Paid' : 'Unpaid / Credit';
+  const payTone = pay.credit <= 0 ? '#476B26' : CREDIT_AMBER;
+  const partsTotal = totals.spareUtility;
+  const rateTotal = totals.totalRepairAmount;
+
+
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <View
-        style={{
-          backgroundColor: '#FFFFFF',
-          paddingTop: insets.top + 6,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB',
-        }}
-      >
-        <View className="flex-row items-center">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-            className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-surface-muted"
-          >
-            <ChevronLeft size={22} color="#111111" />
+      {/* ── 1. Header ── */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', maxWidth: formW, alignSelf: 'center' }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} accessibilityLabel="Go back"
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+            <ChevronLeft size={20} color="#111111" />
           </TouchableOpacity>
-          <Text className="flex-1 text-text text-[17px] font-extrabold" numberOfLines={1}>
-            Invoice Generator
-          </Text>
-          {ticket?.trackingId ? (
-            <View
-              className="px-2.5 py-1 rounded-full bg-surface-muted"
-              style={{ maxWidth: 160 }}
-            >
-              <Text className="text-text text-[11px] font-extrabold" numberOfLines={1}>
-                #{ticket.trackingId}
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '800', color: '#111111' }} numberOfLines={1}>Invoice Generator</Text>
+          <View style={{ minWidth: 36, maxWidth: 140, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E5F3F5' }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_GREEN, textAlign: 'center' }} numberOfLines={1}>
+              {ticket?.trackingId ? `#${ticket.trackingId}` : ''}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <KeyboardAwareScrollView
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 2, paddingBottom: insets.bottom + 120, width: '100%', maxWidth: formW, alignSelf: 'center' }}
+      >
+        {/* ── 2. Customer & device ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 56, height: 56, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+              {deviceImg ? <Image source={{ uri: deviceImg }} style={{ width: '88%', height: '88%' }} resizeMode="contain" />
+                : <Smartphone size={24} color={BRAND_GREEN} />}
+            </View>
+            <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+              <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#111111' }} numberOfLines={2}>{modelName}</Text>
+              {specLine ? <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>{specLine}</Text> : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 12, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <User size={13} color={BRAND_GREEN} />
+                  <Text style={{ marginLeft: 4, fontSize: 12, color: '#374151' }} numberOfLines={1}>{ticket?.customerName || '—'}</Text>
+                </View>
+                {ticket?.customerPhone ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Phone size={13} color={BRAND_GREEN} />
+                    <Text style={{ marginLeft: 4, fontSize: 12, color: '#374151' }} numberOfLines={1}>{formatPhone(ticket.customerPhone)}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        </Card>
+
+        {/* ── 3. Service charges ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BRAND_GREEN, alignItems: 'center', justifyContent: 'center' }}>
+              <Wrench size={15} color="#FFFFFF" strokeWidth={2.2} />
+            </View>
+            <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '800', color: '#1C3053' }}>Service Charges</Text>
+            <AmountBox value={serviceChargesStr} onChangeText={setServiceChargesStr} />
+          </View>
+        </Card>
+
+        {/* ── 4. Spare parts — each line's Rate, Qty and Warranty, inline ── */}
+        <Card>
+          <Head Icon={Package} title={`Spare Parts${spareLines.length ? ` (${spareLines.length})` : ''}`} />
+          {spareLines.length === 0 ? (
+            <Text style={{ fontSize: 12, color: '#6B7280', paddingVertical: 4 }}>No spare parts on this booking.</Text>
+          ) : spareLines.map((sp, i) => {
+            const box = { height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center' };
+            const input = { flex: 1, padding: 0, fontSize: 13.5, fontWeight: '700', color: '#111111' };
+            const cap = { fontSize: 11, color: '#6B7280', marginBottom: 3 };
+            return (
+              <View key={sp.id || i} style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: '#F3F4F6' }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#111111', marginBottom: 6 }} numberOfLines={2}>
+                  {sp.description || `Item ${i + 1}`}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1.4 }}>
+                    <Text style={cap}>Rate</Text>
+                    <View style={box}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#6B7280', marginRight: 4 }}>₹</Text>
+                      <TextInput
+                        value={String(sp.rate ?? '')}
+                        onChangeText={(v) => updateSpareField(i, 'rate', v.replace(/[^0-9.]/g, ''))}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor="#9CA3AF"
+                        cursorColor={BRAND_GREEN}
+                        accessibilityLabel={`${sp.description} rate`}
+                        style={[input, { textAlign: 'right' }]}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flex: 0.7 }}>
+                    <Text style={cap}>Qty</Text>
+                    <View style={box}>
+                      <TextInput
+                        value={String(sp.qty ?? '')}
+                        onChangeText={(v) => updateSpareField(i, 'qty', v.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                        placeholder="1"
+                        placeholderTextColor="#9CA3AF"
+                        cursorColor={BRAND_GREEN}
+                        accessibilityLabel={`${sp.description} quantity`}
+                        style={[input, { textAlign: 'center' }]}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flex: 1.3 }}>
+                    <Text style={cap}>Warranty</Text>
+                    <View style={box}>
+                      <TextInput
+                        value={String(sp.warranty ?? '')}
+                        onChangeText={(v) => updateSpareField(i, 'warranty', v)}
+                        placeholder="e.g. 3 Months"
+                        placeholderTextColor="#9CA3AF"
+                        cursorColor={BRAND_GREEN}
+                        accessibilityLabel={`${sp.description} warranty`}
+                        style={input}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+
+        {/* ── 5. Charges & discount → 6. Tax & GST → 7. Final amount ── */}
+        <Card>
+          <Head Icon={ReceiptText} title="Charges & Discount" />
+          <Row label="Parts Total" value={`₹${fmt(partsTotal)}`} sub={rateTotal !== partsTotal ? `Rate total ₹${fmt(rateTotal)} · billed on taxable value` : null} />
+          <Row label="Service Charges" value={`₹${fmt(totals.serviceCharges)}`} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+            <Text style={{ flex: 1, fontSize: 13, color: '#374151' }}>Discount</Text>
+            <AmountBox value={discountStr} onChangeText={setDiscountStr} />
+          </View>
+          <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 6 }} />
+          <Row label="Subtotal" value={`₹${fmt(totals.amount2plus3)}`} bold />
+
+          <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 8 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Percent size={14} color={BRAND_GREEN} />
+            <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: '800', color: '#1C3053' }}>Tax & GST</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1.3 }}>
+              <InlineDropdown
+                value={taxMode}
+                options={TAX_MODES}
+                onChange={(v) => {
+                  setTaxMode(v);
+                  // "Without" means no GST at all, so the rate goes with it.
+                  if (v === 'WITHOUT') setGstPercent(0);
+                }}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <InlineDropdown
+                value={gstPercent}
+                options={GST_OPTIONS}
+                onChange={setGstPercent}
+                formatLabel={(v) => `${v}%`}
+                disabled={taxMode === 'WITHOUT'}
+                disabledLabel="N/A"
+              />
+            </View>
+            <View style={{ flex: 1, minHeight: 38, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>₹{fmt(totals.totalGst)}</Text>
+            </View>
+          </View>
+          {showChargesSummary ? (
+            <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>
+              Base ₹{fmt(totals.baseAmount)} · CGST {Number(gstPercent) / 2}% + SGST {Number(gstPercent) / 2}% · {taxMode === 'INCLUSIVE' ? 'tax included in prices' : 'tax added on top'}
+            </Text>
+          ) : null}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#E5F3F5' }}>
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: BRAND_GREEN }}>Final Payable Amount</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: BRAND_GREEN }}>₹{fmt(totals.finalPayable)}</Text>
+          </View>
+        </Card>
+
+        {/* ── 8. Payment & credit ── */}
+        <Card>
+          <Head
+            Icon={Wallet}
+            title="Payment & Credit"
+            right={(
+              <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: pay.credit <= 0 ? '#EDF4E7' : CREDIT_AMBER_BG }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: payTone }}>{payStatus}</Text>
+              </View>
+            )}
+          />
+          <Row label="Final Amount" value={`₹${fmt(pay.finalPayable)}`} />
+          {/* Read-only: the deposit was recorded when the booking was taken. */}
+          <Row label="Advance Paid" value={`− ₹${fmt(pay.advance)}`} sub={advancePaid > 0 ? 'Collected at booking' : null} />
+          <Row label="Net Payable Now" value={`₹${fmt(pay.netPayable)}`} bold color={BRAND_GREEN} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+            <Text style={{ flex: 1, fontSize: 13, color: '#374151' }}>Amount Paid Now</Text>
+            {pay.netPayable > 0 && pay.paidNow < pay.netPayable ? (
+              <Pressable onPress={() => setPaidNowStr(String(+pay.netPayable.toFixed(2)))} accessibilityRole="button"
+                style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: BRAND_GREEN }}>Full</Text>
+              </Pressable>
+            ) : null}
+            <AmountBox value={paidNowStr} onChangeText={setPaidNowStr} editable={pay.netPayable > 0} />
+          </View>
+          {money(paidNowStr) > pay.netPayable && pay.netPayable >= 0 ? (
+            <Text style={{ fontSize: 11, color: '#DC2626', textAlign: 'right' }}>More than due — only ₹{fmt(pay.netPayable)} is counted.</Text>
+          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: pay.credit <= 0 ? '#EDF4E7' : CREDIT_AMBER_BG }}>
+            <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '800', color: payTone }}>Balance Due</Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: payTone }}>₹{fmt(pay.credit)}</Text>
+          </View>
+        </Card>
+
+        {/* ── 9. Cash Book (collapsible) ── */}
+        <Card style={{ paddingVertical: 10 }}>
+          <Pressable onPress={() => setCashOpen((v) => !v)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: creditTrackable ? '#609138' : '#DC2626', alignItems: 'center', justifyContent: 'center' }}>
+              {creditTrackable ? <BookText size={15} color="#FFFFFF" /> : <AlertTriangle size={15} color="#FFFFFF" />}
+            </View>
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#1C3053' }}>Cash Book Entry</Text>
+              <Text style={{ fontSize: 11, color: '#6B7280' }} numberOfLines={1}>
+                {pay.credit > 0 ? (creditTrackable ? `₹${fmt(pay.credit)} goes on the customer's account` : 'Balance can’t be tracked — no mobile number') : 'Nothing outstanding'}
+              </Text>
+            </View>
+            {cashOpen ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+          </Pressable>
+          {cashOpen ? (
+            <View style={{ marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: creditTrackable ? '#E5F3F5' : '#FEE2E2' }}>
+              <Row label="Customer" value={`${ticket?.customerName || 'Customer'}${creditTrackable ? ` · ${formatPhone(ticket?.customerPhone)}` : ''}`} />
+              <Row label="Invoice" value={`#${ticket?.trackingId || '—'} · ${toApiDate(new Date())}`} />
+              <Row label="Received now" value={`₹${fmt(pay.paidNow)}`} />
+              <Row label="Outstanding balance" value={`₹${fmt(pay.credit)}`} bold color={pay.credit > 0 ? CREDIT_AMBER : '#476B26'} />
+              <Text style={{ fontSize: 11, color: creditTrackable ? '#6B7280' : '#B91C1C', marginTop: 4 }}>
+                {creditTrackable
+                  ? 'Only money received is recorded as cash in. When they pay later, record it on their Cash Book account — the balance drops by what they hand over.'
+                  : 'This booking has no valid 10-digit mobile number, so no customer account can be opened for the balance. Add one on the booking first.'}
               </Text>
             </View>
           ) : null}
-        </View>
-      </View>
+        </Card>
 
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}
-      >
-        {/* (A) Service Charges — single row matching the reference:
-            label on the left, narrow input on the right. */}
-        <View className="px-4" style={{ marginTop: 12 }}>
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[13px] font-bold text-gray-900">
-                (A) Service Charges
-              </Text>
-              <View
-                className="flex-row items-center px-3 py-1.5 rounded-lg"
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  backgroundColor: '#FFFFFF',
-                  minWidth: 130,
-                }}
-              >
-                <Text className="text-[13px] font-extrabold mr-1 text-gray-700">₹</Text>
-                <TextInput
-                  value={serviceChargesStr}
-                  onChangeText={(v) => setServiceChargesStr(v.replace(/[^0-9.]/g, ''))}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor="#9CA3AF"
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    fontWeight: '700',
-                    color: '#111111',
-                    padding: 0,
-                    textAlign: 'right',
-                  }}
-                />
-              </View>
-            </View>
-          </View>
-        </View>
+        {/* ── 10. Payment note (optional) ── */}
+        <Card>
+          <TextInput
+            value={paymentNote}
+            onChangeText={setPaymentNote}
+            placeholder="Payment remarks (optional)"
+            placeholderTextColor="#9CA3AF"
+            multiline
+            maxLength={200}
+            cursorColor={BRAND_GREEN}
+            style={{ minHeight: 44, maxHeight: 90, padding: 0, fontSize: 13.5, color: '#111111', textAlignVertical: 'top' }}
+          />
+        </Card>
 
-        {/* Spare Part Taxable Value — bordered table matching the reference
-            (Sl.No | Description | Rate | Warranty | Qty | Taxable Value).
-            6 cols won't fit a phone width, so the table scrolls horizontally
-            and every cell is editable in-place. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <View className="flex-row items-center justify-between mb-3">
-              <SectionHeader icon={Package} label="SPARE PART TAXABLE VALUE" />
-              {spareLines.length > 0 ? (
-                <Text className="text-[10px] font-bold text-gray-400" style={{ letterSpacing: 0.4 }}>
-                  {spareLines.length} {spareLines.length === 1 ? 'ITEM' : 'ITEMS'}
-                </Text>
-              ) : null}
-            </View>
+        {/* ── 11. Invoice preview ── */}
+        <Pressable onPress={() => setPreviewOpen(true)} accessibilityRole="button" className="active:opacity-85"
+          style={{ marginTop: 10, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: BRAND_GREEN, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          <Eye size={16} color={BRAND_GREEN} />
+          <Text style={{ marginLeft: 6, fontSize: 14, fontWeight: '800', color: BRAND_GREEN }}>Preview Invoice</Text>
+        </Pressable>
+      </KeyboardAwareScrollView>
 
-            {spareLines.length === 0 ? (
-              <Text className="text-[12px] text-gray-500 py-3">No spare parts recorded.</Text>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View
-                  style={{
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    borderRadius: 6,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Header */}
-                  <View
-                    className="flex-row"
-                    style={{
-                      backgroundColor: '#F3F4F6',
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#E5E7EB',
-                    }}
-                  >
-                    <SpareHeadCell w={44}>Sl.No</SpareHeadCell>
-                    <SpareHeadCell w={140}>Description</SpareHeadCell>
-                    <SpareHeadCell w={90}>Rate</SpareHeadCell>
-                    <SpareHeadCell w={90}>Warranty</SpareHeadCell>
-                    <SpareHeadCell w={56}>Qty</SpareHeadCell>
-                    <SpareHeadCell w={100} last>Taxable Value</SpareHeadCell>
-                  </View>
-                  {/* Body */}
-                  {spareLines.map((sp, i) => {
-                    const isLast = i === spareLines.length - 1;
-                    return (
-                      <View
-                        key={sp.id || i}
-                        className="flex-row"
-                        style={{
-                          borderBottomWidth: isLast ? 0 : 1,
-                          borderBottomColor: '#E5E7EB',
-                        }}
-                      >
-                        <SpareReadCell w={44}>
-                          {String.fromCharCode(66 + i)}
-                        </SpareReadCell>
-                        <SpareInputCell
-                          w={140}
-                          value={sp.description}
-                          onChange={(v) => updateSpareField(i, 'description', v)}
-                        />
-                        <SpareInputCell
-                          w={90}
-                          prefix="₹"
-                          value={String(sp.rate ?? '')}
-                          onChange={(v) => updateSpareField(i, 'rate', v.replace(/[^0-9.]/g, ''))}
-                          keyboardType="decimal-pad"
-                        />
-                        <SpareInputCell
-                          w={90}
-                          value={String(sp.warranty ?? '')}
-                          onChange={(v) => updateSpareField(i, 'warranty', v)}
-                        />
-                        <SpareInputCell
-                          w={56}
-                          value={String(sp.qty ?? '')}
-                          onChange={(v) => updateSpareField(i, 'qty', v.replace(/[^0-9.]/g, ''))}
-                          keyboardType="decimal-pad"
-                        />
-                        <SpareInputCell
-                          w={100}
-                          last
-                          prefix="₹"
-                          value={String(sp.taxableValue ?? '')}
-                          onChange={(v) => updateSpareField(i, 'taxableValue', v.replace(/[^0-9.]/g, ''))}
-                          keyboardType="decimal-pad"
-                          accent={BRAND_GREEN_DARK}
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            )}
-            {spareLines.length > 0 ? (
-              <Text className="text-[10px] text-gray-400 mt-2">
-                Tap any cell to edit · scroll → for full row
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Repair totals — plain numbered rows matching the reference (no
-            colored badges, no SectionHeader). Discount (4) keeps an input
-            box on the right since it's the only editable value here. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionHeader icon={ReceiptText} label="REPAIR TOTALS" />
-            <PlainTotalRow label="(1) Total Repair Amount" value={`₹${fmt(totals.totalRepairAmount)}`} />
-            <PlainTotalRow label="(2) Service Charges"      value={`₹${fmt(totals.serviceCharges)}`} />
-            <PlainTotalRow label="(3) Spare Utility Charges (Taxable Value)" value={`₹${fmt(totals.spareUtility)}`} />
-            <View className="flex-row items-center py-1.5">
-              <Text className="text-[12px] font-semibold text-gray-700 flex-1">
-                (4) Discount
-              </Text>
-              <View
-                className="flex-row items-center px-3 py-1.5 rounded-lg"
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  backgroundColor: '#FFFFFF',
-                  minWidth: 130,
-                }}
-              >
-                <Text className="text-[13px] font-extrabold mr-1 text-gray-700">₹</Text>
-                <TextInput
-                  value={discountStr}
-                  onChangeText={(v) => setDiscountStr(v.replace(/[^0-9.]/g, ''))}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor="#9CA3AF"
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    fontWeight: '700',
-                    color: '#111111',
-                    textAlign: 'right',
-                    padding: 0,
-                  }}
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Tax / GST / Amount — three columns side-by-side matching the
-            reference (Tax dropdown · GST % dropdown · readonly Amount). */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionHeader icon={Percent} label="TAX & GST" />
-            <View className="flex-row" style={{ marginHorizontal: -4 }}>
-              <View className="flex-1 px-1">
-                <Text
-                  className="text-[11px] font-bold text-gray-700 mb-1.5"
-                  style={{ letterSpacing: 0.3 }}
-                >
-                  Tax
-                </Text>
-                <InlineDropdown
-                  value={taxMode}
-                  options={TAX_MODES}
-                  onChange={(v) => {
-                    setTaxMode(v);
-                    // "Without" means no GST at all, so the rate goes with it.
-                    // Leaving a stale 18% behind would persist a gstPercent the
-                    // invoice never charged, and the report screen recomputes
-                    // its per-row CGST/SGST from that column.
-                    if (v === 'WITHOUT') setGstPercent(0);
-                  }}
-                />
-              </View>
-              <View className="flex-1 px-1">
-                <Text
-                  className="text-[11px] font-bold text-gray-700 mb-1.5"
-                  style={{ letterSpacing: 0.3 }}
-                >
-                  GST %
-                </Text>
-                {/* Read-only under "Without": there is no rate to pick when no
-                    GST is being charged, and a dropdown that opens onto six
-                    options none of which change the total reads as broken. */}
-                <InlineDropdown
-                  value={gstPercent}
-                  options={GST_OPTIONS}
-                  onChange={setGstPercent}
-                  formatLabel={(v) => `${v}%`}
-                  disabled={taxMode === 'WITHOUT'}
-                  disabledLabel="N/A"
-                />
-              </View>
-              <View className="flex-1 px-1">
-                <Text
-                  className="text-[11px] font-bold text-gray-700 mb-1.5"
-                  style={{ letterSpacing: 0.3 }}
-                >
-                  Amount ( 2 + 3 )
-                </Text>
-                <View
-                  className="px-3 py-2 rounded-xl"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    backgroundColor: '#E5F3F5',
-                    minHeight: 38,
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text
-                    className="text-[12px] font-extrabold"
-                    style={{ color: '#111111' }}
-                    numberOfLines={1}
-                  >
-                    {fmt(totals.amount2plus3)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Charges summary table (only when Inclusive/Exclusive with GST).
-            7 columns won't fit a phone width, so the body scrolls
-            horizontally; sticky-left "Item" stays anchored visually
-            via its fixed width at the front of every row. */}
-        {showChargesSummary && chargesSummary.length > 0 ? (
-          <View className="px-4 mt-4">
-            <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-              <SectionHeader
-                icon={FileText}
-                label={`CHARGES SUMMARY (CGST ${Number(gstPercent) / 2}% + SGST ${Number(gstPercent) / 2}%)`}
-              />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View>
-                  {/* Header */}
-                  <View
-                    className="flex-row pb-2 mb-1"
-                    style={{ borderBottomWidth: 1, borderBottomColor: '#E5F3F5' }}
-                  >
-                    <ChargesHead w={32} align="left">ITEM</ChargesHead>
-                    <ChargesHead w={92}>BASE (₹)</ChargesHead>
-                    <ChargesHead w={78}>CGST (₹)</ChargesHead>
-                    <ChargesHead w={78}>SGST (₹)</ChargesHead>
-                    <ChargesHead w={78}>ROUNDED</ChargesHead>
-                    <ChargesHead w={96}>TOTAL GST</ChargesHead>
-                    <ChargesHead w={96}>TOTAL (₹)</ChargesHead>
-                  </View>
-                  {/* Body */}
-                  {chargesSummary.map((r, i) => (
-                    <View
-                      key={i}
-                      className="flex-row py-1.5"
-                      style={{
-                        borderBottomWidth: i < chargesSummary.length - 1 ? 1 : 0,
-                        borderBottomColor: '#F3F4F6',
-                      }}
-                    >
-                      <ChargesCell w={32} align="left" bold>{r.label}</ChargesCell>
-                      <ChargesCell w={92}>{fmt(r.base)}</ChargesCell>
-                      <ChargesCell w={78}>{fmt(r.cgst)}</ChargesCell>
-                      <ChargesCell w={78}>{fmt(r.sgst)}</ChargesCell>
-                      <ChargesCell w={78}>{fmt(r.rounded)}</ChargesCell>
-                      <ChargesCell w={96}>{fmt(r.totalGst)}</ChargesCell>
-                      <ChargesCell w={96} bold accent={BRAND_GREEN_DARK}>
-                        {fmt(r.total)}
-                      </ChargesCell>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-              <Text className="text-[10px] text-gray-400 mt-2">
-                Total GST = CGST + SGST − Rounded Value · scroll → for full row
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Payable Summary — plain rows matching the reference (no dark
-            green band, no SectionHeader). Final Payable still stands out
-            via heavier font weight on the last row. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionHeader icon={IndianRupee} label="PAYABLE SUMMARY" />
-            <PlainTotalRow label="Base Amount (₹)" value={`₹${fmt(totals.baseAmount)}`} />
-            <PlainTotalRow label="Total GST (₹)"   value={`₹${fmt(totals.totalGst)}`} divider />
-            <View className="flex-row items-center justify-between py-2">
-              <Text className="text-[13px] font-extrabold text-gray-900">
-                Final Payable Amount (₹)
-              </Text>
-              <Text className="text-[13px] font-extrabold text-gray-900">
-                ₹{fmt(totals.finalPayable)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Payment & Credit — the chain from what the repair cost to what the
-            customer still owes. Only two of the five figures are typed; the
-            rest are derived, so the card can't be made to contradict itself. */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-2xl p-4" style={cardShadow}>
-            <SectionHeader icon={Wallet} label="PAYMENT & CREDIT" />
-
-            <PlainTotalRow label="Final Payable Amount" value={`₹${fmt(pay.finalPayable)}`} />
-
-            {/* Read-only: the deposit is a fact recorded when the booking was
-                taken, not a figure to re-key at billing time. */}
-            <MoneyInputRow
-              label="(−) Advance Already Paid"
-              hint={
-                advancePaid > 0
-                  ? `₹${fmt(advancePaid)} collected at booking`
-                  : 'Nothing was collected when this booking was taken'
-              }
-              value={fmt(advancePaid)}
-              readOnly
-            />
-
-            <View
-              className="flex-row items-center justify-between py-2"
-              style={{
-                borderTopWidth: 1,
-                borderTopColor: '#E5F3F5',
-                borderBottomWidth: 1,
-                borderBottomColor: '#E5F3F5',
-              }}
-            >
-              <Text className="text-[13px] font-extrabold text-gray-900">
-                Net Payable Now
-              </Text>
-              <Text className="text-[13px] font-extrabold" style={{ color: ACCENT_GREEN }}>
-                ₹{fmt(pay.netPayable)}
-              </Text>
-            </View>
-
-            <MoneyInputRow
-              label="(−) Amount Paid Now"
-              value={paidNowStr}
-              onChange={setPaidNowStr}
-              action={
-                pay.netPayable > 0 && pay.paidNow < pay.netPayable
-                  ? { label: 'Full', onPress: () => setPaidNowStr(String(+pay.netPayable.toFixed(2))) }
-                  : null
-              }
-            />
-
-            {/* The outstanding balance. Not an input: it is Net − Paid by
-                definition, and a typed credit that disagreed with the bill above
-                it is exactly the argument this screen exists to prevent. */}
-            <View
-              className="rounded-xl px-3 py-3 mt-2"
-              style={{
-                backgroundColor: pay.settled ? '#E5F3F5' : CREDIT_AMBER_BG,
-                borderWidth: 1,
-                borderColor: pay.settled ? '#C7E6EA' : '#FDE68A',
-              }}
-            >
-              <View className="flex-row items-center justify-between">
-                <Text
-                  className="text-[12px] font-extrabold"
-                  style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
-                >
-                  {pay.settled ? 'Balance Payable' : 'Credit Amount (Balance Payable)'}
-                </Text>
-                <Text
-                  className="text-[15px] font-extrabold"
-                  style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
-                >
-                  ₹{fmt(pay.credit)}
-                </Text>
-              </View>
-              <Text
-                className="text-[10.5px] mt-1"
-                style={{ color: pay.settled ? ACCENT_GREEN : CREDIT_AMBER }}
-              >
-                {pay.settled
-                  ? 'Fully settled — nothing left to collect on this bill.'
-                  : 'The customer will pay this later. It becomes their outstanding balance.'}
-              </Text>
-            </View>
-
-            {/* Where the credit lands, and what gets stored with it. Shown only
-                when there IS a credit — on a settled bill it is noise. */}
-            {!pay.settled ? (
-              <>
-                <View
-                  className="flex-row mt-3 px-3 py-2.5 rounded-xl"
-                  style={{
-                    backgroundColor: creditTrackable ? '#E5F3F5' : '#FEE2E2',
-                    borderWidth: 1,
-                    borderColor: creditTrackable ? '#E5E7EB' : '#FECACA',
-                  }}
-                >
-                  <View style={{ paddingTop: 1 }}>
-                    {creditTrackable ? (
-                      <BookText size={14} color={ACCENT_GREEN} />
-                    ) : (
-                      <AlertTriangle size={14} color="#DC2626" />
-                    )}
-                  </View>
-                  <View className="flex-1 ml-2">
-                    <Text
-                      className="text-[11px] font-extrabold"
-                      style={{ color: creditTrackable ? ACCENT_GREEN : '#B91C1C' }}
-                    >
-                      {creditTrackable
-                        ? 'Recorded in the Cash Book'
-                        : 'Cannot be recorded in the Cash Book'}
-                    </Text>
-                    <Text
-                      className="text-[10.5px] mt-0.5"
-                      style={{ color: creditTrackable ? '#6B7280' : '#B91C1C' }}
-                    >
-                      {creditTrackable
-                        ? `${ticket?.customerName || 'Customer'} · ${formatPhone(ticket?.customerPhone)} · Invoice #${ticket?.trackingId || '—'} · ${toApiDate(new Date())}`
-                        : 'This booking has no valid 10-digit mobile number, so no customer account can be opened for the credit. Add one on the booking first.'}
-                    </Text>
-                    {creditTrackable ? (
-                      <Text className="text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
-                        When they pay later, record it on their Cash Book account —
-                        the outstanding balance drops by what they hand over.
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-
-                <Text
-                  className="text-[11px] font-bold text-gray-700 mt-3 mb-1.5"
-                  style={{ letterSpacing: 0.3 }}
-                >
-                  Payment Note
-                </Text>
-                <TextInput
-                  value={paymentNote}
-                  onChangeText={setPaymentNote}
-                  placeholder="e.g. Will pay on Friday"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  style={{
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 12,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    minHeight: 60,
-                    fontSize: 13,
-                    fontWeight: '600',
-                    color: '#111111',
-                    textAlignVertical: 'top',
-                  }}
-                />
-              </>
-            ) : null}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Sticky CTA — live total on the left, action button on the right so
-          the owner always sees the payable amount update as they edit. */}
-      <View
-        className="absolute left-0 right-0 bottom-0 px-4 pt-2.5"
-        style={{
-          paddingBottom: insets.bottom + 12,
-          backgroundColor: 'rgba(229, 243, 245, 0.98)',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-        }}
-      >
-        {invoiceBlockedBy ? (
-          <Text className="text-[11px] font-bold text-center mb-2" style={{ color: '#B45309' }}>
-            Record &quot;{invoiceBlockedBy}&quot; first — Service History moves one step at a time.
-          </Text>
-        ) : null}
-        <View className="flex-row items-center">
-          {/* Leads with what is still owed, not the gross bill. Once an advance
-              is deducted and something is paid at the counter, the total is the
-              one number on this screen nobody is about to hand over. */}
-          <View className="flex-1 pr-3">
-            <Text
-              className="text-[10.5px] font-bold text-gray-500"
-              style={{ letterSpacing: 0.6 }}
-            >
-              {pay.settled ? 'BALANCE PAYABLE' : 'CREDIT / BALANCE'}
+      {/* ── 12. Sticky footer — stays above the keyboard ── */}
+      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+        <View style={{ paddingHorizontal: barPadX, paddingTop: 10, paddingBottom: insets.bottom + 10, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+          {invoiceBlockedBy ? (
+            <Text style={{ fontSize: 11, fontWeight: '700', textAlign: 'center', marginBottom: 6, color: '#B45309' }}>
+              Record &quot;{invoiceBlockedBy}&quot; first — Service History moves one step at a time.
             </Text>
-            <Text
-              className="text-[20px] font-extrabold"
-              style={{ color: pay.settled ? BRAND_GREEN_DARK : CREDIT_AMBER }}
-              numberOfLines={1}
-              adjustsFontSizeToFit
+          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#6B7280', letterSpacing: 0.6 }}>BALANCE DUE</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: payTone }} numberOfLines={1} adjustsFontSizeToFit>
+                ₹{fmt(pay.credit)}{pay.credit <= 0 ? ' · Paid' : ''}
+              </Text>
+              <Text style={{ fontSize: 10.5, color: '#6B7280' }} numberOfLines={1}>Bill ₹{fmt(pay.finalPayable)}</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              disabled={submitting || !!invoiceBlockedBy}
+              onPress={onGenerate}
+              style={{ height: 50, paddingHorizontal: 20, borderRadius: 14, backgroundColor: BRAND_GREEN, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: invoiceBlockedBy ? 0.45 : submitting ? 0.7 : 1 }}
             >
-              ₹{fmt(pay.credit)}
-            </Text>
-            <Text className="text-[10px] font-semibold text-gray-500" numberOfLines={1}>
-              Bill ₹{fmt(pay.finalPayable)}
-              {pay.advance > 0 ? ` · Advance ₹${fmt(pay.advance)}` : ''}
-              {pay.paidNow > 0 ? ` · Paid ₹${fmt(pay.paidNow)}` : ''}
-            </Text>
-          </View>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            disabled={submitting || !!invoiceBlockedBy}
-            onPress={onGenerate}
-            style={[cardShadow, invoiceBlockedBy ? { opacity: 0.45 } : null]}
-          >
-            <LinearGradient
-              colors={[BRAND_GREEN, BRAND_GREEN_DARK]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                borderRadius: 16,
-                paddingVertical: 14,
-                paddingHorizontal: 22,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <CheckCircle2 size={18} color="#FFFFFF" />
-              )}
-              <Text className="ml-2 text-white text-[13px] font-extrabold">
+              {submitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FileText size={17} color="#FFFFFF" />}
+              <Text style={{ marginLeft: 8, fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>
                 {submitting ? 'Generating…' : existing ? 'Update Invoice' : 'Generate Invoice'}
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </View>
+      </KeyboardStickyView>
+
+      {/* Invoice preview — built from what is on this screen right now. */}
+      <SafeModal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
+        <ModalInsets>
+          {({ insets: mi }) => (
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(17,17,17,0.5)', justifyContent: 'center', padding: 16, paddingTop: mi.top + 16, paddingBottom: mi.bottom + 16 }} onPress={() => setPreviewOpen(false)}>
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderRadius: 18, maxHeight: '100%', width: '100%', maxWidth: 520, alignSelf: 'center', overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: '#111111' }}>Invoice Preview</Text>
+                  <Pressable onPress={() => setPreviewOpen(false)} hitSlop={8} accessibilityLabel="Close"><X size={20} color="#6B7280" /></Pressable>
+                </View>
+                <ScrollView contentContainerStyle={{ padding: 14 }}>
+                  {ticket?.shopName ? <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>{ticket.shopName}</Text> : null}
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                    #{ticket?.trackingId || '—'} · {toApiDate(new Date())}
+                  </Text>
+                  <Text style={{ fontSize: 12.5, color: '#111111', marginTop: 8 }}>{ticket?.customerName || 'Customer'}{ticket?.customerPhone ? ` · ${formatPhone(ticket.customerPhone)}` : ''}</Text>
+                  <Text style={{ fontSize: 12.5, color: '#111111', marginTop: 2 }}>{[modelName, specLine].filter(Boolean).join(' · ')}</Text>
+                  <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 10 }} />
+                  {totals.serviceCharges > 0 ? <Row label="Service Charge" value={`₹${fmt(totals.serviceCharges)}`} /> : null}
+                  {spareLines.map((sp, i) => (
+                    <Row key={sp.id || i}
+                      label={`${sp.description || `Item ${i + 1}`}${(Number(sp.qty) || 1) > 1 ? ` × ${Number(sp.qty)}` : ''}`}
+                      value={`₹${fmt(taxableOf(sp) * (Number(sp.qty) || 1))}`}
+                      sub={sp.warranty ? `Warranty: ${sp.warranty}` : null} />
+                  ))}
+                  {totals.discount > 0 ? <Row label="Discount" value={`− ₹${fmt(totals.discount)}`} color="#476B26" /> : null}
+                  <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 6 }} />
+                  <Row label="Total (before tax)" value={`₹${fmt(totals.baseAmount)}`} />
+                  <Row label={`GST (${Number(gstPercent) || 0}%)`} value={`₹${fmt(totals.totalGst)}`} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: '#E5F3F5' }}>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: BRAND_GREEN }}>Final Amount</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: BRAND_GREEN }}>₹{fmt(totals.finalPayable)}</Text>
+                  </View>
+                  {pay.advance > 0 ? <Row label="Advance paid" value={`− ₹${fmt(pay.advance)}`} /> : null}
+                  {pay.paidNow > 0 ? <Row label="Paid now" value={`− ₹${fmt(pay.paidNow)}`} /> : null}
+                  <Row label="Balance due" value={`₹${fmt(pay.credit)}`} bold color={payTone} />
+                  <Text style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 8 }}>
+                    PDF, print and share are on the invoice report after you generate it.
+                  </Text>
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
+    </View>
+  );
+}
+
+// Compact invoice building blocks (module level so inputs keep focus).
+function Card({ children, style }) {
+  return (
+    <View style={[{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12, marginTop: 10 }, cardShadow, style]}>
+      {children}
+    </View>
+  );
+}
+function Head({ Icon, title, right }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BRAND_GREEN, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={15} color="#FFFFFF" strokeWidth={2.2} />
       </View>
+      <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '800', color: '#1C3053' }} numberOfLines={1}>{title}</Text>
+      {right}
+    </View>
+  );
+}
+function Row({ label, value, bold, color, sub }) {
+  return (
+    <View style={{ paddingVertical: 5 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ flex: 1, fontSize: 13, color: bold ? '#111111' : '#374151', fontWeight: bold ? '800' : '500' }}>{label}</Text>
+        <Text style={{ fontSize: 13.5, fontWeight: bold ? '800' : '700', color: color || '#111111' }}>{value}</Text>
+      </View>
+      {sub ? <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }}>{sub}</Text> : null}
+    </View>
+  );
+}
+function AmountBox({ value, onChangeText, placeholder = '0', width = 120, editable = true }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', width, height: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: editable ? '#FFFFFF' : '#F3F4F6' }}>
+      <Text style={{ fontSize: 13, fontWeight: '800', color: '#6B7280', marginRight: 4 }}>₹</Text>
+      <TextInput
+        value={value}
+        onChangeText={(v) => onChangeText?.(v.replace(/[^0-9.]/g, ''))}
+        editable={editable}
+        keyboardType="decimal-pad"
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        cursorColor={BRAND_GREEN}
+        style={{ flex: 1, padding: 0, fontSize: 14, fontWeight: '800', color: '#111111', textAlign: 'right' }}
+      />
     </View>
   );
 }
@@ -1130,7 +957,7 @@ function SpareReadCell({ w, last, children }) {
 
 // Editable body cell — every other column uses this so the table is
 // inline-editable in the same row layout the reference shows.
-function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent }) {
+function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent, placeholder = '—' }) {
   return (
     <View
       style={{
@@ -1155,7 +982,7 @@ function SpareInputCell({ w, last, value, onChange, prefix, keyboardType, accent
         value={value}
         onChangeText={onChange}
         keyboardType={keyboardType}
-        placeholder="—"
+        placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         style={{
           flex: 1,

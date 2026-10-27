@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { Card, Loader, PrimaryButton, OutlineButton } from '../../../components/ui';
@@ -66,6 +67,7 @@ async function confirmDestructive(title, message, onConfirm, confirmLabel = 'Con
 
 export default function SellOrderDetailsScreen({ navigation, route }) {
   const id = route.params?.sellOrderId || route.params?.id;
+  const insets = useSafeAreaInsets();
   const [order, setOrder] = useState(null);
   const [meta, setMeta] = useState({});
   const [address, setAddress] = useState(null);
@@ -202,7 +204,7 @@ export default function SellOrderDetailsScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {!isEditable && !isCancelled ? (
           <View style={styles.statusBanner}>
             <Ionicons name="information-circle-outline" size={16} color="#92400E" />
@@ -320,7 +322,7 @@ export default function SellOrderDetailsScreen({ navigation, route }) {
       </ScrollView>
 
       {isEditable ? (
-        <View style={styles.actionBar}>
+        <View style={[styles.actionBar, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
           <OutlineButton title="Edit" onPress={onEdit} style={{ flex: 1, marginRight: 6 }} />
           <PrimaryButton
             title={cancelling ? 'Cancelling...' : 'Cancel Order'}

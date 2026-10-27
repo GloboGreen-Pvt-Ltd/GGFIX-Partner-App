@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Image, Linking, Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsive } from '../../theme/responsive';
 import { useIsFocused } from '@react-navigation/native';
 import { useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -70,7 +71,7 @@ function SheetButton({ icon: Icon, label, onPress, primary }) {
       accessibilityLabel={label}
       className="active:opacity-85"
       style={{
-        flex: 1, height: 42, borderRadius: 12, marginHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        flex: 1, minHeight: 42, borderRadius: 12, marginHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         backgroundColor: primary ? GREEN : '#FFFFFF', borderWidth: primary ? 0 : 1.5, borderColor: GREEN,
       }}
     >
@@ -82,6 +83,7 @@ function SheetButton({ icon: Icon, label, onPress, primary }) {
 
 export default function ProductScanScreen({ navigation }) {
   const { height: screenH } = useWindowDimensions();
+  const r = useResponsive();
   const permission = useScannerPermission();
   const isFocused = useIsFocused();
   const appActive = useAppActive();
@@ -133,7 +135,7 @@ export default function ProductScanScreen({ navigation }) {
     if (result?.scanId) params.scanId = result.scanId;
     navigation.replace('OwnerSearch', Object.keys(params).length ? params : undefined);
   };
-  const openTicket = (ticket) => navigation.replace('DeviceDetail', { ticketId: ticket.id });
+  const openTicket = (ticket) => navigation.replace('TicketDetail', { ticketId: ticket.id });
 
   const onAction = (key, item) => {
     if (!navigateDeviceAction(navigation, key, item.row)) {
@@ -243,7 +245,7 @@ export default function ProductScanScreen({ navigation }) {
               style={{ height: 38, width: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' }}>
               <ArrowLeft size={20} color="#FFFFFF" />
             </Pressable>
-            <Text style={{ flex: 1, textAlign: 'center', fontSize: rf(16), fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }}>Search product by camera</Text>
+            <Text style={{ flex: 1, textAlign: 'center', fontSize: rf(16), fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 }} numberOfLines={1}>Search product by camera</Text>
             {showCamera && !frozen && Platform.OS !== 'web' ? (
               <Pressable onPress={() => setTorch((t) => !t)} hitSlop={8} accessibilityRole="button" accessibilityLabel={torch ? 'Torch off' : 'Torch on'} className="active:opacity-70"
                 style={{ height: 38, width: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: torch ? YELLOW : 'rgba(0,0,0,0.35)' }}>
@@ -306,7 +308,7 @@ export default function ProductScanScreen({ navigation }) {
 
       {/* Bottom sheet — overlaps the camera by its corner radius */}
       <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, marginTop: -20 }}>
-        <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}>
+        <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
           {phase === 'identifying' || phase === 'results' ? (
             <ScanResultsSheet
               state={phase}

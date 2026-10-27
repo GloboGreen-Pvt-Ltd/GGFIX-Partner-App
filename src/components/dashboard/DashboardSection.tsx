@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { C, ICON_STROKE, R, SERIF, T, Touchable, withAlpha } from './theme';
+import { C, ICON_STROKE, R, T, Touchable, withAlpha } from './theme';
 
 export interface DashboardSectionProps {
   title: string;
@@ -20,7 +20,7 @@ export function DashboardSection({ title, action, onAction, pad, style }: Dashbo
   const { width } = useWindowDimensions();
   // Flat isTablet check (768), not the 3-tier size class — matches the
   // column grid's own tablet cutoff.
-  const titleSize = width >= 768 ? 24 : 21;
+  const titleSize = width >= 768 ? 19 : 17;
 
   return (
     <View
@@ -35,9 +35,13 @@ export function DashboardSection({ title, action, onAction, pad, style }: Dashbo
         style,
       ]}
     >
-      <Text style={{ fontSize: titleSize, lineHeight: titleSize + 6, color: '#111111', letterSpacing: -0.3, fontWeight: '700', fontFamily: SERIF, flex: 1 }} numberOfLines={1}>
-        {title}
-      </Text>
+      {/* Teal accent bar + compact bold title. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
+        <View style={{ width: 4, height: titleSize, borderRadius: 2, backgroundColor: '#035C6C', marginRight: 8 }} />
+        <Text style={{ flex: 1, fontSize: titleSize, lineHeight: titleSize + 5, color: '#111111', letterSpacing: -0.2, fontWeight: '800' }} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
       {action ? (
         <Touchable
           onPress={onAction}

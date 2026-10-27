@@ -222,13 +222,13 @@ export default function BarcodePrintScreen({ navigation, route }) {
   const tid = splitTrackingId(trackingId);
   // deviceDisplayName has to be checked first — same priority TicketDetailScreen.js
   // uses for this same GET /tickets/:id response; deviceModelName/modelName are
-  // often unpopulated on a ticket record (see BookingHistoryScreen.js's own note),
+  // often unpopulated on a ticket record (see JobsScreen.js's own note),
   // which is why this screen was showing the bare 'Device' fallback.
   const deviceName = ticket?.deviceDisplayName || ticket?.deviceModelName || ticket?.modelName || 'Device';
   // The label/print only has room for "Brand Model" (per spec), but
   // deviceDisplayName can be a longer "Name · Model No. · Storage" compound
   // string (the app's own " · " join convention, e.g. formatSecurity above,
-  // _modelNumber/_ramStorage in BookingHistoryScreen.js) — keep only the
+  // _modelNumber/_ramStorage in JobsScreen.js) — keep only the
   // first segment there so it doesn't truncate mid-token ("...A2…"). The
   // Booking summary card below still shows the full `deviceName`, unchanged.
   const brandModel = String(deviceName).split(' · ')[0].trim() || deviceName;
@@ -414,7 +414,7 @@ export default function BarcodePrintScreen({ navigation, route }) {
   const previewW = Math.min(250, r.width - 80);
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+    <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
@@ -461,8 +461,10 @@ export default function BarcodePrintScreen({ navigation, route }) {
         </View>
       </View>
 
+      {/* Inline flex (not className) so the scroller is always height-bounded —
+          without a bounded height it grows to its content and never scrolls. */}
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 90 }}
       >

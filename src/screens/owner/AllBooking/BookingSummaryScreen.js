@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ticketApi } from '../../../api/client';
 import { paymentFromTicket } from './ReceiptCard';
+import { useResponsive } from '../../../theme/responsive';
 import {
   CheckCircle2,
   User,
@@ -110,6 +111,7 @@ function QuickAction({ icon: Icon, label, sub, onPress, tint = '#E5F3F5', accent
 
 export default function BookingSummaryScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const { ticketId, customer, devices, trackingId, estimatedPrice } = route.params || {};
   const [ticket, setTicket] = useState(null);
 
@@ -230,7 +232,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
       >
         {/* Tracking ID floating card */}
         <View className="px-4" style={{ marginTop: 12 }}>
@@ -304,14 +306,14 @@ export default function BookingSummaryScreen({ route, navigation }) {
               className="mt-3 p-4 rounded-2xl flex-row items-center justify-between"
               style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
             >
-              <View className="flex-row items-center">
+              <View className="flex-row items-center flex-1 mr-2">
                 <View
                   className="w-9 h-9 rounded-full items-center justify-center mr-3"
                   style={{ backgroundColor: BRAND_GREEN }}
                 >
                   <IndianRupee size={16} color="#FFFFFF" />
                 </View>
-                <View>
+                <View className="flex-1">
                   <Text className="text-[10.5px] uppercase font-semibold text-gray-500" style={{ letterSpacing: 0.6 }}>
                     Estimated Price
                   </Text>

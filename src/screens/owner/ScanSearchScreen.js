@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -20,6 +21,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 import {
   normalizeScannedIdentifier,
   resolveExactTicket,
@@ -94,6 +96,9 @@ export default function ScanSearchScreen(props) {
 function ScanSearchQrScreen({ navigation, route }) {
   // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
+  // Tablets: bottom sheets are centred and capped instead of spanning the screen.
+  const sheetSide = r.isTablet ? Math.max(0, (r.width - r.maxWidth('form')) / 2) : 0;
   const mode = route?.params?.mode === 'lens' ? 'lens' : 'qr';
   const isLens = mode === 'lens';
 
@@ -200,7 +205,7 @@ function ScanSearchQrScreen({ navigation, route }) {
     if (navigatedRef.current || !ticket?.id) return;
     navigatedRef.current = true;
     console.log('[QR] navigation executed -> DeviceDetail');
-    navigation.replace('DeviceDetail', { ticketId: ticket.id });
+    navigation.replace('TicketDetail', { ticketId: ticket.id });
   };
   const openPickup = (pickup) => { console.log('[QR] navigation executed -> OwnerPickupServiceDetail'); navigation.navigate('OwnerPickupServiceDetail', { id: pickup.id, booking: pickup }); };
   const searchManually = (prefillQuery) => navigation.replace('OwnerSearch', prefillQuery ? { prefillQuery } : undefined);
@@ -501,7 +506,7 @@ function ScanSearchQrScreen({ navigation, route }) {
           </View>
           <View className="flex-row items-center" style={{ marginTop: rs(20), paddingHorizontal: rs(30) }}>
             {isLens ? <ScanSearch size={rf(15)} color="#FFFFFF" /> : <ScanLine size={rf(15)} color="#FFFFFF" />}
-            <Text className="text-white font-extrabold text-center" style={{ marginLeft: rs(7), fontSize: 12 }}>
+            <Text className="text-white font-extrabold text-center" style={{ flexShrink: 1, marginLeft: rs(7), fontSize: 12 }}>
               {isLens
                 ? 'Point the camera at the device, label, model number or barcode.'
                 : 'Align the QR code or barcode inside the frame'}
@@ -543,7 +548,10 @@ function ScanSearchQrScreen({ navigation, route }) {
       {/* Manual-entry sheet — fallback only: reached from "Search manually" or
           from an ocr-failed/no-match result's "Enter Manually" button. */}
       {showManualEntry ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), padding: rs(18), paddingBottom: rs(18) + insets.bottom }}>
+        // Rides up with the keyboard: this sheet autofocuses its input, and under
+        // edge-to-edge the keyboard would otherwise cover the whole sheet.
+        <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }} style={{ position: 'absolute', left: sheetSide, right: sheetSide, bottom: 0 }}>
+        <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), padding: rs(18), paddingBottom: rs(18) + insets.bottom }}>
           <View className="flex-row items-center" style={{ marginBottom: rs(12) }}>
             {ocrPhotoUri ? (
               <Image source={{ uri: ocrPhotoUri }} style={{ width: rs(56), height: rs(56), borderRadius: rs(14), marginRight: rs(12) }} />
@@ -578,11 +586,12 @@ function ScanSearchQrScreen({ navigation, route }) {
             </Pressable>
           </View>
         </View>
+        </KeyboardStickyView>
       ) : null}
 
       {/* Result / loading / no-match sheet */}
       {scanned && !showManualEntry ? (
-        <View className="absolute left-0 right-0 bottom-0" style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), paddingBottom: rs(14) + insets.bottom, maxHeight: '78%' }}>
+        <View className="absolute left-0 right-0 bottom-0" style={{ left: sheetSide, right: sheetSide, backgroundColor: '#FFFFFF', borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), paddingBottom: rs(14) + insets.bottom, maxHeight: '78%' }}>
           {loading ? (
             <View className="items-center justify-center" style={{ paddingVertical: rs(40) }}>
               <ActivityIndicator size="large" color={ACCENT} />
@@ -811,7 +820,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             Read from photo: {result.readText}
           </Text>
         ) : null}
-        <View className="flex-row" style={{ marginTop: rs(18) }}>
+        <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
           <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
             <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Retake</Text>
@@ -946,7 +955,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
             Try:{'\n'}• move closer{'\n'}• improve lighting{'\n'}• keep the model label visible
           </Text>
         )}
-        <View className="flex-row" style={{ marginTop: rs(18) }}>
+        <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
           <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
             <RotateCcw size={rf(15)} color={ACCENT} />
             <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Retake</Text>
@@ -981,7 +990,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
           ))}
         </View>
       ) : null}
-      <View className="flex-row" style={{ marginTop: rs(18) }}>
+      <View className="flex-row flex-wrap justify-center" style={{ marginTop: rs(18), rowGap: rs(10) }}>
         <Pressable onPress={onScanAgain} className="flex-row items-center" style={{ borderRadius: rs(16), paddingHorizontal: rs(18), paddingVertical: rs(13), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
           <RotateCcw size={rf(15)} color={ACCENT} />
           <Text className="font-extrabold" style={{ marginLeft: rs(7), color: ACCENT }}>Scan Again</Text>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, Pressable } from 'react-native';
 import { ClipboardList, FileText, ChevronRight, Smartphone, ListChecks } from 'lucide-react-native';
 import { ScreenHeader } from '../../components/rnr';
-import { ResponsiveModal } from '../../components/responsive';
+import { ResponsiveModal, useResponsive } from '../../components/responsive';
 import { SELL, sellShadow } from '../shared/sell/sellTheme';
 
 // Working device: after Device Details the owner picks how much detail to
@@ -32,6 +32,7 @@ export default function OwnerSellMobileChoiceScreen({ navigation, route }) {
   const params = route?.params || {};
   const device = params.device || {};
   const [sheetOpen, setSheetOpen] = useState(false);
+  const r = useResponsive();
 
   // The choice opens as a popup on arrival (after the push settles — a Modal
   // presented mid-transition is unreliable on iOS).
@@ -58,7 +59,7 @@ export default function OwnerSellMobileChoiceScreen({ navigation, route }) {
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
       <ScreenHeader title="Choose Description" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}>
         {/* The device being listed */}
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.card, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: SELL.soft, ...sellShadow }}>
           <View style={{ height: 52, width: 52, borderRadius: 12, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12 }}>

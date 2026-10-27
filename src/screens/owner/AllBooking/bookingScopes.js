@@ -46,32 +46,31 @@ const PICKUP_CLOSED = ['COMPLETED', 'CANCELLED', 'DELIVERED'];
  * Exported so the Home tile sums exactly these keys; a card and the chip it
  * drills into must carry the same number.
  */
-export const READY_BAND = [
-  'READY',
-  'INVOICE_GENERATED',
-  'INVOICE_READY',
-  'DELIVERED_PROCESSING',
-];
+export const READY_BAND = ['READY'];
+// Invoice generated (or sent), not yet dispatched — the Jobs "Invoice" tile.
+export const INVOICE_BAND = ['INVOICE_GENERATED', 'INVOICE_READY'];
+// Left the shop, not yet confirmed delivered — its own tile after Ready.
+export const DISPATCHED_BAND = ['DELIVERED_PROCESSING'];
 
 export const SCOPES = {
   ALL: {
     key: 'ALL',
-    label: 'Bookings',
+    label: 'Jobs',
     chipLabel: 'All', // short label on the scope tile
-    eyebrow: 'BOOKINGS',
-    noun: 'Booking',
+    eyebrow: 'JOBS',
+    noun: 'Job',
     source: 'TICKET',
     match: () => true,
     icon: FileText,
     color: '#035C6C',
     bg: '#E5F3F5',
-    emptyTitle: 'No bookings found',
-    emptyDescription: 'Bookings will appear here as they are created.',
+    emptyTitle: 'No jobs found',
+    emptyDescription: 'Jobs will appear here as they are created.',
   },
   /**
    * Bookings that have been re-estimated.
    *
-   * Keyed off the existing QUOTED status — the same one BookingHistoryScreen's
+   * Keyed off the existing QUOTED status — the same one JobsScreen's
    * STATUS_VARIANT labels "Re-Estimated" on the card badge — so no new status
    * and no migration are needed.
    *
@@ -86,20 +85,20 @@ export const SCOPES = {
     key: 'RE_ESTIMATED',
     label: 'Re-Estimated',
     eyebrow: 'RE-ESTIMATED',
-    noun: 'Re-Estimated booking',
+    noun: 'Re-Estimated job',
     source: 'TICKET',
     match: (s) => s === 'QUOTED',
     icon: Pencil,
     color: '#7C3AED',
     bg: '#F2ECFF',
-    emptyTitle: 'No re-estimated bookings',
-    emptyDescription: 'A booking appears here once it has been re-estimated.',
+    emptyTitle: 'No re-estimated jobs',
+    emptyDescription: 'A job appears here once it has been re-estimated.',
   },
   ACTIVE: {
     key: 'ACTIVE',
     label: 'Active',
-    eyebrow: 'ACTIVE BOOKINGS',
-    noun: 'Active Booking',
+    eyebrow: 'ACTIVE JOBS',
+    noun: 'Active Job',
     source: 'TICKET',
     // By exclusion rather than a status whitelist, so intermediate statuses
     // (READY, INVOICE_*, QUOTED …) can't silently fall out of the count.
@@ -107,8 +106,8 @@ export const SCOPES = {
     icon: Clock,
     color: '#2563EB',
     bg: '#E8F1FE',
-    emptyTitle: 'No active bookings',
-    emptyDescription: 'Bookings still in the service pipeline will appear here.',
+    emptyTitle: 'No active jobs',
+    emptyDescription: 'Jobs still in the service pipeline will appear here.',
   },
   PICKUP_ALL: {
     key: 'PICKUP_ALL',
@@ -172,7 +171,7 @@ export const SCOPES = {
     label: 'Ready for Delivery',
     chipLabel: 'Ready', // short label on the scope tile
     eyebrow: 'READY FOR DELIVERY',
-    noun: 'Booking Ready for Delivery',
+    noun: 'Job Ready for Delivery',
     source: 'TICKET',
     match: (status) => READY_BAND.includes(status),
     icon: CheckCircle2,
@@ -187,7 +186,7 @@ export const SCOPES = {
    * The only scope that reads a ROW rather than a status, and deliberately so:
    * an invoice is a row in `invoices`, not a stage of the repair. Counting the
    * INVOICE_GENERATED status instead would have been wrong twice over — it
-   * misses every booking that has since moved on to Out for Delivery or
+   * misses every booking that has since moved on to Dispatched or
    * Delivered (still invoiced), and it counts a booking whose invoice write
    * failed after the status advanced. ticket.invoiceNo comes straight from the
    * invoices table (TicketService.toResponse), so this tile is a count of real
@@ -204,33 +203,63 @@ export const SCOPES = {
     color: '#DB2777',
     bg: '#FDECF5',
     emptyTitle: 'No invoices yet',
-    emptyDescription: 'A booking appears here once its invoice has been generated.',
+    emptyDescription: 'A job appears here once its invoice has been generated.',
+  },
+  // Jobs rail tile: only bookings whose status is Invoice Generated / Sent.
+  // (SCOPES.INVOICE above stays the Home → Invoice list of every billed job.)
+  INVOICE_GENERATED: {
+    key: 'INVOICE_GENERATED',
+    label: 'Invoice Generated',
+    chipLabel: 'Invoice',
+    eyebrow: 'INVOICE GENERATED',
+    noun: 'Invoiced Job',
+    source: 'TICKET',
+    match: (status) => INVOICE_BAND.includes(status),
+    icon: ReceiptIndianRupee,
+    color: '#357D89',
+    bg: '#E5F3F5',
+    emptyTitle: 'No invoiced jobs',
+    emptyDescription: 'Jobs with an invoice generated, waiting to be dispatched, will appear here.',
+  },
+  DISPATCHED: {
+    key: 'DISPATCHED',
+    label: 'Dispatched',
+    chipLabel: 'Dispatched',
+    eyebrow: 'DISPATCHED',
+    noun: 'Dispatched Job',
+    source: 'TICKET',
+    match: (status) => DISPATCHED_BAND.includes(status),
+    icon: Truck,
+    color: '#1C3053',
+    bg: '#E8EBF1',
+    emptyTitle: 'Nothing dispatched',
+    emptyDescription: 'Devices sent out to the customer, not yet marked delivered, will appear here.',
   },
   DELIVERED: {
     key: 'DELIVERED',
     label: 'Delivered',
-    eyebrow: 'DELIVERED BOOKINGS',
-    noun: 'Delivered Booking',
+    eyebrow: 'DELIVERED JOBS',
+    noun: 'Delivered Job',
     source: 'TICKET',
     match: (status) => status === 'DELIVERED',
     icon: PackageCheck,
     color: '#609138',
     bg: '#EFF4EB',
-    emptyTitle: 'No delivered bookings',
-    emptyDescription: 'Bookings handed back to the customer will appear here.',
+    emptyTitle: 'No delivered jobs',
+    emptyDescription: 'Jobs handed back to the customer will appear here.',
   },
   CANCELLED: {
     key: 'CANCELLED',
     label: 'Cancelled',
-    eyebrow: 'CANCELLED BOOKINGS',
-    noun: 'Cancelled Booking',
+    eyebrow: 'CANCELLED JOBS',
+    noun: 'Cancelled Job',
     source: 'TICKET',
     match: (status) => status === 'CANCELLED',
     icon: XCircle,
     color: '#DC2626',
     bg: '#FDECEC',
-    emptyTitle: 'No cancelled bookings',
-    emptyDescription: 'Bookings that were called off will appear here.',
+    emptyTitle: 'No cancelled jobs',
+    emptyDescription: 'Jobs that were called off will appear here.',
   },
   /**
    * Ticket status RETURNED, as the backend's lifecycle names it (a terminal
@@ -240,15 +269,15 @@ export const SCOPES = {
   RETURNED: {
     key: 'RETURNED',
     label: 'Returned',
-    eyebrow: 'RETURNED BOOKINGS',
-    noun: 'Returned Booking',
+    eyebrow: 'RETURNED JOBS',
+    noun: 'Returned Job',
     source: 'TICKET',
     match: (status) => status === 'RETURNED',
     icon: Undo2,
     color: '#B45309',
     bg: '#FEF3C7',
-    emptyTitle: 'No returned bookings',
-    emptyDescription: 'Bookings marked returned will appear here.',
+    emptyTitle: 'No returned jobs',
+    emptyDescription: 'Jobs marked returned will appear here.',
   },
 };
 
@@ -263,10 +292,13 @@ export const SCOPES = {
 export const SCOPE_ORDER = [
   'ALL',
   'ACTIVE',
+  'RE_ESTIMATED',
   'READY_FOR_DELIVERY',
-  'DELIVERED',
+  'INVOICE_GENERATED',
+  'DISPATCHED',
   'CANCELLED',
   'RETURNED',
+  'DELIVERED',
 ];
 
 export const SCOPE_LIST = SCOPE_ORDER.map((k) => SCOPES[k]);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
   Smartphone,
   Cpu,
@@ -318,7 +319,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
           <Pressable
             onPress={onSkip}
             className="absolute right-0 items-center justify-center active:opacity-70"
-            style={{ height: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
+            style={{ minHeight: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: PAGE_BG, borderWidth: 1, borderColor: LINE }}
           >
             <Text style={{ fontSize: 12, fontWeight: '800', color: MUTED }}>Skip</Text>
           </Pressable>
@@ -345,7 +346,10 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
     <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
       {header(true)}
 
-      <ScrollView
+      {/* KeyboardAwareScrollView: lifts the focused typed-spec / colour field
+          above the keyboard and the sticky bar (plain ScrollView does not on iOS). */}
+      <KeyboardAwareScrollView
+        bottomOffset={100}
         contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -588,7 +592,7 @@ export default function DeviceColorStorageScreen({ navigation, route }) {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── Sticky configuration bar ─────────────────────────────── */}
       <View

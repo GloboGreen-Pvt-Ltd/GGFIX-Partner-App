@@ -25,12 +25,20 @@ config.resolver.blockList = [
   // rebuild + reload with no actual code change behind it (root cause of
   // the app appearing to refresh/reload on its own while sitting idle).
   /[\\/]\.expo[\\/].*/,
+  // Same churn from a local `gradlew`/`expo run:android`: the generated root
+  // android/ project and every native module's CMake `.cxx`/`.gradle` dirs get
+  // thousands of writes, which pinned Metro and timed out the dev-client's
+  // bundle request ("Something went wrong"). Never imported by JS.
+  new RegExp(`^${require('path').join(__dirname, 'android').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\\\/].*`),
+  /[\\/]android[\\/]\.(cxx|gradle)[\\/].*/,
 ];
 
 // On-device object detection model for the product scanner
 // (assets/models/efficientdet_lite0.tflite, loaded by react-native-fast-tflite).
 // Metro only reads this at startup — restart it after changing this list.
 if (!config.resolver.assetExts.includes('tflite')) config.resolver.assetExts.push('tflite');
+// Weight shards of the pure-JS COCO-SSD fallback detector (assets/models/coco-ssd-lite).
+if (!config.resolver.assetExts.includes('bin')) config.resolver.assetExts.push('bin');
 
 // `inlineRem: false` is what makes spacing responsive app-wide.
 //

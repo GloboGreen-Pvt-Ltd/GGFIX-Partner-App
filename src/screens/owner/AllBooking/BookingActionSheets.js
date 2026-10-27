@@ -13,7 +13,7 @@
 // the Share Receipt sheet in TicketDetailScreen, so they look native here.
 //
 // The receipt PNG is captured from a hidden <ViewShot> owned by the *host*
-// screen (see BookingHistoryScreen) rather than by these modals: a view inside
+// screen (see JobsScreen) rather than by these modals: a view inside
 // a closed Modal isn't mounted, so captureRef would fail. The host passes the
 // capture down as onShareReceipt.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -38,6 +38,7 @@ import {
   Truck,
   Keyboard,
   ScanLine,
+  SkipForward,
   X,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
@@ -150,6 +151,10 @@ function SheetShellBody({ onClose, title, subtitle, children, maxHeightRatio }) 
           paddingTop: 12,
           paddingBottom: bottomPad,
           maxHeight: Math.min(available, ratioCap),
+          // Tablets: a centred sheet, not a full-width strip.
+          width: '100%',
+          maxWidth: 560,
+          alignSelf: 'center',
         }}
       >
         <View
@@ -206,7 +211,7 @@ const TINT = {
 // first and then offers only that flow's statuses — the two lists are never
 // on screen together.
 //
-// The shared endings (Invoice Generated, Out for Delivery, Delivered to
+// The shared endings (Invoice Generated, Dispatched, Delivered to
 // Customer, Repair Cancelled) appear under BOTH types on purpose: both paths
 // raise an invoice, hand the device over, and can be cancelled.
 //
@@ -230,7 +235,7 @@ const TINT = {
 // hands off to the Invoice Generator screen; that screen emits the status when
 // the invoice saves. See ServiceStatusSheet#submit.
 //
-// The stages are the Service History rows in the same order, Out for Delivery
+// The stages are the Service History rows in the same order, Dispatched
 // included — skipping it here left a gap on the timeline between Invoice
 // Generated and Delivered. A stage whose step before it isn't on the timeline
 // yet (Ready for Delivery before Quality Check, say) is shown but can't be
@@ -243,7 +248,7 @@ const SERVICE_STATUS_TYPES = [
     stages: [
       [{ key: 'READY',                label: 'Ready for Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -258,7 +263,7 @@ const SERVICE_STATUS_TYPES = [
       ],
       [{ key: 'RETURN_DELIVERY',      label: 'Return Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Out for Delivery' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -822,11 +827,10 @@ export function RescheduleSheet({ visible, booking, onClose, onUpdated }) {
 //
 // An invoice is the document that ties a repair to a physical handset, so it
 // must not be raised against a missing IMEI. The gate is only opened for a
-// booking that HAS no number (BookingHistoryScreen sends one that already has
-// an IMEI straight to the generator), so it has two faces:
-//
-//   choose  — enter the IMEI, or scan the barcode.
-//   entry   — the keypad, pre-filled by the scanner when one was used.
+// booking that HAS no number (JobsScreen sends one that already has
+// an IMEI straight to the generator). It opens straight on the IMEI field —
+// type it, or SCAN from the button inside the field (the scanner hands the
+// number back pre-filled for review) — plus "Customer didn't provide IMEI".
 //
 // There is no "confirm the number already on file" face any more: the number
 // was checked when it was entered, and re-confirming it on every invoice was a
@@ -856,7 +860,6 @@ function imeiAlreadyUsedAlert(conflictTrackingId) {
 export function ImeiGateSheet({
   visible, booking, onClose, onVerified, onScanRequest, scannedImei,
 }) {
-  const [mode, setMode] = useState('choose');    // 'choose' | 'entry'
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -869,11 +872,9 @@ export function ImeiGateSheet({
     // owner can eyeball it before it is saved — scanners do misread.
     if (scannedImei) {
       setInput(String(scannedImei));
-      setMode('entry');
       return;
     }
     setInput('');
-    setMode('choose');
   }, [visible, booking?.id, scannedImei]);
 
   // Save the entered/scanned number, then continue. The PATCH is the
@@ -916,77 +917,87 @@ export function ImeiGateSheet({
       title="IMEI Number Required"
       subtitle={ref ? `Booking #${ref}` : null}
     >
-      {mode === 'choose' ? (
-        <>
-          <Text className="text-[12px] text-gray-500 mb-4">
-            IMEI number is not available for this device. Please enter or scan the IMEI number.
-          </Text>
-          <ActionRow
-            icon={<Keyboard size={18} color={TINT.green.fg} />}
-            tint={TINT.green}
-            title="Enter IMEI"
-            onPress={() => { setInput(''); setMode('entry'); }}
-          />
-          <ActionRow
-            icon={<ScanLine size={18} color={TINT.green.fg} />}
-            tint={TINT.green}
-            title="Scan IMEI"
-            onPress={() => { onClose?.(); onScanRequest?.(booking); }}
-          />
-        </>
-      ) : (
-        <>
-          <Text className="text-[10.5px] font-extrabold uppercase text-gray-400 mb-1.5" style={{ letterSpacing: 0.7 }}>
-            IMEI
-          </Text>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            keyboardType="number-pad"
-            maxLength={20}
-            autoFocus
-            placeholder="356xxxxxxxxxxxx"
-            placeholderTextColor="#9CA79C"
-            editable={!busy}
-            className="text-gray-900"
-            style={{
-              fontSize: 15, fontWeight: '800', letterSpacing: 1.5,
-              borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF',
-              borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
-            }}
-          />
-          <View className="flex-row items-center mt-2 mb-4">
-            <Text className="text-[10.5px] text-gray-500 flex-1">
-              {IMEI_MIN}–{IMEI_MAX} digits. Dial *#06# on the device to display it.
-            </Text>
-            <Pressable onPress={() => { onClose?.(); onScanRequest?.(booking); }} disabled={busy} hitSlop={8}>
-              <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-                Scan instead
-              </Text>
-            </Pressable>
-          </View>
-          <View className="flex-row">
-            <Pressable
-              onPress={onClose}
-              disabled={busy}
-              className="rounded-2xl items-center justify-center px-5 py-3 mr-2"
-              style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
-            >
-              <Text className="text-[13px] font-extrabold text-gray-600">Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={saveAndContinue}
-              disabled={busy}
-              className="flex-1 rounded-2xl items-center justify-center py-3 active:opacity-90"
-              style={{ backgroundColor: BRAND_GREEN_DARK, opacity: busy ? 0.6 : 1 }}
-            >
-              {busy
-                ? <ActivityIndicator color="#FFFFFF" />
-                : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
-            </Pressable>
-          </View>
-        </>
-      )}
+      {/* Straight to the field, like the booking screen: heading, then the
+          number with the scanner on its right. */}
+      <Text className="text-[13px] font-extrabold text-gray-900 mb-1.5">Enter or Scan IMEI</Text>
+      <View
+        className="flex-row items-center"
+        style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', borderRadius: 12, paddingLeft: 12, paddingRight: 4 }}
+      >
+        <Keyboard size={16} color={TINT.green.fg} />
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          keyboardType="number-pad"
+          maxLength={20}
+          placeholder="Enter 15-digit IMEI"
+          placeholderTextColor="#9CA79C"
+          editable={!busy}
+          className="text-gray-900"
+          style={{ flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '800', letterSpacing: 1.2, paddingVertical: 9 }}
+        />
+        <Pressable
+          onPress={() => { onClose?.(); onScanRequest?.(booking); }}
+          disabled={busy}
+          hitSlop={8}
+          className="items-center justify-center ml-1 active:opacity-70"
+          style={{ height: 36, width: 36 }}
+          accessibilityRole="button"
+          accessibilityLabel="Scan IMEI"
+        >
+          <ScanLine size={20} color={BRAND_GREEN_DARK} />
+        </Pressable>
+      </View>
+      <Text className="text-[10.5px] text-gray-500 mt-1 mb-2">
+        {IMEI_MIN}–{IMEI_MAX} digits · dial *#06# to see it.
+      </Text>
+
+      {/* Customer couldn't / wouldn't share the IMEI — continue without it. */}
+      <Pressable
+        disabled={busy}
+        className="flex-row items-center rounded-xl px-3 py-2 mb-2 active:opacity-80"
+        style={{ backgroundColor: TINT.amber.bg, borderWidth: 1, borderColor: '#FDE68A', opacity: busy ? 0.5 : 1 }}
+        accessibilityRole="button"
+        accessibilityLabel="Customer didn't provide IMEI"
+        onPress={() => Alert.alert(
+          'Continue without IMEI?',
+          'The invoice will be generated without an IMEI number.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Continue', onPress: () => { onClose?.(); onVerified?.(booking); } },
+          ],
+        )}
+      >
+        <View className="w-8 h-8 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#FFFFFF' }}>
+          <SkipForward size={16} color={TINT.amber.fg} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text className="text-[13px] font-extrabold" style={{ color: '#92400E' }} numberOfLines={1}>Customer didn't provide IMEI</Text>
+          <Text className="text-[10.5px]" style={{ color: TINT.amber.fg, marginTop: 1 }} numberOfLines={1}>Continue the invoice without IMEI</Text>
+        </View>
+        <ChevronRight size={16} color={TINT.amber.fg} />
+      </Pressable>
+
+      <View className="flex-row mt-1">
+        <Pressable
+          onPress={onClose}
+          disabled={busy}
+          className="rounded-xl items-center justify-center px-5 py-2.5 mr-2"
+          style={{ borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+        >
+          <Text className="text-[13px] font-extrabold text-gray-600">Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={saveAndContinue}
+          disabled={busy}
+          className="flex-1 rounded-xl items-center justify-center py-2.5 active:opacity-90"
+          style={{ backgroundColor: BRAND_GREEN_DARK, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy
+            ? <ActivityIndicator color="#FFFFFF" />
+            : <Text className="text-white text-[13px] font-extrabold">Verify &amp; Continue</Text>}
+        </Pressable>
+      </View>
     </SheetShell>
   );
 }

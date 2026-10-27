@@ -37,6 +37,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  */
 export const BREAKPOINTS = { small: 0, phone: 360, tablet: 600, large: 840 };
 
+/** Large phones (Pro Max / Plus / big Androids): 414pt+ but below tablet. */
+export const LARGE_PHONE_MIN = 414;
+
+/** Icon / tile grids (dashboard actions, category tiles): phone 4, large phone 5, tablet 6. */
+export const TILE_COLUMNS = { phone: 4, largePhone: 5, tablet: 6 };
+
 /**
  * Spacing scale. One ladder for the whole app so screens stop inventing
  * one-off margins — the thing that makes two screens look subtly unrelated.
@@ -68,10 +74,10 @@ function breakpointFor(width) {
  * @returns {{
  *   width:number, height:number,
  *   breakpoint:'small'|'phone'|'tablet'|'large',
- *   isSmallPhone:boolean, isPhone:boolean, isTablet:boolean, isLargeScreen:boolean,
+ *   isSmallPhone:boolean, isPhone:boolean, isLargePhone:boolean, isTablet:boolean, isLargeScreen:boolean,
  *   isLandscape:boolean, isPortrait:boolean,
  *   insets:object, spacing:object,
- *   select:Function, columns:Function, maxWidth:Function,
+ *   select:Function, columns:Function, tileColumns:Function, maxWidth:Function,
  * }}
  */
 export function useResponsive() {
@@ -100,6 +106,18 @@ export function useResponsive() {
     /** Column count for a grid, defaulting to a sensible ladder. */
     const columns = (map) => select({ small: 1, phone: 2, tablet: 3, large: 4, ...(map || {}) });
 
+    const isLargePhone = !isTablet && width >= LARGE_PHONE_MIN;
+    /**
+     * Columns for icon / tile grids — phone 4, large phone 5, tablet 6
+     * (TILE_COLUMNS). Pass overrides for a grid whose tiles need more room,
+     * e.g. `tileColumns({ phone: 3 })`.
+     */
+    const tileColumns = (map) => {
+      const c = { ...TILE_COLUMNS, ...(map || {}) };
+      if (isTablet) return c.tablet;
+      return isLargePhone ? c.largePhone : c.phone;
+    };
+
     /** Capped, centred content width. `maxWidth('form')` etc. */
     const maxWidth = (kind = 'list') => {
       const cap = CONTENT_MAX[kind] ?? CONTENT_MAX.list;
@@ -112,6 +130,7 @@ export function useResponsive() {
       breakpoint: bp,
       isSmallPhone: bp === 'small',
       isPhone: bp === 'small' || bp === 'phone',
+      isLargePhone,
       isTablet,
       isLargeScreen: bp === 'large',
       isLandscape,
@@ -120,6 +139,7 @@ export function useResponsive() {
       spacing: SPACING,
       select,
       columns,
+      tileColumns,
       maxWidth,
     };
   }, [width, height, insets]);

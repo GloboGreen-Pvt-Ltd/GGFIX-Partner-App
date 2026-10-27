@@ -27,6 +27,7 @@ export const DEVICE_LABELS = {
   74: 'Remote',
 };
 export const DETECT_MIN_SCORE = 0.32;
+export const PHONE_CLASS = 76;
 
 let loading = null;
 
@@ -54,8 +55,10 @@ export function loadDeviceDetector(Tflite) {
       if (!height || !width || Number(shape[3]) !== 3 || input.dataType !== 'uint8') {
         throw new Error(`unexpected detector input ${input?.dataType} [${shape.join(',')}]`);
       }
+      console.log(`[DETECTOR] model loaded: input ${input.dataType} [${shape.join(',')}], ${model.outputs?.length ?? '?'} outputs`);
       return { model, width, height, inputBytes: width * height * 3 };
     })().catch((e) => {
+      console.warn('[DETECTOR] model load failed:', e?.message || String(e));
       loading = null; // allow a retry on the next scanner mount
       throw e;
     });
@@ -82,8 +85,10 @@ const clamp01 = (v) => {
  * Model outputs → the most likely device box, in model-input (= frame buffer)
  * normalised coordinates, or null. Picks outputs by size so a differently
  * ordered export still parses: count has 1 value, boxes 4x the others.
+ * `onlyCls` (optional) keeps a single COCO class, e.g. 76 for phones only.
  */
-export function parseBestDevice(outputs, minScore) {
+/** Model outputs → { boxes, classes, scores, count }, or null when unparseable. */
+function splitOutputs(outputs) {
   'worklet';
   if (!outputs || outputs.length < 3) return null;
   const arrays = [];
@@ -109,14 +114,21 @@ export function parseBestDevice(outputs, minScore) {
   const detected = num ? Math.round(num[0]) : scores.length;
   const count = Math.max(0, Math.min(detected, scores.length, boxes.length / 4));
   if (looksIntegral(scores, count) && !looksIntegral(classes, count)) { const t = classes; classes = scores; scores = t; }
+  return { boxes, classes, scores, count };
+}
 
+export function parseBestDevice(outputs, minScore, onlyCls) {
+  'worklet';
+  const split = splitOutputs(outputs);
+  if (!split) return null;
+  const { boxes, classes, scores, count } = split;
   let best = null;
   for (let i = 0; i < count; i += 1) {
     const score = scores[i];
     if (!(score >= minScore)) continue;
     const cls = Math.round(classes[i]);
     const label = DEVICE_LABELS[cls];
-    if (!label) continue;
+    if (!label || (onlyCls != null && onlyCls >= 0 && cls !== onlyCls)) continue;
     const v0 = clamp01(boxes[i * 4]);
     const u0 = clamp01(boxes[i * 4 + 1]);
     const v1 = clamp01(boxes[i * 4 + 2]);
@@ -133,6 +145,39 @@ export function parseBestDevice(outputs, minScore) {
   }
   return best;
 }
+
+/**
+ * Every detection ≥ minScore, any COCO class, highest score first:
+ * [{ cls, label, score, u0, v0, u1, v1 }] (box normalised to the model input).
+ */
+export function parseAllDetections(outputs, minScore) {
+  const split = splitOutputs(outputs);
+  if (!split) return [];
+  const { boxes, classes, scores, count } = split;
+  const out = [];
+  for (let i = 0; i < count; i += 1) {
+    if (!(scores[i] >= minScore)) continue;
+    const cls = Math.round(classes[i]);
+    out.push({
+      cls, label: COCO_LABELS[cls] || 'Unknown object', score: scores[i],
+      v0: clamp01(boxes[i * 4]), u0: clamp01(boxes[i * 4 + 1]), v1: clamp01(boxes[i * 4 + 2]), u1: clamp01(boxes[i * 4 + 3]),
+    });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+// 0-based COCO-90 label map (the one embedded in the model; '' = unused id).
+export const COCO_LABELS = [
+  'Person', 'Bicycle', 'Car', 'Motorcycle', 'Airplane', 'Bus', 'Train', 'Truck', 'Boat', 'Traffic light',
+  'Fire hydrant', '', 'Stop sign', 'Parking meter', 'Bench', 'Bird', 'Cat', 'Dog', 'Horse', 'Sheep',
+  'Cow', 'Elephant', 'Bear', 'Zebra', 'Giraffe', '', 'Backpack', 'Umbrella', '', '',
+  'Handbag', 'Tie', 'Suitcase', 'Frisbee', 'Skis', 'Snowboard', 'Sports ball', 'Kite', 'Baseball bat', 'Baseball glove',
+  'Skateboard', 'Surfboard', 'Tennis racket', 'Bottle', '', 'Wine glass', 'Cup', 'Fork', 'Knife', 'Spoon',
+  'Bowl', 'Banana', 'Apple', 'Sandwich', 'Orange', 'Broccoli', 'Carrot', 'Hot dog', 'Pizza', 'Donut',
+  'Cake', 'Chair', 'Couch', 'Potted plant', 'Bed', '', 'Dining table', '', '', 'Toilet',
+  '', 'TV / Monitor', 'Laptop', 'Mouse', 'Remote', 'Keyboard', 'Mobile Phone', 'Microwave', 'Oven', 'Toaster',
+  'Sink', 'Refrigerator', '', 'Book / Notebook', 'Clock', 'Vase', 'Scissors', 'Teddy bear', 'Hair drier', 'Toothbrush',
+];
 
 /**
  * Buffer-space box → upright (what the user sees) normalised { x, y, w, h }.

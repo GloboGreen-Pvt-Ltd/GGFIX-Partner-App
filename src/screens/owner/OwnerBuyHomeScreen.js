@@ -394,7 +394,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
             }}
           >
             <SlidersHorizontal size={16} color={activeFilters > 0 ? '#FFFFFF' : INK} />
-            <Text style={{ marginLeft: 6, fontSize: rf(13), fontWeight: '800', color: activeFilters > 0 ? '#FFFFFF' : INK }}>Filters</Text>
+            <Text style={{ marginLeft: 6, fontSize: rf(13), fontWeight: '800', color: activeFilters > 0 ? '#FFFFFF' : INK }} numberOfLines={1}>Filters</Text>
             {activeFilters > 0 ? (
               <View style={{ marginLeft: 6, paddingHorizontal: 6, borderRadius: 999, backgroundColor: '#FFFFFF' }}>
                 <Text style={{ fontSize: rf(10), fontWeight: '800', color: GREEN_DARK }}>{activeFilters}</Text>
@@ -514,7 +514,8 @@ export default function OwnerBuyHomeScreen({ navigation }) {
         <View style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17,0.45)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowFilters(false)} accessibilityLabel="Close filters" />
           {/* Pads this modal window's own nav-bar / home-indicator inset. */}
-          <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
+          {/* Tablets: capped and centred rather than spanning the screen. */}
+          <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }}>
             <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: 12 }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ flex: 1, fontSize: rf(14), fontWeight: '800', color: INK }}>Filters</Text>

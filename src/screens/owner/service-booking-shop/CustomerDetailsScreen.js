@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import { UserPlus, User, Mail, Phone, ArrowLeft, ChevronRight as ChevronRightIcon, UploadCloud, MapPin, Search, Check, X, IdCard } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { UserPlus, User, Mail, Phone, ArrowLeft, ChevronRight as ChevronRightIcon, ChevronDown, UploadCloud, MapPin, Search, Check, X, IdCard } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ticketApi } from '../../../api/client';
 import { uploadMedia, getDeviceCategories } from '../../../api/masterData';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
 import DeviceImage from '../../../components/DeviceImage';
 import { Smartphone, RefreshCcw } from 'lucide-react-native';
+import { StepProgress } from './BookingSteps';
 
 // One "House No, Street, Area, City, Pincode" line from a customer's saved
 // address parts, falling back to the legacy concatenated `address`.
@@ -30,7 +33,7 @@ const normalizeMobile = (value) => {
 // what makes the cursor look too high / off inside a tall input).
 // One fixed height for every field (text inputs AND selects) so the two-column
 // Address grid lines up row by row; paddingVertical 9 sits inside it.
-const INPUT_H = 46;
+const INPUT_H = 48;
 const INPUT_STYLE = { height: INPUT_H, textAlignVertical: 'center', includeFontPadding: false };
 
 // GGFIX palette. Explicit hexes rather than Tailwind's `primary` / `success`
@@ -171,8 +174,8 @@ function LookupStatus({ status }) {
 // Bold label above each field: red * when required, muted "(Optional)" otherwise.
 function Field({ label, required, optional, children, className }) {
   return (
-    <View className={`mb-4 ${className || ''}`}>
-      <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 8 }}>
+    <View className={`mb-3 ${className || ''}`}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: INK, marginBottom: 6 }}>
         {label}
         {required ? <Text style={{ color: '#DC2626' }}> *</Text> : null}
         {optional ? <Text style={{ fontWeight: '400', color: MUTED }}> (Optional)</Text> : null}
@@ -181,6 +184,11 @@ function Field({ label, required, optional, children, className }) {
     </View>
   );
 }
+
+// Interrupted-entry draft for a NEW booking's customer (name / mobile / email /
+// address): restored when the screen reopens, cleared once Continue saves.
+const CUSTOMER_DRAFT_KEY = 'ggfix.customerDraft.v1';
+const CUSTOMER_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Outlined field box shared by every input on the form.
 const FIELD_BOX = { borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: '#FFFFFF' };
@@ -553,6 +561,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
       // Device Details picks category → brand → model → colour / storage on
       // one screen (a category chosen earlier, e.g. from Home, comes along).
       setSavedCustomer(resolved);
+      if (draftable) AsyncStorage.removeItem(CUSTOMER_DRAFT_KEY).catch(() => {});
       const preselected = route?.params?.preselectedCategory;
       // Editing a booking: carry its edit params (editMode, editTicketId,
       // device, services, photos…) on to Device Details with the customer.
@@ -562,6 +571,9 @@ export default function CustomerDetailsScreen({ navigation, route }) {
         : {};
       navigation.navigate('DeviceDetails', {
         ...editCarry,
+        // Add Device on an existing booking: every device booked from here
+        // joins that booking number (next suffix) instead of drawing a new one.
+        ...(route?.params?.addToBookingNumber ? { addToBookingNumber: route.params.addToBookingNumber } : {}),
         customerId: resolved.id,
         customer: resolved,
         ...(preselected?.id ? { preselectedCategory: preselected } : {}),
@@ -571,17 +583,75 @@ export default function CustomerDetailsScreen({ navigation, route }) {
     } finally { setSaving(false); }
   };
 
+  // More Details (optional): collapsed by default; its values live in `data`,
+  // so collapsing never clears them. The header shows how many are filled.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const optionalFilled = [data.email.trim(), data.address.trim(), idProofUrl].filter(Boolean).length;
+
+  // Search found nobody for a full 10-digit number -> a new customer: use that
+  // number in the Mobile field (unless one is already typed).
+  useEffect(() => {
+    const digits = normalizeMobile(q);
+    if (digits.length !== 10 || searching || searchError || dedupedResults.length > 0) return;
+    if (!normalizeMobile(phoneInputRef.current)) set('phone', digits);
+  }, [q, searching, searchError, dedupedResults.length, set]);
+
+  // Draft autosave / restore: new bookings only (an edit, a re-service or a
+  // caller-supplied customer already has its data).
+  const draftable = !route?.params?.editMode && !route?.params?.reService && !initial.name && !existingPick.id;
+  const draftLoadedRef = useRef(!draftable);
+  useEffect(() => {
+    if (!draftable) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CUSTOMER_DRAFT_KEY);
+        const d = raw ? JSON.parse(raw) : null;
+        if (cancelled || !d || Date.now() - (d.at || 0) > CUSTOMER_DRAFT_TTL_MS) return;
+        // Only into an untouched form, never over something already typed.
+        if (editedFieldsRef.current.size === 0) {
+          if (d.phone) phoneInputRef.current = d.phone;
+          setData((cur) => ({ ...cur, name: d.name || '', phone: d.phone || '', email: d.email || '', address: d.address || '' }));
+          if (d.email || d.address) setMoreOpen(true);
+        }
+      } catch (_) { /* no draft */ }
+      finally { draftLoadedRef.current = true; }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!draftable || !draftLoadedRef.current) return undefined;
+    const t = setTimeout(() => {
+      const empty = !data.name.trim() && !data.phone.trim() && !data.email.trim() && !data.address.trim();
+      (empty
+        ? AsyncStorage.removeItem(CUSTOMER_DRAFT_KEY)
+        : AsyncStorage.setItem(CUSTOMER_DRAFT_KEY, JSON.stringify({ ...data, at: Date.now() }))
+      ).catch(() => {});
+    }, 400);
+    return () => clearTimeout(t);
+  }, [data, draftable]);
+
+  // One Continue at a time: a fast double tap must not save / navigate twice.
+  const continuingRef = useRef(false);
+  const onContinue = async () => {
+    if (continuingRef.current || saving) return;
+    continuingRef.current = true;
+    try {
+      await save();
+    } finally {
+      continuingRef.current = false;
+    }
+  };
+
   return (
     // Explicit white rather than the `bg-background` class. The token IS white
     // now, but NativeWind compiles tailwind.config.js at BUILD time — the class
     // keeps its old value until Metro is restarted with --clear, so a plain
     // style is what makes this screen white without a rebuild.
     <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
-      {/* White header — same as Service Booking Devices List: round back
-          button, centred title + subtitle, hairline under the strip. */}
-      <View
-        style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: BORDER }}
-      >
+      {/* Compact header: back · "Customer Details" / "Find or add customer". */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 6, paddingBottom: 6, paddingHorizontal: 14 }}>
         <View className="flex-row items-center">
           <Pressable
             onPress={() => navigation.goBack()}
@@ -598,28 +668,32 @@ export default function CustomerDetailsScreen({ navigation, route }) {
               Customer Details
             </Text>
             <Text className="text-center" style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
-              Search or add the customer for this booking
+              Find or add customer
             </Text>
           </View>
           <View style={{ width: 36 }} />
         </View>
       </View>
-      <KeyboardAvoidingView
+      {/* Customer → Devices → Confirm */}
+      <View style={{ borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View style={{ width: '100%', maxWidth: formMaxWidth, alignSelf: 'center' }}>
+          <StepProgress active={0} />
+        </View>
+      </View>
+
+      {/* KeyboardAwareScrollView (repo pattern): lifts the focused field above the keyboard. */}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-      <ScrollView
+        bottomOffset={90}
         contentContainerStyle={{
-          padding: compact ? 10 : 12,
-          // Next is the last item — keep it above the gesture / 3-button bar.
-          paddingBottom: (compact ? 16 : 20) + insets.bottom,
+          paddingHorizontal: compact ? 12 : 14,
+          paddingTop: compact ? 10 : 12,
+          paddingBottom: 16,
           alignItems: isTablet ? 'center' : undefined,
         }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        {/* Width-capped + centered on tablet/large screens (section 8) — plain
-            View wrapper, phone gets full width (maxWidth undefined). */}
         <View style={{ width: '100%', maxWidth: formMaxWidth }}>
 
         {/* Re-Service: a new repair for a device this shop already serviced. */}
@@ -635,181 +709,190 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {/* ── Find an existing customer ──────────────────────────────────
-            Type a mobile number; hits fill the form below. Typing straight
-            into the form instead is the new-customer path. */}
-        <View className="mb-4">
-          <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 8 }}>
-            Search Customer by Mobile Number
-          </Text>
-          <View
-            className="flex-row items-center px-4"
-            style={{ ...FIELD_BOX, height: INPUT_H }}
-          >
-            <Search size={19} color={INK} strokeWidth={1.75} />
+        {/* ── Search an existing customer by mobile number or name (GET /customers?q=) ── */}
+        <View className="mb-3">
+          <View className="flex-row items-center px-3.5" style={{ ...FIELD_BOX, height: INPUT_H, backgroundColor: '#F9FAFB' }}>
+            <Search size={18} color={MUTED} strokeWidth={2} />
             <TextInput
-              placeholder="Enter mobile number"
+              placeholder="Search by mobile number or name"
               placeholderTextColor={PLACEHOLDER}
               value={q}
               onChangeText={setQ}
               returnKeyType="search"
-              keyboardType="number-pad"
-              maxLength={10}
+              autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={40}
               cursorColor={ACCENT}
-              className="flex-1 ml-3 text-text"
-              style={{ paddingVertical: 0, fontSize: 13 }}
+              className="flex-1 ml-2.5 text-text"
+              style={{ paddingVertical: 0, fontSize: 14, includeFontPadding: false }}
+              accessibilityLabel="Search customer by mobile number or name"
             />
             {searching ? (
               <ActivityIndicator size="small" color={ACCENT} />
             ) : q ? (
-              <Pressable onPress={() => { setQ(''); setResults([]); }} hitSlop={8}>
+              <Pressable onPress={() => { setQ(''); setResults([]); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
                 <X size={17} color={MUTED} />
               </Pressable>
-            ) : (
-              <User size={19} color={INK} strokeWidth={1.75} />
-            )}
+            ) : null}
           </View>
 
-          {dedupedResults.map((c) => (
-            <Pressable
-              key={`${c.source || 'shop'}:${c.id}`}
-              onPress={() => pickCustomer(c)}
-              accessibilityRole="button"
-              accessibilityLabel={`Use ${c.name || 'customer'}`}
-              className="flex-row items-center rounded-xl px-3 mt-1.5 active:opacity-80"
-              style={{ minHeight: 48, backgroundColor: CAT_TILE_BG }}
-            >
-              <View className="flex-1">
-                <Text className="text-[13px] font-extrabold text-text" numberOfLines={1}>{c.name}</Text>
-                <Text className="text-[12px] text-text-muted mt-0.5" numberOfLines={1}>
-                  {c.phone || c.mobile || ''}
-                </Text>
-              </View>
-              <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: ACCENT_10 }}>
-                <Text className="text-[10px] font-bold" style={{ color: ACCENT }}>
-                  {{ existing: 'Existing', linked: 'Linked', app: 'App user' }[customerStatus(c, linkedIdsRef.current)]}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
+          {dedupedResults.map((c) => {
+            const st = customerStatus(c, linkedIdsRef.current);
+            return (
+              <Pressable
+                key={`${c.source || 'shop'}:${c.id}`}
+                onPress={() => pickCustomer(c)}
+                accessibilityRole="button"
+                accessibilityLabel={`Use ${c.name || 'customer'}`}
+                className="flex-row items-center rounded-xl px-3 mt-2 active:opacity-80"
+                style={{ minHeight: 52, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#C7E6EA' }}
+              >
+                <View className="items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#E5F3F5' }}>
+                  <User size={16} color={ACCENT} strokeWidth={2} />
+                </View>
+                <View className="flex-1" style={{ marginLeft: 10, minWidth: 0 }}>
+                  <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{c.name || 'Customer'}</Text>
+                  <Text className="text-[12px] text-text-muted" numberOfLines={1}>{c.phone || c.mobile || ''}</Text>
+                </View>
+                <View className="flex-row items-center px-2 py-0.5 rounded-full" style={{ backgroundColor: st === 'app' ? '#E5F3F5' : 'rgba(96,145,56,0.14)' }}>
+                  <Check size={11} color={st === 'app' ? ACCENT : '#609138'} strokeWidth={3} />
+                  <Text className="text-[10.5px] font-bold" style={{ marginLeft: 3, color: st === 'app' ? ACCENT : '#609138' }}>
+                    {{ existing: 'Existing', linked: 'Linked', app: 'App user' }[st]}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
 
           {!searching && q.trim() && searchError ? (
-            <Text className="text-[12px] text-center py-3" style={{ color: '#B45309' }}>
+            <Text className="text-[12px] py-2" style={{ color: '#B45309' }}>
               Couldn&apos;t check for an existing customer. Check your connection and try again.
             </Text>
           ) : !searching && q.trim() && dedupedResults.length === 0 ? (
-            <Text className="text-[12px] text-text-muted text-center py-3">
-              No matching customer — the details below will create a new one.
-            </Text>
+            <View className="flex-row items-center py-2">
+              <UserPlus size={14} color={ACCENT} />
+              <Text className="text-[12px] font-semibold" style={{ marginLeft: 6, color: ACCENT }}>
+                New customer{normalizeMobile(q).length === 10 ? ' — enter the name below' : ''}
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {/* ── OR ── */}
-        <View className="flex-row items-center mb-4">
-          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-          <Text style={{ marginHorizontal: 14, fontSize: 12, fontWeight: '700', color: INK }}>OR</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-        </View>
-
-        {/* Section rail — same format as DEVICES IN THIS BOOKING. */}
-        <View className="flex-row items-center mb-3">
-          <User size={14} color={ACCENT} strokeWidth={2} />
-          <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: 6 }}>
-            PERSONAL INFORMATION
-          </Text>
-        </View>
-
+        {/* ── Essentials: name + mobile ── */}
         <Field label="Customer Name" required>
-          <FormTextInput icon={USER_ICON} placeholder="Enter customer name" value={data.name} onChangeText={onName} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" />
+          <FormTextInput icon={USER_ICON} placeholder="Customer name" value={data.name} onChangeText={onName} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" returnKeyType="next" />
         </Field>
 
         <Field label="Mobile Number" required>
-          <FormTextInput icon={PHONE_ICON} placeholder="Enter mobile number" keyboardType="number-pad" maxLength={10} value={data.phone} onChangeText={onPhone} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
-          <LookupStatus status={lookupStatus} />
+          <FormTextInput icon={PHONE_ICON} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} value={data.phone} onChangeText={(v) => onPhone(v.replace(/\D/g, ''))} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+          {data.phone && normalizeMobile(data.phone).length !== 10 ? (
+            <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Enter all 10 digits.</Text>
+          ) : (
+            <LookupStatus status={lookupStatus} />
+          )}
         </Field>
 
-        <Field label="Email" optional>
-          <FormTextInput icon={MAIL_ICON} placeholder="Enter email address" autoCapitalize="none" keyboardType="email-address" value={data.email} onChangeText={onEmail} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
-        </Field>
-
-        <Field label="Address" optional>
-          <FormTextInput icon={PIN_ICON} iconTop multiline placeholder="House No, Street, Area, City, Pincode" value={data.address} onChangeText={onAddress} className="text-[13px]" style={ADDRESS_STYLE} cursorColor={ACCENT} />
-        </Field>
-
-        {/* ID Proof — an input-style field like the ones above: tap to pick
-            from camera / gallery, then it shows the file with Replace + remove. */}
-        <Field label="ID Proof" optional>
+        {/* ── More Details (Optional): Email · Address · ID Proof ── */}
+        <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 14, overflow: 'hidden' }}>
           <Pressable
-            onPress={idProofUploading ? undefined : promptPickIdProof}
-            disabled={idProofUploading}
+            onPress={() => setMoreOpen((v) => !v)}
             accessibilityRole="button"
-            accessibilityLabel={idProofUrl ? 'Replace ID proof' : 'Upload ID proof'}
-            className="flex-row items-center pl-4 pr-3 active:opacity-80"
-            style={{ ...FIELD_BOX, height: INPUT_H }}
+            accessibilityState={{ expanded: moreOpen }}
+            accessibilityLabel="More details, optional"
+            className="flex-row items-center px-3.5 active:opacity-80"
+            style={{ minHeight: 48, backgroundColor: '#F9FAFB' }}
           >
-            {idProofUploading ? (
-              <ActivityIndicator size="small" color={ACCENT} />
-            ) : idProofUrl ? (
-              <Image source={{ uri: idProofUrl }} style={{ width: 26, height: 26, borderRadius: 6 }} resizeMode="cover" />
-            ) : (
-              <IdCard size={19} color={INK} strokeWidth={1.75} />
-            )}
-            <Text
-              className="flex-1 ml-3"
-              style={{ fontSize: 13, color: idProofUrl ? INK : PLACEHOLDER, fontWeight: idProofUrl ? '600' : '400' }}
-              numberOfLines={1}
-            >
-              {idProofUploading ? 'Uploading…' : idProofUrl ? 'ID proof uploaded' : 'Upload ID proof (Max 10MB)'}
+            <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '700', color: INK }}>
+              More Details <Text style={{ fontWeight: '400', color: MUTED }}>(Optional)</Text>
             </Text>
-            {idProofUploading ? null : idProofUrl ? (
-              <>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: ACCENT_TEXT, marginRight: 10 }}>Replace</Text>
+            {optionalFilled > 0 ? (
+              <View className="px-2 py-0.5 rounded-full mr-2" style={{ backgroundColor: '#E5F3F5' }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: ACCENT }}>{optionalFilled} added</Text>
+              </View>
+            ) : null}
+            <ChevronDown size={18} color={INK} strokeWidth={2} style={{ transform: [{ rotate: moreOpen ? '180deg' : '0deg' }] }} />
+          </Pressable>
+
+          {moreOpen ? (
+            <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
+              <Field label="Email" optional>
+                <FormTextInput icon={MAIL_ICON} placeholder="Email address" autoCapitalize="none" keyboardType="email-address" value={data.email} onChangeText={onEmail} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+              </Field>
+
+              <Field label="Address" optional>
+                <FormTextInput icon={PIN_ICON} iconTop multiline placeholder="House No, Street, Area, City, Pincode" value={data.address} onChangeText={onAddress} className="text-[13px]" style={ADDRESS_STYLE} cursorColor={ACCENT} />
+              </Field>
+
+              {/* ID Proof — tap to pick from camera / gallery; shows the file with Replace + remove. */}
+              <Field label="ID Proof" optional>
                 <Pressable
-                  onPress={() => setIdProofUrl('')}
-                  hitSlop={8}
+                  onPress={idProofUploading ? undefined : promptPickIdProof}
+                  disabled={idProofUploading}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove ID proof"
-                  className="h-7 w-7 rounded-full bg-danger/10 items-center justify-center"
+                  accessibilityLabel={idProofUrl ? 'Replace ID proof' : 'Upload ID proof'}
+                  className="flex-row items-center pl-4 pr-3 active:opacity-80"
+                  style={{ ...FIELD_BOX, height: INPUT_H }}
                 >
-                  <X size={14} color="#DC2626" />
+                  {idProofUploading ? (
+                    <ActivityIndicator size="small" color={ACCENT} />
+                  ) : idProofUrl ? (
+                    <Image source={{ uri: idProofUrl }} style={{ width: 26, height: 26, borderRadius: 6 }} resizeMode="cover" />
+                  ) : (
+                    <IdCard size={19} color={INK} strokeWidth={1.75} />
+                  )}
+                  <Text
+                    className="flex-1 ml-3"
+                    style={{ fontSize: 13, color: idProofUrl ? INK : PLACEHOLDER, fontWeight: idProofUrl ? '600' : '400' }}
+                    numberOfLines={1}
+                  >
+                    {idProofUploading ? 'Uploading…' : idProofUrl ? 'ID proof uploaded' : 'Upload ID proof (Max 10MB)'}
+                  </Text>
+                  {idProofUploading ? null : idProofUrl ? (
+                    <>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: ACCENT_TEXT, marginRight: 10 }}>Replace</Text>
+                      <Pressable
+                        onPress={() => setIdProofUrl('')}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove ID proof"
+                        className="h-7 w-7 rounded-full bg-danger/10 items-center justify-center"
+                      >
+                        <X size={14} color="#DC2626" />
+                      </Pressable>
+                    </>
+                  ) : (
+                    <UploadCloud size={19} color={ACCENT} strokeWidth={1.75} />
+                  )}
                 </Pressable>
-              </>
+              </Field>
+            </View>
+          ) : null}
+        </View>
+        </View>
+      </KeyboardAwareScrollView>
+
+      {/* Sticky Continue — rides above the keyboard; safe-area padded. */}
+      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+        <View style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingTop: 10, paddingBottom: insets.bottom + 10 }}>
+          <Pressable
+            onPress={onContinue}
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Continue"
+            className="flex-row items-center justify-center active:opacity-85"
+            style={{ height: 50, borderRadius: 14, backgroundColor: ACCENT, opacity: saving ? 0.6 : 1, width: '100%', maxWidth: formMaxWidth, alignSelf: 'center' }}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <UploadCloud size={19} color={ACCENT} strokeWidth={1.75} />
+              <>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>Continue</Text>
+                <ChevronRightIcon size={18} color="#FFFFFF" strokeWidth={2.4} style={{ marginLeft: 4 }} />
+              </>
             )}
           </Pressable>
-        </Field>
-
-        {/* Filled ACCENT "Next" — saves the customer, then opens the category
-            sheet (same save() as before). Written as a Pressable because the
-            shared Button paints its own variant fill. */}
-        <Pressable
-          onPress={save}
-          disabled={saving}
-          accessibilityRole="button"
-          accessibilityLabel="Next"
-          className="flex-row items-center justify-center active:opacity-85"
-          style={{
-            height: 48,
-            borderRadius: 999,
-            backgroundColor: ACCENT,
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
-                Next
-              </Text>
-              <ChevronRightIcon size={18} color="#FFFFFF" strokeWidth={2.25} style={{ marginLeft: 4 }} />
-            </>
-          )}
-        </Pressable>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardStickyView>
 
       {/* Category picker. `ResponsiveModal` makes this a bottom sheet on a
           phone and a centred dialog on a tablet, and caps its height to the

@@ -1,23 +1,47 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Bike,
+  CalendarClock,
+  ChartColumn,
+  CircleCheck,
+  Clock,
+  MapPin,
+  RefreshCw,
+  Truck,
+  WifiOff,
+} from 'lucide-react-native';
 import { listShopRepairBookings } from '../../api/orders';
+import { getModelsByBrand } from '../../api/masterData';
+import { SearchBar } from '../../components/rnr/SearchBar';
+import { resolveDeviceImageSource } from '../../utils/images';
+import {
+  RC,
+  useReportGeometry,
+  ReportHeader,
+  ReportHeaderButton,
+  StatusRail,
+  MonthBar,
+  ReportTile,
+  TileDisc,
+  tileText,
+  ReportEmpty,
+  reportStyles,
+} from '../../components/report/ReportRail';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-const FILTERS = ['All', 'Completed', 'In Progress', 'Assigned'];
 
 // Bucket pickup statuses for an at-a-glance summary.
 // Buckets:
@@ -49,17 +73,34 @@ function bucketize(status) {
   return 'ASSIGNED';
 }
 
+// Left rail — the old filter chips (same keys / buckets), with the old stat
+// cards folded in as counts.
+const RAIL = [
+  { key: 'All', stat: 'total', label: 'All', tone: RC.teal, Icon: ChartColumn },
+  { key: 'Assigned', stat: 'assigned', label: 'Assigned', tone: RC.blue, Icon: CalendarClock },
+  { key: 'In Progress', stat: 'inProgress', label: 'In Progress', tone: RC.orange, Icon: Truck },
+  { key: 'Completed', stat: 'completed', label: 'Completed', tone: RC.green, Icon: CircleCheck },
+];
+
+// Bucket → tile tag + the old card's step line.
+const BUCKET_META = {
+  ASSIGNED: { label: 'Assigned', tone: RC.blue, step: 'Pickup Scheduled — awaiting collection' },
+  IN_PROGRESS: { label: 'In Progress', tone: RC.orange, step: 'In Transit — heading to shop' },
+  COMPLETED: { label: 'Completed', tone: RC.green, step: 'Pickup Completed — delivered to shop' },
+};
+
 function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatDateTime(instant) {
-  if (!instant) return '—';
-  return new Date(instant).toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
-}
+const timeOf = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const h = d.getHours();
+  return `${String(h % 12 || 12).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
 
 function trackingId(b) {
   return b.bookingNumber || b.trackingId || b.ticketCode || `CSPEN${String(b.id || '').replace(/[^0-9]/g, '').slice(0, 8) || '--'}`;
@@ -76,7 +117,33 @@ function customerLine(b) {
   return `${name}${mobile}`;
 }
 
+function personName(b) {
+  return String(b.pickupPersonName || '').trim() || 'Unassigned';
+}
+
+const pickupTime = (b) => new Date(b.pickupDate || b.updatedAt || b.createdAt || 0).getTime();
+const byPickupRecent = (a, b) => pickupTime(b) - pickupTime(a);
+
+// Model name only — no model number / RAM / storage / colour.
+function deviceLabel(b, model) {
+  const raw = model?.name || b.deviceDisplayName || b.deviceModelName || b.modelName || '';
+  return String(raw).split(/[·•|]/)[0].trim();
+}
+
+// brandId → Promise<models[]>, shared so each brand's catalogue is fetched once.
+const modelsByBrand = new Map();
+function modelsFor(brandId) {
+  if (!modelsByBrand.has(brandId)) {
+    modelsByBrand.set(brandId, getModelsByBrand(brandId).catch(() => {
+      modelsByBrand.delete(brandId);
+      return [];
+    }));
+  }
+  return modelsByBrand.get(brandId);
+}
+
 export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
+  const { isSmall, railW, numCols, capW, bottomPad } = useReportGeometry();
   const employee = route.params?.employee;
   // No `employee` param = ALL-PICKUP-PERSON mode, for the dashboard's "Pickup
   // Report" tile. With a param it stays one person's report, as before.
@@ -87,15 +154,24 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState('All');
+  const [query, setQuery] = useState('');
+  // Search bar is hidden until the header's Search icon opens it.
+  const [searchOpen, setSearchOpen] = useState(false);
+  // modelId → { name, image } from the brand catalogue (the shop endpoint
+  // returns brand/model ids only).
+  const [modelById, setModelById] = useState({});
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
       const all = await listShopRepairBookings();
       setList(Array.isArray(all) ? all : []);
+      setError(false);
     } catch {
       setList([]);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,18 +212,32 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
     return { assigned, inProgress, completed, total: mine.length };
   }, [mine]);
 
-  const sortedDesc = useMemo(() => {
-    return [...mine].sort((a, b) => {
-      const at = new Date(a.pickupDate || a.updatedAt || a.createdAt || 0).getTime();
-      const bt = new Date(b.pickupDate || b.updatedAt || b.createdAt || 0).getTime();
-      return bt - at;
+  // Device names + catalogue images for the loaded bookings, one fetch per brand.
+  const modelKey = useMemo(() => [...new Set(
+    mineAll.filter((b) => b.brandId && b.modelId).map((b) => `${b.brandId}::${b.modelId}`),
+  )].sort().join('|'), [mineAll]);
+  useEffect(() => {
+    const pairs = modelKey ? modelKey.split('|').map((p) => p.split('::')) : [];
+    if (pairs.length === 0) return undefined;
+    let alive = true;
+    const brands = [...new Set(pairs.map(([brand]) => brand))];
+    const wanted = new Set(pairs.map(([, model]) => model));
+    Promise.all(brands.map((id) => modelsFor(id))).then((lists) => {
+      if (!alive) return;
+      const next = {};
+      lists.forEach((models) => (Array.isArray(models) ? models : []).forEach((m) => {
+        const id = String(m?.id ?? '');
+        if (!wanted.has(id)) return;
+        next[id] = { name: m.name, image: resolveDeviceImageSource({ url: m.imageUrl, base64: m.imageBase64 }) };
+      }));
+      setModelById(next);
     });
-  }, [mine]);
+    return () => { alive = false; };
+  }, [modelKey]);
 
-  const recentAssigned = sortedDesc.find((b) => bucketize(b.status) === 'ASSIGNED');
-  const recentInProgress = sortedDesc.find((b) => bucketize(b.status) === 'IN_PROGRESS');
+  const modelOf = (b) => (b.modelId != null ? modelById[String(b.modelId)] : null);
 
-  const filteredList = sortedDesc.filter((b) => {
+  const filterByBucket = (arr) => arr.filter((b) => {
     const bk = bucketize(b.status);
     if (filter === 'All') return true;
     if (filter === 'Completed') return bk === 'COMPLETED';
@@ -155,6 +245,15 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
     if (filter === 'Assigned') return bk === 'ASSIGNED';
     return false;
   });
+
+  // Search looks across every month of the loaded pickups by pickup id,
+  // customer, device or pickup person; the rail filter still applies.
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? filterByBucket([...mineAll].sort(byPickupRecent)).filter((b) => [
+      trackingId(b), b.customerName, b.customerMobile, deviceLabel(b, modelOf(b)), b.pickupPersonName,
+    ].some((v) => v && String(v).toLowerCase().includes(q)))
+    : filterByBucket([...mine].sort(byPickupRecent));
 
   const stepMonth = (delta) => {
     let m = month + delta;
@@ -169,316 +268,189 @@ export default function OwnerEmployeePickupReportScreen({ route, navigation }) {
     navigation.navigate('OwnerPickupServiceDetail', { id: b.id, booking: b });
   };
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={['#035C6C']} tintColor="#035C6C" />}
-      >
-        {/* This Month — stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.statsHeader}>
-            <Text style={styles.statsHeaderTitle}>This Month</Text>
-            <View style={styles.monthPill}>
-              <Text style={styles.monthPillText}>{MONTHS[month - 1]} {year}</Text>
-              <TouchableOpacity onPress={() => stepMonth(-1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-back" size={14} color="#035C6C" />
-              </TouchableOpacity>
-              <View style={styles.monthPillSep} />
-              <TouchableOpacity onPress={() => stepMonth(1)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Ionicons name="chevron-forward" size={14} color="#035C6C" />
-              </TouchableOpacity>
-            </View>
-          </View>
+  const railItems = RAIL.map((it) => ({ ...it, count: counts[it.stat] }));
+  const showInitialSpinner = loading && list.length === 0;
+  const showError = error && list.length === 0 && !loading;
 
-          <View style={styles.statTilesRow}>
-            <StatTile
-              value={String(counts.assigned).padStart(2, '0')}
-              label="Assigned"
-              hint="Scheduled"
-              icon="bookmark"
-              bg="#035C6C"
-            />
-            <StatTile
-              value={String(counts.inProgress).padStart(2, '0')}
-              label="In Progress"
-              hint="On route"
-              icon="car"
-              bg="#F3BF23"
-              fg="#111111"
-            />
-            <StatTile
-              value={String(counts.completed).padStart(3, '0')}
-              label="Completed"
-              hint="Delivered"
-              icon="checkmark-done"
-              bg="#035C6C"
-            />
-            <StatTile
-              value={String(counts.total).padStart(3, '0')}
-              label="Total"
-              hint="Overall"
-              icon="stats-chart"
-              bg="#035C6C"
-            />
-          </View>
-        </View>
+  // Pad to an even count in 2-col mode so the last lone tile stays half-width.
+  const listData = numCols > 1 && shown.length % 2 === 1 ? [...shown, { id: '__ghost__', _ghost: true }] : shown;
 
-        {loading && list.length === 0 && (
-          <ActivityIndicator size="small" color="#035C6C" style={{ marginVertical: 20 }} />
-        )}
+  const renderItem = ({ item }) => {
+    if (item._ghost) return <View style={{ flex: 1 }} />;
+    return (
+      <PickupTile
+        booking={item}
+        model={modelOf(item)}
+        row={numCols === 1}
+        showAssignee={allMode}
+        onPress={() => openBooking(item)}
+      />
+    );
+  };
 
-        {/* Recent Assigned */}
-        <Text style={styles.sectionHeader}>Recent Assigned</Text>
-        {recentAssigned ? (
-          <PickupCard
-            booking={recentAssigned}
-            bucket="ASSIGNED"
-            onPress={() => openBooking(recentAssigned)}
-            onRefresh={() => load(true)}
-            refreshing={refreshing}
-            showAssignee={allMode}
-          />
-        ) : (
-          <Text style={styles.empty}>No new pickup assignments.</Text>
-        )}
-
-        {/* In Progress */}
-        <Text style={styles.sectionHeader}>In Progress</Text>
-        {recentInProgress ? (
-          <PickupCard
-            booking={recentInProgress}
-            bucket="IN_PROGRESS"
-            onPress={() => openBooking(recentInProgress)}
-            onRefresh={() => load(true)}
-            refreshing={refreshing}
-            showAssignee={allMode}
-          />
-        ) : (
-          <Text style={styles.empty}>No pickups in progress.</Text>
-        )}
-
-        {/* Previous (with filter chips) */}
-        <Text style={styles.sectionHeader}>Previous Pickups</Text>
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterChip, filter === f && styles.filterChipActive]}
-              onPress={() => setFilter(f)}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>
-                {f}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {filteredList.length === 0 ? (
-          <Text style={styles.empty}>No pickups found.</Text>
-        ) : (
-          filteredList.map((b) => (
-            <PickupCard
-              key={b.id}
-              booking={b}
-              bucket={bucketize(b.status)}
-              onPress={() => openBooking(b)}
-              onRefresh={() => load(true)}
-              refreshing={refreshing}
-              showAssignee={allMode}
-            />
-          ))
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function StatTile({ value, label, hint, icon, bg, fg = '#FFFFFF' }) {
-  return (
-    <View style={styles.statTileWrap}>
-      <View style={[styles.statTileTop, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={11} color={fg} />
-        <Text style={[styles.statTileTopText, { color: fg }]}>{label}</Text>
+  const emptyNode = showInitialSpinner ? (
+    <View style={styles.stateBox}>
+      <ActivityIndicator size="small" color={RC.teal} />
+      <Text style={styles.stateText}>Loading pickups…</Text>
+    </View>
+  ) : showError ? (
+    <View style={[styles.stateCard, styles.stateBox]}>
+      <View style={[styles.stateIcon, { backgroundColor: RC.red }]}>
+        <WifiOff size={20} color={RC.white} />
       </View>
-      <Text style={styles.statTileValue}>{value}</Text>
-      <Text style={styles.statTileHint}>{hint}</Text>
+      <Text style={styles.stateTitle}>Couldn't load pickups</Text>
+      <Text style={styles.stateText}>Check your connection and try again.</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={() => load()} activeOpacity={0.85}>
+        <Text style={styles.retryText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <ReportEmpty
+      Icon={Truck}
+      text={q ? `No pickups match "${query.trim()}".` : filter === 'All' ? 'No pickups this month.' : `No ${filter.toLowerCase()} pickups this month.`}
+    />
+  );
+
+  return (
+    <View style={reportStyles.screen}>
+      <ReportHeader
+        title={allMode ? 'Pickup Report' : 'Pickup Record'}
+        subtitle={allMode ? 'All pickup persons' : (employee?.name || 'Pickup person')}
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+        searchOpen={searchOpen}
+        onToggleSearch={() => { if (searchOpen) setQuery(''); setSearchOpen((v) => !v); }}
+        right={(
+          <ReportHeaderButton
+            Icon={RefreshCw}
+            label="Refresh pickups"
+            onPress={() => { if (!refreshing) load(true); }}
+          />
+        )}
+      />
+
+      {searchOpen || query ? (
+        <View style={styles.searchWrap}>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder={allMode ? 'Search pickup, customer, device, person' : 'Search pickup, customer, device'}
+            onClear={() => setQuery('')}
+            autoFocus
+          />
+        </View>
+      ) : null}
+
+      <View style={reportStyles.body}>
+        <StatusRail
+          items={railItems}
+          active={filter}
+          onSelect={setFilter}
+          width={railW}
+          isSmall={isSmall}
+          bottomPad={bottomPad}
+        />
+
+        <View style={{ flex: 1 }}>
+          <MonthBar
+            label={`${MONTHS[month - 1]} ${year}`}
+            sub={q ? `${shown.length} found · all months` : `${shown.length} ${shown.length === 1 ? 'pickup' : 'pickups'}`}
+            onPrev={() => stepMonth(-1)}
+            onNext={() => stepMonth(1)}
+            capW={capW}
+          />
+
+          <FlatList
+            data={listData}
+            key={numCols}
+            numColumns={numCols}
+            columnWrapperStyle={numCols > 1 ? { gap: 12 } : undefined}
+            keyExtractor={(item, index) => String(item.id || index)}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[RC.teal]} tintColor={RC.teal} />}
+            contentContainerStyle={[reportStyles.listPad, { paddingBottom: bottomPad }, capW]}
+            ListEmptyComponent={emptyNode}
+          />
+        </View>
+      </View>
     </View>
   );
 }
 
-function PickupCard({ booking, bucket, onPress, onRefresh, refreshing, showAssignee }) {
-  const isAssigned = bucket === 'ASSIGNED';
-  const isInProgress = bucket === 'IN_PROGRESS';
-  const isCompleted = bucket === 'COMPLETED';
+// Catalogue / booking device image; else a white truck on a teal disc.
+function PickupPanel({ uri, row }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [uri]);
+  if (uri && !failed) {
+    return <Image source={{ uri }} style={{ width: '76%', height: '76%' }} resizeMode="contain" onError={() => setFailed(true)} />;
+  }
+  return <TileDisc Icon={Truck} tone={RC.teal} row={row} />;
+}
 
-  const stepLine =
-    isAssigned ? 'Pickup Scheduled — awaiting collection'
-      : isInProgress ? 'In Transit — heading to shop'
-        : 'Pickup Completed — delivered to shop';
-  const stepColor =
-    isAssigned ? '#035C6C'
-      : isInProgress ? '#8A6A00'
-        : '#035C6C';
-
-  const slot =
-    booking.pickupSlotStart && booking.pickupSlotEnd
-      ? `${String(booking.pickupSlotStart).slice(0, 5)} – ${String(booking.pickupSlotEnd).slice(0, 5)}`
-      : null;
-  const datePart = booking.pickupDate ? formatDate(booking.pickupDate) : formatDate(booking.createdAt);
-  const footerLine =
-    isAssigned ? `Pickup on ${datePart}${slot ? ` (${slot})` : ''}`
-      : isInProgress ? `Picked up on ${formatDateTime(booking.updatedAt || booking.createdAt)}`
-        : `Delivered on ${formatDateTime(booking.updatedAt || booking.createdAt)}`;
-
+// Jobs-style tile: ref, device (or customer), customer, address, pickup
+// person (all-persons view), date · time and the pickup step.
+function PickupTile({ booking, model, row, showAssignee, onPress }) {
+  const bk = bucketize(booking.status);
+  const meta = BUCKET_META[bk] || BUCKET_META.ASSIGNED;
+  const device = deviceLabel(booking, model);
+  const uri = resolveDeviceImageSource({
+    url: booking.deviceImageUrl || booking.modelImageUrl,
+    base64: booking.deviceImageBase64 || booking.modelImageBase64,
+  }) || model?.image || null;
+  const slot = booking.pickupSlotStart && booking.pickupSlotEnd
+    ? `${String(booking.pickupSlotStart).slice(0, 5)} – ${String(booking.pickupSlotEnd).slice(0, 5)}`
+    : null;
+  const when = bk === 'ASSIGNED' ? (booking.pickupDate || booking.createdAt) : (booking.updatedAt || booking.createdAt);
+  const time = bk === 'ASSIGNED' ? (slot || '') : timeOf(when);
+  const ref = `#${trackingId(booking)}`;
+  const title = device || booking.customerName || 'Pickup';
+  const sub = device ? customerLine(booking) : (booking.customerMobile || null);
   return (
-    <TouchableOpacity style={styles.pickupCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.pickupAccent} />
-      <View style={styles.pickupInner}>
-        <View style={styles.pickupTopRow}>
-          <Text style={styles.pickupDate}>{datePart}</Text>
-          <Text style={styles.pickupTracking}>{trackingId(booking)}</Text>
-        </View>
-
-        <View style={styles.pickupMetaRow}>
-          <Ionicons name="person-outline" size={11} color="#6B7280" />
-          <Text style={styles.pickupMetaText} numberOfLines={1}>{customerLine(booking)}</Text>
-        </View>
-        {/* Which pickup person is carrying it. All-person mode only. */}
-        {showAssignee ? (
-          <View style={styles.pickupMetaRow}>
-            <Ionicons name="bicycle-outline" size={11} color="#035C6C" />
-            <Text style={styles.pickupAssignee} numberOfLines={1}>
-              {String(booking.pickupPersonName || '').trim() || 'Unassigned'}
-            </Text>
-          </View>
-        ) : null}
-        <View style={styles.pickupMetaRow}>
-          <Ionicons name="location-outline" size={11} color="#6B7280" />
-          <Text style={styles.pickupMetaText} numberOfLines={1}>{addressLine(booking)}</Text>
-        </View>
-
-        <View style={styles.pickupBottomRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.pickupStep, { color: stepColor }]}>{stepLine}</Text>
-            <Text style={styles.pickupFooter}>{footerLine}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={onRefresh}
-            disabled={refreshing}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            activeOpacity={0.7}
-            style={styles.pickupStatusIcon}
-          >
-            <View style={[
-              styles.statusBadge,
-              isAssigned && { backgroundColor: '#E5F3F5' },
-              isInProgress && { backgroundColor: '#FFF8E1' },
-              isCompleted && { backgroundColor: '#E5F3F5' },
-            ]}>
-              {refreshing ? (
-                <ActivityIndicator size="small" color={stepColor} />
-              ) : (
-                <Ionicons name="refresh" size={14} color={stepColor} />
-              )}
-            </View>
-          </TouchableOpacity>
-        </View>
+    <ReportTile
+      row={row}
+      panel={<PickupPanel uri={uri} row={row} />}
+      tag={meta.label}
+      tagColor={meta.tone}
+      onPress={onPress}
+      accessibilityLabel={`${title}, ${ref}, ${meta.label}`}
+    >
+      <Text style={tileText.ref} numberOfLines={1}>{ref}</Text>
+      <Text style={tileText.title} numberOfLines={2}>{title}</Text>
+      {sub ? <Text style={tileText.sub} numberOfLines={1}>{sub}</Text> : null}
+      <View style={tileText.infoRow}>
+        <MapPin size={11} color={RC.muted} />
+        <Text style={tileText.info} numberOfLines={1}>{addressLine(booking)}</Text>
       </View>
-    </TouchableOpacity>
+      {showAssignee ? (
+        <View style={tileText.infoRow}>
+          <Bike size={11} color={RC.teal} />
+          <Text style={[tileText.info, styles.assignee]} numberOfLines={1}>{personName(booking)}</Text>
+        </View>
+      ) : null}
+      <View style={tileText.dateRow}>
+        <Text style={[tileText.date, styles.shrink]} numberOfLines={1}>{formatDate(when)}</Text>
+        {time ? <Text style={[tileText.date, styles.time]} numberOfLines={1}>{time}</Text> : null}
+      </View>
+      <View style={tileText.chip}>
+        <Clock size={11} color={RC.teal} />
+        <Text style={tileText.chipText} numberOfLines={1}>{meta.step}</Text>
+      </View>
+    </ReportTile>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F3F4F6' },
-  content: { padding: 10, paddingBottom: 20 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: 13, color: '#F84141' },
+  searchWrap: { paddingHorizontal: 16, marginTop: 10 },
 
-  statsCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#F3F4F6' },
-  statsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statsHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#111111' },
-  monthPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E5F3F5',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    gap: 6,
-  },
-  monthPillText: { color: '#035C6C', fontSize: 11, fontWeight: '800' },
-  monthPillSep: { width: 1, height: 12, backgroundColor: '#C7E6EA' },
+  assignee: { color: RC.teal, fontWeight: '700' },
+  shrink: { flexShrink: 1 },
+  time: { marginLeft: 6, flexShrink: 1 },
 
-  statTilesRow: { flexDirection: 'row', gap: 6 },
-  statTileWrap: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    overflow: 'hidden',
-    paddingBottom: 6,
-    alignItems: 'center',
-  },
-  statTileTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    width: '100%',
-    paddingVertical: 4,
-  },
-  statTileTopText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-  statTileValue: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: 4 },
-  statTileHint: { fontSize: 9, color: '#9CA3AF', marginTop: 1, fontWeight: '600' },
-
-  sectionHeader: { fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 12, marginBottom: 6 },
-
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  filterChip: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  filterChipActive: { backgroundColor: '#035C6C', borderColor: '#035C6C' },
-  filterChipText: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
-  filterChipTextActive: { color: '#FFFFFF' },
-
-  pickupCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    marginBottom: 6,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  pickupAccent: { width: 3, backgroundColor: '#035C6C' },
-  pickupInner: { flex: 1, paddingHorizontal: 10, paddingVertical: 8 },
-  pickupTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pickupDate: { fontSize: 12, fontWeight: '700', color: '#111111' },
-  pickupTracking: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
-  pickupAssignee: { fontSize: 11, color: '#035C6C', fontWeight: '700', marginLeft: 4 },
-  pickupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  pickupMetaText: { fontSize: 11, color: '#111111', flex: 1 },
-  pickupBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-  pickupStep: { fontSize: 11, fontWeight: '700' },
-  pickupFooter: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
-  pickupStatusIcon: { marginLeft: 8 },
-  statusBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  empty: { fontSize: 12, color: '#6B7280', textAlign: 'center', paddingVertical: 14 },
+  stateCard: { backgroundColor: RC.white, borderRadius: 16, borderWidth: 1, borderColor: RC.line },
+  stateBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16, marginBottom: 12, gap: 6 },
+  stateIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: 14, fontWeight: '800', color: RC.ink },
+  stateText: { fontSize: 12, color: RC.muted, textAlign: 'center' },
+  retryBtn: { marginTop: 6, backgroundColor: RC.teal, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 8 },
+  retryText: { color: RC.white, fontWeight: '700', fontSize: 12 },
 });

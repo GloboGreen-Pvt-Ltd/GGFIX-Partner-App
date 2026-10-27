@@ -2,55 +2,147 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
+  Image,
   RefreshControl,
   StatusBar,
+  StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ChevronLeft,
-  ChevronRight,
   CalendarCheck,
+  CalendarX,
   Clock,
   Hand,
-  CalendarX,
+  LogIn,
+  LogOut,
+  Timer,
+  User,
   Users,
+  WifiOff,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
+import { SearchBar } from '../../components/rnr/SearchBar';
+import {
+  RC,
+  useReportGeometry,
+  ReportHeader,
+  StatusRail,
+  MonthBar,
+  ReportTile,
+  TileDisc,
+  tileText,
+  ReportEmpty,
+  reportStyles,
+} from '../../components/report/ReportRail';
 
-const GREEN       = '#035C6C';
-const GREEN_DARK  = '#035C6C';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Each mode focuses one metric pulled from the per-employee attendance summary.
+// The modes are also the rail buckets (after All): an employee is in a bucket
+// when that metric is above zero for the month.
 const MODE_META = {
-  attendance: { title: 'Attendance',  icon: CalendarCheck, key: 'presentDays',     unit: 'days', accent: GREEN_DARK },
-  late:       { title: 'Late',        icon: Clock,         key: 'lateHours',       unit: 'hrs',  accent: '#B45309' },
-  permission: { title: 'Permission',  icon: Hand,          key: 'permissionCount', unit: '',     accent: '#B45309' },
-  leave:      { title: 'Leave',       icon: CalendarX,     key: 'leaveDays',       unit: 'days', accent: '#035C6C' },
+  attendance: { title: 'Attendance', icon: CalendarCheck, key: 'presentDays',     unit: 'days', label: 'Present',    short: 'Present', tone: RC.green,  empty: 'No one marked present' },
+  late:       { title: 'Late',       icon: Clock,         key: 'lateHours',       unit: 'hrs',  label: 'Late',       short: 'Late',    tone: RC.red,    empty: 'No late check-ins' },
+  leave:      { title: 'Leave',      icon: CalendarX,     key: 'leaveDays',       unit: 'days', label: 'Leave',      short: 'Leave',   tone: RC.orange, empty: 'No leave taken' },
+  permission: { title: 'Permission', icon: Hand,          key: 'permissionCount', unit: '',     label: 'Permission', short: 'Perm',    tone: RC.blue,   empty: 'No permissions taken' },
 };
+const RAIL_KEYS = ['attendance', 'late', 'leave', 'permission'];
+// Order of the per-tile month stats (same as the old row).
+const STAT_KEYS = ['attendance', 'late', 'permission', 'leave'];
+
+// Daily record status → tile tag (GENERAL is the backend's checked-in day).
+const DAY_STATUS = {
+  GENERAL:    { label: 'Present',    tone: RC.green },
+  PRESENT:    { label: 'Present',    tone: RC.green },
+  LATE:       { label: 'Late',       tone: RC.red },
+  PERMISSION: { label: 'Permission', tone: RC.blue },
+  LEAVE:      { label: 'On Leave',   tone: RC.orange },
+  ABSENT:     { label: 'Absent',     tone: RC.gray },
+  WEEK_OFF:   { label: 'Week Off',   tone: RC.gray },
+  HOLIDAY:    { label: 'Holiday',    tone: RC.navy },
+};
+const NO_TIMES = new Set(['LEAVE', 'WEEK_OFF', 'HOLIDAY', 'ABSENT']);
 
 const num = (v) => (v == null ? 0 : Number(v) || 0);
+const pad2 = (n) => String(n).padStart(2, '0');
 
-const cardShadow = {
-  shadowColor: '#111111',
-  shadowOpacity: 0.06,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 2,
-};
+// Initials disc colour — rotates through the brand sheet, stable per employee.
+const AVATAR_TONES = ['#035C6C', '#0788C9', '#609138', '#FAA700', '#1C3053', '#F32C26'];
+function toneFor(key) {
+  const str = String(key || '');
+  let h = 0;
+  for (let i = 0; i < str.length; i += 1) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[h % AVATAR_TONES.length];
+}
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+function formatTime12(t) {
+  if (!t || typeof t !== 'string') return '—';
+  const [hhRaw, mm] = t.split(':');
+  const hh = Number(hhRaw);
+  if (Number.isNaN(hh)) return '—';
+  const h12 = ((hh - 1 + 12) % 12) + 1;
+  return `${pad2(h12)}:${pad2(Number(mm || 0))} ${hh >= 12 ? 'PM' : 'AM'}`;
+}
+
+// ISO YYYY-MM-DD → "Tue, 21 Oct", parsed locally so the weekday doesn't drift.
+function formatDay(iso) {
+  const [y, m, d] = String(iso || '').split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(y, m - 1, d).getDay()];
+  return `${dow}, ${pad2(d)} ${MONTHS_SHORT[m - 1]}`;
+}
+
+// The day a tile describes: today in the current month, else the month's
+// latest daily record.
+function dayOf(data, month, year) {
+  const recs = (Array.isArray(data?.dailyRecords) ? data.dailyRecords : []).filter((r) => r && r.date);
+  const now = new Date();
+  if (now.getFullYear() === year && now.getMonth() + 1 === month) {
+    const iso = `${year}-${pad2(month)}-${pad2(now.getDate())}`;
+    return { today: true, iso, rec: recs.find((r) => String(r.date) === iso) || null };
+  }
+  const rec = recs.reduce((best, r) => (!best || String(r.date) > String(best.date) ? r : best), null);
+  return { today: false, iso: rec?.date || null, rec };
+}
+
+// Employee photo when there is one, else an initials disc.
+function Avatar({ emp, row }) {
+  const [failed, setFailed] = useState(false);
+  const d = row ? 52 : 64;
+  if (emp.photoUrl && !failed) {
+    return (
+      <Image
+        source={{ uri: emp.photoUrl }}
+        style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: RC.bg }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  const ini = initials(emp.name);
+  return <TileDisc text={ini} Icon={ini ? undefined : User} tone={toneFor(emp.id || emp.name)} row={row} />;
+}
 
 /**
  * All-staff report — one screen, four modes (attendance / late / permission /
  * leave). Aggregates the existing per-employee attendance endpoint
  * (/technicians/{id}/attendance) across the whole team for the selected month,
- * so no new backend endpoint is needed. Tapping a row drills into that
- * employee's full attendance calendar.
+ * so no new backend endpoint is needed. The mode picks the opening rail bucket;
+ * tapping a tile drills into that employee's full attendance calendar.
  */
 export default function OwnerStaffReportScreen({ navigation, route }) {
+  const { isSmall, railW, numCols, capW, bottomPad } = useReportGeometry();
   const mode = route?.params?.mode || 'attendance';
   const meta = MODE_META[mode] || MODE_META.attendance;
 
@@ -61,6 +153,10 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  // Attendance opens on All; the late / permission / leave reports open on their bucket.
+  const [active, setActive] = useState(mode !== 'attendance' && MODE_META[mode] ? mode : 'all');
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -96,139 +192,205 @@ export default function OwnerStaffReportScreen({ navigation, route }) {
     setYear(y);
   };
 
-  // Sort so the rows most relevant to the active mode bubble to the top.
-  const sorted = useMemo(() => {
-    const focal = (r) => num(r.data?.[meta.key]);
-    return [...rows].sort((a, b) => focal(b) - focal(a));
-  }, [rows, meta.key]);
+  // Focus metric: the active bucket's, or the mode's on All.
+  const focusKey = active === 'all' ? (MODE_META[mode] ? mode : 'attendance') : active;
+  const focus = MODE_META[focusKey];
+
+  const counts = useMemo(() => {
+    const c = { all: rows.length };
+    RAIL_KEYS.forEach((k) => { c[k] = rows.filter((r) => num(r.data?.[MODE_META[k].key]) > 0).length; });
+    return c;
+  }, [rows]);
 
   const total = useMemo(
-    () => rows.reduce((s, r) => s + num(r.data?.[meta.key]), 0),
-    [rows, meta.key],
+    () => Math.round(rows.reduce((s, r) => s + num(r.data?.[focus.key]), 0) * 100) / 100,
+    [rows, focus.key],
   );
 
-  const Stat = ({ label, value, focal }) => (
-    <View className="items-center px-2">
-      <Text className="text-[13px] font-extrabold" style={{ color: focal ? meta.accent : '#111111' }}>
-        {value}
-      </Text>
-      <Text className="text-[9px] font-bold mt-0.5" style={{ color: focal ? meta.accent : '#9CA3AF' }}>
-        {label}
-      </Text>
-    </View>
-  );
+  // Bucket + search filter, then the rows most relevant to the focus metric on top.
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const focal = (r) => num(r.data?.[focus.key]);
+    return rows
+      .filter((r) => (active === 'all' || num(r.data?.[MODE_META[active].key]) > 0)
+        && (!q || [r.emp?.name, r.emp?.roleLabel].some((v) => v && String(v).toLowerCase().includes(q))))
+      .sort((a, b) => focal(b) - focal(a));
+  }, [rows, active, query, focus.key]);
+
+  const railItems = [
+    { key: 'all', label: 'All', tone: RC.teal, Icon: Users, count: counts.all },
+    ...RAIL_KEYS.map((k) => ({ key: k, label: MODE_META[k].label, tone: MODE_META[k].tone, Icon: MODE_META[k].icon, count: counts[k] })),
+  ];
+
+  const row = numCols === 1;
+  // Pad to an even count in 2-col mode so the last lone tile stays half-width.
+  const listData = numCols > 1 && shown.length % 2 === 1 ? [...shown, { _ghost: true }] : shown;
 
   const renderItem = ({ item }) => {
+    if (item._ghost) return <View style={{ flex: 1 }} />;
     const e = item.emp || {};
     const d = item.data || {};
-    const initials = String(e.name || '?').trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    const day = dayOf(item.data, month, year);
+    const rec = day.rec;
+    const st = String(rec?.status || 'GENERAL').toUpperCase();
+    const tag = rec
+      ? (DAY_STATUS[st] || { label: st.replace(/_/g, ' '), tone: RC.gray })
+      : { label: day.today ? 'No check-in' : 'No record', tone: RC.gray };
+    const dayText = day.iso ? `${day.today ? 'Today · ' : ''}${formatDay(day.iso)}` : `${MONTHS_SHORT[month - 1]} ${year}`;
+    const showTimes = rec && !NO_TIMES.has(st) && (rec.checkInTime || rec.checkOutTime);
+    const worked = rec?.workingHours && rec.workingHours !== '0' ? rec.workingHours : null;
+    const lateMin = num(rec?.lateMinutes);
+    const name = e.name || 'Staff';
     return (
-      <Pressable
+      <ReportTile
+        row={row}
+        panel={<Avatar emp={e} row={row} />}
+        tag={tag.label}
+        tagColor={tag.tone}
         onPress={() => navigation.navigate('OwnerEmployeeAttendance', { employee: e })}
-        className="bg-white rounded-2xl p-3 mb-2.5 flex-row items-center active:opacity-80"
-        style={cardShadow}
+        accessibilityLabel={`${name}, ${tag.label}, ${dayText}`}
       >
-        <View
-          className="h-11 w-11 rounded-2xl items-center justify-center mr-3"
-          style={{ backgroundColor: '#E5F3F5' }}
-        >
-          <Text className="text-[13px] font-extrabold" style={{ color: GREEN_DARK }}>{initials}</Text>
+        <Text style={tileText.ref} numberOfLines={1}>{dayText}</Text>
+        <Text style={tileText.title} numberOfLines={1}>{name}</Text>
+        {e.roleLabel ? <Text style={tileText.sub} numberOfLines={1}>{e.roleLabel}</Text> : null}
+        {showTimes ? (
+          <View style={styles.chipRow}>
+            <View style={[tileText.chip, { backgroundColor: '#EDF4E7' }]}>
+              <LogIn size={11} color={RC.green} />
+              <Text style={[tileText.chipText, { color: RC.green }]} numberOfLines={1}>{formatTime12(rec.checkInTime)}</Text>
+            </View>
+            <View style={[tileText.chip, { backgroundColor: '#FDEBEA' }]}>
+              <LogOut size={11} color={RC.red} />
+              <Text style={[tileText.chipText, { color: RC.red }]} numberOfLines={1}>{formatTime12(rec.checkOutTime)}</Text>
+            </View>
+          </View>
+        ) : null}
+        {worked ? (
+          <View style={[tileText.infoRow, { marginTop: 4 }]}>
+            <Timer size={11} color={RC.muted} />
+            <Text style={tileText.info} numberOfLines={1}>Worked {worked}</Text>
+          </View>
+        ) : null}
+        {lateMin > 0 && st === 'LATE' ? (
+          <View style={tileText.infoRow}>
+            <Clock size={11} color={RC.red} />
+            <Text style={[tileText.info, { color: RC.red }]} numberOfLines={1}>Late by {lateMin} min</Text>
+          </View>
+        ) : null}
+        {/* Month totals — the focus metric in its bucket colour. */}
+        <View style={styles.stats}>
+          {STAT_KEYS.map((k) => {
+            const on = k === focusKey;
+            const color = on ? MODE_META[k].tone : null;
+            return (
+              <View key={k} style={styles.stat}>
+                <Text style={[styles.statVal, color && { color }]} numberOfLines={1}>{num(d[MODE_META[k].key])}</Text>
+                <Text style={[styles.statLbl, color && { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{MODE_META[k].short}</Text>
+              </View>
+            );
+          })}
         </View>
-        <View className="flex-1 mr-2">
-          <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{e.name || 'Staff'}</Text>
-          {e.roleLabel ? (
-            <Text className="text-[11px] text-gray-500" numberOfLines={1}>{e.roleLabel}</Text>
-          ) : null}
-        </View>
-        <View className="flex-row items-center">
-          <Stat label="Present" value={num(d.presentDays)} focal={mode === 'attendance'} />
-          <Stat label="Late" value={num(d.lateHours)} focal={mode === 'late'} />
-          <Stat label="Perm" value={num(d.permissionCount)} focal={mode === 'permission'} />
-          <Stat label="Leave" value={num(d.leaveDays)} focal={mode === 'leave'} />
-          <ChevronRight size={16} color="#D1D5DB" style={{ marginLeft: 2 }} />
-        </View>
-      </Pressable>
+      </ReportTile>
     );
   };
 
-  const HeaderIcon = meta.icon;
+  const q = query.trim();
+  const activeTone = active === 'all' ? RC.teal : MODE_META[active].tone;
+  const activeIcon = active === 'all' ? Users : MODE_META[active].icon;
+  const emptyText = q
+    ? `No staff match "${q}".`
+    : active === 'all'
+      ? `No staff yet. Add employees to see their ${meta.title.toLowerCase()} here.`
+      : `${MODE_META[active].empty} in ${MONTHS[month - 1]}.`;
+
+  const emptyNode = loading && rows.length === 0 ? (
+    <View style={styles.stateBox}>
+      <ActivityIndicator size="small" color={RC.teal} />
+      <Text style={styles.stateText}>Loading {meta.title.toLowerCase()}…</Text>
+    </View>
+  ) : error ? (
+    <View style={[styles.stateCard, styles.stateBox]}>
+      <View style={[styles.stateIcon, { backgroundColor: RC.red }]}>
+        <WifiOff size={20} color={RC.white} />
+      </View>
+      <Text style={styles.stateTitle}>Couldn't load report</Text>
+      <Text style={styles.stateText}>{error}</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={() => load()} activeOpacity={0.85} accessibilityRole="button">
+        <Text style={styles.retryText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <ReportEmpty text={emptyText} Icon={activeIcon} tone={activeTone} />
+  );
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+    <View style={reportStyles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{ backgroundColor: '#FFFFFF', paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
-        >
-          <View className="flex-row items-center" style={{ paddingHorizontal: 16 }}>
-            <Pressable
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
-              hitSlop={10}
-              className="h-9 w-9 rounded-full items-center justify-center"
-              style={{ backgroundColor: '#E5F3F5' }}
-            >
-              <ChevronLeft size={20} color="#111111" />
-            </Pressable>
-            <View className="flex-1 flex-row items-center justify-center">
-              <HeaderIcon size={16} color="#111111" />
-              <Text className="text-center text-text text-[17px] font-extrabold ml-1.5">{meta.title}</Text>
-            </View>
-            <View className="h-9 w-9" />
-          </View>
+      <ReportHeader
+        title={meta.title}
+        subtitle={`All staff · ${MONTHS_SHORT[month - 1]} ${year}`}
+        onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs', { screen: 'Home' }))}
+        searchOpen={searchOpen}
+        onToggleSearch={() => { if (searchOpen) setQuery(''); setSearchOpen((v) => !v); }}
+      />
 
-          {/* Month switcher + total */}
-          <View className="flex-row items-center justify-between mt-3" style={{ paddingHorizontal: 16 }}>
-            <View className="flex-row items-center bg-surface-muted rounded-full px-1 py-1">
-              <Pressable onPress={() => stepMonth(-1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
-                <ChevronLeft size={16} color="#111111" />
-              </Pressable>
-              <Text className="text-text text-[12px] font-extrabold px-1.5">{MONTHS[month - 1]} {year}</Text>
-              <Pressable onPress={() => stepMonth(1)} hitSlop={8} className="h-7 w-7 items-center justify-center">
-                <ChevronRight size={16} color="#111111" />
-              </Pressable>
-            </View>
-            <View className="bg-surface-muted rounded-full px-3 py-1.5">
-              <Text className="text-[11px] font-extrabold" style={{ color: GREEN_DARK }}>
-                Total {meta.title}: {total}{meta.unit ? ` ${meta.unit}` : ''}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </SafeAreaView>
-
-      {error ? (
-        <View className="px-4 mt-3">
-          <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}>
-            <Text className="text-[12px] font-semibold" style={{ color: '#B91C1C' }}>{error}</Text>
-          </View>
+      {searchOpen || query ? (
+        <View style={styles.searchWrap}>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search staff name or role"
+            onClear={() => setQuery('')}
+            autoFocus
+          />
         </View>
       ) : null}
 
-      {loading && rows.length === 0 ? (
-        <ActivityIndicator style={{ flex: 1 }} size="large" color={GREEN} />
-      ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.emp?.id || String(Math.random())}
-          renderItem={renderItem}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />
-          }
-          contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 }}
-          ListEmptyComponent={
-            <View className="items-center pt-12 px-8">
-              <View className="w-16 h-16 rounded-full items-center justify-center mb-3" style={{ backgroundColor: '#E5F3F5' }}>
-                <Users size={28} color={GREEN_DARK} />
-              </View>
-              <Text className="text-[13px] font-extrabold text-gray-700">No staff yet</Text>
-              <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">
-                Add employees to see their {meta.title.toLowerCase()} here.
-              </Text>
-            </View>
-          }
-        />
-      )}
+      {/* Left: bucket rail · Right: month + staff tiles */}
+      <View style={reportStyles.body}>
+        <StatusRail items={railItems} active={active} onSelect={setActive} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+        <View style={{ flex: 1 }}>
+          <MonthBar
+            label={`${MONTHS[month - 1]} ${year}`}
+            sub={`${shown.length} staff · Total ${focus.title}: ${total}${focus.unit ? ` ${focus.unit}` : ''}`}
+            onPrev={() => stepMonth(-1)}
+            onNext={() => stepMonth(1)}
+            capW={capW}
+          />
+          <FlatList
+            data={listData}
+            key={numCols}
+            numColumns={numCols}
+            columnWrapperStyle={numCols > 1 ? { gap: 12 } : undefined}
+            keyExtractor={(item, index) => String(item.emp?.id || `row-${index}`)}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={RC.teal} colors={[RC.teal]} />}
+            contentContainerStyle={[reportStyles.listPad, { paddingBottom: bottomPad }, capW]}
+            ListEmptyComponent={emptyNode}
+          />
+        </View>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  searchWrap: { paddingHorizontal: 16, marginTop: 10 },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 6 },
+
+  stats: { flexDirection: 'row', marginTop: 7, paddingTop: 6, borderTopWidth: 1, borderTopColor: RC.line },
+  stat: { flex: 1, minWidth: 0, alignItems: 'center' },
+  statVal: { fontSize: 13, fontWeight: '800', color: RC.ink },
+  statLbl: { marginTop: 1, fontSize: 9, fontWeight: '700', color: '#9CA3AF' },
+
+  stateCard: { backgroundColor: RC.white, borderRadius: 16, borderWidth: 1, borderColor: RC.line },
+  stateBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16, marginBottom: 12, gap: 6 },
+  stateIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: 14, fontWeight: '800', color: RC.ink, textAlign: 'center' },
+  stateText: { fontSize: 12, color: RC.muted, textAlign: 'center' },
+  retryBtn: { marginTop: 6, backgroundColor: RC.teal, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 8 },
+  retryText: { color: RC.white, fontWeight: '700', fontSize: 12 },
+});

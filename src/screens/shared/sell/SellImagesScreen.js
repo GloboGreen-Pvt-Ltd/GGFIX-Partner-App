@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { View, Text, TouchableOpacity, Image, ActivityIndicator, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, ImagePlus, X } from 'lucide-react-native';
 import { notify } from '../../../components/confirm';
@@ -90,7 +91,8 @@ export default function SellImagesScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }} keyboardShouldPersistTaps="handled">
+      {/* Keeps the "Device condition" field above the keyboard. */}
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom, width: '100%', maxWidth: 720, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" bottomOffset={16}>
         {isEditing ? <EditingBanner text="Your previously uploaded photos are kept — tap to replace any." /> : null}
         <SellIntro title="Device photos" caption="Clear photos help buyers trust the listing. Max 5 MB each." />
         <SellCard>
@@ -159,7 +161,7 @@ export default function SellImagesScreen({ navigation, route }) {
             style={{ minHeight: 46, borderRadius: 12, borderWidth: 1.5, borderColor: SELL.line, paddingHorizontal: 12, fontSize: 13, fontWeight: '600', color: SELL.ink, backgroundColor: SELL.card }}
           />
         </SellCard>
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <SellFooter caption={`${added} of ${SLOTS.length} photos added`}>
         <SellButton title="Continue" arrow disabled={!!uploading} onPress={onContinue} />
       </SellFooter>

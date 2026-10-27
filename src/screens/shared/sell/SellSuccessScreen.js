@@ -1,11 +1,12 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircle2, Home, ListChecks, Sparkles } from 'lucide-react-native';
 import { Button } from '../../../components/rnr';
 
 export default function SellSuccessScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   return (
     <View className="flex-1 bg-background">
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#035C6C' }}>
@@ -52,7 +53,7 @@ export default function SellSuccessScreen({ navigation }) {
       </View>
 
       <View className="px-4 pb-6 pt-3 bg-card border-t border-border flex-row"
-            style={{ shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
+            style={{ paddingBottom: Math.max(24, insets.bottom + 8), shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 }}>
         <Button
           variant="outline"
           className="flex-1 mr-2"

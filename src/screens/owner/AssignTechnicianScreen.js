@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function AssignTechnicianScreen({ route, navigation }) {
   const { ticketId } = route.params || {};
@@ -75,8 +76,8 @@ export default function AssignTechnicianScreen({ route, navigation }) {
             disabled={assigning != null}
           >
             <View style={styles.rowContent}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.role}>{item.roleLabel || item.email}</Text>
+              <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.role} numberOfLines={1}>{item.roleLabel || item.email}</Text>
             </View>
             {assigning === item.id ? (
               <ActivityIndicator size="small" color="#035C6C" />
@@ -94,7 +95,8 @@ export default function AssignTechnicianScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#111111' },
   loader: { flex: 1, justifyContent: 'center' },
-  list: { padding: 12, paddingBottom: 24 },
+  // Tablets: cap and centre the list instead of stretching rows edge-to-edge.
+  list: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
   hint: { fontSize: 13, color: '#9CA3AF', marginBottom: 10 },
   row: {
     flexDirection: 'row',
@@ -107,7 +109,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#111111',
   },
-  rowContent: { flex: 1 },
+  rowContent: { flex: 1, marginRight: 8 },
   name: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
   role: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
   assignLabel: { fontSize: 13, fontWeight: '600', color: '#035C6C' },

@@ -204,16 +204,17 @@ export function concentric(outer: number, pad: number): number {
 // Service Orders/Active Jobs/Pickup Queue/Pickup Requests/Pickup Confirmed/
 // Delivery Ready/Delivered → teal/blue/green/gray/teal/blue/green — the
 // reference's four hues at a medium shade, so the icon on them can be white.
+// Overview card colours — from the brand sheet (theme/colors.js `brand`).
 export const OV_TONE = {
-  total: '#357D89',
-  active: '#3B82F6',
-  pickups: '#5E9440',
-  request: '#6B7280',
-  accepted: '#357D89',
-  ready: '#3B82F6',
-  delivered: '#5E9440',
-  cancelled: '#6B7280',
-  returned: '#357D89',
+  total: '#035C6C',     // Primary Teal — Service Orders
+  active: '#0788C9',    // Bright Blue — Active Jobs
+  pickups: '#FAA700',   // Orange — Pickup Queue (needs attention)
+  request: '#1C3053',   // Navy — Pickup Requests
+  accepted: '#035C6C',  // Primary Teal — Pickup Confirmed
+  ready: '#609138',     // Green — Delivery Ready (positive)
+  delivered: '#1C3053', // Navy — Delivered
+  cancelled: '#F32C26', // Red — Cancelled
+  returned: '#FAA700',  // Orange — Returned
 } as const;
 
 // The one 7-colour accent set every per-item tint on this screen draws

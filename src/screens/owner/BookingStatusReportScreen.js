@@ -1,89 +1,92 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  Image,
+  Linking,
   Pressable,
   RefreshControl,
-  ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import SafeModal, { ModalInsets } from '../../components/SafeModal';
 import {
-  ChevronLeft,
   Calendar,
-  SlidersHorizontal,
-  X,
+  CircleCheck,
   ClipboardList,
-  Wrench,
-  CheckCircle2,
-  Truck,
-  AlertTriangle,
-  PackageCheck,
-  Package,
-  UserCheck,
-  FileText,
-  Hash,
-  IndianRupee,
   Clock,
+  Copy,
+  FileText,
+  Laptop,
+  Package,
+  PackageCheck,
+  Phone,
   Receipt,
+  Smartphone,
+  Stethoscope,
+  TriangleAlert,
+  Truck,
+  UserCheck,
+  WifiOff,
+  Wrench,
+  X,
 } from 'lucide-react-native';
 import { ticketApi } from '../../api/client';
-import { rs } from '../../utils/responsive';
+import { getModelsByBrand } from '../../api/masterData';
+import { notify } from '../../components/confirm';
+import { SearchBar } from '../../components/rnr/SearchBar';
+import {
+  RC,
+  ReportEmpty,
+  ReportHeader,
+  ReportHeaderButton,
+  ReportTile,
+  StatusRail,
+  TileDisc,
+  reportStyles,
+  tileText,
+  useReportGeometry,
+} from '../../components/report/ReportRail';
+import { resolveDeviceImageSource } from '../../utils/images';
 import { useResponsive } from '../../theme/responsive';
+import { estimatedTotalOf, paymentFromTicket } from './AllBooking/ReceiptCard';
 
-// GGFIX palette.
-const GREEN = '#035C6C';
-const GREEN_DEEP = '#035C6C';
-const MINT = '#E5F3F5';
-const MINT_LINE = '#C7E6EA';
-const PAGE_BG = '#F3F4F6';
-const CARD_BG = '#FFFFFF';
-const HAIR = '#F3F4F6';
-const BORDER = '#E5E7EB';
-const INK = '#111111';
-const MUTED = '#6B7280';
-const SUBTLE = '#9CA3AF';
-const RED = '#F84141';
-const RED_TINT = '#FEECEC';
-const RED_LINE = '#FBD0D0';
-const RED_TEXT = '#D63232';
-const YELLOW = '#F3BF23';
-const YELLOW_TINT = '#FFF8E1';
-const YELLOW_TEXT = '#8A6A00';
+/**
+ * Booking list for one Service Status tile, in the Jobs look: white header,
+ * Jobs tiles, and — when the tile spans several statuses (In Process, Working
+ * Pending) — a left rail to split them. The fetch, tile and list states are
+ * exported so the Service Status screen renders the very same list.
+ */
 
-const cardShadow = {
-  shadowColor: INK,
-  shadowOpacity: 0.04,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 1,
+// Brand tone + icon per Service Status tile key (also used by that screen).
+export const TILE_META = {
+  TOTAL_BOOKING:             { tone: RC.teal,   Icon: ClipboardList },
+  TOTAL_PROCESSED:           { tone: RC.green,  Icon: CircleCheck },
+  TOTAL_DELIVERED:           { tone: RC.navy,   Icon: PackageCheck },
+  OUT_FOR_DELIVERY:          { tone: RC.blue,   Icon: Truck },
+  TOTAL_INPROCESS:           { tone: RC.orange, Icon: Wrench },
+  WORK_PENDING:              { tone: RC.red,    Icon: TriangleAlert },
+  SPARE_PARTS_PENDING:       { tone: RC.orange, Icon: Package },
+  CUSTOMER_APPROVAL_PENDING: { tone: RC.blue,   Icon: UserCheck },
 };
 
-// Keyed by the BookingStatus tile key that opened this report.
-const ICON_BY_KEY = {
-  TOTAL_BOOKING:             ClipboardList,
-  TOTAL_PROCESSED:           CheckCircle2,
-  TOTAL_DELIVERED:           PackageCheck,
-  OUT_FOR_DELIVERY:          Truck,
-  TOTAL_INPROCESS:           Wrench,
-  WORK_PENDING:              AlertTriangle,
-  SPARE_PARTS_PENDING:       Package,
-  CUSTOMER_APPROVAL_PENDING: UserCheck,
-};
+const FALLBACK_META = { tone: RC.teal, Icon: FileText };
 
-// One colour tone per status, matching the Booking Status screen's rows:
-// stalled = red, waiting on a part = yellow, everything else GGFIX green.
-const TONES = {
-  green:  { solid: GREEN,  ink: GREEN_DEEP,  tint: MINT,        line: MINT_LINE },
-  red:    { solid: RED,    ink: RED_TEXT,    tint: RED_TINT,    line: RED_LINE },
-  yellow: { solid: YELLOW, ink: YELLOW_TEXT, tint: YELLOW_TINT, line: '#F7E3A1' },
-};
-const TONE_BY_KEY = {
-  WORK_PENDING: 'red',
-  SPARE_PARTS_PENDING: 'yellow',
+// Rail entries for a multi-status tile, one per backend status.
+const SUB_META = {
+  CREATED:              { label: 'Accepted',         tone: RC.orange, Icon: ClipboardList },
+  IN_DIAGNOSIS:         { label: 'In Diagnosis',     tone: RC.blue,   Icon: Stethoscope },
+  IN_REPAIR:            { label: 'In Repair',        tone: RC.orange, Icon: Wrench },
+  APPROVED:             { label: 'Parts Pending',    tone: RC.orange, Icon: Package },
+  QUOTED:               { label: 'Approval Pending', tone: RC.blue,   Icon: UserCheck },
+  READY:                { label: 'Processed',        tone: RC.green,  Icon: CircleCheck },
+  DELIVERED_PROCESSING: { label: 'Dispatched', tone: RC.blue,   Icon: Truck },
+  DELIVERED:            { label: 'Delivered',        tone: RC.navy,   Icon: PackageCheck },
 };
 
 const PERIODS = [
@@ -112,13 +115,6 @@ function endOfPeriod(period) {
   return null;
 }
 
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
 function fmtINR(v) {
   if (v == null || v === '') return null;
   const n = Number(v);
@@ -126,68 +122,308 @@ function fmtINR(v) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
-function priceItemsFromTicket(t) {
-  if (Array.isArray(t?.priceItems)) return t.priceItems;
-  if (t?.priceItemsJson) {
-    try { const v = JSON.parse(t.priceItemsJson); if (Array.isArray(v)) return v; } catch (_) {}
+// ---------------------------------------------------------------------------
+// Shared with the Service Status screen
+// ---------------------------------------------------------------------------
+
+// The tile's bookings. An empty list is the Total Booking tile: one unfiltered
+// page rather than one request per status. Page size 500 matches the bookings
+// list so the count here can't disagree with the tile's. Throws only when
+// every request failed, so the list shows an error instead of "no bookings".
+export async function fetchStatusTickets(statusList) {
+  const list = Array.isArray(statusList) ? statusList.filter(Boolean) : [];
+  const responses = list.length === 0
+    ? [await ticketApi.get('/tickets', { query: { page: 0, size: 500 } }).catch(() => null)]
+    : await Promise.all(
+        list.map((s) =>
+          ticketApi.get('/tickets', { query: { page: 0, size: 500, status: s } }).catch(() => null),
+        ),
+      );
+  if (responses.every((res) => res == null)) throw new Error('Could not load bookings');
+  return responses.flatMap((res) => (Array.isArray(res) ? res : res?.content || []));
+}
+
+export const byNewest = (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+
+function deviceName(t) {
+  return t?.deviceDisplayName || t?.deviceModelName
+    || [t?.brandName, t?.modelName].filter(Boolean).join(' ') || 'Device';
+}
+
+// "Oppo A5 5G · CPH2753 · 8GB" → "Oppo A5 5G".
+function modelName(t) {
+  return String(deviceName(t)).split(/[·•|]/).map((x) => x.trim()).filter(Boolean)[0] || 'Device';
+}
+
+function ticketNo(t) {
+  return t?.trackingId || (t?.id ? String(t.id).slice(0, 8).toUpperCase() : '-');
+}
+
+// Search: ticket number, customer, phone or model.
+export function ticketMatches(t, q) {
+  const needle = String(q || '').trim().toLowerCase();
+  if (!needle) return true;
+  return [ticketNo(t), t.bookingNumber, t.customerName, t.customerPhone, deviceName(t), t.modelName]
+    .some((v) => v && String(v).toLowerCase().includes(needle));
+}
+
+// Existing invoice → DeliveryInvoiceReport, otherwise → InvoiceGenerator
+// (same routing as BillingScreen / TicketDetail).
+export async function openTicketInvoice(navigation, t) {
+  try {
+    const inv = await ticketApi.get(`/tickets/${t.id}/invoice`);
+    if (inv?.id) {
+      navigation.navigate('DeliveryInvoiceReport', { ticketId: t.id });
+      return;
+    }
+  } catch (_) { /* no invoice yet — fall through */ }
+  navigation.navigate('InvoiceGenerator', { ticketId: t.id });
+}
+
+// Ticket status → Jobs status tag.
+const STATUS_TAG = {
+  CREATED:              { label: 'Service Accepted',     color: '#B45309' },
+  ASSIGNED:             { label: 'Technician Assigned',  color: RC.teal },
+  IN_DIAGNOSIS:         { label: 'In Diagnosis',         color: RC.teal },
+  IN_REPAIR:            { label: 'In Service Process',   color: RC.teal },
+  QUOTED:               { label: 'Re-Estimated',         color: '#B45309' },
+  APPROVED:             { label: 'Customer Approved',    color: RC.teal },
+  READY:                { label: 'Ready for Delivery',   color: RC.teal },
+  INVOICE_GENERATED:    { label: 'Invoice Generated',    color: '#B45309' },
+  INVOICE_READY:        { label: 'Invoice Ready',        color: '#B45309' },
+  DELIVERED_PROCESSING: { label: 'Dispatched', color: '#B45309' },
+  DELIVERED:            { label: 'Delivered',            color: RC.teal },
+  CANCELLED:            { label: 'Cancelled',            color: '#B91C1C' },
+  RETURNED:             { label: 'Returned',             color: '#B91C1C' },
+};
+
+const inr = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+// Jobs pay logic (no invoice row): amount, Paid, Bal.
+function payOf(t) {
+  const estimate = Number(estimatedTotalOf(t)) || 0;
+  const bill = Number(t.finalPrice ?? estimate) || 0;
+  const pay = paymentFromTicket(t, bill);
+  const delivered = String(t.status || '').toUpperCase() === 'DELIVERED';
+  const fullPaid = delivered || pay?.label === 'Full Payment';
+  const paid = fullPaid ? (delivered ? bill : pay.amount) : pay ? pay.amount : null;
+  const balance = delivered ? 0 : pay ? pay.balance : bill;
+  const bal = balance > 0
+    ? { value: inr(balance), color: '#B45309' }
+    : fullPaid || bill > 0 ? { value: 'Settled', color: '#15803D' } : null;
+  return { amount: bill, paid: paid != null ? inr(paid) : null, bal };
+}
+
+function fmtDate(d) {
+  if (!d) return null;
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function fmtTime(d) {
+  if (!d) return null;
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Tickets carry no device-category field, so infer phone vs laptop from text.
+const LAPTOP_RE = /(laptop|notebook|macbook|chromebook|thinkpad|ideapad|vivobook|zenbook|xps|inspiron|latitude|vostro|pavilion|elitebook|probook|envy|spectre|omen|aspire|swift|predator|nitro|rog|tuf|legion|yoga|surface\s*(laptop|book)|galaxy\s*book|matebook|gram)/i;
+
+// brandId → Promise<models[]>, shared by all tiles so each brand is fetched once.
+const modelsByBrand = new Map();
+function modelImageFor(ticket) {
+  if (!ticket?.brandId || !ticket?.modelId) return Promise.resolve(null);
+  if (!modelsByBrand.has(ticket.brandId)) {
+    modelsByBrand.set(ticket.brandId, getModelsByBrand(ticket.brandId).catch(() => {
+      modelsByBrand.delete(ticket.brandId);
+      return [];
+    }));
   }
-  return t?.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
+  return modelsByBrand.get(ticket.brandId).then((models) => {
+    const m = (Array.isArray(models) ? models : []).find((x) => x.id === ticket.modelId);
+    return resolveDeviceImageSource({ url: m?.imageUrl, base64: m?.imageBase64 });
+  });
 }
 
-function summarizeIssue(t) {
-  if (t?.repairServicesSummary) return t.repairServicesSummary;
-  const items = priceItemsFromTicket(t);
-  return items.map((i) => i.label || i.serviceName).filter(Boolean).join(', ') || (t?.issueDescription || '—');
+// Device photo (ticket image → catalogue model image), else a white device
+// icon on a solid brand disc.
+function DeviceImage({ ticket, row }) {
+  const direct = resolveDeviceImageSource({
+    url: ticket.deviceImageUrl || ticket.modelImageUrl,
+    base64: ticket.deviceImageBase64 || ticket.modelImageBase64,
+  });
+  const [src, setSrc] = useState(direct);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (direct) return undefined;
+    let alive = true;
+    modelImageFor(ticket).then((s) => { if (alive) setSrc(s); });
+    return () => { alive = false; };
+  }, [ticket.id, ticket.brandId, ticket.modelId]);
+  if (src && !failed) {
+    return <Image source={{ uri: src }} style={{ width: '76%', height: '76%' }} resizeMode="contain" onError={() => setFailed(true)} />;
+  }
+  const laptop = LAPTOP_RE.test([ticket.deviceDisplayName, ticket.brandName, ticket.modelName].filter(Boolean).join(' '));
+  return <TileDisc Icon={laptop ? Laptop : Smartphone} tone={laptop ? RC.blue : RC.teal} row={row} />;
 }
 
+function RoundBtn({ Icon, label, onPress }) {
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={6} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={label} style={st.roundBtn}>
+      <Icon size={12} color={RC.teal} />
+    </TouchableOpacity>
+  );
+}
+
+const callPhone = (phone) => {
+  const tel = String(phone).replace(/[^\d+]/g, '');
+  if (!tel) return;
+  Linking.openURL(`tel:${tel}`).catch(() => notify('Could not call', 'This device cannot place calls.', { preset: 'error' }));
+};
+
+const copyPhone = async (phone) => {
+  try {
+    await Clipboard.setStringAsync(String(phone));
+    notify('Copied', `${phone} copied.`, { preset: 'done' });
+  } catch (e) {
+    notify('Copy failed', e?.message || 'Could not copy the number.', { preset: 'error' });
+  }
+};
+
+// Jobs tile: device image (status tag · VIEW), ticket no · amount, Bal · Paid,
+// model, customer, date · time, then call / copy and history / invoice.
+export function BookingTile({ ticket, row = true, onPress, onHistory, onInvoice }) {
+  const tag = STATUS_TAG[String(ticket.status || '').toUpperCase()]
+    || { label: ticket.status ? String(ticket.status).replace(/_/g, ' ') : 'Pending', color: '#B45309' };
+  const no = ticketNo(ticket);
+  const model = modelName(ticket);
+  const pay = payOf(ticket);
+  const phone = ticket.customerPhone || ticket.customer?.phone || '';
+  const customer = ticket.customerName || ticket.customerFullName || ticket.customer?.name || '-';
+  const date = fmtDate(ticket.createdAt);
+  const time = fmtTime(ticket.createdAt);
+  return (
+    <ReportTile
+      row={row}
+      panel={<DeviceImage ticket={ticket} row={row} />}
+      tag={tag.label}
+      tagColor={tag.color}
+      onPress={onPress}
+      accessibilityLabel={`${model}, #${no}, ${tag.label}`}
+    >
+      <View style={st.refRow}>
+        <Text style={st.ref} numberOfLines={1}>#{no}</Text>
+        <View style={st.amountChip}>
+          <Text style={st.amountText} numberOfLines={1}>{inr(pay.amount)}</Text>
+        </View>
+      </View>
+      {pay.bal || pay.paid ? (
+        <View style={st.payRow}>
+          {pay.bal ? <Text style={[st.payText, { color: pay.bal.color }]} numberOfLines={1}>Bal {pay.bal.value}</Text> : null}
+          <View style={{ flex: 1, minWidth: 4 }} />
+          {pay.paid ? <Text style={[st.payText, { color: '#15803D' }]} numberOfLines={1}>Paid {pay.paid}</Text> : null}
+        </View>
+      ) : null}
+      <Text style={tileText.title} numberOfLines={2}>{model}</Text>
+      <Text style={tileText.sub} numberOfLines={1}>{customer}</Text>
+      {date || time ? (
+        <View style={tileText.dateRow}>
+          <Text style={[tileText.date, { flexShrink: 1 }]} numberOfLines={1}>{date}</Text>
+          <Text style={[tileText.date, { marginLeft: 6 }]} numberOfLines={1}>{time}</Text>
+        </View>
+      ) : null}
+      <View style={st.actions}>
+        <View style={st.actionGroup}>
+          {phone ? <RoundBtn Icon={Phone} label={`Call ${phone}`} onPress={() => callPhone(phone)} /> : null}
+          {phone ? <RoundBtn Icon={Copy} label={`Copy mobile number ${phone}`} onPress={() => copyPhone(phone)} /> : null}
+        </View>
+        <View style={st.actionGroup}>
+          {onHistory ? <RoundBtn Icon={Clock} label="History" onPress={onHistory} /> : null}
+          {onInvoice ? <RoundBtn Icon={Receipt} label="Invoice" onPress={onInvoice} /> : null}
+        </View>
+      </View>
+    </ReportTile>
+  );
+}
+
+// Loading / error / empty, shown inside the list.
+export function BookingListState({ loading, error, onRetry, emptyText, Icon, tone }) {
+  if (loading) {
+    return (
+      <View style={st.stateBox}>
+        <ActivityIndicator size="small" color={RC.teal} />
+        <Text style={st.stateText}>Loading bookings…</Text>
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={[st.stateBox, st.stateCard]}>
+        <View style={[st.stateIcon, { backgroundColor: RC.red }]}>
+          <WifiOff size={20} color={RC.white} />
+        </View>
+        <Text style={st.stateTitle}>Couldn't load bookings</Text>
+        <Text style={st.stateText}>{error}</Text>
+        {onRetry ? (
+          <TouchableOpacity style={st.retryBtn} onPress={onRetry} activeOpacity={0.85} accessibilityRole="button">
+            <Text style={st.retryText}>Retry</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  }
+  return <ReportEmpty text={emptyText} Icon={Icon} tone={tone} />;
+}
+
+// Two-column lists get a blank ghost so the last lone tile stays half-width.
+export function withGhost(rows, numCols) {
+  return numCols > 1 && rows.length % 2 === 1 ? [...rows, { id: '__ghost__', _ghost: true }] : rows;
+}
+
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
 export default function BookingStatusReportScreen({ navigation, route }) {
-  const insets = useSafeAreaInsets();
   const r = useResponsive();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 900), alignSelf: 'center' } : null;
+  const { width: winW } = useWindowDimensions();
+  const { isSmall, railW, bottomPad } = useReportGeometry();
   const {
     label = 'Total Booking',
     statusList = [],
     icon = 'TOTAL_BOOKING',
   } = route?.params || {};
 
-  const Icon = ICON_BY_KEY[icon] || FileText;
-  const tone = TONES[TONE_BY_KEY[icon]] || TONES.green;
+  const meta = TILE_META[icon] || FALLBACK_META;
 
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  // Default to ALL so the count on the BookingStatus tile (which is all-time
-  // from /tickets/counts) matches what's shown here. Filtering to TODAY by
-  // default dropped any ticket created on a different day, producing the
-  // confusing "01 on tile but 0 bookings here" mismatch.
+  // Default to ALL so the count on the Service Status tile (all-time, from
+  // /tickets/counts) matches what's shown here.
   const [period, setPeriod] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sub, setSub] = useState('ALL');
 
   // `load` keys off the CSV, not the array: navigating here without params
   // materializes a fresh default array on every render, which as a useCallback
   // dep would re-create load → re-fire the effect → re-render, forever.
-  const statusCsv = statusList.join(',');
+  const statusCsv = (Array.isArray(statusList) ? statusList : []).join(',');
+  const subs = useMemo(() => (statusCsv ? statusCsv.split(',') : []), [statusCsv]);
+  const hasRail = subs.length > 1;
+  const numCols = winW - (hasRail ? railW : 0) >= 680 ? 2 : 1;
+  const capW = numCols === 1 ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : null;
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
     try {
-      // An empty list is the Total Booking tile: fetch the book unfiltered
-      // rather than fanning out one request per status. Page size matches the
-      // bookings list (500) so a busy shop's header count here can't disagree
-      // with the count on the tile that opened this screen.
-      const list = statusCsv ? statusCsv.split(',') : [];
-      const responses = list.length === 0
-        ? [await ticketApi.get('/tickets', { query: { page: 0, size: 500 } }).catch(() => null)]
-        : await Promise.all(
-            list.map((s) =>
-              ticketApi.get('/tickets', { query: { page: 0, size: 500, status: s } }).catch(() => null),
-            ),
-          );
-      const merged = responses.flatMap((res) => (Array.isArray(res) ? res : res?.content || []));
-
+      const merged = await fetchStatusTickets(statusCsv ? statusCsv.split(',') : []);
       const from = startOfPeriod(period);
       const to = endOfPeriod(period);
       const filtered = merged.filter((t) => {
@@ -198,8 +434,7 @@ export default function BookingStatusReportScreen({ navigation, route }) {
         if (to && created >= to) return false;
         return true;
       });
-
-      filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      filtered.sort(byNewest);
       setTickets(filtered);
     } catch (e) {
       setError(e.message || 'Failed to load report');
@@ -213,192 +448,118 @@ export default function BookingStatusReportScreen({ navigation, route }) {
   useEffect(() => { load(); }, [load]);
 
   const periodLabel = useMemo(
-    () => (PERIODS.find((p) => p.value === period)?.label) || 'Today',
+    () => (PERIODS.find((p) => p.value === period)?.label) || 'All Time',
     [period],
   );
 
-  const totalPrice = useMemo(() => {
-    return tickets.reduce((sum, t) => {
-      const v = t.finalPrice != null
-        ? Number(t.finalPrice)
-        : (t.estimatedPrice != null
-            ? Number(t.estimatedPrice)
-            : priceItemsFromTicket(t).reduce((s, it) => s + (Number(it.amount) || 0), 0));
-      return sum + (Number.isFinite(v) ? v : 0);
-    }, 0);
-  }, [tickets]);
+  const shown = useMemo(() => tickets.filter((t) => (
+    (sub === 'ALL' || String(t.status || '').toUpperCase() === sub) && ticketMatches(t, query)
+  )), [tickets, sub, query]);
 
-  const openInvoice = async (t) => {
-    // Same conditional routing the BillingScreen / TicketDetail use:
-    // existing invoice → DeliveryInvoiceReport, otherwise → InvoiceGenerator.
-    try {
-      const inv = await ticketApi.get(`/tickets/${t.id}/invoice`);
-      if (inv?.id) {
-        navigation.navigate('DeliveryInvoiceReport', { ticketId: t.id });
-        return;
-      }
-    } catch (_) { /* no invoice yet — fall through */ }
-    navigation.navigate('InvoiceGenerator', { ticketId: t.id });
+  const totalPrice = useMemo(() => shown.reduce((sum, t) => {
+    const v = Number(t.finalPrice ?? estimatedTotalOf(t));
+    return sum + (Number.isFinite(v) ? v : 0);
+  }, 0), [shown]);
+
+  const railItems = useMemo(() => (hasRail ? [
+    { key: 'ALL', label: 'All', tone: meta.tone, Icon: meta.Icon, count: loading ? null : tickets.length },
+    ...subs.map((s) => {
+      const m = SUB_META[s] || { label: s.replace(/_/g, ' '), tone: RC.teal, Icon: FileText };
+      const count = tickets.filter((t) => String(t.status || '').toUpperCase() === s).length;
+      return { key: s, label: m.label, tone: m.tone, Icon: m.Icon, count: loading ? null : count };
+    }),
+  ] : []), [hasRail, subs, tickets, loading, meta]);
+
+  const toggleSearch = () => {
+    if (searchOpen) setQuery('');
+    setSearchOpen((v) => !v);
+  };
+
+  const n = shown.length;
+  const noun = n === 1 ? 'booking' : 'bookings';
+  const data = loading || error ? [] : withGhost(shown, numCols);
+  const subLabel = sub === 'ALL' ? label : (SUB_META[sub]?.label || sub);
+
+  const renderItem = ({ item }) => {
+    if (item._ghost) return <View style={{ flex: 1 }} />;
+    return (
+      <BookingTile
+        ticket={item}
+        row={numCols === 1}
+        onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id })}
+        onHistory={() => navigation.navigate('BookingTimeline', { ticketId: item.id })}
+        onInvoice={() => openTicketInvoice(navigation, item)}
+      />
+    );
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
+    <View style={reportStyles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* Header — white bar, title 17/800 + subtitle 11. */}
-      <View
-        style={{
-          backgroundColor: CARD_BG,
-          paddingTop: insets.top + 8,
-          paddingBottom: 10,
-          paddingHorizontal: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: BORDER,
-        }}
-      >
-        <View style={[{ flexDirection: 'row', alignItems: 'center' }, capStyle]}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={{
-              height: 36, width: 36, borderRadius: 18, marginRight: 10,
-              alignItems: 'center', justifyContent: 'center', backgroundColor: PAGE_BG,
-              borderWidth: 1, borderColor: BORDER,
-            }}
-          >
-            <ChevronLeft size={19} color={INK} />
-          </TouchableOpacity>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text className="font-extrabold" style={{ fontSize: 17, color: INK }} numberOfLines={1}>
-              Booking Status Report
-            </Text>
-            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
-              {label}
-            </Text>
-          </View>
-          <Pressable
+      <ReportHeader
+        title={label}
+        subtitle={`${periodLabel} · ${n} ${noun}`}
+        onBack={() => navigation.goBack()}
+        searchOpen={searchOpen}
+        onToggleSearch={toggleSearch}
+        right={(
+          <ReportHeaderButton
+            Icon={Calendar}
+            label={`Period: ${periodLabel}`}
+            active={period !== 'ALL'}
             onPress={() => setShowFilters(true)}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={`Period: ${periodLabel}`}
-            style={{
-              flexDirection: 'row', alignItems: 'center', borderRadius: 999, marginLeft: 8,
-              paddingHorizontal: 10, paddingVertical: 6, backgroundColor: MINT, borderWidth: 1, borderColor: MINT_LINE,
-            }}
-          >
-            <Calendar size={12} color={GREEN_DEEP} />
-            <Text className="font-extrabold" style={{ fontSize: 11, color: GREEN_DEEP, marginLeft: 4 }} numberOfLines={1}>
-              {periodLabel}
-            </Text>
-          </Pressable>
+          />
+        )}
+      />
+
+      {searchOpen || query ? (
+        <View style={st.searchWrap}>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search ticket, customer, phone, model"
+            onClear={() => setQuery('')}
+            autoFocus
+          />
+        </View>
+      ) : null}
+
+      <View style={reportStyles.body}>
+        {hasRail ? (
+          <StatusRail items={railItems} active={sub} onSelect={setSub} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={data}
+            key={numCols}
+            numColumns={numCols}
+            columnWrapperStyle={numCols > 1 ? { gap: 12 } : undefined}
+            keyExtractor={(item, index) => String(item.id || index)}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={RC.teal} colors={[RC.teal]} />}
+            contentContainerStyle={{ ...reportStyles.listPad, paddingBottom: bottomPad, ...capW }}
+            ListHeaderComponent={loading || error ? null : (
+              <Text style={st.summary} numberOfLines={1}>
+                {n} {noun}
+                <Text style={st.summaryMuted}>  ·  ₹{fmtINR(totalPrice) || '0'} total</Text>
+              </Text>
+            )}
+            ListEmptyComponent={(
+              <BookingListState
+                loading={loading}
+                error={error}
+                onRetry={() => load()}
+                emptyText={query.trim()
+                  ? `No bookings match "${query.trim()}".`
+                  : `No "${subLabel}" bookings for ${periodLabel.toLowerCase()}.`}
+                Icon={meta.Icon}
+                tone={meta.tone}
+              />
+            )}
+          />
         </View>
       </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: insets.bottom + 24 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={GREEN} colors={[GREEN]} />
-        }
-      >
-        <View style={capStyle}>
-          {/* Summary — which status this is, how many, and their total. */}
-          <View
-            style={{
-              flexDirection: 'row', alignItems: 'center', backgroundColor: CARD_BG, borderRadius: 14,
-              paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1, borderColor: HAIR, ...cardShadow,
-            }}
-          >
-            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-              <Icon size={18} color={tone.ink} strokeWidth={2.2} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: SUBTLE }}>SHOWING</Text>
-              <Text className="font-extrabold" style={{ fontSize: 15, color: INK, marginTop: 1 }} numberOfLines={1}>
-                {label}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                <Calendar size={11} color={MUTED} />
-                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 4 }}>{periodLabel}</Text>
-                <View style={{ width: 1, height: 10, backgroundColor: BORDER, marginHorizontal: 8 }} />
-                <IndianRupee size={10} color={MUTED} />
-                <Text style={{ fontSize: 11, color: MUTED, marginLeft: 1 }}>{fmtINR(totalPrice) || '0'} total</Text>
-              </View>
-            </View>
-            <View
-              style={{
-                minWidth: 44, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, marginLeft: 8,
-                alignItems: 'center', backgroundColor: tone.tint, borderWidth: 1, borderColor: tone.line,
-              }}
-            >
-              <Text className="font-extrabold" style={{ fontSize: 15, color: tone.ink }}>
-                {String(tickets.length).padStart(2, '0')}
-              </Text>
-            </View>
-          </View>
-
-          {/* Count + Filters */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
-            <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: INK }}>
-              {tickets.length} {tickets.length === 1 ? 'booking' : 'bookings'}
-            </Text>
-            <Pressable
-              onPress={() => setShowFilters(true)}
-              hitSlop={8}
-              accessibilityRole="button"
-              style={{
-                flexDirection: 'row', alignItems: 'center', borderRadius: 999,
-                paddingHorizontal: 10, paddingVertical: 6, backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER,
-              }}
-            >
-              <SlidersHorizontal size={12} color={GREEN_DEEP} />
-              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 11, color: GREEN_DEEP }}>
-                Filters
-              </Text>
-            </Pressable>
-          </View>
-
-          {error ? (
-            <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: RED_TINT, borderWidth: 1, borderColor: RED_LINE }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: RED_TEXT }}>{error}</Text>
-            </View>
-          ) : loading ? (
-            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={GREEN} />
-            </View>
-          ) : tickets.length === 0 ? (
-            <View
-              style={{
-                alignItems: 'center', backgroundColor: CARD_BG, borderRadius: 14, paddingVertical: 22, paddingHorizontal: 16,
-                borderWidth: 1, borderColor: HAIR, ...cardShadow,
-              }}
-            >
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon size={22} color={tone.ink} />
-              </View>
-              <Text className="font-extrabold" style={{ marginTop: 10, fontSize: 13, color: INK }}>No bookings</Text>
-              <Text style={{ marginTop: 3, fontSize: 11, color: MUTED, textAlign: 'center' }}>
-                No "{label}" bookings for {periodLabel.toLowerCase()}.
-              </Text>
-            </View>
-          ) : (
-            tickets.map((t, i) => (
-              <TicketCard
-                key={t.id || i}
-                ticket={t}
-                index={i + 1}
-                tone={tone}
-                onViewDetails={() => navigation.navigate('DeviceDetail', { ticketId: t.id })}
-                onHistory={() => navigation.navigate('BookingTimeline', { ticketId: t.id })}
-                onInvoice={() => openInvoice(t)}
-              />
-            ))
-          )}
-        </View>
-      </ScrollView>
 
       {/* Filters bottom sheet */}
       <SafeModal
@@ -417,7 +578,11 @@ export default function BookingStatusReportScreen({ navigation, route }) {
               <Pressable
                 onPress={(e) => e.stopPropagation()}
                 style={{
-                  backgroundColor: CARD_BG,
+                  // Tablets: cap and centre the sheet.
+                  width: '100%',
+                  maxWidth: r.maxWidth('form'),
+                  alignSelf: 'center',
+                  backgroundColor: RC.white,
                   borderTopLeftRadius: 22,
                   borderTopRightRadius: 22,
                   paddingHorizontal: 14,
@@ -425,17 +590,17 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                   paddingBottom: insets.bottom + 18,
                 }}
               >
-                <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: BORDER, marginBottom: 10 }} />
+                <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: RC.line, marginBottom: 10 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                  <Text className="font-extrabold" style={{ flex: 1, fontSize: 15, color: INK }}>Filter by period</Text>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: RC.ink }}>Filter by period</Text>
                   <Pressable
                     onPress={() => setShowFilters(false)}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Close"
-                    style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: HAIR }}
+                    style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: RC.bg }}
                   >
-                    <X size={14} color={INK} />
+                    <X size={14} color={RC.ink} />
                   </Pressable>
                 </View>
                 {PERIODS.map((p) => {
@@ -449,22 +614,22 @@ export default function BookingStatusReportScreen({ navigation, route }) {
                       style={{
                         flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1,
                         paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6,
-                        backgroundColor: active ? MINT : CARD_BG,
-                        borderColor: active ? GREEN : BORDER,
+                        backgroundColor: active ? RC.tint : RC.white,
+                        borderColor: active ? RC.teal : RC.line,
                       }}
                     >
                       <View
                         style={{
-                          width: 30, height: 30, borderRadius: 9, marginRight: 10, alignItems: 'center', justifyContent: 'center',
-                          backgroundColor: active ? GREEN : MINT,
+                          width: 30, height: 30, borderRadius: 15, marginRight: 10, alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: active ? RC.teal : RC.tint,
                         }}
                       >
-                        <Calendar size={14} color={active ? '#FFFFFF' : GREEN} />
+                        <Calendar size={14} color={active ? RC.white : RC.teal} />
                       </View>
-                      <Text className="font-extrabold" style={{ flex: 1, fontSize: 13, color: active ? GREEN_DEEP : INK }}>
+                      <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: active ? RC.teal : RC.ink }}>
                         {p.label}
                       </Text>
-                      {active ? <CheckCircle2 size={17} color={GREEN} /> : null}
+                      {active ? <CircleCheck size={17} color={RC.teal} /> : null}
                     </Pressable>
                   );
                 })}
@@ -477,104 +642,26 @@ export default function BookingStatusReportScreen({ navigation, route }) {
   );
 }
 
-function TicketCard({ ticket, index, tone, onViewDetails, onHistory, onInvoice }) {
-  const trackingId = ticket.trackingId || (ticket.id ? String(ticket.id).slice(0, 10).toUpperCase() : '—');
-  const price = (() => {
-    if (ticket.finalPrice != null) return ticket.finalPrice;
-    if (ticket.estimatedPrice != null) return ticket.estimatedPrice;
-    const items = priceItemsFromTicket(ticket);
-    if (items.length === 0) return null;
-    return items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-  })();
-  const priceStr = fmtINR(price);
-  const customer = ticket.customerName || '—';
-  const device = ticket.deviceDisplayName || ticket.deviceModelName || ticket.modelName || null;
+const st = StyleSheet.create({
+  searchWrap: { paddingHorizontal: 16, marginTop: 10 },
+  summary: { marginBottom: 10, fontSize: 13, fontWeight: '800', color: RC.ink },
+  summaryMuted: { fontSize: 12, fontWeight: '600', color: RC.muted },
 
-  return (
-    <View
-      style={{
-        backgroundColor: CARD_BG, borderRadius: 14, padding: 10, marginBottom: 8,
-        borderWidth: 1, borderColor: HAIR, ...cardShadow,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-        {/* Numbered chip */}
-        <View
-          style={{
-            width: 30, height: 30, borderRadius: 9, marginRight: 9,
-            backgroundColor: tone.tint, alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <Text className="font-extrabold" style={{ color: tone.ink, fontSize: 12 }}>
-            {String(index).padStart(2, '0')}
-          </Text>
-        </View>
+  refRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  ref: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: '800', color: RC.teal },
+  amountChip: { marginLeft: 6, flexShrink: 0, backgroundColor: RC.teal, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  amountText: { color: RC.white, fontSize: 14, fontWeight: '800' },
+  payRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
+  payText: { flexShrink: 1, fontSize: 11.5, fontWeight: '800' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', rowGap: 4, marginTop: 4 },
+  actionGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  roundBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: RC.tint, alignItems: 'center', justifyContent: 'center' },
 
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {/* Tracking ID + price */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: MINT, flexShrink: 1 }}>
-              <Hash size={10} color={GREEN} />
-              <Text className="font-extrabold" style={{ fontSize: 11, color: GREEN_DEEP, marginLeft: 2 }} numberOfLines={1}>
-                {trackingId}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            {priceStr ? (
-              <Text className="font-extrabold" style={{ fontSize: 13, color: GREEN_DEEP, marginLeft: 8 }}>
-                ₹{priceStr}
-              </Text>
-            ) : null}
-          </View>
-
-          {/* Customer + device */}
-          <Text className="font-extrabold" style={{ fontSize: 13, color: INK, marginTop: 4 }} numberOfLines={1}>
-            {customer}
-            {device ? <Text style={{ fontWeight: '600', color: MUTED }}>  ·  {device}</Text> : null}
-          </Text>
-
-          {/* Issue */}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 4 }}>
-            <Wrench size={11} color={GREEN} style={{ marginTop: 2, marginRight: 5 }} />
-            <Text style={{ flex: 1, fontSize: 11, color: MUTED, lineHeight: 15 }} numberOfLines={2}>
-              {summarizeIssue(ticket)}
-            </Text>
-          </View>
-
-          {/* Date */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-            <Calendar size={11} color={SUBTLE} />
-            <Text style={{ fontSize: 11, color: SUBTLE, marginLeft: 4 }}>{fmtDate(ticket.createdAt)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Action row — View Details · History · Invoice. */}
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: HAIR }}>
-        <CardAction icon={FileText} label="View Details" tint={MINT} fg={GREEN_DEEP} onPress={onViewDetails} />
-        <CardAction icon={Clock} label="History" tint={HAIR} fg={INK} onPress={onHistory} />
-        <CardAction icon={Receipt} label="Invoice" tint={YELLOW_TINT} fg={YELLOW_TEXT} onPress={onInvoice} />
-      </View>
-    </View>
-  );
-}
-
-// Compact action pill used inside the ticket card — three fit side by side.
-function CardAction({ icon: Icon, label, tint, fg, onPress }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: BORDER }}
-      accessibilityRole="button"
-      style={{
-        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        height: 30, borderRadius: 9, paddingHorizontal: 4, backgroundColor: tint,
-      }}
-    >
-      <Icon size={12} color={fg} />
-      <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 11, color: fg }} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
+  stateCard: { backgroundColor: RC.white, borderRadius: 16, borderWidth: 1, borderColor: RC.line },
+  stateBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16, marginBottom: 12, gap: 6 },
+  stateIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: 14, fontWeight: '800', color: RC.ink },
+  stateText: { fontSize: 12, color: RC.muted, textAlign: 'center' },
+  retryBtn: { marginTop: 6, backgroundColor: RC.teal, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 8 },
+  retryText: { color: RC.white, fontWeight: '700', fontSize: 12 },
+});

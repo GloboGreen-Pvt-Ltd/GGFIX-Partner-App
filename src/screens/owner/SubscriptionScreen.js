@@ -302,7 +302,7 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
       ) : (
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(10), paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(10), paddingBottom: 24 + r.insets.bottom }}
           showsVerticalScrollIndicator={false}
         >
           <View style={capStyle}>
@@ -348,7 +348,7 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
               // Side by side, two to a row (one plan spans the full width).
               <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
                 {plans.map((plan) => (
-                  <View key={plan.code} style={{ width: plans.length === 1 ? '100%' : '50%', padding: 4 }}>
+                  <View key={plan.code} style={{ width: plans.length === 1 || r.isSmallPhone ? '100%' : '50%', padding: 4 }}>
                     <PlanCard
                       plan={plan}
                       isCurrent={currentType === plan.code || currentType === plan.name}
@@ -689,11 +689,12 @@ function UpgradePanel({
       </View>
       <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 3 }}>How many shops do you want to cover?</Text>
 
-      {/* Stepper + quick-pick chips 1..5 on one row */}
-      <View className="flex-row items-center" style={{ marginTop: 12 }}>
+      {/* Stepper + quick-pick chips 1..5 on one row (chips wrap below on <360pt phones) */}
+      <View className="flex-row items-center flex-wrap" style={{ marginTop: 12, rowGap: 8 }}>
         <Pressable
           onPress={onDec}
           disabled={shopCount <= 1}
+          hitSlop={6}
           className="items-center justify-center rounded-full"
           style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount <= 1 ? 0.45 : 1 }}
         >
@@ -706,12 +707,13 @@ function UpgradePanel({
         <Pressable
           onPress={onInc}
           disabled={shopCount >= 5}
+          hitSlop={6}
           className="items-center justify-center rounded-full"
           style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount >= 5 ? 0.45 : 1 }}
         >
           <Plus size={16} color={ACCENT} strokeWidth={2.6} />
         </Pressable>
-        <View className="flex-row flex-1 justify-end">
+        <View className="flex-row flex-1 justify-end" style={{ minWidth: 170 }}>
           {[1, 2, 3, 4, 5].map((n) => {
             const active = n === shopCount;
             return (

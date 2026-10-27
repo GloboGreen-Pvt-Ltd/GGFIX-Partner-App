@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Ellipse, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import { ArrowRight, CalendarClock, Phone, ShieldCheck, ShoppingCart } from 'lucide-react-native';
@@ -222,7 +222,9 @@ export default function LoginScreen({ onLogin, navigation }) {
   const heroW = 226 * k;
 
   return (
-    <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // keyboard-controller's KAV: edge-to-edge Android no longer resizes the
+    // window, so RN's own KAV left the mobile / OTP field under the keyboard.
+    <KeyboardAvoidingView style={s.page} behavior="padding">
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <Backdrop k={k} />
       {/* Device illustration, top-right — aligned to the logo like the mock. */}
@@ -233,7 +235,8 @@ export default function LoginScreen({ onLogin, navigation }) {
         accessible={false}
       />
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 34 * k, paddingBottom: insets.bottom + 18 * k }}
+        // Tablets: cap and centre the column instead of a full-width card.
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 34 * k, paddingBottom: insets.bottom + 18 * k, width: '100%', maxWidth: width >= 600 ? 560 : undefined, alignSelf: 'center' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

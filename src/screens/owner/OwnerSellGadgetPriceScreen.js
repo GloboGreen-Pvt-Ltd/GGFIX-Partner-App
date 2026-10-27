@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Image, Pressable } from 'react-native';
+import { View, Text, TextInput, Image, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Check, ChevronLeft, IndianRupee, Smartphone, Tag, Wrench } from 'lucide-react-native';
 import { useSelector } from 'react-redux';
 import { notify } from '../../components/confirm';
@@ -9,6 +10,7 @@ import { marketplaceApi } from '../../api/client';
 import { selectShopId } from '../../store/authSlice';
 import { specDisplayParts, specRequestFields } from '../../utils/deviceSpecs';
 import { SELL, SellButton, SellFooter, sellShadow } from '../shared/sell/sellTheme';
+import { useResponsive } from '../../theme/responsive';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -25,6 +27,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
 
   const toNum = (s) => {
     const n = Number(String(s ?? '').replace(/[^0-9.]/g, ''));
@@ -183,7 +186,12 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      {/* Keyboard-aware: the focused price field scrolls clear of the keyboard. */}
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Intro strip */}
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SELL.greenLight, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
           <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: SELL.green, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
@@ -236,7 +244,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
                   </View>
                   <View
                     style={{
-                      width: 124, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
+                      width: r.isSmallPhone ? 104 : 124, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
                       borderColor: hasPrice ? SELL.green : SELL.line, backgroundColor: hasPrice ? SELL.greenLight : SELL.card, paddingHorizontal: 10,
                     }}
                   >
@@ -321,7 +329,7 @@ export default function OwnerSellGadgetPriceScreen({ navigation, route }) {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <SellFooter caption={canSubmit ? null : (isSparePartsMode ? 'Price at least one part to continue' : 'Enter a price to continue')}>
         <SellButton

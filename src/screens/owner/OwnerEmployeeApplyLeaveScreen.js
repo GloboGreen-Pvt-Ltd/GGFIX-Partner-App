@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { CalendarDays, User, MessageSquare, Info, ChevronRight } from 'lucide-react-native';
 import {
   Card, Input, FormField, BottomActionBar, ScreenContainer,
@@ -8,6 +9,7 @@ import {
 import { tokens } from '../../theme/colors';
 import { ticketApi } from '../../api/client';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,6 +20,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const insetBottom = useBottomBarInset();
+  const r = useResponsive();
 
   const validate = () => {
     if (!startDate.trim() || !endDate.trim()) {
@@ -63,7 +66,11 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 110 }}>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 110, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
+      >
         <Card>
           <View className="flex-row items-center">
             <View className="h-12 w-12 rounded-full bg-primary-soft items-center justify-center mr-3">
@@ -133,7 +140,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
             </Text>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomActionBar insetBottom={insetBottom}>
         <TouchableOpacity
@@ -147,7 +154,7 @@ export default function OwnerEmployeeApplyLeaveScreen({ route, navigation }) {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Text className="text-white text-[13px] font-extrabold">Submit Leave Request</Text>
+              <Text className="text-white text-[13px] font-extrabold" numberOfLines={1}>Submit Leave Request</Text>
               <ChevronRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </>
           )}

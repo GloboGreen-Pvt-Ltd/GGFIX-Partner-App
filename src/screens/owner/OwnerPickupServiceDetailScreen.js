@@ -9,6 +9,7 @@ import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions } from '.
 import { cleanIssueSummary } from '../../utils/pickupEstimateMeta';
 import { normalizeDeviceImageUrl } from '../../utils/images';
 import { notify } from '../../components/confirm';
+import { useResponsive } from '../../theme/responsive';
 
 const fmtInstantDate = (iso) => {
   if (!iso) return null;
@@ -122,6 +123,7 @@ function MediaTile({ uri, label, video }) {
 export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
   const id = route?.params?.id;
   const preloaded = route?.params?.booking;
+  const r = useResponsive();
   // Seed with whatever the list passed in. Avoids a flash of "Loading" and
   // sidesteps the shop-side single-booking endpoint when the list already has
   // all the fields the detail view needs.
@@ -253,7 +255,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
           <Text className="text-text-muted">No pickup data.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 10, paddingBottom: 24 }}>
+        <ScrollView contentContainerStyle={{ padding: 10, paddingBottom: 24 + r.insets.bottom, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}>
           {/* Booking header */}
           <View className="bg-card border border-border rounded-2xl px-3 py-2.5 mb-2">
             <View className="flex-row items-center">

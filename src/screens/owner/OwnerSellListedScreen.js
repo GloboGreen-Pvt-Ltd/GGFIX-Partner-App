@@ -3,11 +3,13 @@ import { View, Text, Image, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Smartphone } from 'lucide-react-native';
 import { SELL, SellButton, sellShadow } from '../shared/sell/sellTheme';
+import { useResponsive } from '../../theme/responsive';
 
 export default function OwnerSellListedScreen({ navigation, route }) {
   const { listing = {}, device = {}, images = {}, price = 0 } = route?.params || {};
   const firstImage = Object.values(images).filter(Boolean)[0] || device.imageUrl;
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   // The listing id is a UUID — show a short, readable reference instead.
   const ref = listing.id ? String(listing.id).split('-')[0].toUpperCase() : null;
 
@@ -25,7 +27,7 @@ export default function OwnerSellListedScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}>
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <View style={{ height: 96, width: 96, borderRadius: 48, backgroundColor: SELL.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
             <View style={{ height: 64, width: 64, borderRadius: 32, backgroundColor: SELL.green, alignItems: 'center', justifyContent: 'center' }}>

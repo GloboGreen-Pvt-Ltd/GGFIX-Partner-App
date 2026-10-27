@@ -1,12 +1,11 @@
 import React from 'react';
-import { Text, View, useWindowDimensions } from 'react-native';
-import { BadgeCheck, BadgeX, Bell, ArrowLeftRight, ShoppingCart } from 'lucide-react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
+import { Bell, Check, ShoppingCart, X } from 'lucide-react-native';
 import {
   BADGE_ICON_SIZE,
   BADGE_STROKE,
   C,
   getSizeClass,
-  GREEN_DARK,
   HAIRLINE,
   HEADER_ACTION_STROKE,
   MIN_TOUCH,
@@ -21,6 +20,11 @@ import {
 import { DashboardSearchBar } from './DashboardSearchBar';
 import colors from '../../theme/colors';
 import { ProfileAvatar } from '../ProfileAvatar';
+
+// Soft brand tint behind the header + search (the reference's lavender band, in teal).
+const HEADER_TINT = '#E2F2F4';
+const VERIFIED_GREEN = '#16A34A';
+const UNVERIFIED_RED = '#DC2626';
 
 // Hit-slop that pads a button's real (compact) footprint out to the
 // accessibility minimum touch target, without growing what's actually drawn.
@@ -45,6 +49,10 @@ export interface DashboardHeaderProps {
   onSearchPress: () => void;
   onScanPress: (mode: 'qr' | 'lens') => void;
   onVoicePress?: () => void;
+  /** Scrolling down hides the avatar / greeting row (search stays); scrolling up brings it back. */
+  collapsed?: boolean;
+  /** Full header height, so the page can pad its scroll content to clear it. */
+  onHeightChange?: (height: number) => void;
 }
 
 /**
@@ -74,7 +82,18 @@ export function DashboardHeader({
   onSearchPress,
   onScanPress,
   onVoicePress,
+  collapsed = false,
+  onHeightChange,
 }: DashboardHeaderProps) {
+  // The header floats over the page (fixed height, so the scroll never jumps).
+  // Collapsing slides it up by the identity row's height — only the search bar
+  // stays under the status bar — and fades that row; all on the native driver.
+  const [rowH, setRowH] = React.useState(0);
+  const fold = React.useRef(new Animated.Value(collapsed ? 0 : 1)).current;
+  React.useEffect(() => {
+    Animated.timing(fold, { toValue: collapsed ? 0 : 1, duration: 220, useNativeDriver: true }).start();
+  }, [collapsed, fold]);
+
   const { width } = useWindowDimensions();
   const cls = getSizeClass(width);
   const isTablet = cls === 'tablet';
@@ -83,11 +102,11 @@ export function DashboardHeader({
   // element stretching across the full screen width; phone just fills it.
   const maxContentWidth = isTablet ? 1000 : undefined;
 
-  const avatarSize = isTablet ? 56 : 52;
-  const shopNameSize = isTablet ? 24 : cls === 'large' ? 21 : 19;
+  const avatarSize = isTablet ? 44 : 38;
+  const shopNameSize = isTablet ? 22 : cls === 'large' ? 20 : 19;
   const greetingSize = isTablet ? 14 : 13;
   const actionIconSize = isTablet ? 16 : 14;
-  const actionButtonSize = isTablet ? 38 : 32;
+  const actionButtonSize = isTablet ? 38 : 34;
   const actionGap = isTablet ? 14 : 8;
 
   const avatarHitSlop = hitSlopFor(avatarSize);
@@ -102,129 +121,67 @@ export function DashboardHeader({
   };
 
   return (
-    <View style={{ backgroundColor: '#FFFFFF', paddingTop: insetsTop }}>
+    <View
+      pointerEvents="box-none"
+      // zIndex for iOS; elevation for Android, where the page's raised cards
+      // (elevation > 0) would otherwise draw over the floating header.
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, elevation: 20 }}
+    >
+    <Animated.View
+      onLayout={(e) => onHeightChange?.(e.nativeEvent.layout.height)}
+      style={{
+        backgroundColor: HEADER_TINT, paddingTop: insetsTop,
+        transform: [{ translateY: fold.interpolate({ inputRange: [0, 1], outputRange: [-rowH, 0] }) }],
+      }}
+    >
       <View style={{ width: '100%', maxWidth: maxContentWidth, alignSelf: 'center', paddingHorizontal: pad }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, paddingBottom: 10 }}>
-          {/* Left: avatar + greeting/shop name. flexShrink so a long shop
-              name truncates instead of pushing the action icons offscreen. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1 }}>
-            {/* Verification badge is a SIBLING of the Touchable, not a
-                child: the avatar clips to a circle, which would shear a
-                badge overhanging its bottom-right corner. */}
-            <View>
-              <Touchable
-                onPress={onAvatarPress}
-                accessibilityRole="button"
-                accessibilityLabel={isVerified ? 'Account, verified shop' : 'Account, shop not verified'}
-                hitSlop={avatarHitSlop}
-                style={{ height: avatarSize, width: avatarSize }}
-                pressedStyle={{ opacity: 0.6 }}
-              >
-                <ProfileAvatar
-                  imageUrl={shopImage}
-                  name={shopName}
-                  size={avatarSize}
-                  backgroundColor={GREEN_DARK}
-                  borderWidth={1}
-                  borderColor="rgba(255,255,255,0.75)"
-                />
-              </Touchable>
-
-              {/* Decorative to the a11y tree — the avatar button's own label
-                  carries the verification status. */}
-              <View
-                pointerEvents="none"
-                importantForAccessibility="no-hide-descendants"
-                accessibilityElementsHidden
-                style={{
-                  position: 'absolute',
-                  right: -4,
-                  bottom: -4,
-                  height: BADGE_ICON_SIZE + 4,
-                  width: BADGE_ICON_SIZE + 4,
-                  borderRadius: (BADGE_ICON_SIZE + 4) / 2,
-                  backgroundColor: '#FFFFFF',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: HAIRLINE,
-                  borderColor: C.separator,
-                }}
-              >
-                {isVerified ? (
-                  <BadgeCheck size={BADGE_ICON_SIZE} color={VERIFIED_ICON} strokeWidth={BADGE_STROKE} />
-                ) : (
-                  <BadgeX size={BADGE_ICON_SIZE} color={UNVERIFIED_ICON} strokeWidth={BADGE_STROKE} />
-                )}
-              </View>
-            </View>
-
-            {/* Greeting · shop name — opens the account sheet. */}
+        <Animated.View pointerEvents={collapsed ? 'none' : 'auto'} style={{ opacity: fold }}>
+        <View
+          onLayout={(e) => { const h = e.nativeEvent.layout.height; if (h > 0 && Math.abs(h - rowH) > 0.5) setRowH(h); }}
+          style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 8, paddingBottom: 10 }}
+        >
+          {/* Left (reference: bold ETA line + address line with ▾): verified
+              greeting on top, then the shop name. */}
+          <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+            {/* Greeting on top (taps open the shop switcher)… */}
+            <Touchable
+              onPress={onSwitchAccountPress}
+              accessibilityRole="button"
+              accessibilityLabel={`${greeting}. Switch shop`}
+              style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
+              pressedStyle={{ opacity: 0.6 }}
+            >
+              <Text style={{ fontSize: greetingSize, color: C.label2 }} numberOfLines={1}>{greeting}</Text>
+            </Touchable>
+            {/* …then the shop name (taps open the account sheet). */}
             <Touchable
               onPress={onIdentityPress}
               accessibilityRole="button"
-              accessibilityLabel={`${greeting}, ${shopName}`}
-              style={{ flexShrink: 1, marginLeft: 11, marginRight: 8 }}
+              accessibilityLabel={shopName}
+              style={{ alignSelf: 'flex-start', maxWidth: '100%', marginTop: 1 }}
               pressedStyle={{ opacity: 0.6 }}
             >
-              <Text style={{ fontSize: greetingSize, color: C.label2, letterSpacing: -0.1 }} numberOfLines={1} ellipsizeMode="tail">
-                {greeting}
-              </Text>
-              <Text
-                style={{
-                  fontSize: shopNameSize,
-                  lineHeight: shopNameSize + 4,
-                  fontWeight: '700',
-                  fontFamily: SERIF,
-                  color: SHOP_NAME_COLOR,
-                  marginTop: 1,
-                }}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
+              <Text style={{ fontSize: shopNameSize, lineHeight: shopNameSize + 5, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
                 {shopName}
-              </Text>
-              <Text style={{ fontSize: 12, color: C.label2, marginTop: 1 }} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.8}>
-                Let’s keep your business smart.
               </Text>
             </Touchable>
           </View>
 
-          {/* Right: switch account / notifications / cart. `gap` (not
-              space-around) keeps these tight on tablet instead of
-              spreading across the wider row. */}
+          {/* Right: notifications · cart · profile (the reference's profile circle). */}
           <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: actionGap }}>
-            <Touchable
-              onPress={onSwitchAccountPress}
-              accessibilityRole="button"
-              accessibilityLabel="Switch account"
-              style={{ ...actionButtonStyle, backgroundColor: '#035C6C' }}
-              pressedStyle={{ opacity: 0.6 }}
-            >
-              <ArrowLeftRight size={actionIconSize} color="#FFFFFF" strokeWidth={HEADER_ACTION_STROKE} />
-            </Touchable>
             <Touchable
               onPress={onNotificationsPress}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
-              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }}
+              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF' }}
               pressedStyle={{ opacity: 0.6 }}
             >
               <Bell size={actionIconSize} color="#111111" strokeWidth={HEADER_ACTION_STROKE} />
               {notifUnread > 0 ? (
                 <View
                   style={{
-                    position: 'absolute',
-                    top: -3,
-                    right: -3,
-                    minWidth: 18,
-                    height: 18,
-                    paddingHorizontal: 4,
-                    borderRadius: 9,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: colors.danger,
-                    borderWidth: 1.5,
-                    borderColor: '#FFFFFF',
+                    position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9,
+                    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.danger, borderWidth: 1.5, borderColor: '#FFFFFF',
                   }}
                 >
                   <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF' }}>{notifUnread > 9 ? '9+' : notifUnread}</Text>
@@ -235,21 +192,61 @@ export function DashboardHeader({
               onPress={onCartPress}
               accessibilityRole="button"
               accessibilityLabel="Cart"
-              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }}
+              style={{ ...actionButtonStyle, backgroundColor: '#FFFFFF' }}
               pressedStyle={{ opacity: 0.6 }}
             >
               <ShoppingCart size={actionIconSize} color="#111111" strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
+            <View>
+            <Touchable
+              onPress={onAvatarPress}
+              accessibilityRole="button"
+              accessibilityLabel={isVerified ? 'Account, verified shop' : 'Account, shop not verified'}
+              hitSlop={avatarHitSlop}
+              style={{ height: avatarSize, width: avatarSize }}
+              pressedStyle={{ opacity: 0.6 }}
+            >
+              <ProfileAvatar
+                imageUrl={shopImage}
+                name={shopName}
+                size={avatarSize}
+                // White behind the photo: a transparent PNG logo no longer sits on brand teal.
+                backgroundColor="#FFFFFF"
+                textColor="#035C6C" // initials (no photo) in teal, readable on white
+                borderWidth={1.5}
+                borderColor="#FFFFFF"
+              />
+            </Touchable>
+            {/* Verification badge on the avatar's bottom-right: green + white tick,
+                or red + white ✕ (decorative — the avatar's label says it). */}
+            <View
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants"
+              accessibilityElementsHidden
+              style={{
+                position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8,
+                backgroundColor: isVerified ? VERIFIED_GREEN : UNVERIFIED_RED,
+                borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {isVerified ? <Check size={9} color="#FFFFFF" strokeWidth={3.5} /> : <X size={9} color="#FFFFFF" strokeWidth={3.5} />}
+            </View>
+            </View>
           </View>
         </View>
+        </Animated.View>
 
         {/* Search — always below the profile row, inside the same
             centered/width-capped container so it lines up with it on
             tablet instead of stretching edge-to-edge on its own. */}
-        <View style={{ paddingBottom: 12 }}>
+        {/* Search box: 10 from the screen edges (less than the header row's pad). */}
+        <View style={{ paddingBottom: 10, marginHorizontal: -Math.max(0, pad - 10) }}>
           <DashboardSearchBar pad={0} onSearchPress={onSearchPress} onScanPress={onScanPress} onVoicePress={onVoicePress} />
         </View>
       </View>
+    </Animated.View>
+    {/* Status-bar strip stays put and covers the identity row as it slides under it. */}
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insetsTop, backgroundColor: HEADER_TINT }} />
     </View>
   );
 }

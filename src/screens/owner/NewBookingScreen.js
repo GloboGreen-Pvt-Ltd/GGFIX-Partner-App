@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TextInput,
   TouchableOpacity,
   FlatList,
@@ -11,6 +10,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// safe-area-context, not RN's SafeAreaView: RN's pads nothing on Android, so
+// the custom header sat under the status bar.
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CONTENT_MAX } from '../../theme/responsive';
 import { ticketApi } from '../../api/client';
 
 const PLACEHOLDER_AVATAR = 'https://dummyassets.local/avatars/customer-1.png';
@@ -57,12 +60,12 @@ export default function NewBookingScreen({ navigation }) {
     });
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <Ionicons name="arrow-back" size={20} color="#111111" />
         </TouchableOpacity>
-        <Text style={styles.title}>New Booking</Text>
+        <Text style={styles.title} numberOfLines={1}>New Booking</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -99,9 +102,9 @@ export default function NewBookingScreen({ navigation }) {
               <View style={styles.customerRow}>
                 <Image source={{ uri: PLACEHOLDER_AVATAR }} style={styles.avatar} />
                 <View style={styles.customerMeta}>
-                  <Text style={styles.customerName}>{item.name}</Text>
-                  <Text style={styles.customerSub}>{item.phone}</Text>
-                  <Text style={styles.customerSub}>{item.address ? item.address.split(',')[0]?.trim() : ''}</Text>
+                  <Text style={styles.customerName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.customerSub} numberOfLines={1}>{item.phone}</Text>
+                  <Text style={styles.customerSub} numberOfLines={1}>{item.address ? item.address.split(',')[0]?.trim() : ''}</Text>
                 </View>
                 <TouchableOpacity style={styles.bookingBtn} onPress={() => goExistingCustomer(item)}>
                   <Text style={styles.bookingBtnText}>Booking</Text>
@@ -119,15 +122,16 @@ export default function NewBookingScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5F3F5' },
   header: {
-    height: 48,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700', color: '#111111' },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  title: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: '#111111' },
+  // Tablets: cap and centre the column.
+  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
   newCustomerCard: {
     alignSelf: 'center',
     width: 116,
@@ -165,7 +169,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E5E7EB' },
-  customerMeta: { flex: 1, marginLeft: 10 },
+  customerMeta: { flex: 1, marginLeft: 10, marginRight: 8 },
   customerName: { fontSize: 13, fontWeight: '700', color: '#111111' },
   customerSub: { fontSize: 11, color: '#6B7280', marginTop: 1 },
   bookingBtn: {

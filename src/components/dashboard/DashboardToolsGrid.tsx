@@ -1,8 +1,11 @@
 import React from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import type { DashboardTool } from '../../types/dashboard';
-import { getSizeClass } from './theme';
+import { BREAKPOINTS, LARGE_PHONE_MIN, TILE_COLUMNS } from '../../theme/responsive';
 import { DashboardToolCard } from './DashboardToolCard';
+
+// Icon discs cycle the brand sheet: Teal, Bright Blue, Green, Orange, Navy, Red.
+export const BRAND_DISCS = ['#035C6C', '#0788C9', '#609138', '#FAA700', '#1C3053', '#F32C26'];
 
 export interface DashboardToolsGridProps {
   items: DashboardTool[];
@@ -24,8 +27,9 @@ export interface DashboardToolsGridProps {
  *   >= 768  → 6 columns  (tablet / iPad)
  */
 export function getDashboardToolColumns(width: number): number {
-  const cls = getSizeClass(width);
-  return cls === 'tablet' ? 6 : cls === 'large' ? 5 : 4;
+  // The app-wide tile rule (theme/responsive TILE_COLUMNS): phone 4, large phone 5, tablet 6.
+  if (width >= BREAKPOINTS.tablet) return TILE_COLUMNS.tablet;
+  return width >= LARGE_PHONE_MIN ? TILE_COLUMNS.largePhone : TILE_COLUMNS.phone;
 }
 
 /**
@@ -53,8 +57,9 @@ export function DashboardToolsGrid({ items, pad, columns, cardWidth, gap, onPres
           <DashboardToolCard
             key={tool.label}
             tool={tool}
+            discColor={BRAND_DISCS[i % BRAND_DISCS.length]}
             width={cardWidth}
-            style={{ marginRight: col === columns - 1 ? 0 : gap, marginBottom: gap }}
+            style={{ marginRight: col === columns - 1 ? 0 : gap, marginBottom: 6 }}
             onPress={onPress}
           />
         );

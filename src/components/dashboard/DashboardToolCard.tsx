@@ -11,6 +11,8 @@ export interface DashboardToolCardProps {
   /** Grid gap — margin-right/bottom for this cell's position in the row. */
   style?: StyleProp<ViewStyle>;
   onPress: (tool: DashboardTool) => void;
+  /** Icon disc colour (the grid cycles the brand colours); falls back to the tool's own. */
+  discColor?: string;
 }
 
 const PRESS_SCALE = 0.97;
@@ -28,14 +30,14 @@ function iconBoxSize(width: number): number {
 }
 function cardMinHeight(width: number): number {
   const cls = getSizeClass(width);
-  return cls === 'tablet' ? 100 : cls === 'large' ? 96 : 92;
+  return cls === 'tablet' ? 86 : cls === 'large' ? 82 : 78;
 }
 function labelFontSize(width: number): number {
   const cls = getSizeClass(width);
   return cls === 'tablet' ? 13 : cls === 'large' ? 12.5 : 12;
 }
 
-function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCardProps) {
+function DashboardToolCardBase({ tool, width, style, onPress, discColor }: DashboardToolCardProps) {
   const Icon = tool.icon;
   const { width: winW } = useWindowDimensions();
   const scale = useSharedValue(1);
@@ -60,7 +62,7 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
   const fontSize = labelFontSize(winW);
   const tone = tool.color ?? PINE;
   const glyphColor = tool.iconColor ?? tone;
-  const glyphBg = tool.iconBg ?? withAlpha(tone, 0.16);
+  const glyphBg = discColor ?? tool.iconBg ?? withAlpha(tone, 0.16);
   // Solid glyphs read a touch smaller than outline ones at the same size.
   const glyphSize = tool.iconColor ? icon + 3 : icon;
 
@@ -85,8 +87,8 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
             borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            paddingVertical: 8,
-            paddingHorizontal: 6,
+            paddingVertical: 2,
+            paddingHorizontal: 4,
           },
           animatedStyle,
         ]}
@@ -117,8 +119,8 @@ function DashboardToolCardBase({ tool, width, style, onPress }: DashboardToolCar
             lineHeight: fontSize + 4,
             minHeight: (fontSize + 4) * 2,
             fontWeight: '600',
-            color: C.label,
-            marginTop: 6,
+            color: '#1C3053', // brand Navy
+            marginTop: 4,
             letterSpacing: -0.1,
             textAlign: 'center',
           }}

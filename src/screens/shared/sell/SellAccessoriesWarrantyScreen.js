@@ -64,7 +64,7 @@ export default function SellAccessoriesWarrantyScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: SELL.page }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {isEditing ? <EditingBanner text="Your previous accessories and warranty are pre-selected." /> : null}
         <SellIntro
           title={isLaptopLike ? 'Accessories' : 'Accessories & warranty'}

@@ -16,6 +16,7 @@ export default function OwnerKycPendingScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.button}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           onPress={() => navigation.navigate('OwnerTabs')}
         >
           <Ionicons name="arrow-back-outline" size={18} color="#FFFFFF" />
@@ -30,7 +31,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28 },
   title: { fontSize: 17, fontWeight: '700', color: '#111111', marginTop: 12, textAlign: 'center' },
-  desc: { fontSize: 13, color: '#6B7280', marginTop: 6, textAlign: 'center' },
+  desc: { fontSize: 13, color: '#6B7280', marginTop: 6, textAlign: 'center', maxWidth: 480 },
   button: {
     marginTop: 18,
     backgroundColor: '#111111',

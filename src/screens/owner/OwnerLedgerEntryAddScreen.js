@@ -40,6 +40,7 @@ import VoiceNotePlayer from '../../components/VoiceNotePlayer';
 import { uploadMedia } from '../../api/masterData';
 import { formatMoney } from './revenueMath';
 import { rs } from '../../theme/metrics';
+import { useResponsive } from '../../theme/responsive';
 import LedgerDateSheet from './LedgerDateSheet';
 import {
   C,
@@ -275,6 +276,9 @@ function useVoiceRecorder() {
 
 export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  // Tablet: form, confirm button and keypad capped and centred (phones: full width).
+  const r = useResponsive();
+  const formCap = { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' };
   const partyId = route.params?.partyId;
   const party = route.params?.party || null;
   // Editing an existing row rather than adding one. The whole screen is reused
@@ -595,11 +599,11 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
+          contentContainerStyle={[{
             paddingHorizontal: S.lg,
             paddingTop: S.md,
             paddingBottom: S.md,
-          }}
+          }, formCap]}
         >
           {/* ── amount ───────────────────────────────────────────────── */}
           <Pressable onPress={dismissNote} className="items-center">
@@ -752,7 +756,8 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
             </View>
             <Text
               className="font-semibold"
-              style={{ fontSize: T.rowSub, color: tint, marginRight: S.tight }}
+              style={{ fontSize: T.rowSub, color: tint, marginRight: S.tight, flexShrink: 1 }}
+              numberOfLines={1}
             >
               {dayLabel(date)}
             </Text>
@@ -889,6 +894,7 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
             paddingBottom: noteFocused ? S.md : bottomInset(insets.bottom, S.sm),
           }}
         >
+          <View style={formCap}>
           <Pressable
             onPress={submit}
             disabled={!canSubmit}
@@ -916,6 +922,7 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
           {/* The system keyboard owns the screen while the note is being typed;
               stacking our keypad under it would only push the note out of view. */}
           {noteFocused ? null : <Keypad tint={tint} onKey={(k) => setExpr((p) => applyKey(p, k))} />}
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -1018,6 +1025,7 @@ function Keypad({ tint, onKey }) {
 /* ── camera / gallery / booking sheet ─────────────────────────────────── */
 
 function SourceSheet({ visible, tint, onClose, onPick }) {
+  const r = useResponsive(); // tablet: sheet capped and centred
   return (
     <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       {/* Clears this modal window's own nav-bar / home-indicator inset. */}
@@ -1031,7 +1039,7 @@ function SourceSheet({ visible, tint, onClose, onPick }) {
             <Pressable
               onPress={() => {}}
               className="bg-card"
-              style={{ borderTopLeftRadius: SIZE.radius * 1.5, borderTopRightRadius: SIZE.radius * 1.5, paddingBottom: insets.bottom }}
+              style={{ borderTopLeftRadius: SIZE.radius * 1.5, borderTopRightRadius: SIZE.radius * 1.5, paddingBottom: insets.bottom, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
             >
               <View className="items-center" style={{ paddingTop: S.sm }}>
                 <View style={{ height: rs(4), width: rs(34), borderRadius: rs(2), backgroundColor: C.chipBg }} />
@@ -1077,6 +1085,7 @@ function SourceButton({ icon: Icon, label, tint, onPress }) {
    cannot be used to look into anyone else's book. ── */
 
 function BookingSheet({ visible, tint, phone, onClose, onPick }) {
+  const r = useResponsive(); // tablet: sheet capped and centred
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1137,6 +1146,9 @@ function BookingSheet({ visible, tint, phone, onClose, onPick }) {
                 borderTopRightRadius: SIZE.radius * 1.5,
                 paddingBottom: S.md + (keyboard > 0 ? 0 : insets.bottom),
                 maxHeight: '78%',
+                width: '100%',
+                maxWidth: r.maxWidth('form'),
+                alignSelf: 'center',
               }}
             >
               <View className="items-center" style={{ paddingTop: S.sm }}>

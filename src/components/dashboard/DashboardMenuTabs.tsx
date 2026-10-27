@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { LucideIcon } from 'lucide-react-native';
 import type { DashboardTool } from '../../types/dashboard';
 import { C, R, SERIF } from './theme';
@@ -32,11 +31,11 @@ export interface DashboardMenuTabsProps {
 }
 
 const TAB_ACTIVE_TEXT = '#FFFFFF';
-const TAB_INACTIVE = C.label2;
-const TAB_ICON_INACTIVE = '#6B7280';
+const TAB_INACTIVE = '#1C3053';      // brand Navy
+const TAB_ICON_INACTIVE = '#1C3053';
 const TAB_PILL_BG = '#035C6C';
-const SEGMENT_PAD = 4;
-const TAB_ICON_SIZE = 20;
+const CHIP_RADIUS = 12;
+const TAB_ICON_SIZE = 17;
 
 /**
  * Services / Employee / Reports as one premium segmented control over a
@@ -95,37 +94,12 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
     <View>
       {/* Light glass track (white wash, white rim, top sheen) — the bottom
           tab bar's look. Shadow on the wrapper; the track clips. */}
-      <View
-        style={{
-          marginHorizontal: pad,
-          borderRadius: R.control,
-          backgroundColor: '#FFFFFF',
-          shadowColor: '#111111',
-          shadowOpacity: 0.07,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}
-      >
-      <View
-        style={{
-          flexDirection: 'row',
-          backgroundColor: 'rgba(255,255,255,0.94)',
-          borderWidth: 1,
-          borderColor: 'rgba(17,17,17,0.08)',
-          borderRadius: R.control,
-          padding: SEGMENT_PAD,
-          overflow: 'hidden',
-        }}
-      >
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(255,255,255,0.75)', 'rgba(243,244,246,0.6)']}
-          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-        />
+      {/* Three separate chips; the teal pill slides behind the active one. */}
+      <View style={{ marginHorizontal: pad }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
         <Animated.View
           pointerEvents="none"
-          style={[{ position: 'absolute', top: SEGMENT_PAD, left: 0, borderRadius: R.control - 4, backgroundColor: TAB_PILL_BG }, pillStyle]}
+          style={[{ position: 'absolute', top: 0, left: 0, borderRadius: CHIP_RADIUS, backgroundColor: TAB_PILL_BG }, pillStyle]}
         />
         {tabs.map((tab, index) => {
           const isActive = index === active;
@@ -138,17 +112,20 @@ export function DashboardMenuTabs({ tabs, pad, panelStyle, onPanelLayout, gridPa
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.label}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, gap: 6 }}
+              style={{
+                flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, gap: 5,
+                borderRadius: CHIP_RADIUS, borderWidth: 1,
+                borderColor: isActive ? TAB_PILL_BG : '#E5E7EB',
+                backgroundColor: isActive ? 'transparent' : '#FFFFFF',
+              }}
             >
               {TabIcon ? (
                 <TabIcon size={TAB_ICON_SIZE} color={isActive ? TAB_ACTIVE_TEXT : TAB_ICON_INACTIVE} strokeWidth={isActive ? 2.3 : 2} />
               ) : null}
-              {/* Label only on the active tab; the others are icon-only. */}
-              {isActive || !TabIcon ? (
-                <Text style={{ fontSize: 14, fontWeight: isActive ? '800' : '600', color: isActive ? TAB_ACTIVE_TEXT : TAB_INACTIVE }} numberOfLines={1}>
-                  {tab.label}
-                </Text>
-              ) : null}
+              {/* Every tab shows icon + label (white on the teal pill, navy otherwise). */}
+              <Text style={{ fontSize: 13, fontWeight: isActive ? '800' : '600', color: isActive ? TAB_ACTIVE_TEXT : TAB_INACTIVE }} numberOfLines={1}>
+                {tab.label}
+              </Text>
             </Pressable>
           );
         })}

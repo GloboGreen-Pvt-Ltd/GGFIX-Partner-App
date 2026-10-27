@@ -279,7 +279,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
   const openWorkRecord = (item) => {
     pushRecent(query);
     if (item.kind === 'pickup') navigation.navigate('OwnerPickupServiceDetail', { id: item.row.id, booking: item.row });
-    else navigation.navigate('DeviceDetail', { ticketId: item.row.id });
+    else navigation.navigate('TicketDetail', { ticketId: item.row.id });
   };
 
   // One flat list, section-tagged, so devices and work records scroll together.
@@ -359,7 +359,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
             <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>{title}</Text>
             <View className="flex-row items-center mt-1">
               <User size={11} color="#6B7280" strokeWidth={2} />
-              <Text className="text-[11px] text-gray-600 ml-1" numberOfLines={1}>{name}</Text>
+              <Text className="text-[11px] text-gray-600 ml-1 flex-shrink" numberOfLines={1}>{name}</Text>
               {phone ? (
                 <>
                   <Phone size={11} color="#6B7280" strokeWidth={2} style={{ marginLeft: 10 }} />

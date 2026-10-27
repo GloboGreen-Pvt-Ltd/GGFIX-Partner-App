@@ -21,7 +21,7 @@ export default function SellConditionScreen({ navigation, route }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, paddingBottom: 120 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, paddingBottom: 120, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         {/* Device summary */}
         <View className="bg-card border border-border rounded-xl p-2.5 mb-2.5 flex-row items-center">
           <View className="h-11 w-11 rounded-xl bg-primary/10 items-center justify-center mr-2.5 overflow-hidden">

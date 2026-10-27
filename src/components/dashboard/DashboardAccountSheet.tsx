@@ -155,6 +155,10 @@ function AccountSheetBody({
       <Animated.View
         style={{
           height: sheetH,
+          // Width-capped and centred on tablets (no effect on phones).
+          width: '100%',
+          maxWidth: 720,
+          alignSelf: 'center',
           backgroundColor: C.groupedBg,
           borderTopLeftRadius: SHEET_RADIUS,
           borderTopRightRadius: SHEET_RADIUS,

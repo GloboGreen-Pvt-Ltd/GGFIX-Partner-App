@@ -107,8 +107,10 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
     }, copies, preset);
   };
 
+  // Only a live connect / print holds the sheet open — a stuck check or
+  // permission step must never trap the user in it.
   const handleClose = () => {
-    if (busy) return;
+    if (state === PRINTER_STATE.CONNECTING || state === PRINTER_STATE.PRINTING) return;
     onClose?.();
   };
 
@@ -387,6 +389,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
           >
             <Touchable
               onPress={() => setCopies((c) => Math.max(1, c - 1))}
+              hitSlop={8}
               style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }}
               pressedStyle={{ opacity: 0.7 }}
             >
@@ -397,6 +400,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
             </View>
             <Touchable
               onPress={() => setCopies((c) => Math.min(10, c + 1))}
+              hitSlop={8}
               style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT }}
               pressedStyle={{ opacity: 0.8 }}
             >

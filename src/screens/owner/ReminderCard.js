@@ -99,7 +99,7 @@ export default function ReminderCard({
           <Text style={{ fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1.4 }}>
             PAYMENT REMINDER
           </Text>
-          <Text style={{ fontSize: 34.5, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontSize: 34.5, fontWeight: '800', color: INK, marginTop: 6, letterSpacing: -0.5 }}>
             {formatMoney(Math.abs(Number(amount) || 0))}
           </Text>
           <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
