@@ -201,7 +201,7 @@ const SOFT_SHADOW = {
  * the host scroll the focused field above the keyboard.
  */
 export default function DeviceSecurityLockSheet({
-  visible, initialLock, onConfirm, onClose, types, inline = false, onChange, showErrors = false, onInputFocus, showProgress = true, entryOnly = false,
+  visible, initialLock, onConfirm, onClose, types, inline = false, onChange, showErrors = false, onInputFocus, showProgress = true, entryOnly = false, saveLabel = null,
 }) {
   const options = Array.isArray(types) ? LOCK_OPTIONS.filter((o) => types.includes(o.key)) : LOCK_OPTIONS;
   const seed = (initialLock && initialLock.type)
@@ -500,8 +500,8 @@ export default function DeviceSecurityLockSheet({
         accessibilityRole="button"
         accessibilityState={{ disabled: !isReady }}
       >
-        <Text style={{ fontSize: F.title, fontWeight: '700', color: isReady ? '#FFFFFF' : SUB }}>{entryOnly ? 'Save' : 'Continue'}</Text>
-        <ArrowRight size={18} color={isReady ? '#FFFFFF' : SUB} strokeWidth={2.5} style={{ marginLeft: rs(6) }} />
+        <Text style={{ fontSize: F.title, fontWeight: '700', color: isReady ? '#FFFFFF' : SUB }}>{saveLabel || (entryOnly ? 'Save' : 'Continue')}</Text>
+        {saveLabel ? null : <ArrowRight size={18} color={isReady ? '#FFFFFF' : SUB} strokeWidth={2.5} style={{ marginLeft: rs(6) }} />}
       </Pressable>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
         <ShieldCheck size={12} color={SUB} strokeWidth={2} />

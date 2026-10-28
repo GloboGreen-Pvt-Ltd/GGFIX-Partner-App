@@ -90,7 +90,7 @@ export default function EditBookingScreen({ navigation, route }) {
   const originalRef = useRef(null);
   const [custOpen, setCustOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false);
-  const [lockOpen, setLockOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(!!route?.params?.openSecurity);
   const [lockSheet, setLockSheet] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -106,6 +106,8 @@ export default function EditBookingScreen({ navigation, route }) {
       const initial = {
         customerName: t.customerName || '',
         customerPhone: normMobile(t.customerPhone),
+        // Lives on the customer record, not the ticket — filled in below.
+        customerAltPhone: '',
         imei: t.imei || '',
         // issueDescription here = the free Notes part; issueNotes = one per issue.
         issueDescription: splitIssueText(t.issueDescription, priceItemsFromTicket(t).map(itemLabel)).rest,
@@ -119,6 +121,18 @@ export default function EditBookingScreen({ navigation, route }) {
       };
       originalRef.current = initial;
       setForm(initial);
+      // Saved alternative number, from the customer record. Seeds the original
+      // too, so loading it doesn't count as an edit; never overwrites typing.
+      if (initial.customerPhone.length === 10) {
+        ticketApi.get('/customers/lookup', { query: { mobile: initial.customerPhone } })
+          .then((c) => {
+            const alt = normMobile(c?.alternatePhone);
+            if (!alt || !originalRef.current) return;
+            originalRef.current = { ...originalRef.current, customerAltPhone: alt };
+            setForm((f) => (f && !f.customerAltPhone ? { ...f, customerAltPhone: alt } : f));
+          })
+          .catch(() => {});
+      }
       // The ticket stores no category — read it off the catalogue model.
       if (t.brandId && t.modelId) {
         try {
@@ -153,6 +167,7 @@ export default function EditBookingScreen({ navigation, route }) {
     const labels = [];
     if (form.customerName.trim() !== o.customerName.trim()) { body.customerName = form.customerName.trim(); labels.push('Customer name'); }
     if (normMobile(form.customerPhone) !== o.customerPhone) { body.customerPhone = normMobile(form.customerPhone); labels.push('Customer mobile'); }
+    if (normMobile(form.customerAltPhone) !== normMobile(o.customerAltPhone)) labels.push('Alternative mobile');
     if (form.device) {
       const d = form.device;
       const parts = specDisplayParts(d);
@@ -195,7 +210,15 @@ export default function EditBookingScreen({ navigation, route }) {
   const imeiError = showImei && imeiDigits.length > 0 && (imeiDigits.length < 14 || imeiDigits.length > 17) ? 'IMEI must be 14–17 digits.' : '';
   const phoneError = form && normMobile(form.customerPhone).length !== 10 ? 'Enter a 10-digit mobile number.' : '';
   const nameError = form && !form.customerName.trim() ? 'Customer name is required.' : '';
-  const canSave = dirty && !saving && !uploading && !imeiError && !phoneError && !nameError;
+  // Optional; when given: a 10-digit Indian mobile, different from the main one.
+  const altDigits = normMobile(form?.customerAltPhone);
+  const altError = !form || !altDigits ? ''
+    : altDigits.length !== 10 ? 'Enter all 10 digits.'
+    : !/^[6-9]\d{9}$/.test(altDigits) ? 'Mobile numbers start with 6, 7, 8 or 9.'
+    : altDigits === normMobile(form.customerPhone) ? 'Must be different from the mobile number.'
+    : '';
+  const altChanged = !!form && !!originalRef.current && altDigits !== normMobile(originalRef.current.customerAltPhone);
+  const canSave = dirty && !saving && !uploading && !imeiError && !phoneError && !nameError && !altError;
 
   // ── Save: PATCH only the changed fields, then one history row ────────
   const save = async () => {
@@ -214,7 +237,16 @@ export default function EditBookingScreen({ navigation, route }) {
     }
     setSaving(true);
     try {
-      const res = await ticketApi.patch(`/tickets/${ticketId}`, { body: diff.body });
+      // Alternative number → the customer record (POST /customers upserts by
+      // mobile and only writes the fields it is given).
+      if (altChanged && altDigits) {
+        await ticketApi.post('/customers', {
+          body: { name: form.customerName.trim(), phone: normMobile(form.customerPhone), alternatePhone: altDigits },
+        });
+      }
+      const res = Object.keys(diff.body).length
+        ? await ticketApi.patch(`/tickets/${ticketId}`, { body: diff.body })
+        : null;
       // Only claim success for what the server actually stored (an older
       // server ignores fields it doesn't support).
       const missed = ['customerName', 'customerPhone', 'issueDescription', 'imei', 'deviceSecurityType', 'missingPartsJson', 'devicePhotosJson', 'modelId']
@@ -384,13 +416,14 @@ export default function EditBookingScreen({ navigation, route }) {
             {custOpen ? (
               <>
                 <Field icon={<User size={18} color={INK} strokeWidth={1.75} />} value={form.customerName} onChangeText={(v) => set('customerName', v)} placeholder="Customer name" autoCapitalize="words" error={nameError} />
-                <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerPhone} onChangeText={(v) => set('customerPhone', v.replace(/\D/g, ''))} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} error={phoneError} last />
+                <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerPhone} onChangeText={(v) => set('customerPhone', v.replace(/\D/g, ''))} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} error={phoneError} />
+                <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerAltPhone} onChangeText={(v) => set('customerAltPhone', v.replace(/\D/g, ''))} placeholder="Enter alternative mobile number (optional)" keyboardType="phone-pad" maxLength={10} error={altError} last />
               </>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}><User size={16} color={ACCENT} /></View>
                 <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '800', color: INK }} numberOfLines={1}>
-                  {form.customerName || '—'}<Text style={{ fontWeight: '500', color: MUTED }}>{form.customerPhone ? `  ·  ${form.customerPhone}` : ''}</Text>
+                  {form.customerName || '—'}<Text style={{ fontWeight: '500', color: MUTED }}>{form.customerPhone ? `  ·  ${form.customerPhone}` : ''}{form.customerAltPhone ? `  ·  Alt ${form.customerAltPhone}` : ''}</Text>
                 </Text>
               </View>
             )}
@@ -443,19 +476,16 @@ export default function EditBookingScreen({ navigation, route }) {
             </>
           ) : null}
 
-          {/* Notes — anything else; saved with the issue notes. */}
-          <SectionTitle title="Notes" hint="(Optional)" />
+          {ticket.issueAudioUrl ? (
           <Card>
-            <TextInput value={form.issueDescription} onChangeText={(v) => set('issueDescription', v)} placeholder="Any other notes about this device" placeholderTextColor={SUBTLE} multiline maxLength={500} textAlignVertical="top" cursorColor={ACCENT} style={{ minHeight: 72, fontSize: 14, color: INK, includeFontPadding: false, padding: 0 }} />
-            <Text style={{ fontSize: 11, color: SUBTLE, textAlign: 'right', marginTop: 4 }}>{form.issueDescription.length}/500</Text>
             {ticket.issueAudioUrl ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Mic size={14} color={ACCENT} />
                 <Text style={{ marginLeft: 6, fontSize: 12, color: MUTED }}>Voice note attached</Text>
               </View>
             ) : null}
-            <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>New issues or prices: use Re-Est or Price Revised from Booking Details.</Text>
           </Card>
+          ) : null}
 
           {/* Photos / video */}
           <SectionTitle title="Device Photos & Video" hint="(Optional)" />
@@ -505,7 +535,7 @@ export default function EditBookingScreen({ navigation, route }) {
                 <FoldRow title="Device Security" right={lockSaved ? `${LOCK_LABEL[form.lockType]} — Saved` : 'None'} rightColor={lockSaved ? ACCENT : MUTED} open={lockOpen} onPress={() => setLockOpen((v) => !v)} icon={<Lock size={15} color={INK} />} />
                 {lockOpen ? (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingBottom: 12 }}>
-                    <Chip label="Change Security" onPress={() => setLockSheet({ type: form.lockType === 'NONE' ? lockOptions[1] : form.lockType, value: '' })} />
+                    <Chip label="Change Security" onPress={() => setLockSheet({ type: form.lockType === 'NONE' ? lockOptions[1] : form.lockType, value: form.lockType === 'NONE' ? '' : form.lockValue })} />
                     {lockSaved ? <Chip label="Clear Security" danger onPress={() => setForm((f) => ({ ...f, lockType: 'NONE', lockValue: '' }))} /> : null}
                   </View>
                 ) : null}
@@ -545,8 +575,8 @@ export default function EditBookingScreen({ navigation, route }) {
         types={lockOptions}
         initialLock={lockSheet}
         showProgress={false}
-        entryOnly
-        onConfirm={(l) => { setForm((f) => ({ ...f, lockType: l.type, lockValue: l.value || '' })); setLockSheet(null); }}
+        saveLabel="Save"
+        onConfirm={(l) => { setForm((f) => ({ ...f, lockType: l.type, lockValue: l.type === 'NONE' ? '' : (l.value || '') })); setLockSheet(null); }}
         onClose={() => setLockSheet(null)}
       />
       <ImageViewerModal

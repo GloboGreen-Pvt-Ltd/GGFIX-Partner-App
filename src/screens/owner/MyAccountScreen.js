@@ -44,6 +44,7 @@ import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } fro
 import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
+import { notify } from '../../components/confirm';
 
 // My Account palette — the Oct 2026 brand sheet (theme/colors.js `brand`).
 const G = brand.teal;           // Primary teal: header, key actions
@@ -655,7 +656,7 @@ function AppLockRow() {
   const toggle = async (next) => {
     if (next) {
       if (!(await isDeviceSecure())) {
-        Alert.alert('Set a screen lock', 'Add a fingerprint, pattern or PIN in your phone settings first, then turn on App Lock.');
+        notify('Set a screen lock first', 'Add a fingerprint, pattern or PIN in phone settings.', { type: 'warning', duration: 4 });
         return;
       }
       if (!(await authenticate())) return;

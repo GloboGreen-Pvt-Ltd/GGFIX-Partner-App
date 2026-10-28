@@ -99,36 +99,39 @@ export default function RootNavigator() {
   // When the API client detects an expired/invalid token, drop to Login.
   useEffect(() => {
     setAuthExpiredHandler(() => {
+      notify('Session expired. Please log in again.', '', { type: 'warning' });
       setSessionState(null);
       dispatch(clearAuth());
     });
     return () => setAuthExpiredHandler(null);
   }, [dispatch]);
 
-  const handleLogout = async () => {
+  const handleLogout = async ({ silent = false } = {}) => {
     try { await logout(); } catch (_) {}
     await clearSession();
     setSessionState(null);
     dispatch(clearAuth());
+    if (!silent) notify('Logged out successfully', '', { preset: 'done' });
   };
   // Every way in (OTP login, password-reset login) lands here, so the owner /
   // shop-only rule is enforced once for all of them: anything else is signed
   // straight back out with the reason.
   const handleLogin = (newSession) => {
     if (!isPartnerAccount(newSession)) {
-      handleLogout();
+      handleLogout({ silent: true });
       notify('Not allowed', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
       return;
     }
     setSessionState(newSession);
     dispatch(setSession(newSession));
+    notify('Logged in successfully', '', { preset: 'done' });
   };
 
   // A session saved on this device by an account that may not use the app any
   // more (an employee signed in before this rule) is signed out on launch.
   useEffect(() => {
     if (sessionLoading || !session?.accessToken || isPartnerAccount(session)) return;
-    handleLogout();
+    handleLogout({ silent: true });
     notify('Signed out', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLoading, session]);

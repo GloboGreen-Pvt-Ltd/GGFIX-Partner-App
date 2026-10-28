@@ -14,7 +14,7 @@
 // on purpose: NativeWind classes are not applied reliably inside a
 // collapsable={false} view-shot subtree. No transparent fills either — a
 // transparent pixel renders as black in most chat apps.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, useImeiApplies } from '../../../utils/imeiPolicy';
+import { ticketApi } from '../../../api/client';
 
 // GGFIX palette.
 const GREEN = '#035C6C';
@@ -177,6 +178,15 @@ export function receiptDateParts(value) {
   };
 }
 
+// The auto "Service charge" row is a charge, not a repair issue.
+const isServiceChargeItem = (x) => String(x?.code || x?.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE';
+const receiptWhen = (iso) => {
+  if (!iso) return null;
+  const t = new Date(iso);
+  return Number.isNaN(t.getTime()) ? null
+    : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
+};
+
 const inr2 = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
 /**
@@ -193,7 +203,8 @@ export function buildBookingReceiptText({
   const deviceLines = devices.map((d, i) => {
     const svcs = (d.serviceNames || []).join(', ') || '-';
     const price = d.price != null ? `\n   Price: ₹${(Number(d.price) || 0).toLocaleString('en-IN')}` : '';
-    return `${i + 1}. ${d.modelName || 'Device'}\n   Services: ${svcs}${price}`;
+    const eta = receiptWhen(d.estimatedDeliveryIso);
+    return `${i + 1}. ${d.modelName || 'Device'}${d.variant ? ` (${d.variant})` : ''}${d.imei ? `\n   IMEI: ${d.imei}` : ''}\n   Issues: ${svcs}${d.serviceCharge ? `\n   Service charge: ₹${(Number(d.serviceCharge) || 0).toLocaleString('en-IN')}` : ''}${price}${eta ? `\n   Estimated Time: ${eta}` : ''}`;
   }).join('\n');
   return (
     `🧾 Near G Fix Booking Receipt\n` +
@@ -204,6 +215,7 @@ export function buildBookingReceiptText({
     `\n— CUSTOMER DETAILS —\n` +
     `Name: ${customer.name || '-'}\n` +
     `Mobile: ${customer.phone || '-'}\n` +
+    (customer.alternatePhone ? `Alternate Mobile: ${customer.alternatePhone}\n` : '') +
     (customer.address ? `Address: ${customer.address}\n` : '') +
     `\n— DEVICE & REPAIR DETAILS —\n${deviceLines || '-'}\n\n` +
     `— SERVICE INFORMATION —\n` +
@@ -223,6 +235,7 @@ function receiptPropsFromTicket(
   ticket,
   shop,
   showImei = imeiApplies(resolveSpecCategory(ticket?.deviceCategory, ticket?.categoryCode, ticket?.categoryName)),
+  alternatePhone = null,
 ) {
   const items = priceItemsFromTicket(ticket);
   const total = estimatedTotalOf(ticket, items);
@@ -232,6 +245,7 @@ function receiptPropsFromTicket(
     customer: {
       name: ticket.customerName,
       phone: ticket.customerPhone,
+      alternatePhone: alternatePhone || ticket.customerAlternatePhone || null,
       address: ticket.customerAddress,
     },
     devices: [{
@@ -239,7 +253,11 @@ function receiptPropsFromTicket(
       imageUrl: ticket.deviceImageUrl || null,
       variant: specDisplayParts(ticket, { withColor: true }).join(' · '),
       imei: showImei ? ticket.imei || null : null,
-      serviceNames: items.map((i) => i.label || i.serviceName || i.name).filter(Boolean),
+      serviceNames: items.filter((i) => !isServiceChargeItem(i)).map((i) => i.label || i.serviceName || i.name).filter(Boolean),
+      serviceCharge: items.filter(isServiceChargeItem).reduce((n, i) => n + (Number(i.amount ?? i.price) || 0), 0) || null,
+      accessories: ticket.accessories || null,
+      estimatedReadyIso: ticket.estimatedReadyAt || null,
+      estimatedDeliveryIso: ticket.estimatedDeliveryAt || null,
     }],
     trackingId: ticket.trackingId || ticket.id,
     statusLabel: receiptStatusLabel(ticket.status),
@@ -257,8 +275,19 @@ export function buildReceiptMessage(ticket, shop) {
 // The receipt slip for a saved ticket (Bookings list / Ticket Detail share sheet).
 export function ReceiptCard({ ticket, shop }) {
   const showImei = useImeiApplies(ticket);
+  // The alternate number lives on the customer record, not the ticket.
+  const [altPhone, setAltPhone] = useState(null);
+  const phone = String(ticket?.customerPhone || '').replace(/\D/g, '').slice(-10);
+  useEffect(() => {
+    if (phone.length !== 10) return undefined;
+    let alive = true;
+    ticketApi.get('/customers/lookup', { query: { mobile: phone } })
+      .then((c) => { if (alive && c?.alternatePhone) setAltPhone(c.alternatePhone); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [phone]);
   if (!ticket) return null;
-  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop, showImei)} />;
+  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop, showImei, altPhone)} />;
 }
 
 // Splits "CSPEN8324788" so the digits can print in brand green.
@@ -349,7 +378,8 @@ export function ReceiptSlip({
 
         <SlipSection title="Customer Details">
           <SlipRow icon={User} label="Name" value={customer.name || '—'} />
-          <SlipRow icon={Phone} label="Mobile" value={customer.phone || '—'} isLast={!customer.address} />
+          <SlipRow icon={Phone} label="Mobile" value={customer.phone || '—'} isLast={!customer.alternatePhone && !customer.address} />
+          {customer.alternatePhone ? <SlipRow icon={Phone} label="Alt. Mobile" value={customer.alternatePhone} isLast={!customer.address} /> : null}
           {customer.address ? <SlipRow icon={MapPin} label="Address" value={customer.address} isLast /> : null}
         </SlipSection>
 
@@ -359,7 +389,9 @@ export function ReceiptSlip({
               <SlipRow icon={Smartphone} label="Model" value={`${multi ? `${i + 1}. ` : ''}${d.modelName || '—'}`} />
               {d.variant ? <SlipRow icon={Palette} label="Variant" value={d.variant} /> : null}
               {d.imei ? <SlipRow icon={ScanLine} label="IMEI" value={String(d.imei)} /> : null}
-              <SlipRow icon={Wrench} label="Services" value={(d.serviceNames || []).join(', ') || '—'} />
+              <SlipRow icon={Wrench} label="Issues" value={(d.serviceNames || []).join(', ') || '—'} />
+              {d.serviceCharge ? <SlipRow icon={Wrench} label="Charge" value={`₹${fmt0(d.serviceCharge)}`} /> : null}
+              {receiptWhen(d.estimatedDeliveryIso) ? <SlipRow icon={Clock} label="Est. Time" value={receiptWhen(d.estimatedDeliveryIso)} /> : null}
             </View>
           ))}
           <SlipRow icon={CircleCheck} label="Status" value={statusLabel || 'Order Placed'} valueColor={GREEN_DEEP} isLast />
@@ -523,6 +555,7 @@ export function BookingReceipt({
         <ReceiptSection label="Customer Details">
           <ReceiptRow icon="person-outline" label="Customer Name" value={customer.name} />
           <ReceiptRow icon="call-outline" label="Mobile Number" value={customer.phone} />
+          {customer.alternatePhone ? <ReceiptRow icon="call-outline" label="Alternate Number" value={customer.alternatePhone} /> : null}
           <ReceiptRow icon="location-outline" label="Address" value={customer.address} last />
         </ReceiptSection>
 
@@ -531,8 +564,15 @@ export function BookingReceipt({
             const last = i === devices.length - 1;
             return (
               <View key={i}>
-                <ReceiptRow icon="phone-portrait-outline" label={devices.length > 1 ? `Device ${i + 1}` : 'Device'} value={d.modelName || 'Device'} />
-                <ReceiptRow icon="build-outline" label="Repair Services" value={(d.serviceNames || []).join(', ')} last={last} />
+                <ReceiptRow icon="phone-portrait-outline" label={devices.length > 1 ? `Device ${i + 1}` : 'Device'} value={[d.brandName, d.modelName || 'Device'].filter(Boolean).join(' · ')} />
+                {d.modelNumber ? <ReceiptRow icon="barcode-outline" label="Model No." value={d.modelNumber} /> : null}
+                {d.variant ? <ReceiptRow icon="color-palette-outline" label="Variant" value={d.variant} /> : null}
+                {d.imei ? <ReceiptRow icon="scan-outline" label="IMEI" value={String(d.imei)} /> : null}
+                <ReceiptRow icon="build-outline" label="Repair Issues" value={(d.serviceNames || []).join(', ')} />
+                {d.serviceCharge ? <ReceiptRow icon="cash-outline" label="Service Charge" value={inr2(d.serviceCharge)} /> : null}
+                {d.accessories ? <ReceiptRow icon="headset-outline" label="Accessories" value={d.accessories} /> : null}
+                {receiptWhen(d.estimatedReadyIso) ? <ReceiptRow icon="calendar-outline" label="Booking Time" value={receiptWhen(d.estimatedReadyIso)} /> : null}
+                <ReceiptRow icon="time-outline" label="Estimated Time" value={receiptWhen(d.estimatedDeliveryIso) || '—'} last={last} />
                 {!last ? <View style={{ height: 1, backgroundColor: HAIR, marginVertical: 7 }} /> : null}
               </View>
             );

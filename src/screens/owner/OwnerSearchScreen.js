@@ -23,6 +23,7 @@ import { navigateDeviceAction } from '../../utils/deviceActions';
 import { sendDeviceIdentifyFeedback } from '../../api/masterData';
 import DeviceActionSheet from '../../components/DeviceActionSheet';
 import { useResponsive } from '../../theme/responsive';
+import { notify } from '../../components/confirm';
 
 /**
  * Owner search — one surface over two different things:
@@ -102,7 +103,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
   // the answer can't be missed.
   const voiceFallback = useCallback(() => {
     setListening(false);
-    Alert.alert('Voice search', 'Use the microphone on your keyboard to dictate the device, ticket or customer.', [{ text: 'OK' }]);
+    notify('Voice search', 'Use the microphone on your keyboard to dictate.', { type: 'info' });
     setTimeout(() => inputRef.current?.focus?.(), 150);
   }, []);
 
@@ -261,7 +262,7 @@ export default function OwnerSearchScreen({ navigation, route }) {
     // Refuses to navigate without a real model id, per the spec's guard.
     if (!device?.modelId) {
       setSheetFor(null);
-      Alert.alert('Device unavailable', 'That model is missing its catalogue id, so the flow cannot be started from here.', [{ text: 'OK' }]);
+      notify('Device unavailable', 'This model cannot be booked from here.', { type: 'warning' });
       return;
     }
     setSheetFor(null);

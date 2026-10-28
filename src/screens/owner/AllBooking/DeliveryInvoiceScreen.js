@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
+import { sendWhatsAppText } from '../../../lib/whatsappShare';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 import { useResponsive } from '../../../theme/responsive';
@@ -265,6 +266,8 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
   const trackingId = t.trackingId || t.id || '—';
 
   const handleShare = async () => {
+    // Customer's number on file → straight to their WhatsApp chat.
+    if (await sendWhatsAppText(t.customerPhone, buildReceiptText(t))) return;
     try {
       await Share.share({
         message: buildReceiptText(t),
@@ -619,7 +622,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA' }}
           >
             <Text className="text-[10.5px] text-gray-600 leading-4">
-              We declare that this invoice shows the actual price of the goods described above and all particulars are true and correct. {warrantyNote(items)}
+              We declare that this invoice reflects the actual service charges and spare parts used for the above-mentioned device, and all the particulars stated above are true and correct. {warrantyNote(items)}
             </Text>
           </View>
         </View>

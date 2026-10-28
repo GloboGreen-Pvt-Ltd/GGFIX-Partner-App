@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Crown,
   Gift,
@@ -109,12 +110,62 @@ function formatDate(value) {
 // FREE_TRIAL / BASIC plan visuals keyed by plan code; anything else (e.g. a
 // real "Pro" plan the API returns) falls back to a generic premium icon/tint
 // rather than assuming a fixed 3-plan catalogue.
-const PLAN_ICON = { FREE_TRIAL: Gift, BASIC: Crown };
+const PLAN_ICON = { FREE_TRIAL: Gift, BASIC: Crown, BASIC_6M: Crown };
 const PLAN_TONE = {
   FREE_TRIAL: { accent: TRIAL_ACCENT, tint: TRIAL_TINT },
   BASIC:      { accent: ACCENT,       tint: MINT },
+  BASIC_6M:   { accent: ACCENT,       tint: MINT },
 };
 const DEFAULT_TONE = { accent: PRO_ACCENT, tint: PRO_TINT };
+
+// Server plans plus display-only "Coming soon" cards: Basic 6 Months (same
+// content as Basic) and Premium. The server only sells Basic yearly, so these
+// carry no price and no Upgrade button until it supports them.
+// Customer messaging: Basic sends WhatsApp only; Premium sends SMS + WhatsApp.
+const BASIC_MESSAGING = 'Customer updates via WhatsApp only';
+const PREMIUM_FEATURES = [
+  'Everything in Basic',
+  'Customer updates via SMS + WhatsApp',
+  'Up to 10 employees',
+  'Multiple shops',
+  'Advanced reports & exports',
+  'Priority support',
+];
+
+// Display pricing (per shop, per year). Each additional shop gets a discount:
+// Basic 5%, Premium 10%. App display only — the server still activates at its
+// own quote until its pricing is updated.
+export const PLAN_PRICING = {
+  BASIC: { price: 1000, extraOff: 5 },
+  PREMIUM: { price: 3000, extraOff: 10 },
+};
+export function planTotal(code, shops) {
+  const pr = PLAN_PRICING[code];
+  if (!pr) return null;
+  const n = Math.max(1, shops || 1);
+  const extraEach = Math.round(pr.price * (1 - pr.extraOff / 100));
+  return { first: pr.price, extraEach, extraCount: n - 1, extraOff: pr.extraOff, total: pr.price + (n - 1) * extraEach };
+}
+
+function displayPlans(plans) {
+  const out = [];
+  for (const plan of plans) {
+    if (plan.code === 'BASIC') {
+      // Server lines that mention SMS give way to the WhatsApp-only line.
+      // Employee line → the Basic cap (4); SMS lines give way to WhatsApp-only.
+      const features = [...(plan.features || [])
+        .filter((f) => !/\bsms\b/i.test(String(f)))
+        .map((f) => (/employees?/i.test(String(f)) ? 'Up to 4 employees' : f)), BASIC_MESSAGING];
+      if (!features.includes('Up to 4 employees')) features.unshift('Up to 4 employees');
+      out.push({ ...plan, features, code: 'BASIC_6M', displayName: 'Basic · 6 Months', comingSoon: true });
+      out.push({ ...plan, price: PLAN_PRICING.BASIC.price, features: [...features, `Additional shop: ${PLAN_PRICING.BASIC.extraOff}% off`], displayName: 'Basic · 12 Months' });
+    } else if (plan.code === 'FREE_TRIAL') {
+      out.push({ ...plan, features: ['1 shop only', ...(plan.features || []).filter((f) => !/shops?/i.test(String(f)))] });
+    } else out.push(plan);
+  }
+  if (out.length) out.push({ code: 'PREMIUM', displayName: 'Premium · 12 Months', comingSoon: true, price: PLAN_PRICING.PREMIUM.price, features: [...PREMIUM_FEATURES, `Additional shop: ${PLAN_PRICING.PREMIUM.extraOff}% off`] });
+  return out;
+}
 
 export default function SubscriptionScreen({ navigation, gated = false, onUnlock, onLogout }) {
   const r = useResponsive();
@@ -207,7 +258,8 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
     return row ? row.amount : (shopCount >= 2 ? shopCount * 2500 : 3000);
   }, [shopCount]);
 
-  const quoteTotal = quote?.total ?? fallbackQuoteTotal;
+  const basicQuote = planTotal('BASIC', shopCount);
+  const quoteTotal = basicQuote.total;
 
   const handleActivate = async () => {
     if (!ownerUserId) { setError('Could not resolve your account. Please try again.'); return; }
@@ -347,11 +399,11 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
             ) : (
               // Side by side, two to a row (one plan spans the full width).
               <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
-                {plans.map((plan) => (
-                  <View key={plan.code} style={{ width: plans.length === 1 || r.isSmallPhone ? '100%' : '50%', padding: 4 }}>
+                {displayPlans(plans).map((plan) => (
+                  <View key={plan.code} style={{ width: displayPlans(plans).length === 1 || r.isSmallPhone ? '100%' : '50%', padding: 4 }}>
                     <PlanCard
                       plan={plan}
-                      isCurrent={currentType === plan.code || currentType === plan.name}
+                      isCurrent={!plan.comingSoon && (currentType === plan.code || currentType === plan.name)}
                       onUpgrade={canUpgrade && !isShopLogin ? openUpgrade : null}
                     />
                   </View>
@@ -381,6 +433,7 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
                     quote={quote}
                     quoteLoading={quoteLoading}
                     quoteTotal={quoteTotal}
+                    breakdown={basicQuote}
                     activating={activating}
                     onConfirm={handleActivate}
                     onCancel={() => setUpgrading(false)}
@@ -609,77 +662,96 @@ function DetailRow({ icon: Icon, label, value, pillColor, pillTint, strong, isLa
   );
 }
 
+// Plan colours from the app palette: Trial orange, Basic 6M blue, Basic teal,
+// Premium navy with an orange crown.
+const PLAN_SKIN = {
+  FREE_TRIAL: { from: '#FAA700', to: '#F59E0B', accent: '#B45309', tint: '#FFF4DB' },
+  BASIC_6M:   { from: '#0788C9', to: '#056A9C', accent: '#0788C9', tint: '#E6F3FA' },
+  BASIC:      { from: '#035C6C', to: '#02434F', accent: '#035C6C', tint: '#E5F3F5' },
+  PREMIUM:    { from: '#1C3053', to: '#0F1B30', accent: '#1C3053', tint: '#E8ECF3', crown: '#FAA700' },
+};
+
 function PlanCard({ plan, isCurrent, onUpgrade }) {
   const Icon = PLAN_ICON[plan.code] || Crown;
   const isTrial = plan.code === 'FREE_TRIAL';
-  const tone = PLAN_TONE[plan.code] || DEFAULT_TONE;
-  const priceLabel = isTrial
-    ? `Free · ${plan.durationDays || 15} days`
-    : `${money(plan.price) || '₹3,000'} / year`;
-  const features = Array.isArray(plan.features) ? plan.features : [];
+  const skin = PLAN_SKIN[plan.code] || PLAN_SKIN.BASIC;
+  const price = plan.comingSoon && !plan.price ? null
+    : isTrial ? 'Free'
+    : (money(plan.price) || '₹3,000');
+  const period = plan.comingSoon && !plan.price ? null : isTrial ? `${plan.durationDays || 15} days` : '/ year';
+  // Basic has an employee cap — the server's "Unlimited employees" line reads as Limited.
+  const features = (Array.isArray(plan.features) ? plan.features : [])
+    .map((f) => ((plan.code === 'BASIC' || plan.code === 'BASIC_6M') && typeof f === 'string' ? f.replace(/unlimited(s+employees?)/i, (_, rest) => `Limited${rest}`) : f));
+  const badge = isCurrent ? 'Current Plan' : plan.comingSoon ? 'Coming soon' : null;
 
   return (
     <View
       style={{
-        flex: 1, borderRadius: 14, padding: 10,
-        backgroundColor: isCurrent ? MINT : CARD_BG,
-        borderWidth: isCurrent ? 1.5 : 1,
-        borderColor: isCurrent ? BRIGHT : BORDER,
+        flex: 1, borderRadius: 16, overflow: 'hidden', backgroundColor: CARD_BG,
+        borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? skin.from : BORDER,
+        shadowColor: skin.from, shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
       }}
     >
-      <View className="flex-row items-center">
-        <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 10, marginRight: 8, backgroundColor: isCurrent ? CARD_BG : tone.tint }}>
-          <Icon size={15} color={tone.accent} />
-        </View>
-        <View className="flex-1">
-          <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>
-            {plan.name || (isTrial ? 'Free Trial' : 'Plan')}
-          </Text>
-          <Text className="font-extrabold" style={{ fontSize: 11.5, color: isTrial ? '#B45309' : tone.accent, marginTop: 1 }} numberOfLines={1}>{priceLabel}</Text>
-        </View>
-      </View>
-      {isCurrent ? (
-        <View className="flex-row items-center" style={{ alignSelf: 'flex-start', marginTop: 7, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ACCENT }}>
-          <Check size={10} color="#FFFFFF" strokeWidth={3} />
-          <Text className="text-white font-extrabold" style={{ fontSize: 10, marginLeft: 3 }}>Current Plan</Text>
-        </View>
-      ) : null}
-
-      {features.length > 0 ? (
-        <View style={{ marginTop: 8 }}>
-          {features.map((f, i) => (
-            <View key={i} className="flex-row items-start" style={{ marginBottom: 5 }}>
-              <View className="items-center justify-center" style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: isCurrent ? CARD_BG : MINT, marginRight: 5, marginTop: 1 }}>
-                <Check size={9} color={ACCENT} strokeWidth={3.2} />
-              </View>
-              <Text className="flex-1" style={{ fontSize: 11, color: TEXT_PRIMARY, lineHeight: 15 }} numberOfLines={2}>{f}</Text>
+      {/* Header band: icon, name, badge, price */}
+      <LinearGradient colors={[skin.from, skin.to]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ paddingHorizontal: 11, paddingTop: 11, paddingBottom: 12 }}>
+        <View className="flex-row items-center">
+          <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)' }}>
+            <Icon size={15} color={skin.crown || '#FFFFFF'} strokeWidth={2.4} />
+          </View>
+          <View style={{ flex: 1 }} />
+          {badge ? (
+            <View className="flex-row items-center" style={{ borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: 'rgba(255,255,255,0.95)' }}>
+              {isCurrent ? <Check size={9} color={skin.accent} strokeWidth={3.4} /> : <Clock size={9} color={skin.accent} strokeWidth={3} />}
+              <Text className="font-extrabold" style={{ fontSize: 9.5, color: skin.accent, marginLeft: 3 }}>{badge}</Text>
             </View>
-          ))}
+          ) : null}
         </View>
-      ) : null}
+        <Text className="font-extrabold" style={{ fontSize: 14.5, color: '#FFFFFF', marginTop: 8 }} numberOfLines={1}>
+          {plan.displayName || plan.name || (isTrial ? 'Free Trial' : 'Plan')}
+        </Text>
+        {price ? (
+          <View className="flex-row items-end" style={{ marginTop: 2 }}>
+            <Text className="font-extrabold" style={{ fontSize: 19, color: '#FFFFFF' }}>{price}</Text>
+            {period ? <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginLeft: 4, marginBottom: 3 }}>{period}</Text> : null}
+          </View>
+        ) : (
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>Launching soon</Text>
+        )}
+      </LinearGradient>
 
-      {/* The current plan is marked by its badge; only other plans get a CTA. */}
-      {!isCurrent && onUpgrade ? (
-        <Pressable
-          onPress={onUpgrade}
-          className="items-center justify-center"
-          style={
-            isTrial
-              ? { marginTop: 'auto', borderRadius: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: tone.accent }
-              : { marginTop: 'auto', borderRadius: 12, paddingVertical: 9, backgroundColor: ACCENT }
-          }
-        >
-          <Text className="font-extrabold" style={{ fontSize: 13, color: isTrial ? tone.accent : '#FFFFFF' }}>
-            {isTrial ? 'Get Started' : 'Upgrade Now'}
-          </Text>
-        </Pressable>
-      ) : null}
+      {/* Features */}
+      <View style={{ flex: 1, paddingHorizontal: 11, paddingTop: 10, paddingBottom: 11 }}>
+        {features.map((f, i) => (
+          <View key={i} className="flex-row items-start" style={{ marginBottom: 6 }}>
+            <View className="items-center justify-center" style={{ width: 15, height: 15, borderRadius: 8, backgroundColor: skin.tint, marginRight: 6, marginTop: 1 }}>
+              <Check size={9} color={skin.accent} strokeWidth={3.4} />
+            </View>
+            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_PRIMARY, lineHeight: 16 }} numberOfLines={2}>{f}</Text>
+          </View>
+        ))}
+
+        {/* CTA: real plans only — coming-soon plans carry just the header badge. */}
+        {!plan.comingSoon && !isCurrent && onUpgrade ? (
+          <Pressable
+            onPress={onUpgrade}
+            className="items-center justify-center"
+            style={({ pressed }) => ({
+              marginTop: 'auto', borderRadius: 12, paddingVertical: 9, opacity: pressed ? 0.85 : 1,
+              backgroundColor: isTrial ? '#FFFFFF' : skin.from, borderWidth: isTrial ? 1.5 : 0, borderColor: skin.from,
+            })}
+          >
+            <Text className="font-extrabold" style={{ fontSize: 13, color: isTrial ? skin.accent : '#FFFFFF' }}>
+              {isTrial ? 'Get Started' : 'Upgrade Now'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 function UpgradePanel({
-  shopCount, onDec, onInc, onSet, quote, quoteLoading, quoteTotal, activating, onConfirm, onCancel,
+  shopCount, onDec, onInc, onSet, quote, quoteLoading, quoteTotal, breakdown, activating, onConfirm, onCancel,
 }) {
   return (
     <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
@@ -742,10 +814,24 @@ function UpgradePanel({
           <Text className="font-extrabold" style={{ fontSize: 17, color: PRIMARY }}>{money(quoteTotal)}</Text>
         )}
       </View>
-      {quote?.discountApplied ? (
-        <Text className="font-semibold text-center" style={{ fontSize: 11, color: PRIMARY, marginTop: 5 }}>
-          Multi-shop discount applied ({money(quote.pricePerShop)}/shop)
-        </Text>
+      {/* Breakdown: first shop, then additional shops at the discounted rate */}
+      {breakdown ? (
+        <View style={{ marginTop: 6, paddingHorizontal: 4 }}>
+          <View className="flex-row">
+            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>1st shop</Text>
+            <Text className="font-bold" style={{ fontSize: 11.5, color: TEXT_PRIMARY }}>{money(breakdown.first)}</Text>
+          </View>
+          {breakdown.extraCount > 0 ? (
+            <View className="flex-row" style={{ marginTop: 2 }}>
+              <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>
+                {breakdown.extraCount} additional × {money(breakdown.extraEach)} <Text style={{ color: PRIMARY, fontWeight: '800' }}>({breakdown.extraOff}% off)</Text>
+              </Text>
+              <Text className="font-bold" style={{ fontSize: 11.5, color: TEXT_PRIMARY }}>{money(breakdown.extraCount * breakdown.extraEach)}</Text>
+            </View>
+          ) : (
+            <Text style={{ fontSize: 11, color: PRIMARY, marginTop: 2 }}>Add more shops and save {breakdown.extraOff}% on each.</Text>
+          )}
+        </View>
       ) : null}
 
       {/* Confirm / cancel */}

@@ -58,6 +58,18 @@ const sanitizeAmount = (text) => String(text || '').replace(/[^0-9]/g, '');
 const formatINR = (n) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+// The auto-added "Service charge" row rides in d.services next to the picked
+// issues; it is a charge, not an issue, so lists and counts keep it apart.
+const isServiceCharge = (s) => String(s?.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE';
+const issuesOf = (d) => (d.services || []).filter((s) => !isServiceCharge(s));
+const chargeOf = (d) => (d.services || []).filter(isServiceCharge).reduce((n, s) => n + (Number(s.price) || 0), 0);
+const whenLabel = (iso) => {
+  if (!iso) return null;
+  const t = new Date(iso);
+  return Number.isNaN(t.getTime()) ? null
+    : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
+};
+
 function serviceSummaryFor(device) {
   return (device.services || [])
     .map((service) => service.serviceName)
@@ -402,7 +414,6 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         tickets: created,
       });
     } catch (e) {
-      const status = e?.status ? ` (HTTP ${e.status})` : '';
       const done = Object.keys(createdRef.current).length;
       const remaining = devices.length - done;
       // Tell the owner what already got booked, so they know a retry continues
@@ -410,12 +421,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       const partial = (devices.length > 1 && done > 0)
         ? `\n\n${done} of ${devices.length} devices were already booked. Tapping Submit again will only book the remaining ${remaining} device${remaining > 1 ? 's' : ''}.`
         : '';
-      const msg = `${e?.message || 'Failed to submit booking'}${status}${partial}`;
+      const msg = `${e?.status ? 'Unable to create booking. Please try again.' : (e?.message || 'Unable to create booking. Please try again.')}${partial}`;
       // Log the full error so it can be read from the Metro console too.
-      console.log('Booking submit error →', e?.status, e?.message, e);
+      if (__DEV__) console.log('Booking submit error →', e?.status, e?.devMessage || e?.message);
       // Alert stays on screen until dismissed, so the message is readable
       // (the toast disappears in ~2s).
-      Alert.alert('Booking failed', msg);
+      if (partial) Alert.alert('Booking incomplete', msg);
+      else notify('Unable to create booking. Please try again.', '', { preset: 'error' });
     } finally { setSubmitting(false); }
   };
 
@@ -501,8 +513,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                   <User size={18} color={ACCENT} strokeWidth={2} />
                 </View>
                 <View className="flex-1">
-                  <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: TEXT_SECONDARY }}>CUSTOMER</Text>
-                  <Text className="font-extrabold" style={{ color: INK, fontSize: 15, marginTop: rs(1) }} numberOfLines={1}>
+                  <Text className="font-extrabold" style={{ color: INK, fontSize: 15 }} numberOfLines={1}>
                     {customerName}
                   </Text>
                   {customerPhone ? (
@@ -528,7 +539,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(14), paddingBottom: rs(6) }, colStyle]}>
           <ReceiptText size={14} color={ACCENT} strokeWidth={2} />
           <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
-            DEVICES IN THIS BOOKING
+            DEVICE BOOKED
           </Text>
           <View className="flex-1" />
           <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
@@ -549,7 +560,9 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
               // Line 1: "Brand · Model name". Line 2: storage · colour · model
               // number, plain grey (no coloured chips).
               const summary = [...specDisplayParts(d, { withColor: true }), d.modelNumber].filter(Boolean).join(' · ');
-              const serviceCount = (d.services || []).length;
+              const issues = issuesOf(d);
+              const serviceCount = issues.length;
+              const charge = chargeOf(d);
               return (
                 <View
                   key={idx}
@@ -603,7 +616,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                       </View>
                       {/* Plain rows — no inner box (card-in-card was too heavy). */}
                       <View>
-                        {(d.services || []).map((s, i) => (
+                        {issues.map((s, i) => (
                           <View
                             key={i}
                             className="flex-row items-center"
@@ -624,6 +637,14 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                           </View>
                         ))}
                       </View>
+
+                      {charge > 0 ? (
+                        <View className="flex-row items-center" style={{ marginTop: 7 }}>
+                          <View style={{ width: 20, marginRight: 8 }} />
+                          <Text className="flex-1" style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '600' }}>Service charge</Text>
+                          <Text className="font-extrabold" style={{ color: INK, fontSize: 12 }}>₹{formatINR(charge)}</Text>
+                        </View>
+                      ) : null}
 
                       {/* Estimated repair amount — a divided row, not a strip */}
                       <View
@@ -685,21 +706,62 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                     shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
                   }}
                 >
-                  {devices.map((d, i) => (
-                    <View key={i} style={{ marginBottom: 8 }}>
-                      <View className="flex-row items-center">
-                        <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 13 }} numberOfLines={1}>
-                          {d.modelName || `Device ${i + 1}`}
-                        </Text>
-                        <Text className="font-extrabold" style={{ color: INK, fontSize: 13 }}>
-                          ₹{formatINR(totalFor(d))}
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>
-                        {(d.services || []).length} service{(d.services || []).length === 1 ? '' : 's'}
-                      </Text>
+                  {/* Customer contact */}
+                  {customerPhone || params.customer?.alternatePhone ? (
+                    <View style={{ marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderColor: HAIR }}>
+                      {customerPhone ? (
+                        <View className="flex-row items-center">
+                          <Phone size={12} color={ACCENT} strokeWidth={2} />
+                          <Text style={{ flex: 1, marginLeft: 6, fontSize: 12, color: TEXT_SECONDARY }}>Mobile</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: INK }}>{customerPhone}</Text>
+                        </View>
+                      ) : null}
+                      {params.customer?.alternatePhone ? (
+                        <View className="flex-row items-center" style={{ marginTop: 4 }}>
+                          <Phone size={12} color={ACCENT} strokeWidth={2} />
+                          <Text style={{ flex: 1, marginLeft: 6, fontSize: 12, color: TEXT_SECONDARY }}>Alternate Mobile</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: INK }}>{params.customer.alternatePhone}</Text>
+                        </View>
+                      ) : null}
                     </View>
-                  ))}
+                  ) : null}
+                  {devices.map((d, i) => {
+                    const issues = issuesOf(d);
+                    const charge = chargeOf(d);
+                    const booked = whenLabel(d.estimatedReadyIso);
+                    const eta = whenLabel(d.estimatedDeliveryIso);
+                    return (
+                      <View key={i} style={{ marginBottom: 8 }}>
+                        <View className="flex-row items-center">
+                          <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 13 }} numberOfLines={1}>
+                            {d.modelName || `Device ${i + 1}`}
+                          </Text>
+                          <Text className="font-extrabold" style={{ color: INK, fontSize: 13 }}>
+                            ₹{formatINR(totalFor(d))}
+                          </Text>
+                        </View>
+                        {/* Issues only — the service charge is its own line. */}
+                        {issues.map((s, j) => (
+                          <View key={j} className="flex-row items-center" style={{ marginTop: rs(2) }}>
+                            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }} numberOfLines={1}>• {s.serviceName}</Text>
+                            <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>₹{formatINR(s.price)}</Text>
+                          </View>
+                        ))}
+                        {charge > 0 ? (
+                          <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+                            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>• Service charge</Text>
+                            <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>₹{formatINR(charge)}</Text>
+                          </View>
+                        ) : null}
+                        {booked || eta ? (
+                          <View style={{ marginTop: rs(4) }}>
+                            {booked ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY }}>Booking Time: <Text style={{ color: INK, fontWeight: '700' }}>{booked}</Text></Text> : null}
+                            {eta ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>Estimated Time: <Text style={{ color: INK, fontWeight: '700' }}>{eta}</Text></Text> : null}
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
                   <View
                     style={{ borderTopWidth: 1, borderColor: BORDER, borderStyle: 'dashed', marginBottom: 8 }}
                   />

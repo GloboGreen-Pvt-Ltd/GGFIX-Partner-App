@@ -218,6 +218,9 @@ function FormTextInput({ icon, iconTop = false, className, style, ...props }) {
   );
 }
 
+// 10-digit Indian mobile: starts 6–9.
+const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
+
 export default function CustomerDetailsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
@@ -241,6 +244,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   const [data, setData] = useState({
     name: initial.name || '',
     phone: normalizeMobile(initial.phone || existingPick.phone || existingPick.mobile),
+    altPhone: normalizeMobile(initial.alternatePhone || existingPick.alternatePhone),
     email: initial.email || '',
     state: initial.state || existingPick.state || 'Tamil Nadu',
     // Single free-text address (House No, Street, Area, City, Pincode).
@@ -358,6 +362,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   // skips re-render — keeping the focused input's update cheap (no caret jump).
   const onName        = useCallback((v) => set('name', v), [set]);
   const onPhone       = useCallback((v) => set('phone', v), [set]);
+  const onAltPhone    = useCallback((v) => set('altPhone', v.replace(/\D/g, '')), [set]);
   const onEmail       = useCallback((v) => set('email', v), [set]);
   const onAddress     = useCallback((v) => set('address', v), [set]);
 
@@ -371,6 +376,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
     const phone = normalizeMobile(c.phone || c.mobile || '');
     const saved = {
       name: c.name,
+      altPhone: normalizeMobile(c.alternatePhone),
       email: c.email,
       state: c.state,
       address: composeAddress(c),
@@ -408,6 +414,23 @@ export default function CustomerDetailsScreen({ navigation, route }) {
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
   }, [phoneDigits, existing, applyMatch]);
+
+  // Edit Booking / a picked customer skips the lookup above, so their saved
+  // alternative number is fetched once here. Never overwrites a typed value.
+  const altSeededRef = useRef(false);
+  useEffect(() => {
+    if (altSeededRef.current || phoneDigits.length !== 10) return undefined;
+    if (!(existing && existingPhoneRef.current === phoneDigits)) return undefined;
+    altSeededRef.current = true;
+    let cancelled = false;
+    ticketApi.get('/customers/lookup', { query: { mobile: phoneDigits } })
+      .then((c) => {
+        const alt = normalizeMobile(c?.alternatePhone);
+        if (!cancelled && alt) setData((d) => (d.altPhone ? d : { ...d, altPhone: alt }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [phoneDigits, existing]);
 
   // Pick an ID-proof image from the camera or gallery, enforce the 10MB cap
   // shown on the box, upload it to /media/upload, and remember the hosted URL.
@@ -493,6 +516,13 @@ export default function CustomerDetailsScreen({ navigation, route }) {
       notify('Required', 'Enter the customer name and a valid 10-digit mobile number.');
       return;
     }
+    const altPhone = normalizeMobile(data.altPhone);
+    if (altPhone && (!INDIAN_MOBILE_RE.test(altPhone) || altPhone === phone)) {
+      notify('Alternative Mobile Number', altPhone === phone
+        ? 'It must be different from the mobile number, or leave it empty.'
+        : 'Enter a valid 10-digit mobile number (starting 6–9), or leave it empty.');
+      return;
+    }
     if (idProofUploading) {
       notify('Please wait', 'The ID proof is still uploading.');
       return;
@@ -538,21 +568,26 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           body: {
             name: data.name.trim(),
             phone,
+            alternatePhone: altPhone || null,
             email: data.email.trim() || null,
             idProofUrl: idProofUrl || null,
             ...structured,
             address,
           },
         });
-      } else if (idProofUrl) {
+      } else if (idProofUrl || (altPhone && altPhone !== normalizeMobile(resolved.alternatePhone))) {
         // Existing / linked customer, but the owner just uploaded a fresh ID
-        // proof — attach it. POST /customers upserts by mobile and only writes
-        // idProofUrl when provided (no address is inserted when the fields are
-        // omitted), so this won't disturb their existing name or address.
+        // proof or entered a new additional number — attach it. POST /customers
+        // upserts by mobile and only writes idProofUrl / alternatePhone when
+        // provided (no address is inserted when the fields are omitted), so this
+        // won't disturb their existing name or address.
         await ticketApi.post('/customers', {
-          body: { name: data.name.trim(), phone, idProofUrl },
+          body: { name: data.name.trim(), phone, idProofUrl: idProofUrl || null, alternatePhone: altPhone || null },
         });
       }
+      // Saved on the customer (customer_users.alternate_mobile) and carried on
+      // to the next screens.
+      if (altPhone) resolved = { ...resolved, alternatePhone: altPhone };
       // With the IMEI step enabled the flow still goes through its own screen.
       if (IDENTIFY_DEVICE_ENABLED) {
         navigation.replace('IdentifyDevice', { customerId: resolved.id, customer: resolved });
@@ -611,7 +646,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
         // Only into an untouched form, never over something already typed.
         if (editedFieldsRef.current.size === 0) {
           if (d.phone) phoneInputRef.current = d.phone;
-          setData((cur) => ({ ...cur, name: d.name || '', phone: d.phone || '', email: d.email || '', address: d.address || '' }));
+          setData((cur) => ({ ...cur, name: d.name || '', phone: d.phone || '', altPhone: d.altPhone || '', email: d.email || '', address: d.address || '' }));
           if (d.email || d.address) setMoreOpen(true);
         }
       } catch (_) { /* no draft */ }
@@ -623,7 +658,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   useEffect(() => {
     if (!draftable || !draftLoadedRef.current) return undefined;
     const t = setTimeout(() => {
-      const empty = !data.name.trim() && !data.phone.trim() && !data.email.trim() && !data.address.trim();
+      const empty = !data.name.trim() && !data.phone.trim() && !data.altPhone && !data.email.trim() && !data.address.trim();
       (empty
         ? AsyncStorage.removeItem(CUSTOMER_DRAFT_KEY)
         : AsyncStorage.setItem(CUSTOMER_DRAFT_KEY, JSON.stringify({ ...data, at: Date.now() }))
@@ -787,10 +822,25 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           <FormTextInput icon={PHONE_ICON} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} value={data.phone} onChangeText={(v) => onPhone(v.replace(/\D/g, ''))} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
           {data.phone && normalizeMobile(data.phone).length !== 10 ? (
             <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Enter all 10 digits.</Text>
-          ) : (
-            <LookupStatus status={lookupStatus} />
-          )}
+          ) : null}
         </Field>
+
+        <Field label="Alternative Mobile Number" optional>
+          <FormTextInput icon={PHONE_ICON} placeholder="Enter alternative mobile number" keyboardType="phone-pad" maxLength={10} value={data.altPhone} onChangeText={onAltPhone} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+          {data.altPhone ? (
+            data.altPhone.length !== 10 ? (
+              <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Enter all 10 digits.</Text>
+            ) : !INDIAN_MOBILE_RE.test(data.altPhone) ? (
+              <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Mobile numbers start with 6, 7, 8 or 9.</Text>
+            ) : data.altPhone === normalizeMobile(data.phone) ? (
+              <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Must be different from the mobile number.</Text>
+            ) : null
+          ) : null}
+        </Field>
+
+        {/* Lookup result for the mobile number (New Customer / existing) — below
+            the alternative number, as the field order specifies. */}
+        {!data.phone || normalizeMobile(data.phone).length === 10 ? <LookupStatus status={lookupStatus} /> : null}
 
         {/* ── More Details (Optional): Email · Address · ID Proof ── */}
         <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 14, overflow: 'hidden' }}>

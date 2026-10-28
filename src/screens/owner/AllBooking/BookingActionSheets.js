@@ -50,6 +50,7 @@ import {
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
+import { emitTicketUpdated } from '../../../lib/ticketEvents';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ReceiptCard, buildReceiptMessage, receiptShopFromSession } from './ReceiptCard';
 import { getSession } from '../../../auth/session';
@@ -1120,6 +1121,7 @@ export function TechnicianPickerSheet({
     setAssigningId(technicianId);
     try {
       await ticketApi.patch(`/tickets/${bookingId}`, { body: { assignedTechnicianId: technicianId } });
+      emitTicketUpdated(bookingId, { assignedTechnicianId: technicianId, technician: tech });
       // Move the marker and go back to the assigned view before anything else:
       // the sheet stays open, so the owner sees the replacement land rather
       // than the sheet vanishing and leaving them to reopen it to check.

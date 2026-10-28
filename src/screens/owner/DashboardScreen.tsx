@@ -210,6 +210,8 @@ export const QUICK_ACTIONS: DashboardTool[] = [
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
+  // Staff Task Management first (screens/owner/staffTasks).
+  { key: 'StaffTasks', label: 'Staff Tasks', icon: mci('clipboard-check'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
   { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
   { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { mode: 'attendance' } },
   { key: 'OwnerEmployeeWorkingRecord', label: 'Job Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },

@@ -17,10 +17,12 @@ import {
 } from 'lucide-react-native';
 import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
+import { sendWhatsAppText } from '../../../lib/whatsappShare';
 import { saveToDownloads, notifyDownloaded, shareLocalFile, viewLocalFile } from '../../../lib/downloads';
 import { ticketApi, authApi } from '../../../api/client';
 import { getSession } from '../../../auth/session';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
+import { specDisplayParts } from '../../../utils/deviceSpecs';
 import { getModel, parseModelNumbers } from '../../../api/masterData';
 import { useResponsive } from '../../../theme/responsive';
 
@@ -246,6 +248,9 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
     ? [shownDevice.name, shownDevice.modelNumber].filter(Boolean).join(' · ')
     : [model?.name, parseModelNumbers(model?.modelNumber)[0]].filter(Boolean).join(' · ');
   const deviceImei = showImei ? String(ticket?.imei || '').trim() : '';
+  // Selected variant (RAM / storage / colour) and the customer's alternate number.
+  const deviceVariant = ticket ? specDisplayParts(ticket, { withColor: true }).join(' · ') : '';
+  const altPhone = String(customer?.alternatePhone || '').trim();
 
   // Per-row tax breakdown. Returns 0 GST when taxMode = WITHOUT or 0% so
   // the rendered tables match the saved invoice.totalGst.
@@ -338,7 +343,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const buildInvoiceHtml = () => buildHtml({
     invoice, ticket, spareLines, serviceLines,
     shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-    customerName, customerAddress, trackingId, deviceModel, deviceImei,
+    customerName, customerAddress, trackingId, deviceModel, deviceImei, deviceVariant, altPhone,
     totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
     grandTotalBreak,
   });
@@ -352,7 +357,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
    * folder picker to back out of, and no picker to fall back to.
    */
   const handleDownload = async () => {
-    const fail = (title, message) => Alert.alert(title, message || '');
+    const fail = (title, message) => notify(title, message || '', { preset: 'error' });
     const Print = getPrintModule();
     if (!Print) {
       fail('PDF module not installed', 'expo-print is missing. Run `npm install --legacy-peer-deps` and restart Metro with `npx expo start --clear`.');
@@ -384,7 +389,29 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
     // Use native Alert.alert for errors — guaranteed to render on every
     // Android/iOS build regardless of whether Burnt's native toast is wired
     // up. (`notify` failed silently for some users on this screen.)
-    const fail = (title, message) => Alert.alert(title, message || '');
+    const fail = (title, message) => notify(title, message || '', { preset: 'error' });
+
+    // Customer's number on file → the invoice goes to their WhatsApp chat as text.
+    const lines = [...serviceLines, ...spareLines]
+      .map((row) => `• ${row.description || 'Item'} — ₹${fmt(Number(row.totalAmount) || Number(row.rate) || 0)}`);
+    const invoiceText = [
+      `🧾 *Invoice ${invoice.invoiceNo || trackingId}*`,
+      shopName ? `${shopName}` : null,
+      '',
+      `Customer: ${customerName || '-'}`,
+      deviceModel ? `Device: ${deviceModel}` : null,
+      `Tracking ID: #${trackingId}`,
+      '',
+      ...lines,
+      '',
+      `*Total: ₹${fmt(invoice.finalPayableAmount)}*`,
+      advancePaid > 0 ? `Advance paid: ₹${fmt(advancePaid)}` : null,
+      amountPaid > 0 ? `Paid: ₹${fmt(amountPaid)}` : null,
+      creditAmount > 0 ? `Balance due: ₹${fmt(creditAmount)}` : null,
+      '',
+      'Thank you!',
+    ].filter((l) => l !== null).join('\n');
+    if (Platform.OS !== 'web' && await sendWhatsAppText(ticket?.customerPhone, invoiceText)) return;
 
     try {
       const html = buildInvoiceHtml();
@@ -453,7 +480,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const handlePrint = async () => {
     const Print = getPrintModule();
     if (!Print) {
-      Alert.alert('PDF module not installed', 'expo-print is missing from this build.');
+      notify('PDF is not available on this build', '', { type: 'warning' });
       return;
     }
     setPrinting(true);
@@ -461,7 +488,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       await Print.printAsync({ html: buildInvoiceHtml() });
     } catch (e) {
       const msg = e?.message || '';
-      if (!/cancel|dismiss/i.test(msg)) Alert.alert('Print failed', msg || 'Could not open the printer.');
+      if (!/cancel|dismiss/i.test(msg)) notify('Print failed', 'Could not open the printer.', { preset: 'error' });
     } finally {
       setPrinting(false);
     }
@@ -471,7 +498,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const handlePreview = async () => {
     const Print = getPrintModule();
     if (!Print) {
-      Alert.alert('PDF module not installed', 'expo-print is missing from this build.');
+      notify('PDF is not available on this build', '', { type: 'warning' });
       return;
     }
     setPreviewing(true);
@@ -485,7 +512,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       }
     } catch (e) {
       const msg = e?.message || '';
-      if (!/cancel|dismiss/i.test(msg)) Alert.alert('Preview failed', msg || 'Could not open the PDF.');
+      if (!/cancel|dismiss/i.test(msg)) notify('Preview failed', 'Could not open the PDF.', { preset: 'error' });
     } finally {
       setPreviewing(false);
     }
@@ -638,6 +665,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
             <View style={{ flex: wide ? 1 : undefined }}>
               <Text className="text-[14px] font-extrabold" style={{ color: C.text }}>{customerName || '—'}</Text>
               {ticket?.customerPhone ? <KV label="Mobile" value={ticket.customerPhone} /> : null}
+              {altPhone ? <KV label="Alt. Mobile" value={altPhone} /> : null}
               {customerAddress ? <KV label="Address" value={customerAddress} /> : null}
             </View>
             <View style={wide ? { flex: 1, marginLeft: 16 } : { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border }}>
@@ -650,6 +678,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               {ticket?.categoryName ? <KV label="Category" value={ticket.categoryName} /> : null}
               {ticket?.brandName ? <KV label="Brand" value={ticket.brandName} /> : null}
               {modelNumber ? <KV label="Model No" value={modelNumber} /> : null}
+              {deviceVariant ? <KV label="Variant" value={deviceVariant} /> : null}
               {deviceImei ? <KV label="IMEI" value={deviceImei} /> : null}
               {serialNumber ? <KV label="Serial No" value={serialNumber} /> : null}
             </View>
@@ -741,7 +770,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
 
         <Text className="text-[10.5px] mt-3 px-1 leading-4" style={{ color: C.muted }}>
           <Text className="font-extrabold">Declaration: </Text>
-          We declare that this invoice shows the actual charges for the goods and services described above and that its particulars are true and correct.
+          We declare that this invoice reflects the actual service charges and spare parts used for the above-mentioned device, and all the particulars stated above are true and correct.
         </Text>
       </ScrollView>
 
@@ -950,7 +979,7 @@ function fmtStampH(iso) {
 function buildHtml({
   invoice, ticket, spareLines, serviceLines,
   shopName, shopMobile, shopAddress, shopGst, ownerDisplayName,
-  customerName, customerAddress, trackingId, deviceModel, deviceImei,
+  customerName, customerAddress, trackingId, deviceModel, deviceImei, deviceVariant, altPhone,
   totalServiceGross, totalServiceBreak, totalSpareGross, totalSpareBreak,
   grandTotalBreak,
 }) {
@@ -1177,8 +1206,10 @@ function buildHtml({
         <div class="lbl">Billed To</div>
         <div class="name">${esc(customerName || '—')}</div>
         ${ticket?.customerPhone ? `<div class="ln">Mobile&nbsp;·&nbsp;${esc(ticket.customerPhone)}</div>` : ''}
+        ${altPhone ? `<div class="ln">Alt. Mobile&nbsp;·&nbsp;${esc(altPhone)}</div>` : ''}
         ${customerAddress ? `<div class="ln">${esc(customerAddress)}</div>` : ''}
         ${deviceLabel ? `<div class="ln d">Device&nbsp;·&nbsp;${esc(deviceLabel)}</div>` : ''}
+        ${deviceVariant ? `<div class="ln d">Variant&nbsp;·&nbsp;${esc(deviceVariant)}</div>` : ''}
         ${deviceImei ? `<div class="ln d">IMEI&nbsp;·&nbsp;${esc(deviceImei)}</div>` : ''}
       </div>
       <div>
@@ -1260,7 +1291,7 @@ function buildHtml({
   <div class="foot">
     <div class="decl">
       <div class="dh">Declaration</div>
-      We declare that this invoice shows the actual charges for the goods and services described above and that its particulars are true and correct.
+      We declare that this invoice reflects the actual service charges and spare parts used for the above-mentioned device, and all the particulars stated above are true and correct.
     </div>
     <div class="names">
       <div>
