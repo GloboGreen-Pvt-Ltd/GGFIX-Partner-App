@@ -135,6 +135,16 @@ import SubscriptionScreen from '../screens/owner/SubscriptionScreen';
 import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 import HelpSupportScreen from '../screens/owner/HelpSupportScreen';
 import { subscriptionApi } from '../api/client';
+// Staff Task Management (Home → Employee → Staff Tasks).
+import StaffTasksHomeScreen from '../screens/owner/staffTasks/StaffTasksHomeScreen';
+import StaffTaskCalendarScreen from '../screens/owner/staffTasks/StaffTaskCalendarScreen';
+import StaffTaskFormScreen from '../screens/owner/staffTasks/StaffTaskFormScreen';
+import StaffTaskSelectEmployeeScreen from '../screens/owner/staffTasks/StaffTaskSelectEmployeeScreen';
+import StaffTaskDetailScreen from '../screens/owner/staffTasks/StaffTaskDetailScreen';
+import StaffTaskLocationScreen from '../screens/owner/staffTasks/StaffTaskLocationScreen';
+import StaffTaskChecklistScreen from '../screens/owner/staffTasks/StaffTaskChecklistScreen';
+import StaffTaskReviewScreen from '../screens/owner/staffTasks/StaffTaskReviewScreen';
+import StaffTaskCreatedScreen from '../screens/owner/staffTasks/StaffTaskCreatedScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -708,6 +718,16 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerLeaveRequests" component={OwnerLeaveRequestsScreen} options={{ headerShown: false }} />
       {/* Same screen, PERMISSION-type requests only (Dashboard → Permissions). */}
       <Stack.Screen name="OwnerPermissionRequests" component={OwnerLeaveRequestsScreen} initialParams={{ kind: 'PERMISSION' }} options={{ headerShown: false }} />
+      {/* Staff Tasks — draw their own headers. */}
+      <Stack.Screen name="StaffTasks" component={StaffTasksHomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskCalendar" component={StaffTaskCalendarScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskForm" component={StaffTaskFormScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskSelectEmployee" component={StaffTaskSelectEmployeeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskDetail" component={StaffTaskDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskLocation" component={StaffTaskLocationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskChecklist" component={StaffTaskChecklistScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskReview" component={StaffTaskReviewScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskCreated" component={StaffTaskCreatedScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerQrCode" component={OwnerQrCodeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerModelCompatibility" component={OwnerModelCompatibilityScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopChatInbox" component={ShopChatInboxScreen} options={{ headerShown: false }} />

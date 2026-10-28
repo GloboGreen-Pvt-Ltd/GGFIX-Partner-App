@@ -35,6 +35,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import SystemBarGuard from './src/components/SystemBarGuard';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { ToastHost } from './src/components/Toast';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 import { store } from './src/store';
@@ -139,6 +140,8 @@ export default function App() {
                   <RootNavigator />
                 </NavigationContainer>
               </SystemBarGuard>
+              {/* App-wide toasts (components/Toast) — above every screen. */}
+              <ToastHost />
             </SafeAreaProvider>
           </KeyboardProvider>
         </GluestackUIProvider>

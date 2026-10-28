@@ -59,6 +59,30 @@ async function captureBase64(viewRef) {
   return null;
 }
 
+/** Customer's WhatsApp number (91 + 10 digits), or null when there is none. */
+export function waNumberOf(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return digits;
+  return null;
+}
+
+/**
+ * Open the customer's own WhatsApp chat with the text filled in. WhatsApp
+ * can't take an attachment into a numbered chat, so this is text only.
+ * Returns false when there is no usable number.
+ */
+export async function sendWhatsAppText(phone, message) {
+  const wa = waNumberOf(phone);
+  if (!wa) return false;
+  try {
+    await Linking.openURL(`whatsapp://send?phone=${wa}&text=${encodeURIComponent(message || '')}`);
+  } catch (_) {
+    notInstalled();
+  }
+  return true;
+}
+
 /**
  * @param viewRef   ref to the <ViewShot> holding the receipt
  * @param message   receipt as text (sent with the image, and the fallback)
@@ -66,6 +90,9 @@ async function captureBase64(viewRef) {
  * @param filename  image file name, without extension
  */
 export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename = 'ggfix-receipt' }) {
+  // A customer number → straight into their chat with the receipt as text.
+  if (await sendWhatsAppText(phone, message)) return;
+
   const base64 = await captureBase64(viewRef);
 
   const RNShare = shareSingleModule();

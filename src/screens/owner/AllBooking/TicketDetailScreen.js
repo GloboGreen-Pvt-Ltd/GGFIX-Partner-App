@@ -49,6 +49,7 @@ import {
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
+import { onTicketUpdated } from '../../../lib/ticketEvents';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand } from '../../../api/masterData';
@@ -62,7 +63,8 @@ import ImageViewerModal from '../../../components/ImageViewerModal';
 import WhatsAppIcon from '../../../components/WhatsAppIcon';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
-import { specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
+import { lockTypesFor, resolveSpecCategory, specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
+import DeviceSecurityLockSheet from '../service-booking-shop/DeviceSecurityLockSheet';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
 
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
@@ -321,6 +323,19 @@ export default function TicketDetailScreen({ route, navigation }) {
   }, [ticketId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  const refreshProgressRef = useRef(null);
+
+  // Technician assigned elsewhere → show it at once, then reload from the
+  // server for the new status and timeline.
+  useEffect(() => onTicketUpdated((id, patch) => {
+    if (String(id) !== String(ticketId)) return;
+    if (patch.assignedTechnicianId) {
+      setTicket((t) => (t ? { ...t, assignedTechnicianId: patch.assignedTechnicianId } : t));
+      if (patch.technician) setTechnician(patch.technician);
+    }
+    load();
+    refreshProgressRef.current?.();
+  }), [ticketId, load]);
 
   // Service Progress — owner-side submission with Mark → Done/Cancel flow,
   // matching the technician Ticket Detail screen. The `done` state is sourced
@@ -344,6 +359,42 @@ export default function TicketDetailScreen({ route, navigation }) {
   const [imeiModalOpen, setImeiModalOpen] = useState(false);
   const [imeiInput, setImeiInput] = useState('');
   const [imeiSaving, setImeiSaving] = useState(false);
+  // Alternate customer mobile — read from the customer row, added/edited here.
+  const [altPhone, setAltPhone] = useState('');
+  const [altOpen, setAltOpen] = useState(false);
+  const [altInput, setAltInput] = useState('');
+  const [altSaving, setAltSaving] = useState(false);
+  const ticketPhone = ticket?.customerPhone || '';
+  useEffect(() => {
+    const seeded = ticket?.customerAlternatePhone || ticket?.alternatePhone || '';
+    setAltPhone(seeded);
+    const digits = String(ticketPhone).replace(/\D/g, '').slice(-10);
+    if (seeded || digits.length !== 10) return undefined;
+    let cancelled = false;
+    ticketApi.get('/customers/lookup', { query: { mobile: digits } })
+      .then((c) => { if (!cancelled && c?.alternatePhone) setAltPhone(c.alternatePhone); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [ticketPhone, ticket?.customerAlternatePhone, ticket?.alternatePhone]);
+  const saveAltPhone = async () => {
+    const alt = altInput.replace(/\D/g, '');
+    const main = String(ticketPhone).replace(/\D/g, '').slice(-10);
+    if (alt.length !== 10 || alt === main) {
+      notify('Alternate Mobile', 'Enter a different valid 10-digit number.');
+      return;
+    }
+    setAltSaving(true);
+    try {
+      // POST /customers upserts by mobile; only the alternate number changes.
+      await ticketApi.post('/customers', {
+        body: { name: ticket.customerName || '', phone: main, alternatePhone: alt },
+      });
+      setAltPhone(alt);
+      setAltOpen(false);
+    } catch (e) {
+      notify('Error', e?.message || 'Failed to save alternate number', { preset: 'error', haptic: 'error' });
+    } finally { setAltSaving(false); }
+  };
   const pendingReadyRow = useRef(null); // the READY row awaiting IMEI, or null for a plain add
   const showImei = useImeiApplies(ticket); // mobile phones only
 
@@ -373,6 +424,7 @@ export default function TicketDetailScreen({ route, navigation }) {
   // On focus, not just mount: a step recorded on another screen (the status
   // sheet, the technician app) has to unlock the next one here when you return.
   useFocusEffect(useCallback(() => { refreshProgress(); }, [refreshProgress]));
+  refreshProgressRef.current = refreshProgress;
 
   // Bottom-bar "Update Status" — same PATCH /tickets/{id}/status the technician
   // Update Status screen uses, exposed here as a light-themed bottom sheet. It
@@ -570,8 +622,8 @@ export default function TicketDetailScreen({ route, navigation }) {
   const modelLine = [modelNumber, specText].filter(Boolean).join(' - ');
   const photoUrls = bookingPhotoUrls(ticket);
   // Customer Mobile row: Call opens the dialer, WhatsApp the customer's chat.
-  const contactCustomer = (scheme) => {
-    const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+  const contactCustomer = (scheme, number = phone) => {
+    const digits = String(number || '').replace(/\D/g, '').slice(-10);
     if (!digits) return;
     const url = scheme === 'whatsapp' ? `https://wa.me/91${digits}` : `tel:${digits}`;
     Linking.openURL(url).catch(() =>
@@ -855,6 +907,49 @@ export default function TicketDetailScreen({ route, navigation }) {
                     </Pressable>
                   </View>
                 ) : null}
+                {phone ? (
+                  <View className="flex-row items-center py-1.5">
+                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                      <Phone size={14} color={ACCENT_GREEN} />
+                    </View>
+                    <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Alt. Mobile</Text>
+                    <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={1}>{altPhone || '—'}</Text>
+                    <Pressable
+                      onPress={() => { setAltInput(String(altPhone).replace(/\D/g, '').slice(-10)); setAltOpen(true); }}
+                      hitSlop={4}
+                      className="rounded-full px-2.5 py-1 active:opacity-80"
+                      style={{ backgroundColor: '#E5F3F5' }}
+                      accessibilityRole="button"
+                      accessibilityLabel={altPhone ? 'Edit alternate mobile' : 'Add alternate mobile'}
+                    >
+                      <Text className="text-[11px] font-extrabold" style={{ color: ACCENT_GREEN }}>{altPhone ? 'EDIT' : '+ ADD'}</Text>
+                    </Pressable>
+                    {altPhone ? (
+                      <>
+                        <Pressable
+                          onPress={() => contactCustomer('tel', altPhone)}
+                          hitSlop={4}
+                          className="w-8 h-8 rounded-full items-center justify-center ml-2 active:opacity-70"
+                          style={{ backgroundColor: '#E5F3F5' }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Call alternate mobile"
+                        >
+                          <Phone size={15} color={ACCENT_GREEN} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => contactCustomer('whatsapp', altPhone)}
+                          hitSlop={4}
+                          className="w-8 h-8 rounded-full items-center justify-center ml-2 active:opacity-70"
+                          style={{ backgroundColor: 'rgba(37, 211, 102, 0.14)' }}
+                          accessibilityRole="button"
+                          accessibilityLabel="WhatsApp alternate mobile"
+                        >
+                          <WhatsAppIcon size={16} color="#25D366" />
+                        </Pressable>
+                      </>
+                    ) : null}
+                  </View>
+                ) : null}
                 {address ? <DetailRow icon={MapPin} label="Address" value={address} /> : null}
               </View>
             </View>
@@ -1012,7 +1107,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </View>
               )}
             </View>
-            <DetailRow icon={Lock} label="Security" value={securityText} />
+            <SecurityRow ticket={ticket} value={securityText} onSaved={load} />
           </View>
         </View>
 
@@ -1552,6 +1647,68 @@ export default function TicketDetailScreen({ route, navigation }) {
           )}
         </ModalInsets>
       </SafeModal>
+
+      {/* ── Alternate mobile sheet — add or edit the customer's second number ── */}
+      <SafeModal
+        visible={altOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => (altSaving ? null : setAltOpen(false))}
+      >
+        <ModalInsets>
+          {({ insets, keyboard }) => (
+            <Pressable
+              className="flex-1 bg-black/50 items-center justify-center px-6"
+              style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, keyboard) }}
+              onPress={() => (altSaving ? null : setAltOpen(false))}
+            >
+              <Pressable className="bg-card rounded-3xl p-5 w-full" style={{ maxWidth: 420 }} onPress={() => {}}>
+                <View className="items-center mb-1">
+                  <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E5F3F5' }}>
+                    <Phone size={20} color={BRAND_GREEN_DARK} />
+                  </View>
+                  <Text className="text-text text-[15px] font-extrabold">Alternate Mobile Number</Text>
+                  <Text className="text-text-muted text-[12px] text-center mt-1">
+                    Add another number to reach this customer.
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
+                  <Text className="text-text-muted text-[13px] font-bold mr-2">+91</Text>
+                  <TextInput
+                    className="flex-1 py-3 text-text text-[13px] font-bold"
+                    placeholder="10-digit mobile number"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    value={altInput}
+                    onChangeText={(v) => setAltInput(v.replace(/\D/g, ''))}
+                    autoFocus
+                  />
+                </View>
+
+                <View className="flex-row mt-4">
+                  <Pressable
+                    onPress={() => setAltOpen(false)}
+                    disabled={altSaving}
+                    className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
+                  >
+                    <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={saveAltPhone}
+                    disabled={altSaving}
+                    className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
+                    style={{ backgroundColor: BRAND_GREEN }}
+                  >
+                    {altSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Pressable>
+          )}
+        </ModalInsets>
+      </SafeModal>
     </View>
   );
 }
@@ -1589,7 +1746,51 @@ function normaliseImei(raw) {
   return digits.length >= 14 && digits.length <= 17 ? digits : null;
 }
 
-function DetailRow({ icon: Icon, label, value }) {
+// Security row with an edit button that opens the lock sheet as a popup and
+// saves straight to the booking — no separate screen.
+function SecurityRow({ ticket, value, onSaved }) {
+  const [sheet, setSheet] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const lockTypes = lockTypesFor(resolveSpecCategory(ticket?.deviceCategory, ticket?.categoryCode, ticket?.categoryName));
+  const options = ['NONE', ...['PIN', 'PATTERN', 'PASSWORD'].filter((k) => lockTypes.includes(k)), ...(lockTypes.includes('PATTERN') ? ['ACCOUNT'] : [])];
+  const savedType = ticket?.deviceSecurityType || 'NONE';
+  const save = async (l) => {
+    const type = l?.type || 'NONE';
+    const val = type === 'NONE' ? null : (l?.value || '');
+    setSheet(null);
+    if (type === savedType && (val || '') === (ticket?.deviceSecurityValue || '')) return;
+    setSaving(true);
+    try {
+      await ticketApi.patch(`/tickets/${ticket.id}`, { body: { deviceSecurityType: type, deviceSecurityValue: val } });
+      ticketApi.post(`/tickets/${ticket.id}/progress-events`, {
+        body: { statusKey: 'BOOKING_EDITED', note: 'Booking Edited — Device security', actor: 'SHOP' },
+      }).catch(() => {});
+      notify('Device security updated', '', { preset: 'done' });
+      await onSaved?.();
+    } catch (e) {
+      notify('Could not update security', e?.message || 'Please try again.', { preset: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <>
+      <DetailRow icon={Lock} label="Security" value={saving ? 'Saving…' : value}
+        onEdit={options.length > 1 && !saving ? () => setSheet({ type: savedType === 'NONE' ? options[1] : savedType, value: ticket?.deviceSecurityValue || '' }) : undefined} />
+      <DeviceSecurityLockSheet
+        visible={!!sheet}
+        types={options}
+        initialLock={sheet}
+        showProgress={false}
+        saveLabel="Save"
+        onConfirm={save}
+        onClose={() => setSheet(null)}
+      />
+    </>
+  );
+}
+
+function DetailRow({ icon: Icon, label, value, onEdit }) {
   return (
     <View className="flex-row items-center py-1.5">
       <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
@@ -1597,6 +1798,12 @@ function DetailRow({ icon: Icon, label, value }) {
       </View>
       <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>{label}</Text>
       <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={2}>{value}</Text>
+      {onEdit ? (
+        <TouchableOpacity onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${label}`}
+          className="w-7 h-7 rounded-lg items-center justify-center ml-2" style={{ backgroundColor: '#E5F3F5' }}>
+          <Pencil size={13} color={ACCENT_GREEN} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

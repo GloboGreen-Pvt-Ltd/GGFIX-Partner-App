@@ -89,8 +89,9 @@ function formatSecurity(type, value) {
   let v = value == null ? '' : String(value).trim();
   // Pattern dots comma-separated, e.g. "7,4,9,5" (the stored form, tidied).
   if (t === 'PATTERN') v = v.split(',').map((d) => d.trim()).filter(Boolean).join(',');
-  // Just the value (PIN digits / pattern / password) — no "Pattern ·" prefix.
-  return v || label;
+  // Type named before the value so the label says what it is: "PIN: 1234",
+  // "Pattern: 7,4,9,5", "Password: abc123".
+  return v ? `${label}: ${v}` : label;
 }
 
 // Splits a tracking id into its letter prefix and trailing digits so the header

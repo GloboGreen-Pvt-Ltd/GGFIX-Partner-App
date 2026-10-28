@@ -32,6 +32,7 @@ import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
+import { notify } from '../../../components/confirm';
 
 // GGFIX palette — same values used across the rest of the booking flow.
 const ACCENT = '#035C6C';       // GGFIX green
@@ -297,7 +298,7 @@ export default function BookingTimelineScreen({ route }) {
               });
               await load();
             } catch (e) {
-              Alert.alert('Could not save', e?.message || 'Please try again.');
+              notify('Could not save', e?.message || 'Please try again.', { preset: 'error' });
             } finally {
               setQcSaving(false);
             }
@@ -415,7 +416,7 @@ export default function BookingTimelineScreen({ route }) {
   const copyTrackingId = async () => {
     try {
       await Clipboard.setStringAsync(String(ticket?.trackingId || ticketId));
-      Alert.alert('Copied', `Tracking ID #${ticket?.trackingId || ticketId} copied.`);
+      notify('Copied', `Tracking ID #${ticket?.trackingId || ticketId} copied.`, { preset: 'done' });
     } catch (_) {}
   };
 

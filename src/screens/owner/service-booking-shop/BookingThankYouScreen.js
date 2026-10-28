@@ -75,10 +75,17 @@ export default function BookingThankYouScreen({ navigation, route }) {
     devices: devices.map((d) => ({
       modelName: d.modelName,
       imageUrl: d.imageUrl,
-      variant: specDisplayParts(d, { withColor: true }).join(' · '),
+      // "8GB+128GB, Black" — RAM+storage, then colour.
+      variant: [specDisplayParts(d).join('+'), d.color].filter(Boolean).join(', '),
       // IMEI is printed for mobile phones only.
       imei: imeiApplies(resolveSpecCategory(d.deviceCategory, d.categoryCode, d.categoryName)) ? d.imei || null : null,
-      serviceNames: (d.services || []).map((x) => x.serviceName).filter(Boolean),
+      modelNumber: d.modelNumber || null,
+      // Repair issues only — the auto "Service charge" row is shown as its own line.
+      serviceNames: (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE').map((x) => x.serviceName).filter(Boolean),
+      serviceCharge: (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE').reduce((sum, x) => sum + (Number(x.price) || 0), 0) || null,
+      accessories: d.accessories || null,
+      estimatedReadyIso: d.estimatedReadyIso || null,
+      estimatedDeliveryIso: d.estimatedDeliveryIso || null,
       price: (d.services || []).reduce((sum, x) => sum + (Number(x.price) || 0), 0),
     })),
     trackingId,

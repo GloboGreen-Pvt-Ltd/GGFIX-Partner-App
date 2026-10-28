@@ -95,17 +95,16 @@ export default function LoginScreen({ onLogin, navigation }) {
   const describeError = (e, fallback) => {
     const msg = e?.message || fallback;
     if (__DEV__) {
-      const isLocalhost = /localhost|127\.0\.0\.1/.test(String(msg));
+      const dev = String(e?.devMessage || msg);
+      const isLocalhost = /localhost|127\.0\.0\.1/.test(dev);
       if (!isLocalhost) return msg;
-      const urlMatch = String(msg).match(/URL:\s*(\S+)/i);
+      const urlMatch = dev.match(/URL:\s*(\S+)/i);
       const triedUrl = urlMatch ? urlMatch[1] : '(unknown)';
       return (
         `Can't reach server (trying localhost). Tried: ${triedUrl}. ` +
         `Current AUTH_BASE: ${AUTH_BASE}. Restart Expo with EXPO_PUBLIC_API_HOST=YOUR_PC_IP.`
       );
     }
-    const status = e?.status;
-    if (!status || status === 0) return "Can't reach the server. Check your connection and try again.";
     return msg;
   };
 
@@ -153,10 +152,11 @@ export default function LoginScreen({ onLogin, navigation }) {
         }
       }
       setSeconds(RESEND_SECONDS);
-      if (resend) setNote('A new code has been sent.');
-      else setStep('OTP');
+      if (resend) { setNote('A new code has been sent.'); notify('New verification code sent', '', { preset: 'done' }); }
+      else { setStep('OTP'); notify('Verification code sent', '', { preset: 'done' }); }
     } catch (e) {
       setError(describeError(e, 'Could not send the code.'));
+      notify(describeError(e, 'Could not send the code.'), '', { preset: 'error' });
     } finally {
       sendingRef.current = false;
       setLoading(false);
@@ -189,7 +189,11 @@ export default function LoginScreen({ onLogin, navigation }) {
       }
       onLogin(data);
     } catch (e) {
-      setError(describeError(e, 'Authentication failed'));
+      // Wrong / expired code → a plain retry message, never server text.
+      const wrongCode = e?.status === 401 || e?.status === 400;
+      const text = wrongCode ? 'Invalid OTP. Please try again.' : describeError(e, 'Authentication failed');
+      setError(text);
+      notify(text, '', { preset: 'error' });
       // Wrong code → wipe the boxes and re-focus so the retry is one action.
       // A network/server failure keeps the digits: they were probably right and
       // re-typing six of them to retry a dropped request is pure friction.
