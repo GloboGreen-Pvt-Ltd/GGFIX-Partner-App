@@ -34,7 +34,7 @@ export default function StaffTaskReviewScreen({ navigation, route }) {
         if (outsideShift(a, d.startTime, d.endTime)) w.push(`${a.name}'s shift is ${a.shiftStart}–${a.shiftEnd}`);
       });
       setWarnings(w);
-    });
+    }).catch(() => {}); // warnings only; the server still checks on create
   }, [d]);
 
   if (!d) return <View style={{ flex: 1, backgroundColor: C.page }}><TaskHeader title="Review Task" onBack={() => navigation.goBack()} /></View>;

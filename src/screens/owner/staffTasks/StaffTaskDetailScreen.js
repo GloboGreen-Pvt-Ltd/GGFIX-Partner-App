@@ -64,7 +64,8 @@ export default function StaffTaskDetailScreen({ navigation, route }) {
   const [busy, setBusy] = useState(false);
   const [checkOpen, setCheckOpen] = useState(false);
 
-  const reload = useCallback(() => getTask(taskId).then(setTask), [taskId]);
+  const reload = useCallback(() => getTask(taskId).then(setTask)
+    .catch((e) => notify('Could not load task', e?.message || 'Please try again.', { preset: 'error' })), [taskId]);
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
   useEffect(() => {
     getSession().then((s) => { const n = s?.name || s?.user?.name; if (n) setOwner(n); }).catch(() => {});
@@ -129,7 +130,7 @@ export default function StaffTaskDetailScreen({ navigation, route }) {
     setMenu(false);
     const ok = await confirm({ title: 'Delete task?', message: 'This removes the task and its history.', confirmText: 'Delete', destructive: true });
     if (!ok) return;
-    await deleteTask(task.id);
+    try { await deleteTask(task.id); } catch (e) { notify('Could not delete', e?.message || 'Try again.', { preset: 'error' }); return; }
     navigation.goBack();
   };
 

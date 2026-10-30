@@ -11,6 +11,7 @@ import { DashboardToolsGrid, getDashboardToolColumns } from '../../../components
 import { mci } from '../../../components/dashboard/solidIcons';
 import { assigneeNames, countTasks, dayKey, displayStatus, formatDay, formatTime, listTasks } from './staffTaskStore';
 import { Avatar, C, Pill, STATUS_META, TaskHeader, TYPE_META, cardShadow } from './staffTaskUi';
+import { notify } from '../../../components/confirm';
 
 // Status counts — Home's Overview cards (DashboardOverviewCard). Tap filters the list.
 const STATS = [
@@ -55,7 +56,8 @@ export default function StaffTasksHomeScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => {
     let alive = true;
-    listTasks().then((l) => { if (alive) setTasks(l); });
+    listTasks().then((l) => { if (alive) setTasks(l); })
+      .catch((e) => { if (alive) notify('Could not load tasks', e?.message || 'Please try again.', { preset: 'error' }); });
     return () => { alive = false; };
   }, []));
 

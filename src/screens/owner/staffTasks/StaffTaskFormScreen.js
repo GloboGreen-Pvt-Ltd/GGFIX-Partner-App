@@ -65,7 +65,7 @@ export default function StaffTaskFormScreen({ navigation, route }) {
       setLocation(t.location ? { address: t.location, coords: t.coords || null } : null);
       setChecklist(t.checklist || []);
       setLoaded(true);
-    });
+    }).catch((e) => { notify('Could not load task', e?.message || 'Please try again.', { preset: 'error' }); navigation.goBack(); });
   }, [editId, navigation]);
 
   const draft = () => ({

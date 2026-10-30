@@ -1,18 +1,24 @@
 // Staff Task Management — data layer.
 //
-// STORAGE: there is no staff-task API on the server yet, so tasks are kept ON
-// THIS DEVICE (AsyncStorage), one list per shop (`session.shopId`). They do
-// not reach the Employee App or other devices. Every screen goes through the
-// functions below only, so moving to a shared backend later means replacing
-// `readAll` / `writeAll` (and nothing in the screens). See STORAGE_MODE.
+// STORAGE: the shared staff-task API on ticket-service (`/staff-tasks`:
+// GET ?from&to, POST, GET/PATCH/DELETE /{id}, POST /{id}/status,
+// POST /{id}/checklist/{itemId}/toggle). The Employee App reads the same
+// records ("My Tasks" — the server gives an employee only their own). Every
+// call is scoped to the logged-in shop (JWT shopId). The server keeps this
+// app's task shape; only coords differ ({lat, lng} here, {latitude,
+// longitude} there). Every screen goes through the functions below only.
+//
+// Tasks the earlier device-only version saved (AsyncStorage
+// `staffTasks.v1:<shopId>`) are uploaded once — see migrateDeviceTasks.
 //
 // Kept separate from repair tickets / booking statuses on purpose: a staff
 // task is shop work (deliveries, parcels, errands), not a repair job.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSession } from '../../../auth/session';
+import { ticketApi } from '../../../api/client';
 
-/** 'device' until a backend exists; screens show this so nobody assumes sync. */
-export const STORAGE_MODE = 'device';
+/** 'server' — tasks live on the shared backend (StorageNote shows only for 'device'). */
+export const STORAGE_MODE = 'server';
 
 export const TASK_TYPES = ['SERVICE', 'DELIVERY', 'PARCEL', 'SUPPLIER', 'BANK_WORK', 'SHOP_WORK', 'OTHER'];
 export const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
@@ -21,7 +27,8 @@ export const REPEATS = ['NEVER', 'DAILY', 'WEEKLY', 'MONTHLY'];
 // Stored statuses. OVERDUE is derived (see displayStatus), never stored.
 export const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'INCOMPLETE', 'CANCELLED'];
 
-const KEY_PREFIX = 'staffTasks.v1:';
+const KEY_PREFIX = 'staffTasks.v1:'; // device-only tasks still to upload
+const UNSENT_PREFIX = 'staffTasks.v1.unsent:'; // device tasks the server refused (kept, never retried)
 const RECENT_PREFIX = 'staffTasks.recentLocations.v1:';
 
 async function shopKey(prefix) {
@@ -41,9 +48,9 @@ function normalize(t) {
   };
 }
 
-async function readAll() {
+async function readDevice(prefix) {
   try {
-    const raw = await AsyncStorage.getItem(await shopKey(KEY_PREFIX));
+    const raw = await AsyncStorage.getItem(await shopKey(prefix));
     const list = raw ? JSON.parse(raw) : [];
     return Array.isArray(list) ? list.map(normalize) : [];
   } catch (_) {
@@ -51,12 +58,38 @@ async function readAll() {
   }
 }
 
-async function writeAll(list) {
-  await AsyncStorage.setItem(await shopKey(KEY_PREFIX), JSON.stringify(list));
-}
-
 const newId = () => `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-const nowIso = () => new Date().toISOString();
+
+// ── Server ⇄ app ───────────────────────────────────────────────────────────
+const toCoords = (c) => (c && c.lat != null && c.lng != null ? { latitude: c.lat, longitude: c.lng } : null);
+const fromServer = (r) => normalize({
+  ...r,
+  description: r.description || '',
+  location: r.location || '',
+  coords: r.coords && r.coords.latitude != null ? { lat: r.coords.latitude, lng: r.coords.longitude } : null,
+  checklist: r.checklist || [],
+  history: r.history || [],
+});
+const assigneeBody = ({ id, name, roleLabel, phone, photoUrl }) => ({ id, name, roleLabel: roleLabel || null, phone: phone || null, photoUrl: photoUrl || null });
+const isServerId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''));
+const rawText = (e) => String(e?.devMessage || e?.serverMessage || '');
+
+// Turns a failed call into a message an owner can act on.
+function friendly(e) {
+  if (e?.status === 404 && /task not found/i.test(rawText(e))) {
+    const err = new Error('This task no longer exists.');
+    err.status = 404;
+    throw err;
+  }
+  // Route missing (an older server build): nothing can be saved or shared.
+  if (e?.status === 404 || e?.status === 405 || e?.status === 501) {
+    const err = new Error('Staff Tasks is not available on the server yet. Please try again later.');
+    err.status = e.status;
+    throw err;
+  }
+  throw e;
+}
+const one = async (p) => fromServer(await p.catch(friendly));
 
 // ── Dates: tasks use local 'YYYY-MM-DD' + 24-hour 'HH:mm' (shop time). ────
 export const pad2 = (n) => String(n).padStart(2, '0');
@@ -136,27 +169,30 @@ export function outsideShift(emp, startTime, endTime) {
 }
 
 // ── Reads ──────────────────────────────────────────────────────────────────
+// The server answers a date window (max 400 days); this covers the calendar's reach.
+const LIST_PAST_DAYS = 180;
+const LIST_FUTURE_DAYS = 200;
+
 export async function listTasks() {
-  const list = await readAll();
+  await migrateDeviceTasks();
+  const now = Date.now();
+  const query = { from: dayKey(new Date(now - LIST_PAST_DAYS * 86400000)), to: dayKey(new Date(now + LIST_FUTURE_DAYS * 86400000)) };
+  const res = await ticketApi.get('/staff-tasks', { query }).catch(friendly);
+  const list = (Array.isArray(res) ? res : res?.content || []).map(fromServer);
   return list.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 }
+/** null when the task is gone (or is an id from the old device-only list). */
 export async function getTask(id) {
-  return (await readAll()).find((t) => t.id === id) || null;
+  if (!isServerId(id)) return null;
+  try {
+    return fromServer(await ticketApi.get(`/staff-tasks/${id}`));
+  } catch (e) {
+    if (e?.status === 404 && /task not found/i.test(rawText(e))) return null;
+    return friendly(e);
+  }
 }
 
-// ── Writes (every change appends to the task's history) ────────────────────
-async function mutate(id, fn) {
-  const list = await readAll();
-  const i = list.findIndex((t) => t.id === id);
-  if (i < 0) throw new Error('Task not found');
-  const next = normalize(fn({ ...list[i] }));
-  next.updatedAt = nowIso();
-  list[i] = next;
-  await writeAll(list);
-  return next;
-}
-const withHistory = (t, action, note) => ({ ...t, history: [...(t.history || []), { at: nowIso(), action, note: note || null }] });
-
+// ── Writes (the server appends every change to the task's history) ─────────
 const cleanChecklist = (items) => (items || [])
   .filter((c) => String(c.text || '').trim())
   .map((c) => ({ id: c.id && !String(c.id).startsWith('new_') ? c.id : newId(), text: c.text.trim(), done: !!c.done }));
@@ -171,88 +207,126 @@ export function validateDraft(d) {
 }
 
 // A double tap (or a retry) must not create the same task twice: an identical
-// task created in the last few seconds is returned instead of a copy.
+// task sent in the last few seconds reuses its clientRef, and the server then
+// returns the first task instead of a copy.
 const DUPLICATE_WINDOW_MS = 10000;
 const sameTaskSig = (t) => JSON.stringify([t.title.trim(), t.date, t.startTime, t.endTime, (t.assignees || []).map((a) => a.id).sort()]);
+const recentCreates = new Map(); // sig → { ref, at }
+
+/** Create body for the server (draft or an old device task). */
+const createBody = (input, clientRef) => ({
+  type: input.type || 'OTHER',
+  title: input.title.trim(),
+  description: (input.description || '').trim(),
+  date: input.date,
+  startTime: input.startTime,
+  endTime: input.endTime,
+  assignees: (input.assignees || []).map(assigneeBody),
+  priority: input.priority || 'MEDIUM',
+  reminder: REMINDERS.includes(input.reminder) ? input.reminder : 0,
+  repeat: REPEATS.includes(input.repeat) ? input.repeat : 'NEVER',
+  location: (input.location || '').trim(),
+  coords: toCoords(input.coords),
+  checklist: cleanChecklist(input.checklist).map((c) => ({ ...c, done: false })),
+  clientRef,
+});
 
 export async function createTask(input) {
   validateDraft(input);
-  const list = await readAll();
   const sig = sameTaskSig(input);
-  const dup = list.find((t) => sameTaskSig(t) === sig && Date.now() - new Date(t.createdAt).getTime() < DUPLICATE_WINDOW_MS);
-  if (dup) return dup;
-
-  const assignees = input.assignees.map(({ id, name, roleLabel, phone, photoUrl }) => ({ id, name, roleLabel: roleLabel || null, phone: phone || null, photoUrl: photoUrl || null }));
-  const t = normalize(withHistory({
-    id: newId(),
-    type: input.type || 'OTHER',
-    title: input.title.trim(),
-    description: (input.description || '').trim(),
-    date: input.date,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    assignees,
-    priority: input.priority || 'MEDIUM',
-    reminder: REMINDERS.includes(input.reminder) ? input.reminder : 0,
-    repeat: REPEATS.includes(input.repeat) ? input.repeat : 'NEVER',
-    location: (input.location || '').trim(),
-    coords: input.coords || null,
-    checklist: cleanChecklist(input.checklist).map((c) => ({ ...c, done: false })),
-    status: 'PENDING',
-    incompleteReason: null,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  }, 'CREATED', `Assigned to ${assignees.map((a) => a.name).join(', ')}`));
-  list.push(t);
-  await writeAll(list);
+  const hit = recentCreates.get(sig);
+  const ref = hit && Date.now() - hit.at < DUPLICATE_WINDOW_MS ? hit.ref : `pa-${newId()}`;
+  recentCreates.set(sig, { ref, at: Date.now() });
+  const t = await one(ticketApi.post('/staff-tasks', { body: createBody(input, ref) }));
   if (t.location) await rememberLocation({ address: t.location, coords: t.coords });
   return t;
 }
 
-/** Edit: title / details / type / priority / reminder / repeat / location / checklist. */
+/** Edit: title / details / type / priority / reminder / repeat / location / checklist (only the fields sent change). */
 export function updateTask(id, patch) {
   const { assignees: _a, assignee: _b, ...rest } = patch;
-  return mutate(id, (t) => withHistory({ ...t, ...rest, ...(rest.checklist ? { checklist: cleanChecklist(rest.checklist) } : null) }, 'EDITED'));
+  const body = {};
+  ['type', 'title', 'description', 'priority', 'reminder', 'repeat', 'date', 'startTime', 'endTime'].forEach((k) => {
+    if (rest[k] !== undefined) body[k] = rest[k];
+  });
+  if (rest.location !== undefined) { body.location = rest.location; body.coords = toCoords(rest.coords); }
+  // Items keep their id (and done state); new ones ("new_…") get one.
+  if (rest.checklist) body.checklist = cleanChecklist(rest.checklist);
+  return one(ticketApi.patch(`/staff-tasks/${id}`, { body }));
 }
 
+/** The server puts an INCOMPLETE task back to PENDING when it is rescheduled. */
 export function rescheduleTask(id, { date, startTime, endTime }) {
-  return mutate(id, (t) => withHistory(
-    { ...t, date, startTime, endTime, status: t.status === 'INCOMPLETE' ? 'PENDING' : t.status, incompleteReason: t.status === 'INCOMPLETE' ? null : t.incompleteReason },
-    'RESCHEDULED',
-    `${formatDay(date)} ${formatTime(startTime)} – ${formatTime(endTime)}`,
-  ));
+  return one(ticketApi.patch(`/staff-tasks/${id}`, { body: { date, startTime, endTime } }));
 }
 
 /** Replace the assigned employees (one or many). */
 export function setAssignees(id, assignees) {
-  return mutate(id, (t) => withHistory(
-    { ...t, assignees },
-    'REASSIGNED',
-    `${assigneeNames(t)} → ${assignees.map((a) => a.name).join(', ')}`,
-  ));
+  return one(ticketApi.patch(`/staff-tasks/${id}`, { body: { assignees: assignees.map(assigneeBody) } }));
 }
 /** Kept for callers with a single employee. */
 export const reassignTask = (id, assignee) => setAssignees(id, [assignee]);
 
+/** Any status (the owner); `note` is the reason, required for INCOMPLETE. */
 export function setTaskStatus(id, status, note) {
   if (!STATUSES.includes(status)) throw new Error(`Unknown status ${status}`);
-  return mutate(id, (t) => withHistory(
-    { ...t, status, incompleteReason: status === 'INCOMPLETE' ? (note || '').trim() || null : null },
-    status,
-    note,
-  ));
+  return one(ticketApi.post(`/staff-tasks/${id}/status`, { body: { status, note: (note || '').trim() || undefined } }));
 }
 
 export function toggleChecklistItem(id, itemId) {
-  return mutate(id, (t) => ({
-    ...t,
-    checklist: (t.checklist || []).map((c) => (c.id === itemId ? { ...c, done: !c.done } : c)),
-  }));
+  return one(ticketApi.post(`/staff-tasks/${id}/checklist/${encodeURIComponent(itemId)}/toggle`));
 }
 
 export async function deleteTask(id) {
-  const list = await readAll();
-  await writeAll(list.filter((t) => t.id !== id));
+  await ticketApi.del(`/staff-tasks/${id}`).catch(friendly);
+}
+
+// ── One-time upload of the old device-only tasks ───────────────────────────
+// Each goes up with clientRef "device:<local id>", so a retry (app closed
+// mid-way, network drop) never makes a copy; ticks and status follow. Uploaded
+// tasks leave the device. One the server refuses as invalid (e.g. end before
+// start) is parked under UNSENT_PREFIX instead of retrying forever.
+let migrated = false;
+let migrating = null;
+export function migrateDeviceTasks() {
+  if (migrated) return Promise.resolve();
+  if (!migrating) {
+    migrating = uploadDeviceTasks()
+      .then((left) => { migrated = left === 0; })
+      .catch(() => {})
+      .finally(() => { migrating = null; });
+  }
+  return migrating;
+}
+
+async function uploadDeviceTasks() {
+  const list = await readDevice(KEY_PREFIX);
+  if (!list.length) return 0;
+  const left = [];
+  const refused = [];
+  for (const local of list) {
+    try {
+      const t = fromServer(await ticketApi.post('/staff-tasks', { body: createBody(local, `device:${local.id}`.slice(0, 64)) }));
+      for (const c of local.checklist || []) {
+        const now = t.checklist.find((x) => x.id === c.id);
+        if (c.done && now && !now.done) await ticketApi.post(`/staff-tasks/${t.id}/checklist/${encodeURIComponent(c.id)}/toggle`);
+      }
+      if (local.status !== 'PENDING' && t.status === 'PENDING') {
+        const note = local.status === 'INCOMPLETE' ? (local.incompleteReason || 'Not completed') : undefined;
+        await ticketApi.post(`/staff-tasks/${t.id}/status`, { body: { status: local.status, note } });
+      }
+    } catch (e) {
+      (e?.status === 400 || e?.status === 422 ? refused : left).push(local);
+    }
+  }
+  if (refused.length) {
+    const kept = await readDevice(UNSENT_PREFIX);
+    await AsyncStorage.setItem(await shopKey(UNSENT_PREFIX), JSON.stringify([...kept, ...refused]));
+  }
+  const key = await shopKey(KEY_PREFIX);
+  if (left.length) await AsyncStorage.setItem(key, JSON.stringify(left));
+  else await AsyncStorage.removeItem(key);
+  return left.length;
 }
 
 // ── Recently used locations (per shop, newest first, max 8) ───────────────
