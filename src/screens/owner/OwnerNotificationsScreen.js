@@ -76,7 +76,12 @@ export default function OwnerNotificationsScreen({ navigation }) {
     try {
       const [list, clearedAt] = await Promise.all([listNotifications(), getNotificationsClearedAt()]);
       const cut = timeOf(clearedAt);
-      setItems((Array.isArray(list) ? list : []).filter((n) => !cut || timeOf(n.createdAt) > cut));
+      const all = Array.isArray(list) ? list : [];
+      setItems(all.filter((n) => !cut || timeOf(n.createdAt) > cut));
+      // Cleared rows stay hidden here but still count as unread on the server
+      // (Home bell), so mark them read to keep the badge in step with this list.
+      if (cut) all.filter((n) => n?.id && isUnread(n) && timeOf(n.createdAt) <= cut)
+        .forEach((n) => { markNotificationRead(n.id).catch(() => {}); });
     } catch (e) {
       // Distinguish a load failure from a genuinely empty feed so we don't show
       // "You're all caught up" when the request actually errored.
