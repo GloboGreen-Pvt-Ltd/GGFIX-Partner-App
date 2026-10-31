@@ -642,7 +642,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       }
 
       const message = (withLogin
-        ? `Employee added. They can log in to the Near G Fix Staff App with mobile ${phone} and an OTP.`
+        ? `Employee added. They can log in to the NearGFix Staff App with mobile ${phone} and an OTP.`
         : 'Employee added.') + shopWarning;
       requestAnimationFrame(() => {
         navigation.navigate('OwnerEmployeeCreated', {
@@ -1280,7 +1280,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               <View style={styles.otpHint}>
                 <Ionicons name="information-circle-outline" size={rs(13)} color="#035C6C" />
                 <Text style={styles.otpHintText}>
-                  Employee signs in to the Near G Fix Staff App with this mobile number + OTP.
+                  Employee signs in to the NearGFix Staff App with this mobile number + OTP.
                 </Text>
               </View>
             </View>

@@ -62,15 +62,20 @@ const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED'];
 // the technician app or the backend, or are a way out (Repair Cancelled) that
 // can be taken at any point. See stepBlockedBy.
 const MUST_FOLLOW = {
-  RE_ESTIMATED_CONFIRMED:  ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'],
+  // A re-estimate follows the technician's verified issue — or their own
+  // re-estimate request, which can only be raised once they are on the job.
+  RE_ESTIMATED_CONFIRMED:  ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED', 'TECHNICIAN_REESTIMATE_REQUESTED'],
   CUSTOMER_APPROVED:       ['RE_ESTIMATED_CONFIRMED'],
-  IN_REPAIR:               ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'],
+  // Repair Work in Progress now comes straight after the technician is on the
+  // job (before Issue Verified); the verified issue still counts for bookings
+  // recorded in the older order.
+  IN_REPAIR:               ['ASSIGNED_TO_TECHNICIAN', 'TECHNICIAN_ASSIGNED', 'REASSIGNED_TO_TECHNICIAN', 'TECHNICIAN_ACCEPTED_SERVICE', 'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'],
   QUALITY_CHECK_COMPLETED: ['REPAIR_COMPLETED'],
   READY:                   ['QUALITY_CHECK_COMPLETED'],
   // The two ways into Return Device, each the alternative to a repaired-path
   // step: turning down the re-estimate (vs Customer Approved), or a repair that
   // was attempted and failed (vs Repair Completed).
-  CUSTOMER_REJECTED:       ['RE_ESTIMATED_CONFIRMED'],
+  CUSTOMER_REJECTED:       ['RE_ESTIMATED_CONFIRMED', 'TECHNICIAN_REESTIMATE_REQUESTED'],
   REPAIR_NOT_COMPLETED:    ['IN_REPAIR'],
   RETURN_DELIVERY:         ['CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED'],
   INVOICE_GENERATED:       ['READY', 'RETURN_DELIVERY'],
@@ -78,6 +83,23 @@ const MUST_FOLLOW = {
   DELIVERED_PROCESSING:    ['INVOICE_GENERATED'],
   DELIVERED:               ['DELIVERED_PROCESSING'],
 };
+// One readable name for a step whose "step before" is a list of equivalents.
+const MUST_FOLLOW_LABEL = { IN_REPAIR: 'Technician Assigned' };
+
+// Other codes the backend writes for the same row (display + step gate only).
+const ALIASES = { TECHNICIAN_ASSIGNED: 'ASSIGNED_TO_TECHNICIAN' };
+const canonicalKey = (k) => ALIASES[k] || k;
+
+// Re-estimate rows (`optional` below) are drawn and counted only once they
+// actually happened — most jobs are never re-estimated. CUSTOMER_APPROVED is
+// still written next to RE_ESTIMATE_APPROVED for compatibility, so its row
+// steps aside when the new one is there.
+const HIDDEN_BY = { CUSTOMER_APPROVED: 'RE_ESTIMATE_APPROVED' };
+// Each re-estimate round re-writes these; the latest round is the one shown.
+const LATEST_WINS = new Set([
+  'TECHNICIAN_REESTIMATE_REQUESTED', 'RE_ESTIMATED_CONFIRMED', 'CUSTOMER_APPROVED',
+  'RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'REPAIR_WORK_RESUMED',
+]);
 
 // Forks and ways out, not stages every job walks through — counted in
 // "Step X of Y" only once they have actually happened.
@@ -94,7 +116,8 @@ const RULED_OUT_BY = { CUSTOMER_APPROVED: 'CUSTOMER_REJECTED', DELIVERED: 'CANCE
 // The customer's verdict on an estimate. A re-estimate re-opens it: the backend
 // clears the prior approval and asks again, so a verdict recorded BEFORE the
 // latest "Service Re-estimated" no longer stands — see withoutSupersededVerdicts.
-const VERDICT_KEYS = ['CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'];
+// The re-estimate decision rows and the resume after them belong to that round too.
+const VERDICT_KEYS = ['CUSTOMER_APPROVED', 'CUSTOMER_REJECTED', 'RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'REPAIR_WORK_RESUMED'];
 
 // Canonical 31-row status list. The pickup-phase rows only light up for
 // serviceMode=PICKUP bookings; walk-in bookings carry no PICKUP_* events
@@ -125,18 +148,26 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   { value: 'SERVICE_ACCEPTED',                              label: 'Service Accepted',                      phase: SERVICE, group: G_ACCEPTED },
   // Edit Booking saved (a marker — see MARKERS). Re-Estimate has its own row.
   { value: 'BOOKING_EDITED',                                label: 'Booking Edited',                        phase: SERVICE, group: G_ACCEPTED },
-  { value: 'ASSIGNED_TO_TECHNICIAN',                        label: 'Assigned to Technician',                phase: SERVICE, group: G_ACCEPTED },
+  { value: 'ASSIGNED_TO_TECHNICIAN',                        label: 'Technician Assigned',                   phase: SERVICE, group: G_ACCEPTED },
   { value: 'AWAITING_TECHNICIAN_ACCEPTANCE',                label: 'Awaiting Technician Acceptance',        phase: SERVICE, group: G_ACCEPTED },
   { value: 'REASSIGNED_TO_TECHNICIAN',                      label: 'Re-Assigned to Technician',             phase: SERVICE, group: G_ACCEPTED },
   // ── Stage 2: In Process ───────────────────────────────────────────────────
   // Opens on the technician's acceptance — the handover status that closes
-  // stage 1 — and runs to the customer's verdict on the re-estimate.
+  // stage 1 — then Repair Work in Progress → Technician Issue Verified &
+  // Updated → (only when they happened) Technician Re-Estimate Requested →
+  // Service Re-Estimated – Awaiting Customer Approval → Re-Estimate Approved /
+  // Rejected by Customer → Repair Work in Progress (Resumed).
   { value: 'TECHNICIAN_ACCEPTED_SERVICE',                   label: 'Technician Accepted Service',           phase: SERVICE, group: G_PROCESS },
   { value: 'TECHNICIAN_WORK_STARTED',                       label: 'Technician Work Started',               phase: SERVICE, group: G_PROCESS },
   { value: 'TECHNICIAN_UPLOADED_DEVICE_IMAGES',             label: 'Technician Uploaded Device Images',     phase: SERVICE, group: G_PROCESS },
+  { value: 'IN_REPAIR',                                     label: 'Repair Work in Progress',               phase: SERVICE, group: G_PROCESS },
   { value: 'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',  label: 'Technician Issue Verified & Updated',   phase: SERVICE, group: G_PROCESS },
-  { value: 'RE_ESTIMATED_CONFIRMED',                        label: 'Service Re-estimated',                  phase: SERVICE, group: G_PROCESS },
-  { value: 'CUSTOMER_APPROVED',                             label: 'Customer Approved',                     phase: SERVICE, group: G_PROCESS },
+  { value: 'TECHNICIAN_REESTIMATE_REQUESTED',               label: 'Technician Re-Estimate Requested',      phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'RE_ESTIMATED_CONFIRMED',                        label: 'Service Re-Estimated – Awaiting Customer Approval', phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'RE_ESTIMATE_APPROVED',                          label: 'Re-Estimate Approved by Customer',      phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'CUSTOMER_APPROVED',                             label: 'Customer Approved',                     phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'RE_ESTIMATE_REJECTED',                          label: 'Re-Estimate Rejected by Customer',      phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'REPAIR_WORK_RESUMED',                           label: 'Repair Work in Progress (Resumed)',     phase: SERVICE, group: G_PROCESS, optional: true },
   // ── Stage 3 (left branch): Working Pending ────────────────────────────────
   // The repaired ending. QUALITY_CHECK_COMPLETED is kept even though it is not
   // called out in the stage spec — the backend emits it, and dropping the row
@@ -145,7 +176,6 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   // Spare parts are ONE row: PARTS_REQUIRED, "Spare Parts Waiting". The old
   // PARTS_REPLACED status was retired by migration 87, which also deleted its
   // history rows, so nothing renders it any more.
-  { value: 'IN_REPAIR',                                     label: 'Repair Work In Progress',               phase: SERVICE, group: G_PENDING },
   { value: 'PARTS_REQUIRED',                                label: 'Spare Parts Waiting',                   phase: SERVICE, group: G_PENDING },
   { value: 'REPAIR_COMPLETED',                              label: 'Repair Completed',                      phase: SERVICE, group: G_PENDING },
   // One quality-check row. QUALITY_CHECK_STARTED ("Quality Check Pending") was
@@ -178,9 +208,12 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
 /** Stable per-row identity — `value` is no longer unique across the branch. */
 const rowIdOf = (opt) => opt.rowId || opt.value;
 
-const LABEL_BY_KEY = Object.fromEntries(
-  SHOP_BOOKING_STATUS_OPTIONS.map((o) => [o.value, o.label]),
-);
+const LABEL_BY_KEY = {
+  ...Object.fromEntries(SHOP_BOOKING_STATUS_OPTIONS.map((o) => [o.value, o.label])),
+  // Codes with no row of their own, worded per the shared status contract.
+  TECHNICIAN_ASSIGNED: 'Technician Assigned',
+  WAITING_FOR_CUSTOMER_APPROVAL: 'Service Re-Estimated – Awaiting Customer Approval',
+};
 
 /**
  * The rail's label for one status code, or null when the code has no row.
@@ -230,9 +263,9 @@ export function stepBlockedBy(recorded, statusKey) {
   const before = MUST_FOLLOW[key];
   if (!before) return null;
   const done = new Set(Array.from(recorded || [], (e) =>
-    String((typeof e === 'string' ? e : e?.status) || '').toUpperCase()));
-  if (done.has(key) || before.some((k) => done.has(k))) return null;
-  return before.map((k) => LABEL_BY_KEY[k] || k).join(' or ');
+    canonicalKey(String((typeof e === 'string' ? e : e?.status) || '').toUpperCase())));
+  if (done.has(key) || before.some((k) => done.has(canonicalKey(k)))) return null;
+  return MUST_FOLLOW_LABEL[key] || [...new Set(before.map((k) => LABEL_BY_KEY[k] || k))].join(' or ');
 }
 
 // GGFIX palette — same values used across the rest of the booking flow.
@@ -559,10 +592,13 @@ function computeRowCompletion(allEvents, phaseFilter) {
   const events = withoutSupersededVerdicts(allEvents);
   // Index events by status key. Keep the FIRST occurrence so the displayed
   // timestamp is when that state was entered, not when it was re-emitted.
+  // Re-estimate rows show their LATEST round instead (see LATEST_WINS).
   const eventByStatus = {};
   (events || []).forEach((e) => {
-    const k = (e.status || '').toUpperCase();
-    if (!eventByStatus[k]) eventByStatus[k] = e;
+    const k = canonicalKey((e.status || '').toUpperCase());
+    const prev = eventByStatus[k];
+    if (!prev) { eventByStatus[k] = e; return; }
+    if (LATEST_WINS.has(k) && new Date(e.createdAt || 0) > new Date(prev.createdAt || 0)) eventByStatus[k] = e;
   });
 
   // Visible row set respects the optional phaseFilter prop: 'PICKUP' shows
@@ -572,7 +608,8 @@ function computeRowCompletion(allEvents, phaseFilter) {
   const visibleOptions = (phaseFilter
     ? SHOP_BOOKING_STATUS_OPTIONS.filter((o) => o.phase === phaseFilter)
     : SHOP_BOOKING_STATUS_OPTIONS
-  ).filter((o) => !MARKERS.has(o.value) || !!eventByStatus[o.value]);
+  ).filter((o) => (!MARKERS.has(o.value) && !o.optional) || !!eventByStatus[o.value])
+    .filter((o) => !(HIDDEN_BY[o.value] && eventByStatus[HIDDEN_BY[o.value]]));
 
   // Which of the two endings the booking actually took. The shared handover
   // tail (Dispatched, Invoice Generated) has a row under BOTH branches,
@@ -596,7 +633,7 @@ function computeRowCompletion(allEvents, phaseFilter) {
     if (MARKERS.has(opt.value)) return false;
     if (opt.group === G_RETURN && !returnPathActive) return false;
     if (opt.group === G_PENDING && returnPathActive) return false;
-    if (ONLY_IF_HAPPENED.has(opt.value)) return rowCompleted(opt);
+    if (ONLY_IF_HAPPENED.has(opt.value) || opt.optional) return rowCompleted(opt);
     const rival = RULED_OUT_BY[opt.value];
     return !(rival && eventByStatus[rival]);
   };
@@ -645,12 +682,12 @@ export function ServiceHistoryTimeline({ events, status, phaseFilter, visibleSta
   // lands there identically on every device, instead of following whatever order
   // the tied rows happened to come back in.
   const stepRank = (e) =>
-    SHOP_BOOKING_STATUS_OPTIONS.findIndex((o) => o.value === (e.status || '').toUpperCase());
+    SHOP_BOOKING_STATUS_OPTIONS.findIndex((o) => o.value === canonicalKey((e.status || '').toUpperCase()));
   const sortedByTime = withoutSupersededVerdicts(events).filter((e) => !MARKERS.has((e.status || '').toUpperCase())).sort((a, b) => {
     const byTime = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     return byTime !== 0 ? byTime : stepRank(b) - stepRank(a);
   });
-  const latestKey = (sortedByTime[0]?.status || '').toUpperCase();
+  const latestKey = canonicalKey((sortedByTime[0]?.status || '').toUpperCase());
   const latestMatches = visibleOptions.filter((o) => o.value === latestKey && rowCompleted(o));
   let currentRowId = latestMatches.length ? rowIdOf(latestMatches[latestMatches.length - 1]) : null;
   if (!currentRowId) {

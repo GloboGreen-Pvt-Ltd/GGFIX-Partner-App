@@ -43,7 +43,7 @@ export default function ForgotPasswordScreen({ navigation }) {
   return (
     <AuthShell onBack={goBack}>
       <Text style={s.h1}>Password assistance</Text>
-      <Text style={s.sub}>Enter the email or mobile number associated with your Near G Fix account.</Text>
+      <Text style={s.sub}>Enter the email or mobile number associated with your NearGFix account.</Text>
 
       <Text style={s.fieldLabel}>Email or mobile number</Text>
       <View style={s.fieldRow}>

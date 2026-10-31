@@ -46,7 +46,7 @@ import { selectShopId, selectUserId } from '../../store/authSlice';
 import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../utils/deviceSpecs';
-import { loadChatBuyOrders, notifyNewBuyOrders, ordersForListing } from '../../utils/buyOrders';
+import { loadChatBuyOrders, ordersForListing } from '../../utils/buyOrders';
 
 // GGFIX palette — green #035C6C, red #F84141, yellow #F3BF23, ink #111111,
 // neutrals #F3F4F6 / #F3F4F6.
@@ -457,15 +457,14 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
   }, [tab, shopId, userId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  // Customer buy orders (from chat) drive Order Placed / Buyer Details, and a
-  // new one also raises the "Order placed" notification.
+  // Customer buy orders (from chat) drive Order Placed / Buyer Details. The
+  // "Order placed" alert itself is a server push (lib/pushNotifications).
   useFocusEffect(useCallback(() => {
     if (tab !== 'Sell') return undefined;
     let alive = true;
     loadChatBuyOrders().then((orders) => {
       if (!alive) return;
       setBuyOrders(orders);
-      notifyNewBuyOrders(orders);
     });
     return () => { alive = false; };
   }, [tab]));

@@ -45,7 +45,6 @@ import { getBanners, getDeviceCategories, getModelsByBrand } from '../../api/mas
 import { resolveDeviceImageSource } from '../../utils/images';
 import { listShopRepairBookings } from '../../api/orders';
 import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
-import { loadChatBuyOrders, notifyNewBuyOrders } from '../../utils/buyOrders';
 import { READY_BAND, SCOPES, countScope, pickupsOnly } from './AllBooking/bookingScopes';
 import { getOwnerKycDocuments } from '../../api/shops';
 import { getUnreadCount as getNotifUnreadCount } from '../../api/notifications';
@@ -438,14 +437,6 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   }, [loadPickups]);
   // Silent poll so a new customer pickup bumps the Home counts live.
   useFocusPolling(loadPickups);
-
-  // A customer buy order on one of this shop's listings (arrives in chat)
-  // raises an "Order placed" notification while Home is open.
-  const checkBuyOrders = useCallback(() => {
-    loadChatBuyOrders({ unreadOnly: true }).then(notifyNewBuyOrders);
-  }, []);
-  useEffect(() => { checkBuyOrders(); }, [checkBuyOrders]);
-  useFocusPolling(checkBuyOrders, 30000);
 
   // GET /marketplace/buy/nearby via the shared helper (Buy's origin/radius/
   // exclude-own-shop rules), customer listings only, nearest first, 4 shown.

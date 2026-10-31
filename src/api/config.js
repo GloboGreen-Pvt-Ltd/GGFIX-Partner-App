@@ -96,3 +96,8 @@ export const VISUAL_SEARCH_BASE = (() => {
   return '';
 })();
 export const VISUAL_SEARCH_PATH = '/visual-search/device';
+
+// NearGFix Shop Web (Next.js site). Subscription purchase falls back here on
+// Android when in-app checkout is off (never linked on iOS — App Store rule).
+export const SHOP_WEB_ORIGIN = trimSlash((process.env.EXPO_PUBLIC_SHOP_WEB_ORIGIN || 'https://ggfix.in').trim());
+export const SHOP_WEB_SUBSCRIPTION_URL = `${SHOP_WEB_ORIGIN}/shop-home/settings/subscription`;

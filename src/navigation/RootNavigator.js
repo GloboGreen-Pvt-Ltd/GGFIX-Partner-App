@@ -19,6 +19,7 @@ import AppLockGate from '../components/AppLockGate';
 import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 import LegalConsentGate from '../legal/LegalConsentGate';
 import BootSplash from '../components/BootSplash';
+import { registerForPush, unregisterPush } from '../lib/pushNotifications';
 import colors from '../theme/colors';
 import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
 
@@ -50,9 +51,9 @@ function UnsupportedRoleScreen({ onLogout }) {
         Account not supported here
       </Text>
       <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
-        This account can&apos;t be used in the Near G Fix Partner app — it is for shop
+        This account can&apos;t be used in the NearGFix Partner app — it is for shop
         owners and shop logins only. Employees (technicians, staff and pickup
-        persons) should sign in from the Near G Fix Employee app, and admin accounts
+        persons) should sign in from the NearGFix Employee app, and admin accounts
         from the admin web dashboard.
       </Text>
       <Pressable
@@ -107,6 +108,8 @@ export default function RootNavigator() {
   }, [dispatch]);
 
   const handleLogout = async ({ silent = false } = {}) => {
+    // While the session (and so the auth header) still exists. Never throws.
+    await unregisterPush();
     try { await logout(); } catch (_) {}
     await clearSession();
     setSessionState(null);
@@ -164,6 +167,16 @@ export default function RootNavigator() {
       });
     }
   }, [sessionLoading, minTimeElapsed, showBootOverlay, bootFade]);
+
+  // Push: register this device for the signed-in shop — on every login (owner
+  // or shop) and on launch with a saved session. Waits for BootSplash to clear
+  // so a first-time permission prompt never lands on the splash. Not awaited:
+  // a failure only means no pushes, never a blocked login.
+  useEffect(() => {
+    if (showBootOverlay || !session?.accessToken || !isPartnerAccount(session)) return;
+    registerForPush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBootOverlay, session?.accessToken]);
 
   const hasLoggedDestination = useRef(false);
   useEffect(() => {

@@ -132,7 +132,7 @@ export default function IntroScreen({ navigation, onDone }) {
           <View style={styles.headerRow}>
             <Pressable onLongPress={handleDevResetLongPress} disabled={!__DEV__}>
               <Text style={styles.wordmark}>
-                GG<Text style={{ color: GREEN }}>FIX</Text>
+                NEAR G <Text style={{ color: GREEN }}>FIX</Text>
               </Text>
               <Text style={styles.wordmarkSub}>PARTNER APP</Text>
             </Pressable>
@@ -144,7 +144,7 @@ export default function IntroScreen({ navigation, onDone }) {
           </Text>
 
           <Text style={[styles.description, isTablet && { fontSize: 15, lineHeight: rf(24), marginTop: rs(18) }]}>
-            Grow your business with Near G Fix. Handle service orders, manage pickups, buy and sell devices, and serve more
+            Grow your business with NearGFix. Handle service orders, manage pickups, buy and sell devices, and serve more
             customers — faster and easier.
           </Text>
 

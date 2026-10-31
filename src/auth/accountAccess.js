@@ -1,14 +1,14 @@
-// Who may use the Near G Fix Partner app — strictly the shop owner (owner
+// Who may use the NearGFix Partner app — strictly the shop owner (owner
 // login) and the shop itself (shop-mobile login). auth-service's loginType is
 // SHOP_OWNER | SHOP_LOGIN | EMPLOYEE | SUPER_ADMIN | MARKET_PERSON
 // (AuthService.loginTypeForRole): every employee role — technician, staff,
 // pickup person — arrives as EMPLOYEE and is refused here, like the admins.
-// Employees use the Near G Fix Employee app; admins the admin web.
+// Employees use the NearGFix Employee app; admins the admin web.
 
 const ALLOWED_LOGIN_TYPES = ['SHOP_OWNER', 'SHOP_LOGIN'];
 
 export const PARTNER_ONLY_MESSAGE =
-  'Only shop owners and shop logins can use the Near G Fix Partner app. Employees should sign in from the Near G Fix Employee app.';
+  'Only shop owners and shop logins can use the NearGFix Partner app. Employees should sign in from the NearGFix Employee app.';
 
 /**
  * The loginType /auth/otp/send reports for a number (newer servers), checked on

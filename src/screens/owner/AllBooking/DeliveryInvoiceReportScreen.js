@@ -25,6 +25,7 @@ import { useImeiApplies } from '../../../utils/imeiPolicy';
 import { specDisplayParts } from '../../../utils/deviceSpecs';
 import { getModel, parseModelNumbers } from '../../../api/masterData';
 import { useResponsive } from '../../../theme/responsive';
+import { ticketComplaint } from './ReceiptCard';
 
 // "Apple iPhone 11 · A2221 (64 GB / Black)" → { name: "Apple iPhone 11", modelNumber: "A2221" }.
 function splitDisplayName(raw) {
@@ -219,7 +220,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   // Resolve shop / owner display fields. Prefer the freshly-fetched shop
   // (auth-service /shops/{id}/public) for legal info; fall back to the
   // logged-in owner's session for fields the public shop view doesn't carry.
-  const shopName    = shop?.name || ticket?.shopName || 'Near G Fix Service Center';
+  const shopName    = shop?.name || ticket?.shopName || 'NearGFix Service Center';
   const shopMobile  = shop?.mobile || owner?.phone || '';
   const shopAddress = shop?.address || ticket?.shopAddress || '';
   const shopGst     = shop?.gstNumber || invoice?.gstNo || '';
@@ -250,6 +251,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const deviceImei = showImei ? String(ticket?.imei || '').trim() : '';
   // Selected variant (RAM / storage / colour) and the customer's alternate number.
   const deviceVariant = ticket ? specDisplayParts(ticket, { withColor: true }).join(' · ') : '';
+  const deviceComplaint = ticketComplaint(ticket);
   const altPhone = String(customer?.alternatePhone || '').trim();
 
   // Per-row tax breakdown. Returns 0 GST when taxMode = WITHOUT or 0% so
@@ -400,6 +402,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       '',
       `Customer: ${customerName || '-'}`,
       deviceModel ? `Device: ${deviceModel}` : null,
+      deviceComplaint ? `Complaint: ${deviceComplaint}` : null,
       `Tracking ID: #${trackingId}`,
       '',
       ...lines,
@@ -681,6 +684,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               {deviceVariant ? <KV label="Variant" value={deviceVariant} /> : null}
               {deviceImei ? <KV label="IMEI" value={deviceImei} /> : null}
               {serialNumber ? <KV label="Serial No" value={serialNumber} /> : null}
+              {deviceComplaint ? <KV label="Complaint" value={deviceComplaint} /> : null}
             </View>
           </View>
         </Card>
@@ -1211,6 +1215,7 @@ function buildHtml({
         ${deviceLabel ? `<div class="ln d">Device&nbsp;·&nbsp;${esc(deviceLabel)}</div>` : ''}
         ${deviceVariant ? `<div class="ln d">Variant&nbsp;·&nbsp;${esc(deviceVariant)}</div>` : ''}
         ${deviceImei ? `<div class="ln d">IMEI&nbsp;·&nbsp;${esc(deviceImei)}</div>` : ''}
+        ${ticketComplaint(ticket) ? `<div class="ln d">Complaint&nbsp;·&nbsp;${esc(ticketComplaint(ticket)).replace(/\n/g, '<br>')}</div>` : ''}
       </div>
       <div>
         <div class="lbl">Issued By</div>

@@ -2,6 +2,7 @@ import { authApi } from './client';
 import { saveSession, clearSession, getSession } from '../auth/session';
 import { store } from '../store';
 import { setActiveShop } from '../store/authSlice';
+import { registerForPush } from '../lib/pushNotifications';
 
 /**
  * Unified login. The `identifier` is either email or mobile — the server tries
@@ -112,6 +113,8 @@ export async function switchShop(shopId) {
   // every `selectShopId` consumer (pickup slots, KYC, new booking, payslips…)
   // targets the newly selected shop instead of the boot-time one.
   store.dispatch(setActiveShop({ shopId: data.shopId, shopSlug: data.shopSlug }));
+  // The push token is tied to the shop on the JWT — move it to the new shop.
+  registerForPush();
   return data;
 }
 

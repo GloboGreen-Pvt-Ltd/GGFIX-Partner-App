@@ -11,12 +11,18 @@ import {
   CircleCheck,
   ReceiptText,
   Tag,
-  User,
   Phone,
   Send,
   Wallet,
   Wrench,
+  Headphones,
+  Lock,
+  Camera,
+  TriangleAlert,
+  CalendarClock,
+  MapPin,
 } from 'lucide-react-native';
+import { Avatar } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
 import SafeModal from '../../../components/SafeModal';
@@ -25,6 +31,8 @@ import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts, specRequestFields } from '../../../utils/deviceSpecs';
 import { imeiApplies } from '../../../utils/imeiPolicy';
 import { StepProgress } from './BookingSteps';
+import { withNote } from '../AllBooking/ReceiptCard';
+import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 
 // One deep green for the whole screen, matching the rest of the booking flow.
 // Explicit values rather than `text-primary`/`bg-success` classes: NativeWind
@@ -69,6 +77,31 @@ const whenLabel = (iso) => {
   return Number.isNaN(t.getTime()) ? null
     : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
 };
+
+const LOCK_LABEL = { NONE: 'None', PIN: 'PIN', PATTERN: 'Pattern', PASSWORD: 'Password', ACCOUNT: 'Account Lock' };
+const MISSING_TONE = { bg: '#FFF8E1', fg: '#8A6A00' };
+const DAMAGE_TONE = { bg: '#FEECEC', fg: '#D63232' };
+
+// One titled block of the Review & Confirm device card: icon in the same 20pt
+// column as the service badges, small caps title, hairline above.
+function ReviewBlock({ icon: Icon, title, right, children, first }) {
+  return (
+    <View style={{ marginTop: first ? 0 : 8, paddingTop: first ? 0 : 8, borderTopWidth: first ? 0 : 1, borderColor: HAIR }}>
+      <View className="flex-row items-center">
+        <View className="items-center justify-center" style={{ width: 20, marginRight: 8 }}>
+          <Icon size={14} color={ACCENT} strokeWidth={2} />
+        </View>
+        <Text className="font-extrabold" style={{ flexGrow: 1, flexShrink: 0, color: INK, fontSize: 11, letterSpacing: 0.5 }} numberOfLines={1}>{title}</Text>
+        {right != null ? (
+          typeof right === 'string'
+            ? <Text style={{ flexShrink: 1, marginLeft: 8, color: INK, fontSize: 12, fontWeight: '700', textAlign: 'right' }} numberOfLines={2}>{right}</Text>
+            : right
+        ) : null}
+      </View>
+      {children ? <View style={{ marginTop: 6, paddingLeft: 28 }}>{children}</View> : null}
+    </View>
+  );
+}
 
 function serviceSummaryFor(device) {
   return (device.services || [])
@@ -433,6 +466,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
 
   const customerName = params.customer?.name || params.customer?.fullName || 'Customer';
   const customerPhone = params.customer?.phone || params.customer?.mobile || '';
+  const customerAddress = String(params.customer?.address || '').trim();
   const deviceCount = devices.length;
 
   const r = useResponsive();
@@ -496,7 +530,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             regularCustomer / repeat-customer signal exists), so it would be
             fabricated. "Verified" is kept as-is — it was already here,
             unconditional, before this pass. ──────────────────────────── */}
-        <View className="px-4" style={{ marginTop: rs(12) }}>
+        <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(12), paddingBottom: rs(6) }, colStyle]}>
+          <Phone size={14} color={ACCENT} strokeWidth={2} />
+          <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
+            CUSTOMER DETAILS
+          </Text>
+        </View>
+        <View className="px-4">
           <View style={colStyle}>
             <View
               className="overflow-hidden"
@@ -506,11 +546,11 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
               }}
             >
               <View className="flex-row items-center">
-                <View
-                  className="items-center justify-center"
-                  style={{ height: 40, width: 40, borderRadius: 13, marginRight: 10, backgroundColor: '#FFFFFF' }}
-                >
-                  <User size={18} color={ACCENT} strokeWidth={2} />
+                <View style={{ marginRight: 10 }}>
+                  <Avatar
+                    fallback={customerName.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2)}
+                    size={40}
+                  />
                 </View>
                 <View className="flex-1">
                   <Text className="font-extrabold" style={{ color: INK, fontSize: 15 }} numberOfLines={1}>
@@ -520,6 +560,18 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                     <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
                       <Phone size={11} color={TEXT_SECONDARY} strokeWidth={2} />
                       <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: rs(4) }}>{customerPhone}</Text>
+                    </View>
+                  ) : null}
+                  {params.customer?.alternatePhone ? (
+                    <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
+                      <Phone size={11} color={TEXT_SECONDARY} strokeWidth={2} />
+                      <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={1}>Alternate: {params.customer.alternatePhone}</Text>
+                    </View>
+                  ) : null}
+                  {customerAddress ? (
+                    <View className="flex-row items-start" style={{ marginTop: rs(2) }}>
+                      <MapPin size={11} color={TEXT_SECONDARY} strokeWidth={2} style={{ marginTop: 2 }} />
+                      <Text style={{ flex: 1, fontSize: 11, color: TEXT_SECONDARY, marginLeft: rs(4) }} numberOfLines={2}>{customerAddress}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -539,7 +591,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         <View className="flex-row items-center" style={[{ paddingHorizontal: rs(16), paddingTop: rs(14), paddingBottom: rs(6) }, colStyle]}>
           <ReceiptText size={14} color={ACCENT} strokeWidth={2} />
           <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 1, marginLeft: rs(6) }}>
-            DEVICE BOOKED
+            DEVICE DETAILS
           </Text>
           <View className="flex-1" />
           <View className="rounded-full" style={{ paddingHorizontal: rs(9), paddingVertical: rs(3), backgroundColor: ACCENT_10 }}>
@@ -563,6 +615,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
               const issues = issuesOf(d);
               const serviceCount = issues.length;
               const charge = chargeOf(d);
+              const photos = bookingPhotoUrls({ devicePhotosJson: d.devicePhotos });
+              const parts = (Array.isArray(d.missingParts) ? d.missingParts : []).filter((p) => p && (p.missing || p.damage));
+              const booked = whenLabel(d.estimatedReadyIso);
+              const eta = whenLabel(d.estimatedDeliveryIso);
               return (
                 <View
                   key={idx}
@@ -596,74 +652,96 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                     </View>
                   </View>
 
-                  {/* Services list — read-only here. This screen has no
-                      add/remove-service capability of its own (services were
-                      finalized on the previous screen), so no "+ Add
-                      Service" button or delete icons are shown — adding
-                      them with no backing handler would be fake UI. */}
-                  {serviceCount > 0 ? (
-                    <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
-                      <View style={{ borderTopWidth: 1, borderColor: HAIR, marginBottom: 8 }} />
-                      {/* Icon sits in the same 20pt column as the row number
-                          badges below, so heading and service names line up. */}
-                      <View className="flex-row items-center" style={{ marginBottom: 8 }}>
-                        <View className="items-center justify-center" style={{ width: 20, marginRight: 8 }}>
-                          <Wrench size={14} color={ACCENT} strokeWidth={2} />
-                        </View>
-                        <Text className="font-extrabold" style={{ color: INK, fontSize: 11, letterSpacing: 0.5 }}>
-                          REPAIR SERVICES
-                        </Text>
-                      </View>
-                      {/* Plain rows — no inner box (card-in-card was too heavy). */}
-                      <View>
-                        {issues.map((s, i) => (
-                          <View
-                            key={i}
-                            className="flex-row items-center"
-                            style={{ marginBottom: i === serviceCount - 1 ? 0 : 7 }}
-                          >
-                            <View
-                              className="items-center justify-center"
-                              style={{ height: 20, width: 20, borderRadius: 7, marginRight: 8, backgroundColor: MINT }}
-                            >
-                              <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{i + 1}</Text>
-                            </View>
-                            <Text className="flex-1" style={{ color: INK, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                              {s.serviceName}
-                            </Text>
-                            <Text className="font-extrabold" style={{ color: INK, fontSize: 12 }}>
-                              ₹{formatINR(s.price)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
+                  {/* Review order: Device Details (head above + IMEI / serial) →
+                      Service Details → Estimated Cost → Device Security →
+                      Device Photos → Accessories → Missing / Damaged Parts →
+                      Delivery Details. Read-only — services were finalised on
+                      the previous screen, so no add / remove controls here. */}
+                  <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+                    <View style={{ borderTopWidth: 1, borderColor: HAIR, marginBottom: 8 }} />
+                    {d.imei || d.serialNumber ? (
+                      <ReviewBlock first icon={Smartphone} title={d.imei ? 'IMEI' : 'SERIAL NUMBER'} right={String(d.imei || d.serialNumber)} />
+                    ) : null}
 
+                    <ReviewBlock first={!(d.imei || d.serialNumber)} icon={Wrench} title="SERVICE DETAILS" right={serviceCount ? null : 'None'}>
+                      {serviceCount > 0 ? issues.map((s, i) => (
+                        <View key={i} className="flex-row items-center" style={{ marginBottom: i === serviceCount - 1 ? 0 : 7, marginLeft: -28 }}>
+                          <View className="items-center justify-center" style={{ height: 20, width: 20, borderRadius: 7, marginRight: 8, backgroundColor: MINT }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: PRIMARY }}>{i + 1}</Text>
+                          </View>
+                          <View className="flex-1">
+                            <Text style={{ color: INK, fontSize: 12, fontWeight: '600' }} numberOfLines={2}>
+                              {withNote(s.serviceName, s.note)}
+                            </Text>
+                            {s.warranty ? (
+                              <Text style={{ color: TEXT_SECONDARY, fontSize: 10.5, marginTop: 1 }}>Warranty: {s.warranty}</Text>
+                            ) : null}
+                          </View>
+                          <Text className="font-extrabold" style={{ color: INK, fontSize: 12 }}>₹{formatINR(s.price)}</Text>
+                        </View>
+                      )) : null}
+                    </ReviewBlock>
+
+                    <ReviewBlock
+                      icon={Tag}
+                      title="ESTIMATED COST"
+                      right={<Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>₹{formatINR(subTotal)}</Text>}
+                    >
                       {charge > 0 ? (
-                        <View className="flex-row items-center" style={{ marginTop: 7 }}>
-                          <View style={{ width: 20, marginRight: 8 }} />
-                          <Text className="flex-1" style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '600' }}>Service charge</Text>
+                        <View className="flex-row items-center">
+                          <Text className="flex-1" style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '600' }}>Service charge (included)</Text>
                           <Text className="font-extrabold" style={{ color: INK, fontSize: 12 }}>₹{formatINR(charge)}</Text>
                         </View>
                       ) : null}
+                    </ReviewBlock>
 
-                      {/* Estimated repair amount — a divided row, not a strip */}
-                      <View
-                        className="flex-row items-center"
-                        style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: HAIR }}
-                      >
-                        {/* Same 20pt icon column as the heading and row badges. */}
-                        <View className="items-center justify-center" style={{ width: 20, marginRight: 8 }}>
-                          <Tag size={14} color={ACCENT} strokeWidth={2} />
-                        </View>
-                        <Text className="flex-1 font-extrabold" style={{ color: INK, fontSize: 12 }}>
-                          Estimated repair amount
-                        </Text>
-                        <Text className="font-extrabold" style={{ fontSize: 13, color: PRIMARY }}>
-                          ₹{formatINR(subTotal)}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : null}
+                    <ReviewBlock
+                      icon={Lock}
+                      title="DEVICE SECURITY"
+                      right={d.lock?.type && d.lock.type !== 'NONE' ? `${LOCK_LABEL[d.lock.type] || d.lock.type} · Saved` : 'None'}
+                    />
+
+                    <ReviewBlock icon={Camera} title="DEVICE PHOTOS" right={photos.length ? `${photos.length} Photo${photos.length === 1 ? '' : 's'}` : 'None'}>
+                      {photos.length ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                          {photos.map((uri) => (
+                            <Image key={uri} source={{ uri }} style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: MINT }} resizeMode="cover" />
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                    </ReviewBlock>
+
+                    {/* Accessories handed over — "None" when nothing was given. */}
+                    <ReviewBlock icon={Headphones} title="ACCESSORIES" right={d.accessories || 'None'} />
+
+                    <ReviewBlock icon={TriangleAlert} title="MISSING / DAMAGED PARTS" right={parts.length ? null : 'None Reported'}>
+                      {parts.length ? parts.map((p, i) => {
+                        const tone = p.damage ? DAMAGE_TONE : MISSING_TONE;
+                        return (
+                          <View key={p.partId || i} style={{ marginTop: i ? 6 : 0 }}>
+                            <View className="flex-row items-center">
+                              <Text className="flex-1" style={{ color: INK, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{p.partName || p.partId}</Text>
+                              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: tone.bg }}>
+                                <Text style={{ fontSize: 10.5, fontWeight: '800', color: tone.fg }}>{p.damage ? 'Damaged' : 'Missing'}</Text>
+                              </View>
+                            </View>
+                            {p.detail ? (
+                              <Text style={{ color: TEXT_SECONDARY, fontSize: 11, marginTop: 1 }} numberOfLines={2}>Remarks: {p.detail}</Text>
+                            ) : null}
+                          </View>
+                        );
+                      }) : null}
+                    </ReviewBlock>
+
+                    <ReviewBlock icon={CalendarClock} title="DELIVERY DETAILS" right={booked || eta ? null : 'Not Set'}>
+                      {booked ? (
+                        <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>Booking Time: <Text style={{ color: INK, fontWeight: '700' }}>{booked}</Text></Text>
+                      ) : null}
+                      {eta ? (
+                        <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: rs(2) }}>Estimated Delivery: <Text style={{ color: INK, fontWeight: '700' }}>{eta}</Text></Text>
+                      ) : null}
+                    </ReviewBlock>
+                  </View>
                 </View>
               );
             })}
@@ -706,30 +784,9 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                     shadowColor: INK, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
                   }}
                 >
-                  {/* Customer contact */}
-                  {customerPhone || params.customer?.alternatePhone ? (
-                    <View style={{ marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderColor: HAIR }}>
-                      {customerPhone ? (
-                        <View className="flex-row items-center">
-                          <Phone size={12} color={ACCENT} strokeWidth={2} />
-                          <Text style={{ flex: 1, marginLeft: 6, fontSize: 12, color: TEXT_SECONDARY }}>Mobile</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: INK }}>{customerPhone}</Text>
-                        </View>
-                      ) : null}
-                      {params.customer?.alternatePhone ? (
-                        <View className="flex-row items-center" style={{ marginTop: 4 }}>
-                          <Phone size={12} color={ACCENT} strokeWidth={2} />
-                          <Text style={{ flex: 1, marginLeft: 6, fontSize: 12, color: TEXT_SECONDARY }}>Alternate Mobile</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: INK }}>{params.customer.alternatePhone}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : null}
                   {devices.map((d, i) => {
                     const issues = issuesOf(d);
                     const charge = chargeOf(d);
-                    const booked = whenLabel(d.estimatedReadyIso);
-                    const eta = whenLabel(d.estimatedDeliveryIso);
                     return (
                       <View key={i} style={{ marginBottom: 8 }}>
                         <View className="flex-row items-center">
@@ -743,7 +800,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                         {/* Issues only — the service charge is its own line. */}
                         {issues.map((s, j) => (
                           <View key={j} className="flex-row items-center" style={{ marginTop: rs(2) }}>
-                            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }} numberOfLines={1}>• {s.serviceName}</Text>
+                            <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }} numberOfLines={2}>• {withNote(s.serviceName, s.note)}</Text>
                             <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>₹{formatINR(s.price)}</Text>
                           </View>
                         ))}
@@ -751,12 +808,6 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
                           <View className="flex-row items-center" style={{ marginTop: rs(2) }}>
                             <Text className="flex-1" style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>• Service charge</Text>
                             <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY }}>₹{formatINR(charge)}</Text>
-                          </View>
-                        ) : null}
-                        {booked || eta ? (
-                          <View style={{ marginTop: rs(4) }}>
-                            {booked ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY }}>Booking Time: <Text style={{ color: INK, fontWeight: '700' }}>{booked}</Text></Text> : null}
-                            {eta ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }}>Estimated Time: <Text style={{ color: INK, fontWeight: '700' }}>{eta}</Text></Text> : null}
                           </View>
                         ) : null}
                       </View>

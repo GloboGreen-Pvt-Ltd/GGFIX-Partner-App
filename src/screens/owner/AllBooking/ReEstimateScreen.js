@@ -3,13 +3,15 @@ import { ActivityIndicator, Image, Pressable, StatusBar, Text, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Camera, CircleCheck, Circle, Clock, ImagePlus, X } from 'lucide-react-native';
+import { ArrowLeft, Camera, CircleCheck, Circle, Clock, ImagePlus, Wrench, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand, uploadMedia } from '../../../api/masterData';
 import { confirm, notify } from '../../../components/confirm';
+import ImageViewerModal from '../../../components/ImageViewerModal';
 import { useResponsive } from '../../../theme/responsive';
 import RepairIssuesPicker, { SERVICE_CHARGE_CODE } from '../service-booking-shop/RepairIssuesPicker';
 import { estimatedTotalOf, priceItemsFromTicket } from './ReceiptCard';
+import { ticketStatusLabel } from './TicketDetailScreen';
 
 const ACCENT = '#035C6C';
 const MINT = '#E5F3F5';
@@ -44,9 +46,16 @@ const fmtDateTime = (d) => {
  * the status moves only through the backend's own re-estimate rules.
  * Booking details (Edit), existing prices (Price Revised) and the technician
  * are not touched here.
+ *
+ * Opened with `requestId` (and optionally the `request` itself) it answers a
+ * technician's re-estimate request: the request is shown on top, its issue
+ * arrives as a new item with the proposed amount, and the POST carries
+ * `requestId` so the server links and converts that request.
  */
 export default function ReEstimateScreen({ navigation, route }) {
   const ticketId = route?.params?.ticketId;
+  const requestId = route?.params?.requestId || null;
+  const requestParam = route?.params?.request || null;
   const insets = useSafeAreaInsets();
   const r = useResponsive();
   const col = r.isTablet ? { width: '100%', maxWidth: 760, alignSelf: 'center' } : null;
@@ -65,12 +74,31 @@ export default function ReEstimateScreen({ navigation, route }) {
   const sendingRef = useRef(false);
   // The "what's missing" line shows only after Submit is tapped, not on arrival.
   const [tried, setTried] = useState(false);
+  // The technician request being answered (REQUESTED revision), when any.
+  const [request, setRequest] = useState(null);
+  const [requestLost, setRequestLost] = useState(false);
+  const [viewer, setViewer] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const t = await ticketApi.get(`/tickets/${ticketId}`);
+      // Resolve the request BEFORE the form mounts — the issues picker seeds
+      // from it once. Fresh from the server when possible; the copy handed
+      // over by Booking Details is the fallback.
+      if (requestId) {
+        let req = t?.activeReEstimate?.id === requestId ? t.activeReEstimate : null;
+        if (!req) {
+          try {
+            const list = await ticketApi.get(`/tickets/${ticketId}/re-estimates`);
+            req = (Array.isArray(list) ? list : []).find((x) => x?.id === requestId) || null;
+          } catch { req = requestParam?.id === requestId ? requestParam : null; }
+        }
+        const open = req && String(req.status || 'REQUESTED').toUpperCase() === 'REQUESTED';
+        setRequest(open ? req : null);
+        setRequestLost(!open);
+      }
       setTicket(t);
       if (t.brandId && t.modelId) {
         try {
@@ -84,8 +112,23 @@ export default function ReEstimateScreen({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  }, [ticketId]);
+  }, [ticketId, requestId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
+
+  // The request's issue as a new (custom) item, priced at the proposed amount.
+  const requestSeed = useMemo(() => {
+    if (!request) return [];
+    const issue = String(request.additionalIssue || '').trim() || 'Additional work (technician request)';
+    const amount = Number(request.proposedAmount);
+    return [{
+      serviceId: null,
+      serviceCode: 'OTHER',
+      serviceName: issue,
+      price: Number.isFinite(amount) && amount > 0 ? amount : 0,
+      note: String(request.reason || '').trim(),
+    }];
+  }, [request]);
+  const requestPhotos = (Array.isArray(request?.requestImages) ? request.requestImages : []).filter((u) => typeof u === 'string' && u.trim());
 
   const original = useMemo(() => priceItemsFromTicket(ticket), [ticket]);
   const originalTotal = ticket ? estimatedTotalOf(ticket, original) : 0;
@@ -151,6 +194,8 @@ export default function ReEstimateScreen({ navigation, route }) {
           imagesJson: photos.length ? JSON.stringify(photos) : null,
           estimatedDeliveryAt: proposedDelivery ? proposedDelivery.toISOString() : null,
           customerApproved: approvedNow,
+          // Links + converts the technician's request (REQUESTED → AWAITING_APPROVAL).
+          ...(request?.id ? { requestId: request.id } : {}),
         },
       });
       notify('Re-estimate submitted', approvedNow ? 'Revised estimate approved by the customer.' : 'Waiting for customer approval.', { preset: 'done' });
@@ -159,7 +204,9 @@ export default function ReEstimateScreen({ navigation, route }) {
       const status = e?.status;
       notify('Could not submit', status === 404
         ? 'Re-estimate needs the latest app server. Please update the server.'
-        : (e?.message || 'Try again.'), { preset: 'error' });
+        : status === 409
+          ? (e?.message || 'Another re-estimate is already waiting for the customer\'s decision.')
+          : (e?.message || 'Try again.'), { preset: 'error' });
     } finally {
       sendingRef.current = false;
       setSaving(false);
@@ -187,7 +234,7 @@ export default function ReEstimateScreen({ navigation, route }) {
   }
 
   const deviceName = String(ticket.deviceDisplayName || ticket.modelName || 'Device').split(' (')[0].split(' · ')[0];
-  const statusText = String(ticket.status || '').replace(/_/g, ' ');
+  const statusText = ticket.status ? ticketStatusLabel(ticket.status) : '';
 
   return (
     <View style={{ flex: 1, backgroundColor: PAGE }}>
@@ -212,8 +259,37 @@ export default function ReEstimateScreen({ navigation, route }) {
 
       <KeyboardAwareScrollView bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}>
         <View style={col}>
+          {/* Technician's request being answered */}
+          {request ? (
+            <>
+              <Title text="Technician Re-Estimate Request" />
+              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: '#F6D58E', backgroundColor: '#FFFBEB', padding: 12 }}>
+                <ReqRow label="Technician" value={request.technicianName || ticket.assignedTechnicianName || '—'} />
+                <ReqRow label="Requested" value={fmtDateTime(request.requestedAt)} />
+                <ReqRow label="Issue" value={request.additionalIssue || '—'} />
+                <ReqRow label="Reason" value={request.reason || '—'} />
+                <ReqRow label="Proposed" value={request.proposedAmount != null && request.proposedAmount !== '' ? inr(request.proposedAmount) : 'Not Given'} />
+                {request.technicianNotes ? <ReqRow label="Notes" value={request.technicianNotes} /> : null}
+                {requestPhotos.length ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {requestPhotos.map((u, i) => (
+                      <Pressable key={`${u}-${i}`} onPress={() => setViewer(i)} accessibilityRole="imagebutton" accessibilityLabel={`Request photo ${i + 1}`} style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', backgroundColor: PAGE }}>
+                        <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            </>
+          ) : requestLost ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, backgroundColor: '#FFF4DB', padding: 10, marginTop: 12 }}>
+              <Wrench size={14} color={AMBER} />
+              <Text style={{ flex: 1, marginLeft: 8, fontSize: 12, color: AMBER, fontWeight: '700' }}>The technician's request is no longer open — this is a new re-estimate.</Text>
+            </View>
+          ) : null}
+
           {/* Original estimate — read-only */}
-          <Title text="Original Estimate" hint="(read-only)" />
+          <Title text="Original Estimated Cost" hint="(read-only)" />
           <Card>
             {original.length ? original.map((i, n) => (
               <View key={`${i.id || i.label}-${n}`} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5 }}>
@@ -222,7 +298,7 @@ export default function ReEstimateScreen({ navigation, route }) {
               </View>
             )) : <Text style={{ fontSize: 12.5, color: MUTED }}>No services recorded.</Text>}
             <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: LINE, marginTop: 6, paddingTop: 8 }}>
-              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: INK }}>Current Total</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: INK }}>Original Estimated Cost</Text>
               <Text style={{ fontSize: 14, fontWeight: '800', color: ACCENT }}>{inr(originalTotal)}</Text>
             </View>
           </Card>
@@ -230,7 +306,7 @@ export default function ReEstimateScreen({ navigation, route }) {
           {/* Additional issues (new only) */}
           <Title text="Additional Issues" required />
           <Card>
-            <RepairIssuesPicker categoryId={categoryId} initialServices={[]} onChange={setAdded} isTablet={r.isTablet} excludeIds={originalIds} withNotes chargePerService />
+            <RepairIssuesPicker key={request?.id || 'new'} categoryId={categoryId} initialServices={requestSeed} onChange={setAdded} isTablet={r.isTablet} excludeIds={originalIds} withNotes chargePerService />
           </Card>
 
           {/* Supporting photos */}
@@ -285,7 +361,7 @@ export default function ReEstimateScreen({ navigation, route }) {
           {/* Revised summary */}
           <Title text="Revised Summary" />
           <Card>
-            <SumRow label="Current Estimate" value={inr(originalTotal)} />
+            <SumRow label="Original Estimated Cost" value={inr(originalTotal)} />
             <SumRow label="Additional Amount" value={added.length ? (unpriced.length ? 'Not Estimated' : `+ ${inr(extra)}`) : '—'} color={AMBER} />
             <View style={{ height: 1, backgroundColor: LINE, marginVertical: 6 }} />
             <SumRow label="Revised Total" value={inr(revisedTotal)} bold />
@@ -328,6 +404,21 @@ export default function ReEstimateScreen({ navigation, route }) {
           </View>
         </View>
       </KeyboardStickyView>
+      <ImageViewerModal
+        visible={viewer != null}
+        images={requestPhotos.map((uri, i) => ({ uri, label: `Photo ${i + 1}` }))}
+        index={viewer || 0}
+        onClose={() => setViewer(null)}
+      />
+    </View>
+  );
+}
+
+function ReqRow({ label, value }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 3 }}>
+      <Text style={{ width: 84, fontSize: 12, color: MUTED }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: INK }}>{value}</Text>
     </View>
   );
 }

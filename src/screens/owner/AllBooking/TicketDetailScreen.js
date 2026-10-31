@@ -46,6 +46,11 @@ import {
   Truck,
   CircleX,
   ThumbsDown,
+  Mail,
+  IdCard,
+  Headphones,
+  ThumbsUp,
+  Ban,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
@@ -62,7 +67,8 @@ import { RescheduleSheet, ShareReceiptSheet } from './BookingActionSheets';
 import ImageViewerModal from '../../../components/ImageViewerModal';
 import WhatsAppIcon from '../../../components/WhatsAppIcon';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
-import { stepBlockedBy } from '../../common/serviceHistoryPhases';
+import { labelForStatus, stepBlockedBy, withoutSupersededVerdicts } from '../../common/serviceHistoryPhases';
+import ImeiVerifyModal from '../../../components/ImeiVerifyModal';
 import { lockTypesFor, resolveSpecCategory, specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
 import DeviceSecurityLockSheet from '../service-booking-shop/DeviceSecurityLockSheet';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
@@ -87,7 +93,7 @@ const OWNER_PROGRESS_ROWS = [
 // Status → tone + label. Same tone vocabulary the list screen uses so the
 // pill rendered here matches the row in BookingHistory.
 const STATUS_VARIANT = {
-  CREATED:              { label: 'Service Accepted',     tone: 'amber' },
+  CREATED:              { label: 'Order Placed',         tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
   IN_DIAGNOSIS:         { label: 'In Diagnosis',         tone: 'purple' },
   IN_REPAIR:            { label: 'In Service',           tone: 'purple' },
@@ -97,10 +103,18 @@ const STATUS_VARIANT = {
   RETURN_DELIVERY:      { label: 'Return Delivery',                   tone: 'amber' },
   INVOICE_GENERATED:    { label: 'Billing & Delivery Invoice Generated', tone: 'amber' },
   INVOICE_READY:        { label: 'Invoice Sent',                      tone: 'amber' },
-  DELIVERED_PROCESSING: { label: 'Dispatched',               tone: 'amber' },
+  DELIVERED_PROCESSING: { label: 'Out of Delivery',          tone: 'amber' },
   DELIVERED:            { label: 'Delivered',                         tone: 'green' },
   CANCELLED:            { label: 'Cancelled',                         tone: 'red' },
 };
+
+/** Display label for a ticket status (CREATED → "Order Placed"). */
+export function ticketStatusLabel(status) {
+  const key = String(status || '').toUpperCase();
+  if (!key) return '—';
+  return STATUS_VARIANT[key]?.label || labelForStatus(key)
+    || key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const TONE = {
   amber:  { bg: 'rgba(245, 158, 11, 0.12)', fg: '#B45309',        border: 'rgba(245, 158, 11, 0.35)' },
@@ -185,13 +199,15 @@ const STATUS_OPTION = {
   QUALITY_CHECK: { title: 'Quality Check Completed', sub: 'Repair checked and passed by the shop', Icon: ShieldCheck, tone: '#609138' },
   READY: { title: 'Ready for Delivery', sub: 'Ready to hand over to the customer', Icon: PackageCheck, tone: '#E08E00' },
   INVOICE_GENERATED: { title: 'Invoice Generated', sub: 'Create the invoice for this booking', Icon: FileText, tone: '#357D89' },
-  DELIVERED_PROCESSING: { title: 'Dispatched', sub: 'Device dispatched to the customer', Icon: Truck, tone: '#1C3053' },
+  DELIVERED_PROCESSING: { title: 'Out of Delivery', sub: 'Device out for delivery to the customer', Icon: Truck, tone: '#1C3053' },
   DELIVERED: { title: 'Delivered', sub: 'Mark as delivered to the customer', Icon: CheckCircle2, tone: '#0788C9' },
   CUSTOMER_REJECTED: { title: 'Customer Rejected', sub: 'Customer declined the repair / estimate', Icon: ThumbsDown, tone: '#E08E00' },
   CANCELLED: { title: 'Cancelled / Closed', sub: 'Close this booking (when applicable)', Icon: CircleX, tone: '#F32C26' },
 };
 // Blocker marker: the re-estimate still needs the customer's approval.
 const AWAIT_APPROVAL = '__AWAIT_APPROVAL__';
+// Blocker marker: a technician re-estimate request is still open.
+const REQUEST_PENDING = '__REQUEST_PENDING__';
 // Sheet options recorded as a Service History step (progress event), not a
 // direct status change — the backend moves ticket.status from the step.
 const STEP_OPTION_KEY = {
@@ -357,25 +373,44 @@ export default function TicketDetailScreen({ route, navigation }) {
   // "Ready for Delivery". If it's missing we pop a type-or-scan sheet, PATCH the
   // IMEI onto the ticket, then continue the progress submission.
   const [imeiModalOpen, setImeiModalOpen] = useState(false);
-  const [imeiInput, setImeiInput] = useState('');
-  const [imeiSaving, setImeiSaving] = useState(false);
+  const [imeiInput, setImeiInput] = useState(''); // value the popup opens with
+  // Raw events (with timestamps) — the Customer Rejected rule needs to know
+  // which verdicts a later re-estimate superseded.
+  const [recordedEvents, setRecordedEvents] = useState([]);
+  // Re-estimate workflow: { mode: 'APPROVED' | 'REJECTED' | 'DISMISS', rev }.
+  const [reAction, setReAction] = useState(null);
+  const [reReason, setReReason] = useState('');
+  const [reBusy, setReBusy] = useState(false);
+  const [rePhotos, setRePhotos] = useState(null); // { images, index } for the viewer
   // Alternate customer mobile — read from the customer row, added/edited here.
   const [altPhone, setAltPhone] = useState('');
   const [altOpen, setAltOpen] = useState(false);
   const [altInput, setAltInput] = useState('');
   const [altSaving, setAltSaving] = useState(false);
   const ticketPhone = ticket?.customerPhone || '';
+  // Email / ID proof / saved address live on the customer record.
+  const [custInfo, setCustInfo] = useState({ email: '', idProofUrl: '', address: '' });
+  const [idProofOpen, setIdProofOpen] = useState(false);
   useEffect(() => {
     const seeded = ticket?.customerAlternatePhone || ticket?.alternatePhone || '';
     setAltPhone(seeded);
+    setCustInfo({ email: '', idProofUrl: '', address: '' });
     const digits = String(ticketPhone).replace(/\D/g, '').slice(-10);
-    if (seeded || digits.length !== 10) return undefined;
+    if (digits.length !== 10) return undefined;
     let cancelled = false;
     ticketApi.get('/customers/lookup', { query: { mobile: digits } })
-      .then((c) => { if (!cancelled && c?.alternatePhone) setAltPhone(c.alternatePhone); })
+      .then((c) => {
+        if (cancelled || !c) return;
+        if (!seeded && c.alternatePhone) setAltPhone(c.alternatePhone);
+        setCustInfo({
+          email: c.email || '',
+          idProofUrl: c.idProofUrl || '',
+          address: [c.addressLine, c.area || c.locality, c.taluk, c.district || c.city, c.pincode].filter(Boolean).join(', ') || c.address || '',
+        });
+      })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [ticketPhone, ticket?.customerAlternatePhone, ticket?.alternatePhone]);
+  }, [ticketPhone, ticket?.customerAlternatePhone, ticket?.alternatePhone, ticket?.updatedAt]);
   const saveAltPhone = async () => {
     const alt = altInput.replace(/\D/g, '');
     const main = String(ticketPhone).replace(/\D/g, '').slice(-10);
@@ -403,6 +438,7 @@ export default function TicketDetailScreen({ route, navigation }) {
     try {
       const rows = await ticketApi.get(`/tickets/${ticketId}/events`);
       const out = {};
+      setRecordedEvents(Array.isArray(rows) ? rows : []);
       setRecordedKeys((Array.isArray(rows) ? rows : []).map((e) => String(e.status || '').toUpperCase()));
       setReEstimateEvent((Array.isArray(rows) ? rows : [])
         .filter((e) => String(e?.status || '').toUpperCase() === 'RE_ESTIMATED_CONFIRMED')
@@ -525,10 +561,11 @@ export default function TicketDetailScreen({ route, navigation }) {
   // Opens the same sheet from the Service Info card, just to add/fix the IMEI
   // (no progress step to continue afterwards).
   const openImeiEntry = useCallback(() => {
+    if (!showImei) return; // mobile phones only
     pendingReadyRow.current = null;
     setImeiInput(String(ticket?.imei || ''));
     setImeiModalOpen(true);
-  }, [ticket]);
+  }, [ticket, showImei]);
 
   // Device Details' "+ Add IMEI" arrives here with ?autoImei=true rather than
   // duplicating the capture sheet on that (deliberately read-only) screen —
@@ -542,27 +579,58 @@ export default function TicketDetailScreen({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket, route?.params?.autoImei]);
 
-  const saveImeiAndContinue = useCallback(async () => {
-    const imei = normaliseImei(imeiInput);
-    if (!imei) {
-      notify('Enter a valid IMEI', 'IMEI must be 14–17 digits. Dial *#06# on the device to see it.', { preset: 'error' });
+  // Called by the IMEI popup once the number passed 15 digits + Luhn and the
+  // availability check; errors (409 IMEI_ALREADY_USED included) go back to it.
+  const saveImei = useCallback(async (imei) => {
+    await ticketApi.patch(`/tickets/${ticketId}`, { body: { imei } });
+    setTicket((prev) => (prev ? { ...prev, imei } : prev));
+    setImeiModalOpen(false);
+    const row = pendingReadyRow.current;
+    pendingReadyRow.current = null;
+    if (row) await submitProgress(row); // continue the Ready-for-Delivery record
+    else notify('IMEI verified', 'IMEI added to this booking.', { preset: 'done' });
+  }, [ticketId, submitProgress]);
+
+  // ── Re-estimate workflow (technician request → partner re-estimate →
+  // customer decision). All three POSTs refresh the ticket and its history.
+  const submitReAction = useCallback(async () => {
+    if (!reAction?.rev?.id || reBusy) return;
+    const { mode, rev } = reAction;
+    const reason = reReason.trim();
+    if (mode === 'DISMISS' && reason.length < 3) {
+      notify('Reason needed', 'Enter why the request is dismissed (at least 3 characters).');
       return;
     }
-    setImeiSaving(true);
+    setReBusy(true);
     try {
-      await ticketApi.patch(`/tickets/${ticketId}`, { body: { imei } });
-      setTicket((prev) => (prev ? { ...prev, imei } : prev));
-      setImeiModalOpen(false);
-      const row = pendingReadyRow.current;
-      pendingReadyRow.current = null;
-      if (row) await submitProgress(row); // continue the Ready-for-Delivery record
-      else notify('Saved', 'IMEI added to this booking.', { preset: 'done' });
+      if (mode === 'DISMISS') {
+        await ticketApi.post(`/tickets/${ticketId}/re-estimate-requests/${rev.id}/dismiss`, { body: { reason } });
+        notify('Request dismissed', 'The technician can carry on with the repair.', { preset: 'done' });
+      } else {
+        await ticketApi.post(`/tickets/${ticketId}/re-estimates/${rev.id}/decision`, {
+          body: { decision: mode, reason: reason || null },
+        });
+        notify(mode === 'APPROVED' ? 'Re-Estimate Approved by Customer' : 'Re-Estimate Rejected by Customer',
+          mode === 'APPROVED' ? 'The revised estimate is now on the booking.' : 'The original estimate is kept.', { preset: 'done' });
+      }
+      setReAction(null);
     } catch (e) {
-      notify('Save failed', e?.message || 'Could not save the IMEI. Try again.', { preset: 'error', haptic: 'error' });
+      const code = e?.payload?.code;
+      if (e?.status === 409 || code === 'INVALID_TRANSITION') {
+        setReAction(null);
+        notify('Already updated', e?.message || 'This re-estimate was already decided. Showing the latest.', { preset: 'error' });
+      } else {
+        notify('Could not save', e?.status === 404
+          ? 'This needs the latest app server. Please update the server.'
+          : (e?.message || 'Try again.'), { preset: 'error', haptic: 'error' });
+      }
     } finally {
-      setImeiSaving(false);
+      setReBusy(false);
+      load();
+      refreshProgress();
     }
-  }, [imeiInput, ticketId, submitProgress]);
+  }, [reAction, reReason, reBusy, ticketId, load, refreshProgress]);
+
 
   if (loading && !ticket) {
     return (
@@ -632,13 +700,23 @@ export default function TicketDetailScreen({ route, navigation }) {
   };
   const customerName = ticket.customerName || '—';
   const phone = ticket.customerPhone || '';
-  const address = ticket.customerAddress || '';
+  const address = ticket.customerAddress || custInfo.address || '';
 
   const lineItems = priceItemsFromTicket(ticket);
   const estimatedTotal = ticket.estimatedPrice != null
     ? ticket.estimatedPrice
     : lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
   const payment = paymentFromTicket(ticket, estimatedTotal);
+  // Accessories handed over at booking ("Charger, Back cover").
+  const accessoryList = String(ticket.accessories || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+  // Warranty per service (price item `warranty`, e.g. "3 Months"); it runs from
+  // the delivery date, so before delivery it only "starts on delivery".
+  const deliveredAt = ticket.deliveredAt
+    || recordedEvents.find((e) => String(e?.status || '').toUpperCase() === 'DELIVERED')?.createdAt || null;
+  const warrantyRows = lineItems
+    .map((i) => ({ label: i.label || i.serviceName, text: String(i.warranty || '').trim() }))
+    .filter((w) => w.label && /\d/.test(w.text) && parseInt(w.text.match(/\d+/)[0], 10) > 0)
+    .map((w) => ({ ...w, until: deliveredAt ? warrantyEnd(deliveredAt, w.text) : null }));
 
   const statusKey = String(ticket.status || '').toUpperCase();
   // Delivered: no Assign / Update Status; the bottom bar offers Re-Service.
@@ -646,13 +724,22 @@ export default function TicketDetailScreen({ route, navigation }) {
   // Complaint without the old "IMEI not provided: …" line the booking flow used to append.
   const complaintText = String(ticket.issueDescription || '').replace(/^\s*IMEI not provided:.*$/gim, '').trim();
   const securityText = formatSecurity(ticket.deviceSecurityType, ticket.deviceSecurityValue);
-  const statusMeta = STATUS_VARIANT[statusKey] || { label: ticket.status || 'Pending', tone: 'amber' };
+  // Re-estimate workflow (GET /tickets/{id}: activeReEstimate = REQUESTED /
+  // AWAITING_APPROVAL, latestReEstimate = most recent of any status).
+  const activeRe = ticket.activeReEstimate && ['REQUESTED', 'AWAITING_APPROVAL'].includes(String(ticket.activeReEstimate.status || '').toUpperCase())
+    ? ticket.activeReEstimate : null;
+  const activeReStatus = String(activeRe?.status || '').toUpperCase();
+  const latestRe = ticket.latestReEstimate || null;
+  const baseStatusMeta = STATUS_VARIANT[statusKey] || { label: ticketStatusLabel(ticket.status) || 'Pending', tone: 'amber' };
+  const statusMeta = activeReStatus === 'AWAITING_APPROVAL'
+    ? { label: 'Service Re-Estimated – Awaiting Customer Approval', tone: 'amber' }
+    : baseStatusMeta;
   const statusTone = TONE[statusMeta.tone] || TONE.amber;
   const StatusIcon = statusKey === 'CANCELLED' ? AlertCircle : CheckCircle2;
   const statusIdx = LIFECYCLE_ORDER.indexOf(statusKey);
   const hasTechnician = !!ticket.assignedTechnicianId;
   const techAccepted = hasTechnician && ACCEPTED_STATUSES.has(statusKey);
-  const techName = technician?.name || (hasTechnician ? 'Assigned Technician' : null);
+  const techName = technician?.name || ticket.assignedTechnicianName || (hasTechnician ? 'Assigned Technician' : null);
   const techCode = technician?.code
     || (technician?.id ? String(technician.id).slice(0, 8).toUpperCase() : null);
 
@@ -682,10 +769,16 @@ export default function TicketDetailScreen({ route, navigation }) {
         break;
       // Re-Est = ADDITIONAL issues + charges only, on its own screen (original
       // prices read-only; status moves through the server's re-estimate rules).
-      case 'reestimate':
-        if (autoMode) navigation.replace('ReEstimate', { ticketId: ticket.id });
-        else navigation.navigate('ReEstimate', { ticketId: ticket.id });
+      case 'reestimate': {
+        if (activeReStatus === 'AWAITING_APPROVAL') {
+          notify('Re-estimate pending', 'A re-estimate is already waiting for the customer\'s decision. Record it first.');
+          break;
+        }
+        const reParams = { ticketId: ticket.id, ...(activeReStatus === 'REQUESTED' ? { requestId: activeRe.id, request: activeRe } : {}) };
+        if (autoMode) navigation.replace('ReEstimate', reParams);
+        else navigation.navigate('ReEstimate', reParams);
         break;
+      }
       // Price Revised = change / cancel EXISTING services only, on its own screen
       // (no new services, no status change).
       case 'editestimate':
@@ -871,6 +964,26 @@ export default function TicketDetailScreen({ route, navigation }) {
           </View>
         </View>
 
+        {/* ── Service Progress — the re-estimate workflow while one is open,
+            then the customer's latest decision. ── */}
+        {activeRe || ['APPROVED', 'REJECTED'].includes(String(latestRe?.status || '').toUpperCase()) ? (
+          <>
+            <SectionHeader icon={ListChecks} label="SERVICE PROGRESS" />
+            <View className="px-4">
+              <ReEstimateCard
+                rev={activeRe || latestRe}
+                ticket={ticket}
+                inRepair={statusKey === 'IN_REPAIR'}
+                busy={reBusy}
+                onReEstimate={() => navigation.navigate('ReEstimate', { ticketId: ticket.id, requestId: activeRe.id, request: activeRe })}
+                onDismiss={() => { setReReason(''); setReAction({ mode: 'DISMISS', rev: activeRe }); }}
+                onDecide={(mode) => { setReReason(''); setReAction({ mode, rev: activeRe }); }}
+                onPhotos={(images, index) => setRePhotos({ images, index })}
+              />
+            </View>
+          </>
+        ) : null}
+
         {/* ── Customer ────────────────────────────────────────── */}
         {(customerName || phone || address) ? (
           <>
@@ -950,7 +1063,22 @@ export default function TicketDetailScreen({ route, navigation }) {
                     ) : null}
                   </View>
                 ) : null}
-                {address ? <DetailRow icon={MapPin} label="Address" value={address} /> : null}
+                <DetailRow icon={Mail} label="Email" value={custInfo.email || 'None'} />
+                <DetailRow icon={MapPin} label="Address" value={address || 'None'} full={!!address} />
+                <View className="flex-row items-center py-1.5">
+                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
+                    <IdCard size={14} color={ACCENT_GREEN} />
+                  </View>
+                  <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>ID Proof</Text>
+                  {custInfo.idProofUrl ? (
+                    <Pressable onPress={() => setIdProofOpen(true)} className="flex-row items-center flex-1 active:opacity-70" accessibilityRole="imagebutton" accessibilityLabel="View ID proof">
+                      <Image source={{ uri: custInfo.idProofUrl }} style={{ width: 28, height: 28, borderRadius: 6 }} resizeMode="cover" />
+                      <Text className="text-[13px] font-bold ml-2" style={{ color: ACCENT_GREEN }}>View</Text>
+                    </Pressable>
+                  ) : (
+                    <Text className="text-[13px] text-text font-bold flex-1">None</Text>
+                  )}
+                </View>
               </View>
             </View>
           </>
@@ -995,6 +1123,46 @@ export default function TicketDetailScreen({ route, navigation }) {
             </View>
           </>
         ) : null}
+
+        {/* ── Accessories received with the device ── */}
+        <SectionHeader icon={Headphones} label="ACCESSORIES" />
+        <View className="px-4">
+          <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+            {accessoryList.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {accessoryList.map((a, i) => (
+                  <View key={`${a}-${i}`} style={{ maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E5F3F5' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND_GREEN_DARK }} numberOfLines={1}>{a}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text className="text-[12px] text-text-muted">No accessories received with the device.</Text>
+            )}
+          </View>
+        </View>
+
+        {/* ── Warranty per service — validity runs from the delivery date ── */}
+        <SectionHeader icon={ShieldCheck} label="WARRANTY" />
+        <View className="px-4">
+          <View className="bg-card rounded-2xl px-4 py-2" style={cardShadow}>
+            {warrantyRows.length ? warrantyRows.map((w, idx) => (
+              <View key={`${w.label}-${idx}`} className="flex-row items-center py-2" style={{ borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#E5F3F5' }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text className="text-[13px] font-semibold text-text" numberOfLines={2}>{w.label}</Text>
+                  <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>
+                    {w.until ? `Valid ${fmtShortDate(deliveredAt)} – ${fmtShortDate(w.until)}` : 'Starts on delivery'}
+                  </Text>
+                </View>
+                <View style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#E5F3F5' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_GREEN_DARK }} numberOfLines={1}>{w.text}</Text>
+                </View>
+              </View>
+            )) : (
+              <Text className="text-[12px] text-text-muted" style={{ paddingVertical: 6 }}>No warranty recorded for these services.</Text>
+            )}
+          </View>
+        </View>
 
         {/* ── Price summary ───────────────────────────────────── */}
         <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
@@ -1344,6 +1512,82 @@ export default function TicketDetailScreen({ route, navigation }) {
         index={photoIndex || 0}
         onClose={() => setPhotoIndex(null)}
       />
+      <ImageViewerModal
+        visible={idProofOpen && !!custInfo.idProofUrl}
+        images={custInfo.idProofUrl ? [{ uri: custInfo.idProofUrl, label: 'ID Proof' }] : []}
+        index={0}
+        onClose={() => setIdProofOpen(false)}
+      />
+
+      <ImageViewerModal
+        visible={!!rePhotos}
+        images={(rePhotos?.images || []).map((uri, i) => ({ uri, label: `Photo ${i + 1}` }))}
+        index={rePhotos?.index || 0}
+        onClose={() => setRePhotos(null)}
+      />
+
+      {/* ── Re-estimate: Customer Approved / Customer Rejected / Dismiss ── */}
+      <SafeModal visible={!!reAction} transparent animationType="fade" onRequestClose={() => (reBusy ? null : setReAction(null))}>
+        <ModalInsets>
+          {({ insets: mi, keyboard }) => {
+            const mode = reAction?.mode;
+            const rev = reAction?.rev || {};
+            const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+            const meta = mode === 'APPROVED'
+              ? { title: 'Customer Approved?', Icon: ThumbsUp, tone: '#609138', confirm: 'Customer Approved',
+                message: `Record that the customer approved the revised estimate${rev.revisedTotal != null ? ` of ${inr(rev.revisedTotal)}` : ''}. The repair continues with the additional work.`,
+                reasonLabel: 'Remarks (optional)' }
+              : mode === 'REJECTED'
+                ? { title: 'Customer Rejected?', Icon: ThumbsDown, tone: '#E08E00', confirm: 'Customer Rejected',
+                  message: `Record that the customer rejected the re-estimate. The original estimate${rev.originalEstimatedPrice != null ? ` of ${inr(rev.originalEstimatedPrice)}` : ''} is kept and the repair continues without the additional work.`,
+                  reasonLabel: 'Rejection reason (optional)' }
+                : { title: 'Dismiss Request?', Icon: Ban, tone: '#F32C26', confirm: 'Dismiss Request',
+                  message: 'Decline the technician\'s re-estimate request without re-estimating. The technician carries on with the current estimate.',
+                  reasonLabel: 'Reason', required: true };
+            const ok = !meta.required || reReason.trim().length >= 3;
+            const MetaIcon = meta.Icon;
+            return (
+              <View style={{ flex: 1, backgroundColor: 'rgba(17,17,17,0.5)', justifyContent: 'center', paddingHorizontal: 16, paddingTop: mi.top + 16, paddingBottom: Math.max(mi.bottom, keyboard) + 16 }}>
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, width: '100%', maxWidth: 440, alignSelf: 'center', padding: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center' }}>
+                      <MetaIcon size={17} color="#FFFFFF" />
+                    </View>
+                    <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
+                    <Pressable onPress={() => (reBusy ? null : setReAction(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                      <X size={20} color="#6B7280" />
+                    </Pressable>
+                  </View>
+                  <Text style={{ fontSize: 12.5, color: '#6B7280', marginTop: 8 }}>{meta.message}</Text>
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#374151', marginTop: 12, marginBottom: 6 }}>
+                    {meta.reasonLabel}{meta.required ? <Text style={{ color: '#F32C26' }}> *</Text> : null}
+                  </Text>
+                  <TextInput
+                    value={reReason}
+                    onChangeText={setReReason}
+                    placeholder={mode === 'DISMISS' ? 'e.g. Extra work not needed — covered by the current repair' : 'Add a note'}
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    maxLength={300}
+                    editable={!reBusy}
+                    textAlignVertical="top"
+                    cursorColor={BRAND_GREEN}
+                    style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                    <Pressable onPress={() => setReAction(null)} disabled={reBusy} accessibilityRole="button" style={{ flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>Cancel</Text>
+                    </Pressable>
+                    <Pressable onPress={submitReAction} disabled={reBusy || !ok} accessibilityRole="button" accessibilityState={{ disabled: reBusy || !ok }} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center', opacity: ok ? 1 : 0.45 }}>
+                      {reBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>{meta.confirm}</Text>}
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+        </ModalInsets>
+      </SafeModal>
 
       <RescheduleSheet visible={rescheduleOpen} booking={ticket} onClose={() => setRescheduleOpen(false)} onUpdated={load} />
 
@@ -1361,12 +1605,15 @@ export default function TicketDetailScreen({ route, navigation }) {
         {/* The modal window's own insets — the screen's don't reach it. */}
         <ModalInsets>
           {({ insets }) => (
-            <Pressable
-              style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.5)', justifyContent: 'flex-end' }}
-              onPress={() => (statusBusy ? null : setStatusOpen(false))}
-            >
+            <View style={{ flex: 1, backgroundColor: 'rgba(17, 17, 17, 0.5)', justifyContent: 'flex-end' }}>
+              {/* Backdrop tap closes. A sibling, not a wrapper, so the sheet's
+                  options list gets its scroll gestures on Android. */}
               <Pressable
-                onPress={(e) => e.stopPropagation()}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                onPress={() => (statusBusy ? null : setStatusOpen(false))}
+                accessibilityLabel="Close"
+              />
+              <View
                 style={{
                   backgroundColor: '#FFFFFF',
                   borderTopLeftRadius: 24,
@@ -1374,13 +1621,16 @@ export default function TicketDetailScreen({ route, navigation }) {
                   paddingHorizontal: 16,
                   paddingTop: 12,
                   paddingBottom: insets.bottom + 16,
+                  // Never taller than the screen — the options list shrinks
+                  // and scrolls instead of pushing the button off-screen.
+                  maxHeight: '92%',
                   // Tablets: a centred sheet, not a full-width strip.
                   width: '100%',
                   maxWidth: 560,
                   alignSelf: 'center',
                 }}
               >
-                <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E5E7EB', marginBottom: 14 }} />
+                <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E5E7EB', marginBottom: 10 }} />
                 <View className="flex-row items-center justify-between mb-1">
                   <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
                   <Pressable
@@ -1397,13 +1647,13 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </Text>
 
                 {/* Current status — read-only card */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA', borderRadius: 16, padding: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: BRAND_GREEN, alignItems: 'center', justifyContent: 'center' }}>
-                    <Settings size={21} color="#FFFFFF" strokeWidth={2.2} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#C7E6EA', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8 }}>
+                  <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: BRAND_GREEN, alignItems: 'center', justifyContent: 'center' }}>
+                    <Settings size={17} color="#FFFFFF" strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
                     <Text style={{ fontSize: 11.5, color: '#6B7280', fontWeight: '600' }}>Current Status</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>{statusMeta.label}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>{statusMeta.label}</Text>
                     <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>{fmtStatusWhen(ticket.updatedAt || ticket.createdAt)}</Text>
                   </View>
                 </View>
@@ -1442,8 +1692,13 @@ export default function TicketDetailScreen({ route, navigation }) {
                     || ['INVOICE_GENERATED', 'INVOICE_READY'].includes(statusKey);
                   // Customer Rejected: before the repair is ready, and only while
                   // the customer hasn't approved / rejected already.
-                  const canReject = rank < (STATUS_RANK.READY ?? 5)
-                    && !recordedKeys.includes('CUSTOMER_REJECTED') && !recordedKeys.includes('CUSTOMER_APPROVED');
+                  // Verdicts a later re-estimate superseded don't count (a stale
+                  // Customer Approved used to hide this for good), and an open
+                  // re-estimate never hides it — this is the customer declining
+                  // the repair, separate from the re-estimate decision.
+                  const verdictKeys = withoutSupersededVerdicts(recordedEvents).map((e) => String(e?.status || '').toUpperCase());
+                  const canReject = rank < (STATUS_RANK.READY ?? 5) && !verdictKeys.includes('CUSTOMER_REJECTED')
+                    && (!!activeRe || !verdictKeys.includes('CUSTOMER_APPROVED'));
                   const options = [
                     ...upcoming.flatMap((k) => (
                       k === 'READY' && !qcDone ? ['QUALITY_CHECK', k]
@@ -1453,16 +1708,18 @@ export default function TicketDetailScreen({ route, navigation }) {
                     'CANCELLED',
                   ];
                   // Pickable now: the next stage, Cancel, Customer Rejected, QC once
-                  // Ready is next and Dispatched once Delivered is next.
+                  // Ready is next and Out of Delivery once Delivered is next.
                   const selectable = (k) => k === 'CANCELLED' || k === 'CUSTOMER_REJECTED' || k === next
                     || (k === 'QUALITY_CHECK' && next === 'READY')
                     || ((k === 'DELIVERED_PROCESSING' || k === 'INVOICE_GENERATED') && next === 'DELIVERED');
                   // A re-estimate waiting on the customer holds the repair back.
-                  const awaitingApproval = statusKey === 'QUOTED';
+                  const awaitingApproval = statusKey === 'QUOTED' || activeReStatus === 'AWAITING_APPROVAL';
+                  const requestPending = activeReStatus === 'REQUESTED';
                   const blockerFor = (k) => (
-                    k === next ? (awaitingApproval ? AWAIT_APPROVAL : blockedBy)
-                      : k === 'QUALITY_CHECK' ? qcBlockedBy
-                      : k === 'DELIVERED_PROCESSING' || k === 'CUSTOMER_REJECTED' || k === 'INVOICE_GENERATED' ? stepBlockedBy(recordedKeys, k)
+                    k === next ? (awaitingApproval ? AWAIT_APPROVAL : requestPending ? REQUEST_PENDING : blockedBy)
+                      : k === 'QUALITY_CHECK' ? (requestPending ? REQUEST_PENDING : awaitingApproval && activeRe ? AWAIT_APPROVAL : qcBlockedBy)
+                      : k === 'CUSTOMER_REJECTED' ? (activeRe ? null : stepBlockedBy(recordedKeys, k))
+                      : k === 'DELIVERED_PROCESSING' || k === 'INVOICE_GENERATED' ? stepBlockedBy(recordedKeys, k)
                       : null);
                   const picked = pickedStatus && options.includes(pickedStatus) ? pickedStatus : null;
                   const pickedMeta = picked ? STATUS_OPTION[picked] : null;
@@ -1475,8 +1732,8 @@ export default function TicketDetailScreen({ route, navigation }) {
                   const canApply = !!picked && !busy && selectable(picked) && !blockerFor(picked) && reasonOk;
                   return (
                     <>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#1C3053', marginTop: 14, marginBottom: 8 }}>Next Status Options</Text>
-                      <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#1C3053', marginTop: 10, marginBottom: 6 }}>Next Status Options</Text>
+                      <ScrollView style={{ maxHeight: 400, flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator nestedScrollEnabled keyboardShouldPersistTaps="handled">
                         {options.map((key, idx) => {
                           const meta = STATUS_OPTION[key] || { title: STATUS_VARIANT[key]?.label || key, sub: '', Icon: ListChecks, tone: BRAND_GREEN };
                           const OptIcon = meta.Icon;
@@ -1487,7 +1744,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                           const on = picked === key;
                           const prevTitle = idx > 0 ? (STATUS_OPTION[options[idx - 1]]?.title || '') : '';
                           const sub = blocked
-                            ? (rowBlocker === AWAIT_APPROVAL ? 'Waiting for the customer to approve the re-estimate' : `Record "${rowBlocker}" first`)
+                            ? (rowBlocker === AWAIT_APPROVAL ? 'Waiting for the customer to approve the re-estimate'
+                              : rowBlocker === REQUEST_PENDING ? 'Re-estimate or dismiss the technician\'s request first'
+                              : `Record "${rowBlocker}" first`)
                             : locked ? `Available after ${prevTitle}` : meta.sub;
                           return (
                             <Pressable
@@ -1498,20 +1757,20 @@ export default function TicketDetailScreen({ route, navigation }) {
                               accessibilityState={{ selected: on, disabled: off }}
                               accessibilityLabel={`${meta.title}. ${sub}`}
                               style={{
-                                flexDirection: 'row', alignItems: 'center', minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
+                                flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 6,
                                 borderRadius: 14, borderWidth: on ? 1.5 : 1, borderColor: on ? BRAND_GREEN : '#E5E7EB',
                                 backgroundColor: on ? '#F0F9FA' : '#FFFFFF', opacity: locked || blocked ? 0.5 : 1,
                               }}
                             >
-                              <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? BRAND_GREEN : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
-                                {on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: BRAND_GREEN }} /> : null}
+                              <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: on ? BRAND_GREEN : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
+                                {on ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: BRAND_GREEN }} /> : null}
                               </View>
-                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center', marginLeft: 12 }}>
-                                <OptIcon size={19} color="#FFFFFF" strokeWidth={2.2} />
+                              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center', marginLeft: 10 }}>
+                                <OptIcon size={15} color="#FFFFFF" strokeWidth={2.2} />
                               </View>
                               <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
-                                <Text style={{ fontSize: 12, color: blocked ? '#B45309' : '#6B7280', marginTop: 2 }} numberOfLines={2}>{sub}</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
+                                <Text style={{ fontSize: 11, color: blocked ? '#B45309' : '#6B7280', marginTop: 1 }} numberOfLines={2}>{sub}</Text>
                               </View>
                               {locked ? <Lock size={15} color="#9CA3AF" style={{ marginLeft: 8 }} /> : null}
                               {statusBusy === key ? <ActivityIndicator size="small" color={meta.tone} style={{ marginLeft: 8 }} /> : null}
@@ -1534,7 +1793,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                             maxLength={300}
                             textAlignVertical="top"
                             cursorColor={BRAND_GREEN}
-                            style={{ minHeight: 70, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
+                            style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
                           />
                         </View>
                       ) : null}
@@ -1550,12 +1809,12 @@ export default function TicketDetailScreen({ route, navigation }) {
                         accessibilityRole="button"
                         accessibilityState={{ disabled: !canApply }}
                         style={{
-                          marginTop: 4, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row',
+                          marginTop: 4, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row',
                           backgroundColor: isCancel ? '#F32C26' : isReject ? '#E08E00' : BRAND_GREEN, opacity: canApply ? 1 : 0.45,
                         }}
                       >
                         {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
-                          <Text style={{ fontSize: 15, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
                             {!pickedMeta ? 'Select a status'
                               : isCancel ? 'Cancel Booking'
                               : isReject ? (reasonOk ? 'Mark Customer Rejected' : 'Enter the rejection reason')
@@ -1568,85 +1827,23 @@ export default function TicketDetailScreen({ route, navigation }) {
                     </>
                   );
                 })()}
-              </Pressable>
-            </Pressable>
+              </View>
+            </View>
           )}
         </ModalInsets>
       </SafeModal>
 
-      {/* ── IMEI capture sheet — type or scan, then save ─────────────────── */}
-      <SafeModal
+      {/* ── Device IMEI Verification — type or scan, verify, then save ── */}
+      <ImeiVerifyModal
         visible={imeiModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => (imeiSaving ? null : setImeiModalOpen(false))}
-      >
-        {/* Centred in this window's safe area, lifted above the keyboard (autoFocus). */}
-        <ModalInsets>
-          {({ insets, keyboard }) => (
-            <Pressable
-              className="flex-1 bg-black/50 items-center justify-center px-6"
-              style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, keyboard) }}
-              onPress={() => (imeiSaving ? null : setImeiModalOpen(false))}
-            >
-              <Pressable className="bg-card rounded-3xl p-5 w-full" style={{ maxWidth: 420 }} onPress={() => {}}>
-                <View className="items-center mb-1">
-                  <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E5F3F5' }}>
-                    <ScanLine size={20} color={BRAND_GREEN_DARK} />
-                  </View>
-                  <Text className="text-text text-[15px] font-extrabold">Enter IMEI Number</Text>
-                  <Text className="text-text-muted text-[12px] text-center mt-1">
-                    Add the device IMEI number for this booking.
-                  </Text>
-                </View>
-
-                <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
-                  <TextInput
-                    className="flex-1 py-3 text-text text-[13px] font-bold"
-                    placeholder="Enter 15-digit IMEI"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                    maxLength={17}
-                    value={imeiInput}
-                    onChangeText={setImeiInput}
-                    autoFocus
-                  />
-                  <Pressable
-                    onPress={() => {
-                      setImeiModalOpen(false);
-                      navigation.navigate('ScanImei', { onScan: (v) => { setImeiInput(v); setImeiModalOpen(true); } });
-                    }}
-                    className="flex-row items-center rounded-full px-3 py-1.5 ml-1 active:opacity-80"
-                    style={{ backgroundColor: 'rgba(3, 92, 108, 0.14)' }}
-                  >
-                    <ScanLine size={14} color={BRAND_GREEN} />
-                    <Text className="text-[12px] font-extrabold ml-1" style={{ color: BRAND_GREEN }}>SCAN</Text>
-                  </Pressable>
-                </View>
-                <Text className="text-text-muted text-[11px] mt-2">Tip: dial *#06# on the device to show its IMEI.</Text>
-
-                <View className="flex-row mt-4">
-                  <Pressable
-                    onPress={() => setImeiModalOpen(false)}
-                    disabled={imeiSaving}
-                    className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
-                  >
-                    <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={saveImeiAndContinue}
-                    disabled={imeiSaving}
-                    className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
-                    style={{ backgroundColor: BRAND_GREEN }}
-                  >
-                    {imeiSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
-                  </Pressable>
-                </View>
-              </Pressable>
-            </Pressable>
-          )}
-        </ModalInsets>
-      </SafeModal>
+        navigation={navigation}
+        ticketId={ticketId}
+        initialValue={imeiInput}
+        subtitle={pendingReadyRow.current ? 'A mobile phone needs its IMEI before Ready for Delivery.' : 'Add the device IMEI number for this booking.'}
+        onScanned={setImeiInput}
+        onSave={saveImei}
+        onCancel={() => { pendingReadyRow.current = null; setImeiModalOpen(false); }}
+      />
 
       {/* ── Alternate mobile sheet — add or edit the customer's second number ── */}
       <SafeModal
@@ -1739,13 +1936,6 @@ function SectionHeader({ icon: Icon, label }) {
 }
 
 // Icon + label + value row used in the redesigned section cards.
-// Normalise a typed/scanned IMEI to digits; valid when 14–17 digits (15 is the
-// IMEI proper; 16/17 cover IMEISV and TAC+IMEI). Returns null when out of range.
-function normaliseImei(raw) {
-  const digits = String(raw || '').replace(/[^0-9]/g, '');
-  return digits.length >= 14 && digits.length <= 17 ? digits : null;
-}
-
 // Security row with an edit button that opens the lock sheet as a popup and
 // saves straight to the booking — no separate screen.
 function SecurityRow({ ticket, value, onSaved }) {
@@ -1790,19 +1980,132 @@ function SecurityRow({ ticket, value, onSaved }) {
   );
 }
 
-function DetailRow({ icon: Icon, label, value, onEdit }) {
+// `full`: long text (address) — every line shown, label + icon pinned to the top.
+function DetailRow({ icon: Icon, label, value, onEdit, full = false }) {
   return (
-    <View className="flex-row items-center py-1.5">
+    <View className={`flex-row ${full ? 'items-start' : 'items-center'} py-1.5`}>
       <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
         <Icon size={14} color={ACCENT_GREEN} />
       </View>
-      <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>{label}</Text>
-      <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={2}>{value}</Text>
+      <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: full ? 6 : 0 }}>{label}</Text>
+      <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={full ? undefined : 2} style={full ? { marginTop: 5, lineHeight: 19 } : undefined}>{value}</Text>
       {onEdit ? (
         <TouchableOpacity onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${label}`}
           className="w-7 h-7 rounded-lg items-center justify-center ml-2" style={{ backgroundColor: '#E5F3F5' }}>
           <Pencil size={13} color={ACCENT_GREEN} />
         </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+// "12 Jan 2027"
+function fmtShortDate(v) {
+  const d = v ? new Date(v) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
+
+// Warranty end from its start and a text like "3 Months" / "1 Year" / "30 Days".
+function warrantyEnd(start, text) {
+  const m = String(text || '').match(/(\d+)\s*([a-z]*)/i);
+  const n = m ? parseInt(m[1], 10) : 0;
+  const d = new Date(start);
+  if (!(n > 0) || Number.isNaN(d.getTime())) return null;
+  const unit = String(m[2] || 'month').toLowerCase();
+  if (unit.startsWith('y')) d.setFullYear(d.getFullYear() + n);
+  else if (unit.startsWith('w')) d.setDate(d.getDate() + 7 * n);
+  else if (unit.startsWith('d')) d.setDate(d.getDate() + n);
+  else d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+const inrOrNull = (n) => (n == null || n === '' || Number.isNaN(Number(n)) ? null : `₹${Number(n).toLocaleString('en-IN')}`);
+
+/**
+ * Service Progress card for the re-estimate workflow (contract revision JSON):
+ * REQUESTED → the technician's request with Re-Estimate / Dismiss;
+ * AWAITING_APPROVAL → the revised estimate with Customer Approved / Rejected;
+ * APPROVED / REJECTED → the customer's latest decision.
+ */
+function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, onDecide, onPhotos }) {
+  const status = String(rev?.status || '').toUpperCase();
+  const requested = status === 'REQUESTED';
+  const awaiting = status === 'AWAITING_APPROVAL';
+  const approved = status === 'APPROVED';
+  const tone = requested || awaiting ? { bg: '#FFF4DB', fg: '#B45309' }
+    : approved ? { bg: '#EDF4E7', fg: '#476B26' } : { bg: '#FDEBEA', fg: '#C81E1A' };
+  const title = requested ? 'Technician Re-Estimate Requested'
+    : awaiting ? 'Service Re-Estimated – Awaiting Customer Approval'
+      : approved ? 'Re-Estimate Approved by Customer' : 'Re-Estimate Rejected by Customer';
+  const raw = requested ? rev.requestImages : rev.revisionImages;
+  const photos = (Array.isArray(raw) ? raw : []).filter((u) => typeof u === 'string' && u.trim());
+  const items = Array.isArray(rev.items) ? rev.items : [];
+  const via = String(rev.decidedVia || '').toUpperCase() === 'CUSTOMER_APP' ? 'Customer App' : rev.decidedVia ? 'Shop' : null;
+  const btn = (label, onPress, primary, Icon) => (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      accessibilityRole="button"
+      className="flex-1 flex-row items-center justify-center active:opacity-85"
+      style={{ height: 42, borderRadius: 12, paddingHorizontal: 8, backgroundColor: primary ? ACCENT_GREEN : '#FFFFFF', borderWidth: 1.5, borderColor: primary ? ACCENT_GREEN : '#F9C5C3', opacity: busy ? 0.6 : 1 }}
+    >
+      <Icon size={14} color={primary ? '#FFFFFF' : '#C81E1A'} />
+      <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: '800', color: primary ? '#FFFFFF' : '#C81E1A', flexShrink: 1 }} numberOfLines={1}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+      <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '600' }} numberOfLines={1}>
+        {inRepair ? (requested || awaiting ? 'Repair Work in Progress' : 'Repair Work in Progress (Resumed)') : 'Re-Estimate'}
+        {rev.revisionNo ? ` · Revision ${rev.revisionNo}` : ''}
+      </Text>
+      <View style={{ alignSelf: 'flex-start', maxWidth: '100%', marginTop: 4, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: tone.bg }}>
+        <Text style={{ fontSize: 11.5, fontWeight: '800', color: tone.fg }}>{title}</Text>
+      </View>
+      <View style={{ marginTop: 6 }}>
+        {requested ? (
+          <>
+            <DetailRow icon={User} label="Technician" value={rev.technicianName || ticket?.assignedTechnicianName || '—'} />
+            <DetailRow icon={Clock} label="Requested" value={fmtInstant(rev.requestedAt) || '—'} />
+            <DetailRow icon={Wrench} label="Issue" value={rev.additionalIssue || '—'} full />
+            <DetailRow icon={FileText} label="Reason" value={rev.reason || '—'} full />
+            <DetailRow icon={IndianRupee} label="Proposed" value={inrOrNull(rev.proposedAmount) || 'Not Given'} />
+            {rev.technicianNotes ? <DetailRow icon={FileText} label="Notes" value={rev.technicianNotes} full /> : null}
+          </>
+        ) : (
+          <>
+            <DetailRow icon={IndianRupee} label="Original" value={inrOrNull(rev.originalEstimatedPrice) || '—'} />
+            <DetailRow icon={Plus} label="Additional" value={inrOrNull(rev.additionalAmount) ? `+ ${inrOrNull(rev.additionalAmount)}` : '—'} />
+            <DetailRow icon={Calculator} label="Revised" value={inrOrNull(rev.revisedTotal) || '—'} />
+            {items.length ? <DetailRow icon={Wrench} label="Services" value={items.map((i) => i?.label).filter(Boolean).join(', ') || '—'} full /> : null}
+            {rev.revisionReason ? <DetailRow icon={FileText} label="Reason" value={rev.revisionReason} full /> : null}
+            <DetailRow icon={Clock} label={awaiting ? 'Sent On' : 'Decided On'} value={fmtInstant(awaiting ? rev.submittedAt : rev.decidedAt) || '—'} />
+            {!awaiting && (rev.decidedByName || via) ? (
+              <DetailRow icon={User} label="Recorded By" value={[rev.decidedByName, via ? `via ${via}` : null].filter(Boolean).join(' · ')} />
+            ) : null}
+            {!awaiting && rev.decisionReason ? <DetailRow icon={FileText} label="Remarks" value={rev.decisionReason} full /> : null}
+          </>
+        )}
+      </View>
+      {photos.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 6 }}>
+          {photos.map((uri, i) => (
+            <Pressable key={`${uri}-${i}`} onPress={() => onPhotos?.(photos, i)} className="rounded-xl overflow-hidden active:opacity-80" style={{ width: 56, height: 56, backgroundColor: '#E5F3F5' }} accessibilityRole="imagebutton" accessibilityLabel={`Re-estimate photo ${i + 1}`}>
+              <Image source={{ uri }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+      {requested ? (
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          {btn('Dismiss', onDismiss, false, Ban)}
+          {btn('Re-Estimate', onReEstimate, true, Calculator)}
+        </View>
+      ) : awaiting ? (
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          {btn('Customer Rejected', () => onDecide?.('REJECTED'), false, ThumbsDown)}
+          {btn('Customer Approved', () => onDecide?.('APPROVED'), true, ThumbsUp)}
+        </View>
       ) : null}
     </View>
   );

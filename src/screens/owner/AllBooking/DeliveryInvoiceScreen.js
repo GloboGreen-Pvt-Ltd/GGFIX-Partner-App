@@ -25,6 +25,7 @@ import { sendWhatsAppText } from '../../../lib/whatsappShare';
 import { ticketApi } from '../../../api/client';
 import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 import { useResponsive } from '../../../theme/responsive';
+import { issueNoteFor, ticketComplaint, withNote } from './ReceiptCard';
 
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -110,24 +111,25 @@ function buildReceiptText(t) {
   const tax = Math.round(subtotal * 0.18);
   const total = subtotal + tax;
   return (
-    `🧾 Near G Fix — Delivery Invoice\n` +
+    `🧾 NearGFix — Delivery Invoice\n` +
     `â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n` +
     `Receipt #: ${t.trackingId || t.id}\n` +
     `Date: ${formatDate(t.deliveredAt || t.createdAt)}\n\n` +
-    `From: ${t.shopName || 'Near G Fix Service Center'}\n` +
+    `From: ${t.shopName || 'NearGFix Service Center'}\n` +
     `${t.shopAddress || ''}\n` +
     `${t.shopPhone ? 'Ph: ' + t.shopPhone : ''}\n\n` +
     `To: ${t.customerName || '—'}\n` +
     `${t.customerPhone ? 'Mobile: ' + t.customerPhone : ''}\n` +
     `${t.customerAddress || ''}\n\n` +
-    `Device: ${t.deviceDisplayName || t.deviceModelName || t.modelName || '—'}\n\n` +
+    `Device: ${t.deviceDisplayName || t.deviceModelName || t.modelName || '—'}\n` +
+    (ticketComplaint(t) ? `Complaint: ${ticketComplaint(t)}\n` : '') + '\n' +
     `â”€â”€â”€ Services â”€â”€â”€\n` +
-    items.map((i, idx) => `${idx + 1}. ${i.label}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}${i.warranty ? `  (Warranty: ${i.warranty})` : ''}`).join('\n') +
+    items.map((i, idx) => `${idx + 1}. ${withNote(i.label, issueNoteFor(t, i.label))}   ₹${Number(i.amount || 0).toLocaleString('en-IN')}${i.warranty ? `  (Warranty: ${i.warranty})` : ''}`).join('\n') +
     `\n\nSubtotal: ₹${subtotal.toLocaleString('en-IN')}\n` +
     `GST (18%): ₹${tax.toLocaleString('en-IN')}\n` +
     `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n` +
     `Total: ₹${total.toLocaleString('en-IN')}\n\n` +
-    `Thank you for choosing Near G Fix!\n` +
+    `Thank you for choosing NearGFix!\n` +
     warrantyNote(items)
   );
 }
@@ -344,7 +346,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                 From
               </Text>
               <Text className="text-[13px] font-extrabold text-gray-900 mt-0.5" numberOfLines={1}>
-                {t.shopName || 'Near G Fix Service Center'}
+                {t.shopName || 'NearGFix Service Center'}
               </Text>
               <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={2}>
                 {t.shopAddress || 'India'}
@@ -420,6 +422,9 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
             {t.customerAddress ? (
               <DetailRow icon={MapPin} label="Address" value={t.customerAddress} />
             ) : null}
+            {ticketComplaint(t) ? (
+              <DetailRow icon={ClipboardList} label="Complaint" value={ticketComplaint(t)} />
+            ) : null}
           </View>
         </View>
 
@@ -469,7 +474,7 @@ export default function DeliveryInvoiceScreen({ navigation, route }) {
                 </View>
                 <View className="flex-1 pl-2 pr-2">
                   <Text className="text-[12px] text-gray-800" numberOfLines={2}>
-                    {item.label}
+                    {withNote(item.label, issueNoteFor(t, item.label))}
                   </Text>
                   {item.warranty ? (
                     <Text className="text-[10.5px] text-gray-500 mt-0.5">

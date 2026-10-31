@@ -240,11 +240,14 @@ const opened = new Set();
 export function attachDownloadNotifications() {
   if (!Notifications) return undefined;
   try {
+    // The app's ONLY handler, so it covers the shop's pushes too
+    // (lib/pushNotifications): those play their sound; a download receipt —
+    // recognised by the saved file's uri — stays silent.
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
+      handleNotification: async (n) => ({
         shouldShowBanner: true,
         shouldShowList: true,
-        shouldPlaySound: false,
+        shouldPlaySound: !n?.request?.content?.data?.uri,
         shouldSetBadge: false,
       }),
     });

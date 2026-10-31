@@ -40,9 +40,10 @@ const cardShadow = {
 // correct instead of showing every item as unread.
 const isUnread = (n) => !(n?.read || n?.readAt || n?.isRead);
 
-// Filter tabs. The feed's `type` is only bookings | pickups | system, so the
-// category comes from type + statusKey + title. Nothing on the backend raises
-// sell / buy notifications yet — those tabs fill once it does.
+// Filter tabs. The feed's `type` is bookings | pickups | enquiry | sell | buy
+// (older rows: system). pickups / enquiry / sell / buy decide the tab outright;
+// bookings and anything else are guessed from type + statusKey + title, so a
+// booking row about a pickup still lands on Pickup.
 const TABS = [
   { key: 'ALL', label: 'All' },
   { key: 'SERVICE', label: 'Service', icon: Wrench },
@@ -50,7 +51,10 @@ const TABS = [
   { key: 'SELL', label: 'Sell', icon: Tag },
   { key: 'BUY', label: 'Buy', icon: ShoppingCart },
 ];
+const TYPE_TAB = { pickups: 'PICKUP', enquiry: 'SERVICE', sell: 'SELL', buy: 'BUY' };
 const categoryOf = (n) => {
+  const known = TYPE_TAB[String(n?.type || '').toLowerCase()];
+  if (known) return known;
   const t = `${n?.type || ''} ${n?.statusKey || ''} ${n?.title || ''}`.toUpperCase();
   if (/SELL/.test(t)) return 'SELL';
   if (/\bBUY|MARKETPLACE|PURCHASE/.test(t)) return 'BUY';
@@ -101,15 +105,19 @@ export default function OwnerNotificationsScreen({ navigation }) {
       try { await markNotificationRead(n.id); } catch {}
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true, readAt: x.readAt || new Date().toISOString() } : x)));
     }
-    // Service-history notifications carry the ticket id, so tapping one opens
-    // that booking's timeline directly. Rows raised before a ticket exists
-    // (a fresh pickup request) have no ticketId — fall back to the Bookings
-    // tab so the tap still goes somewhere useful.
+    // Sell requests and customer buy orders have their own screens. Service-
+    // history notifications carry the ticket id, so tapping one opens that
+    // booking's timeline directly. Rows raised before a ticket exists (a fresh
+    // pickup request) have no ticketId — pickups go to the pickup list, the
+    // rest to Bookings, so the tap still goes somewhere useful.
+    const cat = categoryOf(n);
+    if (cat === 'SELL') { navigation.navigate('OwnerSellRequests'); return; }
+    if (cat === 'BUY') { navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' }); return; }
     if (n.ticketId) {
       navigation.navigate('BookingTimeline', { ticketId: n.ticketId });
       return;
     }
-    navigation.navigate('BookingList');
+    navigation.navigate(cat === 'PICKUP' ? 'OwnerPickupServiceList' : 'BookingList');
   };
 
   const onMarkAll = async () => {

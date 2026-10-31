@@ -16,7 +16,7 @@ import { useResponsive } from '../../theme/responsive';
 
 /**
  * Help & Support for shop owners (My Account → More → Help & Support).
- * Call / WhatsApp / Email the Near G Fix team.
+ * Call / WhatsApp / Email the NearGFix team.
  * Contacts default to the ones published in the Terms & Privacy Policy; an
  * active admin-managed support contact (master /support-contacts) overrides
  * the phone / email without an app release.
@@ -116,7 +116,7 @@ export default function HelpSupportScreen({ navigation }) {
   const shopLine = shop.name
     ? `${shop.name}${shop.slug ? ` (Shop ID #${shop.slug.toUpperCase()})` : ''}`
     : '';
-  const message = `Hi Near G Fix team, I need help${shopLine ? ` with my shop ${shopLine}` : ''}.`;
+  const message = `Hi NearGFix team, I need help${shopLine ? ` with my shop ${shopLine}` : ''}.`;
 
   const open = (url, what) =>
     Linking.openURL(url).catch(() => notify(`Could not open ${what}`, 'Please try again or use another option.'));
@@ -156,7 +156,7 @@ export default function HelpSupportScreen({ navigation }) {
               </Pressable>
               <View style={HEADER.titleWrap}>
                 <Text style={HEADER.title} numberOfLines={1}>Help & Support</Text>
-                <Text style={HEADER.subtitle} numberOfLines={1}>Talk to the Near G Fix team</Text>
+                <Text style={HEADER.subtitle} numberOfLines={1}>Talk to the NearGFix team</Text>
               </View>
               <View style={{ width: rs(36) }} />
             </View>

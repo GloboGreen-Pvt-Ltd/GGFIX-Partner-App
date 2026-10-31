@@ -247,7 +247,7 @@ function RequestDetailSheet({ item, onClose, onOpenDetails }) {
                 <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'flex-start', backgroundColor: AMBER_BG, borderWidth: 1, borderColor: AMBER_LINE, borderRadius: 12, padding: 9 }}>
                   <Info size={14} color={AMBER} style={{ marginTop: 1 }} />
                   <Text style={{ flex: 1, fontSize: 11, color: AMBER, marginLeft: 7, lineHeight: 16 }}>
-                    Sending a quote for customer sell requests isn't switched on yet — it needs this request to be linked to its sell order on the Near G Fix server.
+                    Sending a quote for customer sell requests isn't switched on yet — it needs this request to be linked to its sell order on the NearGFix server.
                   </Text>
                 </View>
                 <View

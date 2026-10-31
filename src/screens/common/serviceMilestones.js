@@ -75,6 +75,17 @@ export function buildMilestones(rawEvents, extras = []) {
   // description and voice note). A re-estimate then puts the price back to the
   // customer as a separate row, closed by their verdict.
   const reEstimated = has('RE_ESTIMATED_CONFIRMED');
+  // The customer's decision on the latest re-estimate (RE_ESTIMATE_* from the
+  // re-estimate workflow; CUSTOMER_* on older bookings and for compatibility).
+  // CUSTOMER_REJECTED stays "customer declined the repair" → return path.
+  const decisionLabel = has('RE_ESTIMATE_REJECTED') ? 'Re-Estimate Rejected by Customer'
+    : has('RE_ESTIMATE_APPROVED') || has('CUSTOMER_APPROVED') ? 'Re-Estimate Approved by Customer'
+      : has('CUSTOMER_REJECTED') ? 'Customer Rejected'
+        : 'Re-Estimate Approved / Rejected by Customer';
+  // Repair Work in Progress sits right after the technician is assigned, ahead
+  // of the verified issue (repaired path; the return path folds it in below).
+  const inRepair = { key: 'IN_REPAIR', label: 'Repair Work in Progress', activeLabel: 'Waiting for repair to start',
+    keys: ['IN_REPAIR'], doneKeys: ['IN_REPAIR'] };
 
   const defs = [
     { key: 'BOOKED', label: 'Booking Confirmed', activeLabel: 'Booking received',
@@ -85,24 +96,34 @@ export function buildMilestones(rawEvents, extras = []) {
     { key: 'ASSIGNED', label: 'Technician Assigned', activeLabel: 'Assigning a technician',
       keys: ['ASSIGNED_TO_TECHNICIAN', 'AWAITING_TECHNICIAN_ACCEPTANCE', 'REASSIGNED_TO_TECHNICIAN', 'TECHNICIAN_ACCEPTED_SERVICE'],
       doneKeys: ['TECHNICIAN_ACCEPTED_SERVICE'] },
+    returnPath ? null : inRepair,
     { key: 'DIAGNOSED', label: 'Technician Issue Verified & Updated', activeLabel: 'Technician verifying the issue',
       keys: ['TECHNICIAN_WORK_STARTED', 'TECHNICIAN_UPLOADED_DEVICE_IMAGES', 'ISSUE_IDENTIFIED',
         'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',
         ...(reEstimated ? [] : ['WAITING_FOR_CUSTOMER_APPROVAL', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'])],
       doneKeys: ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'] },
+    // Re-estimate rows — only once they happened, never as "upcoming" steps.
+    has('TECHNICIAN_REESTIMATE_REQUESTED') ? { key: 'RE_REQUESTED', label: 'Technician Re-Estimate Requested',
+      activeLabel: 'Technician requested a re-estimate',
+      keys: ['TECHNICIAN_REESTIMATE_REQUESTED'], doneKeys: ['TECHNICIAN_REESTIMATE_REQUESTED'] } : null,
+    reEstimated ? { key: 'RE_ESTIMATED', label: 'Service Re-Estimated – Awaiting Customer Approval',
+      activeLabel: 'Re-estimating the service',
+      keys: ['RE_ESTIMATED_CONFIRMED', 'WAITING_FOR_CUSTOMER_APPROVAL'], doneKeys: ['RE_ESTIMATED_CONFIRMED'] } : null,
     // Only the customer's verdict is written under it ("Customer approved the
     // re-estimated service") — not the submitted / waiting steps before it.
-    reEstimated ? { key: 'APPROVAL', label: 'Re-Estimate Approval', activeLabel: 'Awaiting customer approval',
-      keys: ['RE_ESTIMATED_CONFIRMED', 'WAITING_FOR_CUSTOMER_APPROVAL', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'],
-      doneKeys: ['CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'], verdictOnly: true } : null,
+    reEstimated ? { key: 'APPROVAL', label: decisionLabel, activeLabel: 'Awaiting customer approval',
+      keys: ['RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'],
+      doneKeys: ['RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'],
+      verdictOnly: true } : null,
+    has('REPAIR_WORK_RESUMED') ? { key: 'RESUMED', label: 'Repair Work in Progress (Resumed)',
+      activeLabel: 'Repair resuming', keys: ['REPAIR_WORK_RESUMED'], doneKeys: ['REPAIR_WORK_RESUMED'] } : null,
     ...(returnPath ? [
       { key: 'RETURN', label: 'Return Unrepaired', activeLabel: 'Returning unrepaired', danger: true,
         keys: ['CUSTOMER_REJECTED', 'IN_REPAIR', 'PARTS_REQUIRED', 'REPAIR_NOT_COMPLETED', 'RETURN_DELIVERY'],
         doneKeys: ['RETURN_DELIVERY'] },
     ] : [
-      // The Employee app's Service Progress checklist, one row per step.
-      { key: 'IN_REPAIR', label: 'Repair Work In Progress', activeLabel: 'Waiting for repair to start',
-        keys: ['IN_REPAIR'], doneKeys: ['IN_REPAIR'] },
+      // The Employee app's Service Progress checklist, one row per step
+      // (Repair Work in Progress is placed above, after Technician Assigned).
       // Optional — only jobs that actually waited on a part show this row.
       has('PARTS_REQUIRED') ? { key: 'PARTS_REQUIRED', label: 'Spare Parts Waiting', activeLabel: 'Waiting for spare parts',
         keys: ['PARTS_REQUIRED'], doneKeys: ['PARTS_REQUIRED'] } : null,

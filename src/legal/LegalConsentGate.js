@@ -109,7 +109,7 @@ function ConsentPrompt({ accountId, onAccepted, onLogout }) {
         </View>
         <Text style={styles.title}>Terms & Privacy Policy</Text>
         <Text style={styles.body}>
-          Please review and accept the Near G Fix Terms & Conditions and Privacy Policy (last updated{' '}
+          Please review and accept the NearGFix Terms & Conditions and Privacy Policy (last updated{' '}
           {LEGAL_DOCS[LEGAL_DOC_TYPES.TERMS].lastUpdated}) to continue.
         </Text>
 

@@ -43,7 +43,7 @@ import { hasDeviceAgreed, setLegalAgreed } from '../legal/legalConsent';
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 const MOBILE_DIGITS = 10;
-const NOT_REGISTERED_MESSAGE = 'Mobile number not registered with GGFIX Business.';
+const NOT_REGISTERED_MESSAGE = 'Mobile number not registered with NearGFix Partner.';
 
 const PAGE_BG = '#F7F8F7';
 const INK = '#111111';
@@ -192,7 +192,7 @@ export default function LoginScreen({ onLogin, navigation }) {
       // Wrong / expired code → a plain retry message, never server text.
       const wrongCode = e?.status === 401 || e?.status === 400;
       const text = wrongCode ? 'Invalid OTP. Please try again.' : describeError(e, 'Authentication failed');
-      setError(text);
+      // Toast only — no inline error box on the OTP step.
       notify(text, '', { preset: 'error' });
       // Wrong code → wipe the boxes and re-focus so the retry is one action.
       // A network/server failure keeps the digits: they were probably right and
@@ -249,14 +249,14 @@ export default function LoginScreen({ onLogin, navigation }) {
             // DEV-ONLY: long-press the logo to see IntroScreen again on reload.
             onLongPress={__DEV__ ? () => { resetOnboardingForTesting(); } : undefined}
             accessibilityRole="image"
-            accessibilityLabel="Near G Fix"
+            accessibilityLabel="NearGFix"
           >
             <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
           </Pressable>
           {step === 'MOBILE' ? (
             <>
               <Text style={s.h1}>Login with{'\n'}<Text style={{ color: GREEN_TEXT }}>mobile number</Text></Text>
-              <Text style={s.sub}>Welcome to Near G Fix Partner App</Text>
+              <Text style={s.sub}>Welcome to NearGFix Partner App</Text>
             </>
           ) : (
             <>

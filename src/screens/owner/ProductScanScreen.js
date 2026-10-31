@@ -289,8 +289,8 @@ export default function ProductScanScreen({ navigation }) {
                   {cameraFailed
                     ? 'Another app may be using it. Try again, or pick a photo from your gallery.'
                     : permission.status === 'blocked'
-                      ? 'Turn on Camera for Near G Fix Partner in Settings → Permissions. You can also pick a photo from your gallery.'
-                      : 'Near G Fix uses the camera only to identify the device. You can also pick a photo from your gallery.'}
+                      ? 'Turn on Camera for NearGFix Partner in Settings → Permissions. You can also pick a photo from your gallery.'
+                      : 'NearGFix uses the camera only to identify the device. You can also pick a photo from your gallery.'}
                 </Text>
                 <View style={{ flexDirection: 'row', alignSelf: 'stretch', marginTop: 14, marginHorizontal: -4 }}>
                   {cameraFailed ? (

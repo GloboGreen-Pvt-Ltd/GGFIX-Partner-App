@@ -716,7 +716,7 @@ function IssueTile({ name, Icon, picked, onPress, open = false }) {
 
 // One picked issue: icon, name and remove on top; then one row with
 // "Price [₹ box]" on the left and "Warranty [box Months]" on the right.
-export function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, charge, onChargeChange, warranty, onWarrantyChange, onRemove }) {
+export function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, charge, onChargeChange, warranty, onWarrantyChange, onRemove, note, onNoteChange }) {
   const box = {
     flexShrink: 1, height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
     borderRadius: 10, borderWidth: 1, borderColor: BORDER_SOFT, backgroundColor: '#FFFFFF',
@@ -834,6 +834,20 @@ export function SelectedIssueRow({ name, sub, Icon, price, onPriceChange, charge
         </View>
       </View>
       )}
+
+      {/* This issue's own note — typed once the issue is in the list. */}
+      {onNoteChange ? (
+        <TextInput
+          value={note || ''}
+          onChangeText={onNoteChange}
+          placeholder="Additional notes (optional)"
+          placeholderTextColor={PLACEHOLDER}
+          maxLength={200}
+          cursorColor={ICON_TINT}
+          accessibilityLabel={`Additional notes for ${name}`}
+          style={{ height: 40, marginTop: 8, paddingHorizontal: 10, paddingVertical: 0, fontSize: 13, color: INK, includeFontPadding: false, borderWidth: 1, borderColor: BORDER_SOFT, borderRadius: 10, backgroundColor: '#FFFFFF' }}
+        />
+      ) : null}
     </View>
   );
 }

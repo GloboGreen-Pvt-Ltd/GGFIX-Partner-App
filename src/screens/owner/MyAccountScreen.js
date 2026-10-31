@@ -475,7 +475,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           <MenuRow tone="navy" Icon={SOLID.terms} label="Terms & Conditions" sub="Platform usage rules" onPress={() => navigation?.navigate?.('Terms')} />
           <MenuRow tone="green" Icon={SOLID.privacy} label="Privacy Policy" sub="How we handle your data" onPress={() => navigation?.navigate?.('PrivacyPolicy')} />
           <MenuRow tone="blue" Icon={SOLID.faq} label="FAQs" sub="Common questions answered" />
-          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the Near G Fix team" onPress={() => navigation?.navigate?.('HelpSupport')} last />
+          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the NearGFix team" onPress={() => navigation?.navigate?.('HelpSupport')} last />
         </View>
 
         {onLogout ? (

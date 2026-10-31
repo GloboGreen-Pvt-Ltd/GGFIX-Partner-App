@@ -9,6 +9,8 @@
 //    image attached. NO whatsAppNumber, deliberately: that retargets
 //    com.whatsapp.Conversation with a `jid` extra, which opens the right chat
 //    but ignores EXTRA_STREAM — the image is dropped and only text arrives.
+// 1b. withImage on a binary without react-native-share: the image goes through
+//    the system share sheet (expo-sharing) and the text onto the clipboard.
 // 2. Text fallback (a binary without react-native-share, or the capture
 //    failed): `whatsapp://send` with the customer's number and the receipt
 //    text — still WhatsApp only.
@@ -54,9 +56,37 @@ async function captureBase64(viewRef) {
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
     try {
       return await captureRef(viewRef, { format: 'png', quality: 1, result: 'base64' });
-    } catch (_) { /* not laid out yet — retry */ }
+    } catch (e) {
+      /* not laid out yet — retry */
+      if (__DEV__) console.log('[whatsappShare] capture failed:', e?.message);
+    }
   }
   return null;
+}
+
+/**
+ * Fallback for binaries built without react-native-share: the system share
+ * sheet can't carry a caption, so the message goes on the clipboard and the
+ * shop pastes it after picking WhatsApp → the customer's chat.
+ * Returns false when the image or expo-sharing isn't available.
+ */
+async function shareImageViaSheet(viewRef, message, filename) {
+  try {
+    // eslint-disable-next-line global-require
+    const Sharing = require('expo-sharing');
+    if (!(await Sharing.isAvailableAsync())) return false;
+    const uri = await captureRef(viewRef, { format: 'png', quality: 1, result: 'tmpfile', fileName: filename });
+    if (message) {
+      // eslint-disable-next-line global-require
+      await require('expo-clipboard').setStringAsync(message);
+      notify('Message copied', 'Choose WhatsApp, then paste the message with the image.', { type: 'info', duration: 5 });
+    }
+    await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Send booking to WhatsApp' });
+    return true;
+  } catch (e) {
+    if (__DEV__) console.log('[whatsappShare] share sheet failed:', e?.message);
+    return false;
+  }
 }
 
 /** Customer's WhatsApp number (91 + 10 digits), or null when there is none. */
@@ -88,14 +118,20 @@ export async function sendWhatsAppText(phone, message) {
  * @param message   receipt as text (sent with the image, and the fallback)
  * @param phone     customer mobile — used to open their chat in the fallback
  * @param filename  image file name, without extension
+ * @param withImage true → always send the image with the text as its caption
+ *                  (WhatsApp's chat picker opens); false → a customer number
+ *                  goes straight into their chat as text only
  */
-export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename = 'ggfix-receipt' }) {
+export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename = 'neargfix-receipt', withImage = false }) {
   // A customer number → straight into their chat with the receipt as text.
-  if (await sendWhatsAppText(phone, message)) return;
+  if (!withImage && await sendWhatsAppText(phone, message)) return;
 
   const base64 = await captureBase64(viewRef);
 
   const RNShare = shareSingleModule();
+  if (__DEV__) {
+    console.log('[whatsappShare]', { withImage, captured: !!base64, rnShare: !!RNShare?.shareSingle, whatsapp: !!RNShare?.Social?.WHATSAPP });
+  }
   if (base64 && RNShare?.shareSingle && RNShare?.Social?.WHATSAPP) {
     const payload = {
       message: message || '',
@@ -118,6 +154,7 @@ export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename
         return;
       } catch (e) {
         const msg = String(e?.message || '').toLowerCase();
+        if (__DEV__) console.log('[whatsappShare] shareSingle failed:', social, e?.message);
         if (msg.includes('cancel')) return;          // a decision, not a failure
         if (msg.includes('not installed') || msg.includes('no app')) { missing += 1; continue; }
         break;
@@ -128,6 +165,10 @@ export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename
       return;
     }
   }
+
+  // Image wanted but this binary has no react-native-share: share the image
+  // through the system sheet (expo-sharing) with the text on the clipboard.
+  if (withImage && base64 && await shareImageViaSheet(viewRef, message, filename)) return;
 
   // Text fallback — straight into the customer's WhatsApp chat.
   const digits = String(phone || '').replace(/\D/g, '');

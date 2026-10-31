@@ -37,42 +37,54 @@ export const PARTS = [
   { id: 'SPEAKER', name: 'Speaker', icon: Volume2 },
 ];
 
-// Prefill list → state map. Older drafts could carry both flags; keep Damaged.
+// Prefill list → state map, one entry per part (a part listed twice keeps its
+// last entry — never a duplicate). Rows saved with only a name are matched by
+// name. Older drafts could carry both flags; keep Damaged.
 export const seedMissingParts = (prefill) => {
   const seed = {};
   for (const p of Array.isArray(prefill) ? prefill : []) {
-    const key = p.partId || p.id;
+    if (!p) continue;
+    const name = String(p.partName || p.name || '').trim();
+    const key = p.partId || p.id || PARTS.find((x) => x.name.toLowerCase() === name.toLowerCase())?.id;
     if (!key) continue;
-    seed[key] = { missing: !!p.missing && !p.damage, damage: !!p.damage, detail: p.detail || '' };
+    seed[key] = { missing: !!p.missing && !p.damage, damage: !!p.damage, detail: p.detail || '', ...(name ? { name } : {}) };
   }
   return seed;
 };
 
-// State map → the list the API stores as missingPartsJson.
-export const flaggedMissingParts = (state) => PARTS
-  .filter((p) => state[p.id]?.missing || state[p.id]?.damage)
-  .map((p) => ({
-    partId: p.id,
-    partName: p.name,
-    missing: !!state[p.id].missing,
-    damage: !!state[p.id].damage,
-    detail: state[p.id].detail || null,
-  }));
+// State map → the list the API stores as missingPartsJson. Parts this
+// checklist doesn't draw (saved by another app version) are kept as they were.
+export const flaggedMissingParts = (state) => {
+  const s = state || {};
+  const flagged = (id) => s[id]?.missing || s[id]?.damage;
+  const row = (id, name) => ({
+    partId: id,
+    partName: name,
+    missing: !!s[id].missing,
+    damage: !!s[id].damage,
+    detail: String(s[id].detail || '').trim() || null,
+  });
+  return [
+    ...PARTS.filter((p) => flagged(p.id)).map((p) => row(p.id, p.name)),
+    ...Object.keys(s).filter((id) => !PARTS.some((p) => p.id === id) && flagged(id)).map((id) => row(id, s[id].name || id)),
+  ];
+};
 
 export default function MissingPartsChecklist({ value, onChange }) {
   const r = useResponsive();
   const [width, setWidth] = useState(0);
+  const current = value || {};
 
   const setField = (id, key, v) =>
-    onChange((p) => ({ ...p, [id]: { ...(p[id] || {}), [key]: v } }));
+    onChange((p) => ({ ...(p || {}), [id]: { ...((p || {})[id] || {}), [key]: v } }));
 
   // Missing and Damaged are either/or for a part: turning one on turns the
   // other off; tapping the active one clears it.
   const setFlag = (id, key) =>
     onChange((p) => {
-      const row = p[id] || {};
+      const row = (p || {})[id] || {};
       const on = !row[key];
-      return { ...p, [id]: { ...row, missing: key === 'missing' && on, damage: key === 'damage' && on } };
+      return { ...(p || {}), [id]: { ...row, missing: key === 'missing' && on, damage: key === 'damage' && on } };
     });
 
   // 2 cards per row on phones, 3 on tablets.
@@ -87,7 +99,7 @@ export default function MissingPartsChecklist({ value, onChange }) {
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
     >
       {cardW ? PARTS.map((p) => {
-        const row = value[p.id] || {};
+        const row = current[p.id] || {};
         const anyFlag = row.missing || row.damage;
         const flagColor = row.damage ? DAMAGE : (row.missing ? MISSING : null);
         const flagBg = row.damage ? DAMAGE_BG : (row.missing ? MISSING_BG : null);

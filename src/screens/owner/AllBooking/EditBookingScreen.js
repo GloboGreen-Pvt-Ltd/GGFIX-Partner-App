@@ -4,19 +4,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  ArrowLeft, Camera, ChevronDown, IdCard, ImagePlus, Lock, Mic, Pencil, Phone, ScanLine, Smartphone, User, Video, X,
+  ArrowLeft, Camera, ChevronDown, IdCard, ImagePlus, Lock, Mail, MapPin, Mic, Pencil, Phone, ScanLine, Smartphone, User, Video, X,
 } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand, uploadMedia } from '../../../api/masterData';
 import { confirm, notify } from '../../../components/confirm';
 import ImageViewerModal from '../../../components/ImageViewerModal';
-import { imeiApplies } from '../../../utils/imeiPolicy';
+import { imeiApplies, resolveRecordCategory } from '../../../utils/imeiPolicy';
+import { ticketStatusLabel } from './TicketDetailScreen';
 import { lockTypesFor, resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { useResponsive } from '../../../theme/responsive';
 import { priceItemsFromTicket } from './ReceiptCard';
 import MissingPartsChecklist, { flaggedMissingParts, seedMissingParts } from '../service-booking-shop/MissingPartsChecklist';
 import DeviceSecurityLockSheet from '../service-booking-shop/DeviceSecurityLockSheet';
-import { categoryLabel, consumeValidated, discardTempImage, isVerifiableCategory } from '../scanner/devicePhotoCheck';
+import { consumeValidated, discardTempImage, isVerifiableCategory } from '../scanner/devicePhotoCheck';
 
 const ACCENT = '#035C6C';
 const MINT = '#E5F3F5';
@@ -81,6 +82,7 @@ export default function EditBookingScreen({ navigation, route }) {
 
   const [ticket, setTicket] = useState(null);
   const [category, setCategory] = useState({ code: null, name: null, id: null });
+  const [recCategory, setRecCategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -89,11 +91,14 @@ export default function EditBookingScreen({ navigation, route }) {
   const [form, setForm] = useState(null);
   const originalRef = useRef(null);
   const [custOpen, setCustOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(!!route?.params?.openSecurity);
   const [lockSheet, setLockSheet] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [idUploading, setIdUploading] = useState(false);
+  const [idPreview, setIdPreview] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +113,11 @@ export default function EditBookingScreen({ navigation, route }) {
         customerPhone: normMobile(t.customerPhone),
         // Lives on the customer record, not the ticket — filled in below.
         customerAltPhone: '',
+        // Email / ID proof live on the customer record (filled in below);
+        // the address is the booking's own snapshot.
+        customerEmail: '',
+        customerAddress: t.customerAddress || '',
+        idProofUrl: '',
         imei: t.imei || '',
         // issueDescription here = the free Notes part; issueNotes = one per issue.
         issueDescription: splitIssueText(t.issueDescription, priceItemsFromTicket(t).map(itemLabel)).rest,
@@ -121,15 +131,29 @@ export default function EditBookingScreen({ navigation, route }) {
       };
       originalRef.current = initial;
       setForm(initial);
-      // Saved alternative number, from the customer record. Seeds the original
-      // too, so loading it doesn't count as an edit; never overwrites typing.
+      // Saved alternative number / email / ID proof (and the address when the
+      // booking has none), from the customer record. Seeds the original too, so
+      // loading them doesn't count as an edit; never overwrites typing.
       if (initial.customerPhone.length === 10) {
         ticketApi.get('/customers/lookup', { query: { mobile: initial.customerPhone } })
           .then((c) => {
-            const alt = normMobile(c?.alternatePhone);
-            if (!alt || !originalRef.current) return;
-            originalRef.current = { ...originalRef.current, customerAltPhone: alt };
-            setForm((f) => (f && !f.customerAltPhone ? { ...f, customerAltPhone: alt } : f));
+            if (!c || !originalRef.current) return;
+            const saved = {
+              customerAltPhone: normMobile(c.alternatePhone),
+              customerEmail: c.email || '',
+              idProofUrl: c.idProofUrl || '',
+              customerAddress: initial.customerAddress
+                || [c.addressLine, c.area || c.locality, c.taluk, c.district || c.city, c.pincode].filter(Boolean).join(', ')
+                || c.address || '',
+            };
+            const fill = Object.fromEntries(Object.entries(saved).filter(([, v]) => v));
+            originalRef.current = { ...originalRef.current, ...fill };
+            setForm((f) => {
+              if (!f) return f;
+              const next = { ...f };
+              Object.entries(fill).forEach(([k, v]) => { if (!next[k]) next[k] = v; });
+              return next;
+            });
           })
           .catch(() => {});
       }
@@ -141,6 +165,10 @@ export default function EditBookingScreen({ navigation, route }) {
           if (m) setCategory({ id: m.categoryId || null, code: m.categoryCode || null, name: m.categoryName || null });
         } catch { /* category stays unknown */ }
       }
+      // Models often carry only a categoryId — resolve it through the master
+      // categories so the Mobile-only rows (missing parts, IMEI) follow the
+      // real device type instead of "unknown".
+      resolveRecordCategory(t).then((c) => setRecCategory(c || null)).catch(() => {});
     } catch (e) {
       setLoadError(e?.message || 'Could not load this booking.');
     } finally {
@@ -149,11 +177,14 @@ export default function EditBookingScreen({ navigation, route }) {
   }, [ticketId]);
   useEffect(() => { load(); }, [load]);
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  // `v` may be an updater (prev field value → next), which is how
+  // MissingPartsChecklist reports a toggle / remark change.
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: typeof v === 'function' ? v(f[k]) : v }));
   // The booking's issues (read-only here — Re-Est / Price Revised change them).
   const issueItems = useMemo(() => priceItemsFromTicket(ticket).filter((x) => itemLabel(x)), [ticket]);
   const issueLabels = useMemo(() => issueItems.map(itemLabel), [issueItems]);
-  const specCategory = resolveSpecCategory(form?.device?.deviceCategory, form?.device?.categoryCode || category.code, form?.device?.categoryName || category.name);
+  const specCategory = resolveSpecCategory(form?.device?.deviceCategory, form?.device?.categoryCode || category.code, form?.device?.categoryName || category.name)
+    || (form?.device ? null : recCategory);
   const showImei = imeiApplies(specCategory);
   const lockTypes = lockTypesFor(specCategory);
   const lockOptions = ['NONE', ...['PIN', 'PATTERN', 'PASSWORD'].filter((k) => lockTypes.includes(k)), ...(lockTypes.includes('PATTERN') ? ['ACCOUNT'] : [])];
@@ -168,6 +199,9 @@ export default function EditBookingScreen({ navigation, route }) {
     if (form.customerName.trim() !== o.customerName.trim()) { body.customerName = form.customerName.trim(); labels.push('Customer name'); }
     if (normMobile(form.customerPhone) !== o.customerPhone) { body.customerPhone = normMobile(form.customerPhone); labels.push('Customer mobile'); }
     if (normMobile(form.customerAltPhone) !== normMobile(o.customerAltPhone)) labels.push('Alternative mobile');
+    if (form.customerEmail.trim() !== o.customerEmail.trim()) labels.push('Customer email');
+    if (form.customerAddress.trim() !== o.customerAddress.trim()) { body.customerAddress = form.customerAddress.trim(); labels.push('Customer address'); }
+    if (form.idProofUrl !== o.idProofUrl) labels.push('ID proof');
     if (form.device) {
       const d = form.device;
       const parts = specDisplayParts(d);
@@ -218,7 +252,11 @@ export default function EditBookingScreen({ navigation, route }) {
     : altDigits === normMobile(form.customerPhone) ? 'Must be different from the mobile number.'
     : '';
   const altChanged = !!form && !!originalRef.current && altDigits !== normMobile(originalRef.current.customerAltPhone);
-  const canSave = dirty && !saving && !uploading && !imeiError && !phoneError && !nameError && !altError;
+  const emailTrim = (form?.customerEmail || '').trim();
+  const emailError = emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim) ? 'Enter a valid email address.' : '';
+  const emailChanged = !!form && !!originalRef.current && emailTrim !== originalRef.current.customerEmail.trim();
+  const idProofChanged = !!form && !!originalRef.current && form.idProofUrl !== originalRef.current.idProofUrl;
+  const canSave = dirty && !saving && !uploading && !idUploading && !imeiError && !phoneError && !nameError && !altError && !emailError;
 
   // ── Save: PATCH only the changed fields, then one history row ────────
   const save = async () => {
@@ -237,11 +275,19 @@ export default function EditBookingScreen({ navigation, route }) {
     }
     setSaving(true);
     try {
-      // Alternative number → the customer record (POST /customers upserts by
-      // mobile and only writes the fields it is given).
-      if (altChanged && altDigits) {
+      // Alternative number / email / ID proof → the customer record (POST
+      // /customers upserts by mobile and only writes the fields it is given;
+      // the address only becomes their default when they have none yet).
+      if ((altChanged && altDigits) || (emailChanged && emailTrim) || (idProofChanged && form.idProofUrl) || diff.body.customerAddress) {
         await ticketApi.post('/customers', {
-          body: { name: form.customerName.trim(), phone: normMobile(form.customerPhone), alternatePhone: altDigits },
+          body: {
+            name: form.customerName.trim(),
+            phone: normMobile(form.customerPhone),
+            alternatePhone: altDigits || null,
+            email: emailTrim || null,
+            idProofUrl: form.idProofUrl || null,
+            address: diff.body.customerAddress || null,
+          },
         });
       }
       const res = Object.keys(diff.body).length
@@ -249,8 +295,15 @@ export default function EditBookingScreen({ navigation, route }) {
         : null;
       // Only claim success for what the server actually stored (an older
       // server ignores fields it doesn't support).
-      const missed = ['customerName', 'customerPhone', 'issueDescription', 'imei', 'deviceSecurityType', 'missingPartsJson', 'devicePhotosJson', 'modelId']
-        .filter((k) => diff.body[k] !== undefined && res && k in res && String(res[k] ?? '') !== String(diff.body[k] ?? ''));
+      // JSON columns compare by content — the server may re-serialise them.
+      // An emptied list / map may come back as null.
+      const normJson = (v) => {
+        const x = parseJson(v, null);
+        return JSON.stringify(x && typeof x === 'object' && !Object.keys(x).length ? null : x);
+      };
+      const norm = (k, v) => (/Json$/.test(k) ? normJson(v) : String(v ?? ''));
+      const missed = ['customerName', 'customerPhone', 'customerAddress', 'issueDescription', 'imei', 'deviceSecurityType', 'missingPartsJson', 'devicePhotosJson', 'modelId']
+        .filter((k) => diff.body[k] !== undefined && res && k in res && norm(k, res[k]) !== norm(k, diff.body[k]));
       if (missed.length) {
         notify('Not fully saved', 'The server did not accept some changes yet. Please update the app server and try again.', { preset: 'error' });
         return;
@@ -297,13 +350,54 @@ export default function EditBookingScreen({ navigation, route }) {
     });
   };
 
+  // ── Customer ID proof (same upload as the booking flow's Customer Details) ──
+  const pickIdProof = async (fromCamera) => {
+    const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to upload the ID proof.`); return; }
+    const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
+    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    const asset = res.canceled ? null : res.assets?.[0];
+    if (!asset) return;
+    if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('File too large', 'The ID proof must be 10 MB or smaller.'); return; }
+    setIdUploading(true);
+    try {
+      const url = await uploadMedia(asset, 'customer-id-proof');
+      if (!url) throw new Error('Upload returned no URL');
+      set('idProofUrl', url);
+    } catch (e) {
+      notify('Upload failed', e?.message || 'Could not upload the ID proof. Try again.');
+    } finally {
+      setIdUploading(false);
+    }
+  };
+
   // ── Media ─────────────────────────────────────────────────────────────
-  const addPhoto = (fromCamera) => {
+  const uploadPhoto = async (asset) => {
+    if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('Photo too large', 'The limit is 10 MB.'); return; }
+    setUploading(true);
+    try {
+      const url = await uploadMedia(asset, 'repair', { slot: PHOTO_KEYS[form.photos.length] || 'photo5' });
+      if (!url) throw new Error('Upload returned no URL');
+      setForm((f) => ({ ...f, photos: f.photos.length >= PHOTO_KEYS.length ? f.photos : [...f.photos, url] }));
+    } catch (e) {
+      notify('Upload failed', e?.message || 'Try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+  const addPhoto = async (fromCamera) => {
+    if (form.photos.length >= PHOTO_KEYS.length) return;
+    // Category unknown or not checkable (e.g. watch, audio): plain camera /
+    // gallery, same as the booking flow.
     if (!photoVerifiable) {
-      notify('Photo check unavailable', `${categoryLabel(specCategory)} photos can't be verified yet — add a video instead.`);
+      const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to add a device photo.`); return; }
+      const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
+      const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      if (res.canceled || !res.assets?.[0]) return;
+      await uploadPhoto(res.assets[0]);
       return;
     }
-    if (form.photos.length >= PHOTO_KEYS.length) return;
     navigation.navigate('DevicePhotoCapture', {
       mode: fromCamera ? 'camera' : 'gallery',
       category: specCategory || null,
@@ -314,15 +408,8 @@ export default function EditBookingScreen({ navigation, route }) {
           return;
         }
         try {
-          if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('Photo too large', 'The limit is 10 MB.'); return; }
-          setUploading(true);
-          const url = await uploadMedia(asset, 'repair', { slot: PHOTO_KEYS[form.photos.length] || 'photo5' });
-          if (!url) throw new Error('Upload returned no URL');
-          setForm((f) => ({ ...f, photos: f.photos.length >= PHOTO_KEYS.length ? f.photos : [...f.photos, url] }));
-        } catch (e) {
-          notify('Upload failed', e?.message || 'Try again.');
+          await uploadPhoto(asset);
         } finally {
-          setUploading(false);
           discardTempImage(asset?.uri);
         }
       },
@@ -417,15 +504,43 @@ export default function EditBookingScreen({ navigation, route }) {
               <>
                 <Field icon={<User size={18} color={INK} strokeWidth={1.75} />} value={form.customerName} onChangeText={(v) => set('customerName', v)} placeholder="Customer name" autoCapitalize="words" error={nameError} />
                 <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerPhone} onChangeText={(v) => set('customerPhone', v.replace(/\D/g, ''))} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} error={phoneError} />
-                <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerAltPhone} onChangeText={(v) => set('customerAltPhone', v.replace(/\D/g, ''))} placeholder="Enter alternative mobile number (optional)" keyboardType="phone-pad" maxLength={10} error={altError} last />
+                <Field icon={<Phone size={18} color={INK} strokeWidth={1.75} />} value={form.customerAltPhone} onChangeText={(v) => set('customerAltPhone', v.replace(/\D/g, ''))} placeholder="Enter alternative mobile number (optional)" keyboardType="phone-pad" maxLength={10} error={altError} />
+                <Field icon={<Mail size={18} color={INK} strokeWidth={1.75} />} value={form.customerEmail} onChangeText={(v) => set('customerEmail', v)} placeholder="Email address (optional)" autoCapitalize="none" keyboardType="email-address" error={emailError} />
+                <Field icon={<MapPin size={18} color={INK} strokeWidth={1.75} />} value={form.customerAddress} onChangeText={(v) => set('customerAddress', v)} placeholder="House No, Street, Area, City, Pincode (optional)" multiline tall />
+                {/* ID proof: tap to upload / replace; the thumbnail opens it. */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', height: 46, borderRadius: 12, borderWidth: 1, borderColor: LINE, paddingHorizontal: 12 }}>
+                  {form.idProofUrl ? (
+                    <Pressable onPress={() => setIdPreview(true)} accessibilityRole="imagebutton" accessibilityLabel="View ID proof">
+                      <Image source={{ uri: form.idProofUrl }} style={{ width: 26, height: 26, borderRadius: 6 }} resizeMode="cover" />
+                    </Pressable>
+                  ) : <IdCard size={18} color={INK} strokeWidth={1.75} />}
+                  <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, color: form.idProofUrl ? INK : SUBTLE, fontWeight: form.idProofUrl ? '600' : '400' }} numberOfLines={1}>
+                    {idUploading ? 'Uploading…' : form.idProofUrl ? 'ID proof uploaded' : 'Upload ID proof (optional)'}
+                  </Text>
+                  {idUploading ? <ActivityIndicator color={ACCENT} /> : (
+                    <>
+                      <Pressable onPress={() => pickIdProof(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Take ID proof photo" className="active:opacity-70" style={{ padding: 4 }}>
+                        <Camera size={18} color={ACCENT} />
+                      </Pressable>
+                      <Pressable onPress={() => pickIdProof(false)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Choose ID proof from gallery" className="active:opacity-70" style={{ padding: 4, marginLeft: 6 }}>
+                        <ImagePlus size={18} color={ACCENT} />
+                      </Pressable>
+                    </>
+                  )}
+                </View>
               </>
             ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}><User size={16} color={ACCENT} /></View>
-                <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '800', color: INK }} numberOfLines={1}>
-                  {form.customerName || '—'}<Text style={{ fontWeight: '500', color: MUTED }}>{form.customerPhone ? `  ·  ${form.customerPhone}` : ''}{form.customerAltPhone ? `  ·  Alt ${form.customerAltPhone}` : ''}</Text>
-                </Text>
-              </View>
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}><User size={16} color={ACCENT} /></View>
+                  <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '800', color: INK }} numberOfLines={1}>
+                    {form.customerName || '—'}<Text style={{ fontWeight: '500', color: MUTED }}>{form.customerPhone ? `  ·  ${form.customerPhone}` : ''}{form.customerAltPhone ? `  ·  Alt ${form.customerAltPhone}` : ''}</Text>
+                  </Text>
+                </View>
+                <CustomerLine icon={<Mail size={14} color={MUTED} />} value={form.customerEmail} />
+                <CustomerLine icon={<MapPin size={14} color={MUTED} />} value={form.customerAddress} />
+                <CustomerLine icon={<IdCard size={14} color={MUTED} />} value={form.idProofUrl ? 'ID proof uploaded' : ''} empty="No ID proof" onPress={form.idProofUrl ? () => setIdPreview(true) : undefined} />
+              </>
             )}
           </Card>
 
@@ -488,42 +603,50 @@ export default function EditBookingScreen({ navigation, route }) {
           ) : null}
 
           {/* Photos / video */}
-          <SectionTitle title="Device Photos & Video" hint="(Optional)" />
+          <SectionTitle title="Device Photos & Video" hint="(Optional)" action={mediaOpen ? null : 'Edit'} onAction={() => setMediaOpen(true)} />
           <Card>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <MediaButton icon={<Camera size={17} color={ACCENT} />} label="Camera" disabled={!photoVerifiable || form.photos.length >= PHOTO_KEYS.length || uploading} onPress={() => addPhoto(true)} />
-              <MediaButton icon={<ImagePlus size={17} color={ACCENT} />} label="Gallery" disabled={!photoVerifiable || form.photos.length >= PHOTO_KEYS.length || uploading} onPress={() => addPhoto(false)} />
-              <MediaButton icon={<Video size={17} color={ACCENT} />} label="Video" disabled={!!form.video || uploading} onPress={addVideo} />
-            </View>
+            {mediaOpen ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <MediaButton icon={<Camera size={17} color={ACCENT} />} label="Camera" disabled={form.photos.length >= PHOTO_KEYS.length || uploading} onPress={() => addPhoto(true)} />
+                <MediaButton icon={<ImagePlus size={17} color={ACCENT} />} label="Gallery" disabled={form.photos.length >= PHOTO_KEYS.length || uploading} onPress={() => addPhoto(false)} />
+                <MediaButton icon={<Video size={17} color={ACCENT} />} label="Video" disabled={!!form.video || uploading} onPress={addVideo} />
+              </View>
+            ) : null}
             {uploading ? <ActivityIndicator color={ACCENT} style={{ marginTop: 8 }} /> : null}
             {form.photos.length || form.video ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: mediaOpen ? 10 : 0 }}>
                 {form.photos.map((u, i) => (
                   <Pressable key={u} onPress={() => setPreview(i)} accessibilityRole="imagebutton" accessibilityLabel={`Photo ${i + 1}`} style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', backgroundColor: PAGE }}>
                     <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    <Pressable onPress={() => removePhoto(i)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Remove photo ${i + 1}`} style={{ position: 'absolute', top: 4, right: 4, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(17,17,17,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                      <X size={12} color="#FFFFFF" />
-                    </Pressable>
+                    {mediaOpen ? (
+                      <Pressable onPress={() => removePhoto(i)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Remove photo ${i + 1}`} style={{ position: 'absolute', top: 4, right: 4, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(17,17,17,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                        <X size={12} color="#FFFFFF" />
+                      </Pressable>
+                    ) : null}
                   </Pressable>
                 ))}
                 {form.video ? (
                   <View style={{ width: 72, height: 72, borderRadius: 12, backgroundColor: INK, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>Video</Text>
-                    <Pressable onPress={removeVideo} hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove video" style={{ position: 'absolute', top: 4, right: 4, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-                      <X size={12} color="#FFFFFF" />
-                    </Pressable>
+                    {mediaOpen ? (
+                      <Pressable onPress={removeVideo} hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove video" style={{ position: 'absolute', top: 4, right: 4, height: 20, width: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+                        <X size={12} color="#FFFFFF" />
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
             ) : (
-              <Text style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>No photos yet.</Text>
+              <Text style={{ fontSize: 12, color: MUTED, marginTop: mediaOpen ? 8 : 0 }}>No photos yet.</Text>
             )}
           </Card>
 
           {/* More details: parts + security */}
           <SectionTitle title="More Details" />
           <View style={{ borderRadius: 14, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
-            {!specCategory || specCategory === 'MOBILE' ? (
+            {/* Mobile (or not yet known) only — plus any booking that already
+                has parts flagged, so saved values can always be corrected. */}
+            {!specCategory || specCategory === 'MOBILE' || flaggedMissingParts(originalRef.current?.missingParts).length ? (
               <>
                 <FoldRow title="Missing / Damaged Parts" right={flagged ? `${flagged} Part${flagged === 1 ? '' : 's'} Flagged` : 'None'} rightColor={flagged ? RED : MUTED} open={partsOpen} onPress={() => setPartsOpen((v) => !v)} />
                 {partsOpen ? <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}><MissingPartsChecklist value={form.missingParts} onChange={(v) => set('missingParts', v)} /></View> : null}
@@ -546,12 +669,15 @@ export default function EditBookingScreen({ navigation, route }) {
           {/* Read-only context — changed through their own actions. */}
           <SectionTitle title="Booking Info" hint="(not editable here)" />
           <Card>
-            <InfoRow label="Ticket" value={`#${ticket.trackingId}`} />
+            <InfoRow label="Booking" value={`#${ticket.trackingId}`} />
             <InfoRow label="Booked on" value={fmtDateTime(ticket.createdAt)} />
-            <InfoRow label="Status" value={String(ticket.status || '—').replace(/_/g, ' ')} />
-            <InfoRow label="Technician" value={ticket.assignedTechnicianName || ticket.technicianName || (ticket.assignedTechnicianId ? 'Assigned' : 'Not assigned')} />
-            <InfoRow label="Estimate" value={ticket.estimatedPrice != null ? `₹${Number(ticket.estimatedPrice).toLocaleString('en-IN')}` : 'Not Estimated'} />
-            <InfoRow label="Delivery" value={fmtDateTime(ticket.estimatedDeliveryAt)} last />
+            <InfoRow label="Status" value={ticketStatusLabel(ticket.status)} />
+            <InfoRow label="Technician" value={(() => {
+              const name = String(ticket.assignedTechnicianName || ticket.technicianName || '').trim();
+              return name ? `Assigned (${name})` : ticket.assignedTechnicianId ? 'Assigned' : 'Not Assigned';
+            })()} />
+            <InfoRow label="Estimated Cost" value={ticket.estimatedPrice != null ? `₹${Number(ticket.estimatedPrice).toLocaleString('en-IN')}` : 'Not Estimated'} />
+            <InfoRow label="Delivery On" value={fmtDateTime(ticket.estimatedDeliveryAt)} last />
           </Card>
         </View>
       </KeyboardAwareScrollView>
@@ -585,7 +711,23 @@ export default function EditBookingScreen({ navigation, route }) {
         index={preview || 0}
         onClose={() => setPreview(null)}
       />
+      <ImageViewerModal
+        visible={idPreview && !!form.idProofUrl}
+        images={form.idProofUrl ? [{ uri: form.idProofUrl, label: 'ID Proof' }] : []}
+        index={0}
+        onClose={() => setIdPreview(false)}
+      />
     </View>
+  );
+}
+
+// Collapsed Customer Details: one muted line (email / address / ID proof), "None" when empty.
+function CustomerLine({ icon, value, empty = 'None', onPress }) {
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 6, marginLeft: 42 }}>
+      <View style={{ marginTop: 1 }}>{icon}</View>
+      <Text style={{ flex: 1, marginLeft: 6, fontSize: 12.5, color: value ? INK : SUBTLE, textDecorationLine: onPress ? 'underline' : 'none' }} numberOfLines={2}>{value || empty}</Text>
+    </Pressable>
   );
 }
 
@@ -609,12 +751,12 @@ function SectionTitle({ title, hint, action, onAction }) {
   );
 }
 
-function Field({ icon, error, last, ...props }) {
+function Field({ icon, error, last, tall, ...props }) {
   return (
     <View style={{ marginBottom: last ? 0 : 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', height: 46, borderRadius: 12, borderWidth: 1, borderColor: error ? '#FECACA' : LINE, paddingHorizontal: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: tall ? 'flex-start' : 'center', ...(tall ? { minHeight: 72, paddingVertical: 12 } : { height: 46 }), borderRadius: 12, borderWidth: 1, borderColor: error ? '#FECACA' : LINE, paddingHorizontal: 12 }}>
         {icon}
-        <TextInput {...props} placeholderTextColor={SUBTLE} cursorColor={ACCENT} style={{ flex: 1, marginLeft: 10, paddingVertical: 0, fontSize: 14, color: INK, includeFontPadding: false }} />
+        <TextInput {...props} placeholderTextColor={SUBTLE} cursorColor={ACCENT} style={{ flex: 1, marginLeft: 10, paddingVertical: 0, fontSize: 14, color: INK, includeFontPadding: false, ...(tall ? { textAlignVertical: 'top' } : null) }} />
       </View>
       {error ? <Text style={{ fontSize: 11.5, color: RED, marginTop: 4 }}>{error}</Text> : null}
     </View>
@@ -652,7 +794,7 @@ function Chip({ label, onPress, danger }) {
 function InfoRow({ label, value, last }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: last ? 0 : 1, borderBottomColor: '#F3F4F6' }}>
-      <Text style={{ width: 92, fontSize: 12, color: MUTED }}>{label}</Text>
+      <Text style={{ width: 104, fontSize: 12, color: MUTED }} numberOfLines={1}>{label}</Text>
       <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: INK }} numberOfLines={1}>{value}</Text>
     </View>
   );

@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 /**
- * Near G Fix Partner boot screen (same design as the Customer app's LaunchOverlay), shown
+ * NearGFix Partner boot screen (same design as the Customer app's LaunchOverlay), shown
  * by RootNavigator while the session loads; RootNavigator owns the fade-out:
  * green wavy top (glowing logo, wordmark, services), the device line-up over
  * the wave edge, then tagline · progress · trust row on a light base.
@@ -124,7 +124,7 @@ export default function BootSplash() {
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel="Loading Near G Fix Partner"
+      accessibilityLabel="Loading NearGFix Partner"
       style={[StyleSheet.absoluteFill, styles.root]}
     >
       <StatusBar style="light" />
