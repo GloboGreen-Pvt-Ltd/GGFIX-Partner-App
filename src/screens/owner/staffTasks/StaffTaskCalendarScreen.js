@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarPlus, ListChecks, ChevronDown, ChevronLeft, ChevronR
 import { useResponsive } from '../../../theme/responsive';
 import { dayKey, displayStatus, formatTime, listTasks, parseDay, toMinutes } from './staffTaskStore';
 import { Avatar, C, STATUS_META, TYPE_META } from './staffTaskUi';
+import { notify } from '../../../components/confirm';
 
 const HOUR_H = 64; // px per hour
 const GUTTER = 50;
@@ -108,7 +109,8 @@ export default function StaffTaskCalendarScreen({ navigation, route }) {
 
   useFocusEffect(useCallback(() => {
     let alive = true;
-    listTasks().then((l) => { if (alive) setTasks(l.filter((t) => t.status !== 'CANCELLED')); });
+    listTasks().then((l) => { if (alive) setTasks(l.filter((t) => t.status !== 'CANCELLED')); })
+      .catch((e) => { if (alive) notify('Could not load tasks', e?.message || 'Please try again.', { preset: 'error' }); });
     return () => { alive = false; };
   }, []));
 

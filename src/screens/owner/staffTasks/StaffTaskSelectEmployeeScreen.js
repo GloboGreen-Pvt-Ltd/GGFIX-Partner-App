@@ -42,7 +42,7 @@ export default function StaffTaskSelectEmployeeScreen({ navigation, route }) {
     Promise.all([
       ticketApi.get('/technicians'),
       ticketApi.get('/technicians/leaves', { query: { status: 'APPROVED' } }).catch(() => []),
-      listTasks(),
+      listTasks().catch(() => []), // clash hints only; the team list still loads
     ])
       .then(([res, lv, list]) => {
         if (!alive) return;

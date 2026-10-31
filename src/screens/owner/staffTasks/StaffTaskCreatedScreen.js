@@ -16,7 +16,7 @@ export default function StaffTaskCreatedScreen({ navigation, route }) {
   const taskId = route?.params?.taskId;
   const [task, setTask] = useState(null);
 
-  useEffect(() => { getTask(taskId).then(setTask); }, [taskId]);
+  useEffect(() => { getTask(taskId).then(setTask).catch(() => {}); }, [taskId]);
 
   const col = r.isTablet ? { width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' } : null;
   const Line = ({ icon: Icon, text }) => (
