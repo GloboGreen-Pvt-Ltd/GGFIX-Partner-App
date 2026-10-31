@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Check,
@@ -11,12 +11,15 @@ import {
   Gem,
   Gift,
   LayoutList,
+  Minus,
+  Plus,
   Receipt,
   Store,
 } from 'lucide-react-native';
 import { useResponsive } from '../../theme/responsive';
 import { getSession } from '../../auth/session';
-import { getCatalog, getMySubscription, getPaymentHistory } from '../../api/subscription';
+import { activateTrial, getCatalog, getEligibleShops, getMySubscription, getPaymentHistory, getQuotePreview } from '../../api/subscription';
+import { confirm, notify } from '../../components/confirm';
 import { formatDate, formatPaise, methodLabel, perTerm, titleCase } from '../../subscription/format';
 import { inAppCheckoutStatus } from '../../subscription/razorpay';
 import {
@@ -79,6 +82,12 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState({});
+  const [eligible, setEligible] = useState(null);
+  const [selCode, setSelCode] = useState(null);
+  const [shopCount, setShopCount] = useState(1);
+  const [estimate, setEstimate] = useState(null);
+  const [estimating, setEstimating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const loadedOnce = useRef(false);
 
   const load = useCallback(async (mode = 'initial') => {
@@ -87,19 +96,22 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
     const s = await getSession().catch(() => null);
     const shopLogin = s?.loginScope === 'SHOP' || s?.loginType === 'SHOP_LOGIN';
     setIsShopLogin(shopLogin);
-    const [meR, catR, histR] = await Promise.allSettled([
+    const [meR, catR, histR, shopsR] = await Promise.allSettled([
       getMySubscription(),
       getCatalog(),
       shopLogin ? Promise.resolve([]) : getPaymentHistory(),
+      shopLogin ? Promise.resolve([]) : getEligibleShops(),
     ]);
     // Keep the last good payload on a failed silent refresh.
     if (meR.status === 'fulfilled') setMe(meR.value || null);
     if (catR.status === 'fulfilled') setCatalog(catR.value || null);
     if (histR.status === 'fulfilled') setHistory(Array.isArray(histR.value) ? histR.value : []);
+    if (shopsR.status === 'fulfilled') setEligible(Array.isArray(shopsR.value) ? shopsR.value : []);
     setErrors({
       me: meR.status === 'rejected' ? (meR.reason?.message || 'Could not load your subscription.') : null,
       catalog: catR.status === 'rejected' ? (catR.reason?.message || 'Could not load plans.') : null,
       history: histR.status === 'rejected' ? (histR.reason?.message || 'Could not load payments.') : null,
+      shops: shopsR.status === 'rejected' ? (shopsR.reason?.message || 'Could not load your shops.') : null,
     });
     loadedOnce.current = true;
     setLoading(false);
@@ -124,6 +136,89 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
       // Renewing keeps the shops already covered selected.
       preselect: kind === 'renew' ? coveredIds : [],
     });
+  };
+
+  // Tap a plan to select it (tap again to unselect), set the shop count with − / +,
+  // then Submit opens payment. Covered shops are picked first, then the rest.
+  const selPlan = plans.find((p) => p.code === selCode) || null;
+  const selAction = selPlan && !isShopLogin ? planAction(selPlan, sub, !!me?.trialAvailable, plans) : null;
+  const selOk = !!selAction;
+  const selTrial = selAction?.kind === 'trial';
+  const pickable = useMemo(() => {
+    const rows = (eligible || []).filter((s) => s.selectable);
+    const cov = new Set((me?.shops || []).map((x) => x.shopId));
+    return [...rows.filter((s) => cov.has(s.shopId)), ...rows.filter((s) => !cov.has(s.shopId))];
+  }, [eligible, me]);
+  const limit = selPlan?.shopLimit === null || selPlan?.shopLimit === undefined ? Infinity : Number(selPlan.shopLimit);
+  const maxCount = selOk ? Math.min(pickable.length, limit) : 0;
+  const count = maxCount ? Math.min(Math.max(shopCount, 1), maxCount) : 0;
+
+  const toggleSelect = (plan) => {
+    if (selCode === plan.code) { setSelCode(null); return; }
+    setSelCode(plan.code);
+    setShopCount(Math.max(coveredIds.length, 1));
+  };
+
+  // Debounced server estimate for the selected paid plan.
+  useEffect(() => {
+    if (!selOk || selTrial || !count) { setEstimate(null); setEstimating(false); return undefined; }
+    let cancelled = false;
+    setEstimating(true);
+    const t = setTimeout(async () => {
+      try {
+        const q = await getQuotePreview(selCode, count);
+        if (!cancelled) setEstimate(q || null);
+      } catch (e) {
+        if (!cancelled) setEstimate(null);
+      } finally {
+        if (!cancelled) setEstimating(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [selCode, selOk, selTrial, count]);
+
+  const submit = async () => {
+    if (!selPlan || !count) return;
+    const picked = pickable.slice(0, count);
+    const shopIds = picked.map((s) => s.shopId);
+    const shopsParam = picked.map((s) => ({ shopId: s.shopId, name: s.name }));
+    const label = [selPlan.name, selPlan.durationLabel].filter(Boolean).join(' · ');
+    if (selTrial) {
+      const ok = await confirm({
+        title: 'Start free trial?',
+        message: `${label} for ${count} shop${count === 1 ? '' : 's'}: ${picked.map((s) => s.name || 'Shop').join(', ')}.\n\nThe free trial can be used only once.`,
+        confirmText: 'Start Trial',
+      });
+      if (!ok) return;
+      setSubmitting(true);
+      try {
+        const res = await activateTrial(shopIds);
+        setSelCode(null);
+        navigation?.navigate?.('SubscriptionSuccess', { kind: 'trial', me: res, shops: shopsParam, planName: selPlan.name, durationLabel: selPlan.durationLabel });
+      } catch (e) {
+        notify('Could not start trial', e?.message || 'Please try again.', { preset: 'error' });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+    if (!checkout.available) {
+      const why = !checkout.platformEnabled ? 'In-app checkout is turned off for this platform in Management Settings.'
+        : !checkout.configured ? 'Razorpay is not configured on the server.'
+          : 'This app build does not include the payment SDK. Install the latest app build.';
+      notify('Payment unavailable', why, { type: 'warning' });
+      return;
+    }
+    if (status === 'ACTIVE' && sub?.planCode && sub.planCode !== selPlan.code) {
+      const ok = await confirm({
+        title: 'Replace current plan?',
+        message: `${label} will replace your current plan (${sub.planName || sub.planCode}).`,
+        confirmText: 'Continue',
+      });
+      if (!ok) return;
+    }
+    setSelCode(null);
+    navigation?.navigate?.('SubscriptionPayment', { planCode: selPlan.code, shopIds, shops: shopsParam });
   };
 
   const headerRight = gated ? (
@@ -212,7 +307,8 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
                         trialUsed={isTrialPlan(plan) && me && !me.trialAvailable && sub?.planCode !== plan.code}
                         expanded={!!expanded[plan.code]}
                         onToggle={() => setExpanded((e) => ({ ...e, [plan.code]: !e[plan.code] }))}
-                        onAction={(kind) => startPlan(plan, kind)}
+                        selected={selCode === plan.code}
+                        onSelect={() => toggleSelect(plan)}
                       />
                     </View>
                   ))}
@@ -284,6 +380,23 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
           </View>
         </ScrollView>
       )}
+
+      {!loading && selOk ? (
+        <CheckoutBar
+          plan={selPlan}
+          trial={selTrial}
+          count={count}
+          maxCount={maxCount}
+          onCount={setShopCount}
+          total={selTrial ? 'Free' : estimating ? null : estimate ? formatPaise(estimate.totalPaise) : '—'}
+          shopsError={errors.shops}
+          submitting={submitting}
+          onSubmit={submit}
+          onAddShop={() => navigation?.navigate?.('OwnerShopInfo', { mode: 'create' })}
+          bottomInset={r.insets.bottom}
+          capStyle={cap}
+        />
+      ) : null}
     </View>
   );
 }
@@ -376,7 +489,7 @@ function PlanDetailsCard({ me }) {
   );
 }
 
-function PlanCard({ plan, badge, action, trialUsed, expanded, onToggle, onAction }) {
+function PlanCard({ plan, badge, action, trialUsed, expanded, onToggle, selected, onSelect }) {
   const Icon = TYPE_ICON[plan.planType] || Crown;
   const color = planColor(plan);
   const trial = isTrialPlan(plan);
@@ -386,7 +499,13 @@ function PlanCard({ plan, badge, action, trialUsed, expanded, onToggle, onAction
   const term = perTerm(plan);
   const isCurrent = badge?.label === 'Current Plan';
   return (
-    <View style={{ borderRadius: 14, borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? color : C.line, backgroundColor: C.white, overflow: 'hidden', ...{ shadowColor: '#111', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 } }}>
+    <Pressable
+      onPress={onSelect}
+      disabled={!action}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: !!selected, disabled: !action }}
+      style={{ borderRadius: 14, borderWidth: selected || isCurrent ? 2 : 1, borderColor: selected ? C.teal : isCurrent ? color : C.line, backgroundColor: selected ? C.tealSoft : C.white, overflow: 'hidden', ...{ shadowColor: '#111', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 } }}
+    >
       <View style={{ height: 4, backgroundColor: color }} />
       <View style={{ padding: 11 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -433,8 +552,70 @@ function PlanCard({ plan, badge, action, trialUsed, expanded, onToggle, onAction
           {features.length > FEATURES_COLLAPSED ? (
             <Btn label={expanded ? 'Hide Details' : 'View Details'} variant="outline" compact onPress={onToggle} style={{ flex: 1 }} />
           ) : null}
-          {action ? <Btn label={action.label} compact onPress={() => onAction(action.kind)} style={{ flex: 1 }} /> : null}
+          {action ? (
+            <Btn label={selected ? 'Selected' : action.label} icon={selected ? Check : undefined} variant={selected ? 'outline' : 'primary'} compact onPress={onSelect} style={{ flex: 1 }} />
+          ) : null}
         </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function Stepper({ value, max, onChange }) {
+  const step = (Icon, next, off, label) => (
+    <Pressable
+      onPress={() => onChange(next)}
+      disabled={off}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+        borderColor: off ? C.line : C.tealLine, backgroundColor: off ? C.soft : C.tealSoft, opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Icon size={16} color={off ? C.subtle : C.teal} strokeWidth={2.6} />
+    </Pressable>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {step(Minus, value - 1, value <= 1, 'Fewer shops')}
+      <Text style={{ minWidth: 34, textAlign: 'center', fontSize: 16, fontWeight: '800', color: C.ink }}>{value}</Text>
+      {step(Plus, value + 1, value >= max, 'More shops')}
+    </View>
+  );
+}
+
+/** Sticky footer for the selected plan: shop count − / +, total, Submit. */
+function CheckoutBar({ plan, trial, count, maxCount, onCount, total, shopsError, submitting, onSubmit, onAddShop, bottomInset, capStyle }) {
+  return (
+    <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 + bottomInset }}>
+      <View style={capStyle}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={{ fontSize: 13.5, fontWeight: '800', color: C.ink }} numberOfLines={1}>
+              {[plan?.name, plan?.durationLabel].filter(Boolean).join(' · ')}
+            </Text>
+            <Text style={{ fontSize: 11, color: C.muted, marginTop: 2 }} numberOfLines={2}>
+              {shopsError || (maxCount ? `Shops · up to ${maxCount}` : 'No eligible shops yet')}
+            </Text>
+          </View>
+          {maxCount ? <Stepper value={count} max={maxCount} onChange={onCount} /> : null}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+          <Text style={{ flex: 1, fontSize: 12, color: C.muted }}>{trial ? 'Free trial' : 'Total'}</Text>
+          {total === null ? <ActivityIndicator color={C.teal} /> : (
+            <Text style={{ fontSize: 17, fontWeight: '800', color: C.teal }}>{count ? total : '—'}</Text>
+          )}
+        </View>
+        {maxCount ? (
+          <Btn label={trial ? 'Start Free Trial' : 'Submit & Pay'} onPress={onSubmit} disabled={!count || submitting} loading={submitting} style={{ marginTop: 8 }} />
+        ) : (
+          <Btn label="Add New Shop" icon={Store} variant="outline" onPress={onAddShop} style={{ marginTop: 8 }} />
+        )}
+        {!trial && maxCount ? (
+          <Text style={{ fontSize: 10.5, color: C.subtle, marginTop: 6, textAlign: 'center' }}>{'By submitting you agree to the Terms & Conditions.'}</Text>
+        ) : null}
       </View>
     </View>
   );

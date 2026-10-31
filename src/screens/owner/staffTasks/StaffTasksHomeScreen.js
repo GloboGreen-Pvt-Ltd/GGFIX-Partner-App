@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ClipboardList, CalendarDays, Loader, CircleCheck, Clock, AlarmClockOff, ChevronRight, CircleSlash,
+  ClipboardList, CalendarDays, Loader, CircleCheck, Clock, AlarmClockOff, ChevronRight, CircleSlash, Ban,
 } from 'lucide-react-native';
 import { useResponsive } from '../../../theme/responsive';
 import { DashboardOverviewCard } from '../../../components/dashboard/DashboardOverviewCard';
@@ -11,6 +11,7 @@ import { DashboardToolsGrid, getDashboardToolColumns } from '../../../components
 import { mci } from '../../../components/dashboard/solidIcons';
 import { assigneeNames, countTasks, dayKey, displayStatus, formatDay, formatTime, listTasks } from './staffTaskStore';
 import { Avatar, C, Pill, STATUS_META, TaskHeader, TYPE_META, cardShadow } from './staffTaskUi';
+import { notify } from '../../../components/confirm';
 
 // Status counts — Home's Overview cards (DashboardOverviewCard). Tap filters the list.
 const STATS = [
@@ -21,6 +22,7 @@ const STATS = [
   { key: 'pending', label: 'Pending', caption: 'Not started', icon: Clock, color: '#FAA700' },
   { key: 'overdue', label: 'Overdue', caption: 'Past end time', icon: AlarmClockOff, color: '#F32C26' },
   { key: 'incomplete', label: 'Incomplete', caption: 'Not done', icon: CircleSlash, color: '#F32C26' },
+  { key: 'cancelled', label: 'Cancelled', caption: 'Called off', icon: Ban, color: '#6B7280' },
 ];
 
 // Quick actions — the Employee section's own tool tiles (DashboardToolsGrid).
@@ -42,7 +44,8 @@ const matches = (key, t, today) => {
     case 'pending': return s === 'PENDING';
     case 'overdue': return s === 'OVERDUE';
     case 'incomplete': return s === 'INCOMPLETE';
-    default: return t.status !== 'CANCELLED';
+    case 'cancelled': return t.status === 'CANCELLED';
+    default: return true;
   }
 };
 
@@ -50,14 +53,20 @@ export default function StaffTasksHomeScreen({ navigation }) {
   const r = useResponsive();
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState([]);
-  const [filter, setFilter] = useState('today');
+  const [filter, setFilter] = useState('all');
   const [contentW, setContentW] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
+  // Reload on focus and on pull — employees update status from the Employee App.
+  const load = useCallback((alive = () => true) => listTasks()
+    .then((l) => { if (alive()) setTasks(l); })
+    .catch((e) => { if (alive()) notify('Could not load tasks', e?.message || 'Please try again.', { preset: 'error' }); }), []);
   useFocusEffect(useCallback(() => {
     let alive = true;
-    listTasks().then((l) => { if (alive) setTasks(l); });
+    load(() => alive);
     return () => { alive = false; };
-  }, []));
+  }, [load]));
+  const onRefresh = () => { setRefreshing(true); load().finally(() => setRefreshing(false)); };
 
   const counts = useMemo(() => countTasks(tasks), [tasks]);
   const today = dayKey(new Date());
@@ -80,7 +89,8 @@ export default function StaffTasksHomeScreen({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.page }}>
       <TaskHeader title="Staff Tasks" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 90 }}>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 90 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#035C6C']} tintColor="#035C6C" />}>
         <View style={col} onLayout={(e) => setContentW(Math.round(e.nativeEvent.layout.width))}>
           <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>Store Operations</Text>
           <Text style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Create and assign tasks to your team</Text>
