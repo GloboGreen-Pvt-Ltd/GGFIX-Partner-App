@@ -14,7 +14,7 @@
 // on purpose: NativeWind classes are not applied reliably inside a
 // collapsable={false} view-shot subtree. No transparent fills either — a
 // transparent pixel renders as black in most chat apps.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,9 @@ import {
 } from 'lucide-react-native';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, useImeiApplies } from '../../../utils/imeiPolicy';
+import { ticketApi } from '../../../api/client';
+import { fetchMe } from '../../../api/auth';
+import { getSession } from '../../../auth/session';
 
 // GGFIX palette.
 const GREEN = '#035C6C';
@@ -54,6 +57,39 @@ export function priceItemsFromTicket(ticket) {
   }
   return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
 }
+
+// An issue's typed note shown with it: "Display Replacement (cracked glass)".
+export const withNote = (name, note) => (name && String(note || '').trim() ? `${name} (${String(note).trim()})` : name);
+// Saved tickets keep those notes as "<issue>: <note>" lines of issueDescription.
+export function issueNoteFor(ticket, name) {
+  const line = name ? String(ticket?.issueDescription || '').split('\n').find((l) => l.startsWith(`${name}: `)) : null;
+  return line ? line.slice(name.length + 2).trim() : '';
+}
+// The rest of the complaint (e.g. IMEI reason). Issue notes already show in
+// brackets on the issue, and the plain issue-name fallback is the issues
+// themselves, so neither repeats here.
+export function receiptComplaint(text, names) {
+  const list = (names || []).filter(Boolean);
+  const s = String(text || '').split('\n')
+    .filter((l) => !list.some((n) => l.startsWith(`${n}: `)))
+    .join('\n').trim();
+  return s && s !== list.join(', ') ? s : null;
+}
+// A ticket's deviceDisplayName ("Name · Model No (8GB / 128GB)") in parts.
+export function deviceNameParts(raw) {
+  const str = String(raw || '').trim();
+  const m = /^(.*?)(?: · ([^()]+?))?(?: \(([^)]*)\))?$/.exec(str);
+  return { deviceName: (m?.[1] || str).trim() || null, modelNumber: m?.[2]?.trim() || null, ramStorage: m?.[3]?.trim() || null };
+}
+// "3 Months" for one issue; "Display Replacement: 3 Months, …" for several.
+export function warrantySummary(list) {
+  const w = (list || []).filter((x) => x.warranty);
+  if (!w.length) return null;
+  return list.length === 1 ? w[0].warranty : w.map((x) => `${x.name}: ${x.warranty}`).join(', ');
+}
+// A saved ticket's complaint, for receipts and invoices.
+export const ticketComplaint = (ticket) => receiptComplaint(ticket?.issueDescription,
+  priceItemsFromTicket(ticket).filter((i) => !isServiceChargeItem(i)).map((i) => i.label || i.serviceName || i.name));
 
 // An explicit estimatedPrice always wins; otherwise sum the line items.
 export function estimatedTotalOf(ticket, lineItems) {
@@ -159,7 +195,16 @@ export function receiptShopFromSession(session) {
   return {
     name: session?.shopName || active?.name || '',
     imageUrl: active?.frontImageUrl || session?.avatarUrl || null,
+    // Shop contact number (same fallbacks as the Shop QR screen).
+    phone: active?.mobile || active?.mobilePrimary || active?.phone || active?.contactPhone || session?.mobile || session?.phone || null,
   };
+}
+
+// Receipt shop details from the /auth/me response (carries the active shop's
+// own mobile); the saved session when that call fails.
+export async function loadReceiptShop() {
+  const fresh = await fetchMe().catch(() => null);
+  return receiptShopFromSession(fresh?.userId ? fresh : await getSession());
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -177,6 +222,15 @@ export function receiptDateParts(value) {
   };
 }
 
+// The auto "Service charge" row is a charge, not a repair issue.
+const isServiceChargeItem = (x) => String(x?.code || x?.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE';
+const receiptWhen = (iso) => {
+  if (!iso) return null;
+  const t = new Date(iso);
+  return Number.isNaN(t.getTime()) ? null
+    : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
+};
+
 const inr2 = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
 /**
@@ -193,10 +247,11 @@ export function buildBookingReceiptText({
   const deviceLines = devices.map((d, i) => {
     const svcs = (d.serviceNames || []).join(', ') || '-';
     const price = d.price != null ? `\n   Price: ₹${(Number(d.price) || 0).toLocaleString('en-IN')}` : '';
-    return `${i + 1}. ${d.modelName || 'Device'}\n   Services: ${svcs}${price}`;
+    const eta = receiptWhen(d.estimatedDeliveryIso);
+    return `${i + 1}. ${d.modelName || 'Device'}${d.variant ? ` (${d.variant})` : ''}${d.imei ? `\n   IMEI: ${d.imei}` : ''}\n   Issues: ${svcs}${d.serviceCharge ? `\n   Service charge: ₹${(Number(d.serviceCharge) || 0).toLocaleString('en-IN')}` : ''}${price}${eta ? `\n   Estimated Time: ${eta}` : ''}`;
   }).join('\n');
   return (
-    `🧾 Near G Fix Booking Receipt\n` +
+    `🧾 NearGFix Booking Receipt\n` +
     (when ? `${when.date} · ${when.time}\n` : '') +
     `\n— SHOP INFORMATION —\n` +
     `Shop: ${shop.name || 'Your Shop'}\n` +
@@ -204,6 +259,7 @@ export function buildBookingReceiptText({
     `\n— CUSTOMER DETAILS —\n` +
     `Name: ${customer.name || '-'}\n` +
     `Mobile: ${customer.phone || '-'}\n` +
+    (customer.alternatePhone ? `Alternate Mobile: ${customer.alternatePhone}\n` : '') +
     (customer.address ? `Address: ${customer.address}\n` : '') +
     `\n— DEVICE & REPAIR DETAILS —\n${deviceLines || '-'}\n\n` +
     `— SERVICE INFORMATION —\n` +
@@ -213,16 +269,74 @@ export function buildBookingReceiptText({
     (payment
       ? `${payment.label}: ${inr2(payment.amount)}\nBalance Amount: ${inr2(payment.balance)}\n`
       : '') +
-    `\nTrack your repair in the Near G Fix app.`
+    `\nTrack your repair in the NearGFix app.`
+  );
+}
+
+// "30 Oct 2026, 2:57 AM" (withYear) / "30 Oct, 2:57 AM" — hand-formatted so
+// WhatsApp and SMS read the same on every device.
+export const readyWhen = (iso, withYear) => {
+  const t = iso ? new Date(iso) : null;
+  if (!t || Number.isNaN(t.getTime())) return null;
+  const h = t.getHours();
+  const day = `${String(t.getDate()).padStart(2, '0')} ${MONTHS[t.getMonth()]}${withYear ? ` ${t.getFullYear()}` : ''}`;
+  return `${day}, ${h % 12 || 12}:${String(t.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+// Latest ready time across the booked devices.
+export const latestReadyIso = (devices) => devices
+  .map((d) => d.estimatedDeliveryIso).filter((x) => x && !Number.isNaN(new Date(x).getTime()))
+  .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+const inr0 = (n) => (Number(n) || 0).toLocaleString('en-IN');
+
+/** Thank You screen WhatsApp message — booking confirmation. */
+export function buildBookingConfirmWhatsApp({
+  shop = {}, customer = {}, devices = [], trackingId, statusLabel, total = 0,
+}) {
+  const shopName = shop.name || 'Your Shop';
+  const tid = String(trackingId || '').replace(/^#+/, '');
+  const ready = readyWhen(latestReadyIso(devices), true);
+  const deviceLines = devices.map((d) => (
+    `📱 *Device:* ${d.modelName || 'Device'}${d.spec ? ` (${d.spec})` : ''}\n` +
+    `🔧 *Service:* ${(d.serviceNames || []).join(', ') || '-'}\n`
+  )).join('');
+  return (
+    `✅ *${shopName} | Service Booking Confirmed*\n\n` +
+    `Dear *${customer.name || 'Customer'}*,\n\n` +
+    `Your device repair booking has been successfully registered with *${shopName}*.\n\n` +
+    `🎫 *Booking ID:* ${tid}\n` +
+    deviceLines +
+    `💰 *Estimated Cost:* ₹${inr0(total)}\n` +
+    (ready ? `🕒 *Expected Ready:* ${ready}\n` : '') +
+    `📋 *Status:* ${statusLabel || 'Order Placed'}\n\n` +
+    `📞 *Shop Number:* ${shop.phone || RECEIPT_SHOP_NUMBER}\n\n` +
+    `Thank you for trusting *${shopName}* with your device. We appreciate your business! 💚\n\n` +
+    `Powered by NearGFix`
+  );
+}
+
+/** Thank You screen SMS — one short booking confirmation line. */
+export function buildBookingConfirmSms({
+  shop = {}, customer = {}, devices = [], trackingId, total = 0,
+}) {
+  const shopName = shop.name || 'our shop';
+  const tid = String(trackingId || '').replace(/^#+/, '');
+  const models = devices.map((d) => d.modelName || 'Device').join(', ') || 'device';
+  const ready = readyWhen(latestReadyIso(devices), false);
+  return (
+    `Dear ${customer.name || 'Customer'}, your ${models} repair booking (${tid}) at ${shopName} is confirmed. ` +
+    `Est. Price: Rs.${inr0(total)}. ` +
+    (ready ? `Ready by: ${ready}. ` : '') +
+    `Thank you for choosing ${shopName}! - Powered By NearGFix`
   );
 }
 
 // A saved ticket → the props <BookingReceipt> takes. One ticket is one device.
 // IMEI is printed for mobile phones only (unknown category keeps it).
-function receiptPropsFromTicket(
+export function receiptPropsFromTicket(
   ticket,
   shop,
   showImei = imeiApplies(resolveSpecCategory(ticket?.deviceCategory, ticket?.categoryCode, ticket?.categoryName)),
+  alternatePhone = null,
 ) {
   const items = priceItemsFromTicket(ticket);
   const total = estimatedTotalOf(ticket, items);
@@ -232,6 +346,7 @@ function receiptPropsFromTicket(
     customer: {
       name: ticket.customerName,
       phone: ticket.customerPhone,
+      alternatePhone: alternatePhone || ticket.customerAlternatePhone || null,
       address: ticket.customerAddress,
     },
     devices: [{
@@ -239,7 +354,25 @@ function receiptPropsFromTicket(
       imageUrl: ticket.deviceImageUrl || null,
       variant: specDisplayParts(ticket, { withColor: true }).join(' · '),
       imei: showImei ? ticket.imei || null : null,
-      serviceNames: items.map((i) => i.label || i.serviceName || i.name).filter(Boolean),
+      serviceNames: items.filter((i) => !isServiceChargeItem(i)).map((i) => i.label || i.serviceName || i.name).filter(Boolean)
+        .map((n) => withNote(n, issueNoteFor(ticket, n))),
+      serviceCharge: items.filter(isServiceChargeItem).reduce((n, i) => n + (Number(i.amount ?? i.price) || 0), 0) || null,
+      priceLines: [...items.filter((i) => !isServiceChargeItem(i)), ...items.filter(isServiceChargeItem)]
+        .map((i) => ({ label: i.label || i.serviceName || i.name || 'Service charge', amount: Number(i.amount ?? i.price) || 0 })),
+      warranty: warrantySummary(items.filter((i) => !isServiceChargeItem(i)).map((i) => ({ name: i.label || i.serviceName || i.name, warranty: i.warranty }))),
+      // For the Booking Confirmed card: "Moto g54 5G · XT2343 (8GB / 128GB)" split up.
+      ...deviceNameParts(ticket.deviceDisplayName),
+      color: ticket.color || null,
+      serialNumber: showImei ? null : ticket.serialNumber || null,
+      serviceLines: items.filter((i) => !isServiceChargeItem(i)).map((i) => {
+        const n = i.label || i.serviceName || i.name || 'Service';
+        return { name: withNote(n, issueNoteFor(ticket, n)), amount: Number(i.amount ?? i.price) || 0, warranty: i.warranty || null };
+      }),
+      complaint: ticketComplaint(ticket),
+      accessories: ticket.accessories || null,
+      missingParts: ticket.missingPartsJson || null,
+      estimatedReadyIso: ticket.estimatedReadyAt || null,
+      estimatedDeliveryIso: ticket.estimatedDeliveryAt || null,
     }],
     trackingId: ticket.trackingId || ticket.id,
     statusLabel: receiptStatusLabel(ticket.status),
@@ -257,8 +390,19 @@ export function buildReceiptMessage(ticket, shop) {
 // The receipt slip for a saved ticket (Bookings list / Ticket Detail share sheet).
 export function ReceiptCard({ ticket, shop }) {
   const showImei = useImeiApplies(ticket);
+  // The alternate number lives on the customer record, not the ticket.
+  const [altPhone, setAltPhone] = useState(null);
+  const phone = String(ticket?.customerPhone || '').replace(/\D/g, '').slice(-10);
+  useEffect(() => {
+    if (phone.length !== 10) return undefined;
+    let alive = true;
+    ticketApi.get('/customers/lookup', { query: { mobile: phone } })
+      .then((c) => { if (alive && c?.alternatePhone) setAltPhone(c.alternatePhone); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [phone]);
   if (!ticket) return null;
-  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop, showImei)} />;
+  return <ReceiptSlip {...receiptPropsFromTicket(ticket, shop, showImei, altPhone)} />;
 }
 
 // Splits "CSPEN8324788" so the digits can print in brand green.
@@ -301,7 +445,7 @@ export function ReceiptSlip({
             </View>
           </View>
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>Near G Fix</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>NearGFix</Text>
             <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, marginTop: 1 }}>Booking Receipt</Text>
           </View>
         </View>
@@ -349,7 +493,8 @@ export function ReceiptSlip({
 
         <SlipSection title="Customer Details">
           <SlipRow icon={User} label="Name" value={customer.name || '—'} />
-          <SlipRow icon={Phone} label="Mobile" value={customer.phone || '—'} isLast={!customer.address} />
+          <SlipRow icon={Phone} label="Mobile" value={customer.phone || '—'} isLast={!customer.alternatePhone && !customer.address} />
+          {customer.alternatePhone ? <SlipRow icon={Phone} label="Alt. Mobile" value={customer.alternatePhone} isLast={!customer.address} /> : null}
           {customer.address ? <SlipRow icon={MapPin} label="Address" value={customer.address} isLast /> : null}
         </SlipSection>
 
@@ -359,7 +504,9 @@ export function ReceiptSlip({
               <SlipRow icon={Smartphone} label="Model" value={`${multi ? `${i + 1}. ` : ''}${d.modelName || '—'}`} />
               {d.variant ? <SlipRow icon={Palette} label="Variant" value={d.variant} /> : null}
               {d.imei ? <SlipRow icon={ScanLine} label="IMEI" value={String(d.imei)} /> : null}
-              <SlipRow icon={Wrench} label="Services" value={(d.serviceNames || []).join(', ') || '—'} />
+              <SlipRow icon={Wrench} label="Issues" value={(d.serviceNames || []).join(', ') || '—'} />
+              {d.serviceCharge ? <SlipRow icon={Wrench} label="Charge" value={`₹${fmt0(d.serviceCharge)}`} /> : null}
+              {receiptWhen(d.estimatedDeliveryIso) ? <SlipRow icon={Clock} label="Est. Time" value={receiptWhen(d.estimatedDeliveryIso)} /> : null}
             </View>
           ))}
           <SlipRow icon={CircleCheck} label="Status" value={statusLabel || 'Order Placed'} valueColor={GREEN_DEEP} isLast />
@@ -523,6 +670,7 @@ export function BookingReceipt({
         <ReceiptSection label="Customer Details">
           <ReceiptRow icon="person-outline" label="Customer Name" value={customer.name} />
           <ReceiptRow icon="call-outline" label="Mobile Number" value={customer.phone} />
+          {customer.alternatePhone ? <ReceiptRow icon="call-outline" label="Alternate Number" value={customer.alternatePhone} /> : null}
           <ReceiptRow icon="location-outline" label="Address" value={customer.address} last />
         </ReceiptSection>
 
@@ -531,8 +679,16 @@ export function BookingReceipt({
             const last = i === devices.length - 1;
             return (
               <View key={i}>
-                <ReceiptRow icon="phone-portrait-outline" label={devices.length > 1 ? `Device ${i + 1}` : 'Device'} value={d.modelName || 'Device'} />
-                <ReceiptRow icon="build-outline" label="Repair Services" value={(d.serviceNames || []).join(', ')} last={last} />
+                <ReceiptRow icon="phone-portrait-outline" label={devices.length > 1 ? `Device ${i + 1}` : 'Device'} value={[d.brandName, d.modelName || 'Device'].filter(Boolean).join(' · ')} />
+                {d.modelNumber ? <ReceiptRow icon="barcode-outline" label="Model No." value={d.modelNumber} /> : null}
+                {d.variant ? <ReceiptRow icon="color-palette-outline" label="Variant" value={d.variant} /> : null}
+                {d.imei ? <ReceiptRow icon="scan-outline" label="IMEI" value={String(d.imei)} /> : null}
+                <ReceiptRow icon="build-outline" label="Repair Issues" value={(d.serviceNames || []).join(', ')} />
+                {d.warranty ? <ReceiptRow icon="shield-checkmark-outline" label="Warranty" value={d.warranty} /> : null}
+                {d.complaint ? <ReceiptRow icon="chatbox-ellipses-outline" label="Complaint" value={d.complaint} /> : null}
+                <ReceiptRow icon="headset-outline" label="Accessories" value={d.accessories || 'None'} />
+                {receiptWhen(d.estimatedReadyIso) ? <ReceiptRow icon="calendar-outline" label="Booking Time" value={receiptWhen(d.estimatedReadyIso)} /> : null}
+                <ReceiptRow icon="time-outline" label="Estimated Time" value={receiptWhen(d.estimatedDeliveryIso) || '—'} last={last} />
                 {!last ? <View style={{ height: 1, backgroundColor: HAIR, marginVertical: 7 }} /> : null}
               </View>
             );
@@ -552,7 +708,17 @@ export function BookingReceipt({
               </View>
             </View>
           </View>
-          <ReceiptRow icon="cash-outline" label="Estimated Repair Price" value={inr2(total)} last={!payment} />
+          {/* Price breakdown (e.g. Display Replacement ₹2,500 + Service charge
+              ₹500), then the Estimated Repair Price total (₹3,000). */}
+          {devices.map((d, i) => (d.priceLines || []).map((p, j) => (
+            <ReceiptRow
+              key={`${i}-${j}`}
+              icon="pricetag-outline"
+              label={devices.length > 1 ? `Device ${i + 1} · ${p.label}` : p.label}
+              value={inr2(p.amount)}
+            />
+          )))}
+          <ReceiptRow icon="cash-outline" label="Estimated Repair Price" value={inr2(total)} bold last={!payment} />
           {/* Only when a payment was actually recorded — the same rule the
               Device Details Price Summary follows, so the receipt and the
               screen can never tell the customer two different stories. */}

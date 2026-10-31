@@ -9,12 +9,12 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
-import { getSession } from '../../../auth/session';
 import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 import { openSmsComposer } from '../../../lib/smsShare';
 import {
-  paymentAcrossTickets, BookingReceipt, ReceiptSlip, buildBookingReceiptText, receiptShopFromSession,
+  paymentAcrossTickets, BookingReceipt, buildBookingConfirmWhatsApp, buildBookingConfirmSms, loadReceiptShop, withNote, receiptComplaint, warrantySummary,
 } from '../AllBooking/ReceiptCard';
+import BookingConfirmCard from './BookingConfirmCard';
 import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
@@ -48,15 +48,17 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // The real shop name + picture come from the logged-in shop session, not
   // the customer.
   const [shop, setShop] = useState({ name: customer.shopName || '', imageUrl: null });
+  // WhatsApp waits for this, so the shared card never has a half-loaded shop.
+  const [shopLoaded, setShopLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const s = await getSession();
+        const next = await loadReceiptShop();
         if (cancelled) return;
-        const next = receiptShopFromSession(s);
-        setShop((prev) => ({ name: next.name || prev.name, imageUrl: next.imageUrl }));
+        setShop((prev) => ({ name: next.name || prev.name, imageUrl: next.imageUrl, phone: next.phone }));
       } catch {}
+      if (!cancelled) setShopLoaded(true);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -72,14 +74,39 @@ export default function BookingThankYouScreen({ navigation, route }) {
     shop,
     createdAt: bookedAt,
     customer,
-    devices: devices.map((d) => ({
+    devices: devices.map((d, i) => ({
       modelName: d.modelName,
+      // Booking Confirmed card details (tickets[i] is this device's saved ticket).
+      brandName: d.brandName || null,
+      categoryName: d.categoryName || null,
+      ramStorage: specDisplayParts(d).join(' / ') || null,
+      color: d.color || null,
+      serialNumber: imeiApplies(resolveSpecCategory(d.deviceCategory, d.categoryCode, d.categoryName)) ? null : d.serialNumber || null,
+      serviceLines: (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE')
+        .map((x) => ({ name: withNote(x.serviceName, x.note) || 'Service', amount: Number(x.price) || 0, warranty: x.warranty || null })),
       imageUrl: d.imageUrl,
-      variant: specDisplayParts(d, { withColor: true }).join(' · '),
+      // "8GB+128GB, Black" — RAM+storage, then colour.
+      variant: [specDisplayParts(d).join('+'), d.color].filter(Boolean).join(', '),
+      // "6GB/128GB" — the short spec for the WhatsApp confirmation.
+      spec: specDisplayParts(d).map((p) => String(p).replace(/\s+/g, '')).join('/'),
       // IMEI is printed for mobile phones only.
       imei: imeiApplies(resolveSpecCategory(d.deviceCategory, d.categoryCode, d.categoryName)) ? d.imei || null : null,
-      serviceNames: (d.services || []).map((x) => x.serviceName).filter(Boolean),
+      modelNumber: d.modelNumber || null,
+      // Repair issues only — the auto "Service charge" row is shown as its own line.
+      serviceNames: (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE').map((x) => withNote(x.serviceName, x.note)).filter(Boolean),
+      serviceCharge: (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE').reduce((sum, x) => sum + (Number(x.price) || 0), 0) || null,
+      warranty: warrantySummary((d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE').map((x) => ({ name: x.serviceName, warranty: x.warranty }))),
+      complaint: receiptComplaint(d.complaint, (d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE').map((x) => x.serviceName)),
+      accessories: d.accessories || null,
+      missingParts: d.missingParts || tickets[i]?.missingPartsJson || null,
+      estimatedReadyIso: d.estimatedReadyIso || null,
+      estimatedDeliveryIso: tickets[i]?.estimatedDeliveryAt || d.estimatedDeliveryIso || null,
       price: (d.services || []).reduce((sum, x) => sum + (Number(x.price) || 0), 0),
+      // Service Information price breakdown: repairs first, Service charge last.
+      priceLines: [
+        ...(d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() !== 'SERVICE_CHARGE'),
+        ...(d.services || []).filter((x) => String(x.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE'),
+      ].map((x) => ({ label: x.serviceName || 'Service charge', amount: Number(x.price) || 0 })),
     })),
     trackingId,
     statusLabel: 'Order Placed',
@@ -87,7 +114,13 @@ export default function BookingThankYouScreen({ navigation, route }) {
     payment,
   };
 
-  const buildMessage = () => buildBookingReceiptText(receiptProps);
+  // Every created ticket's ID ("GTS-102, GTS-103") for the WhatsApp / SMS text.
+  const confirmProps = {
+    ...receiptProps,
+    trackingId: tickets.map((t) => t?.trackingId).filter(Boolean).join(', ') || trackingId,
+  };
+  const buildWhatsAppMessage = () => buildBookingConfirmWhatsApp(confirmProps);
+  const buildSmsMessage = () => buildBookingConfirmSms(confirmProps);
 
   // Tickets that were actually created — Assign and Barcode Print act on these.
   // tickets[i] is devices[i]'s ticket (ServiceBookingDevicesList posts in order).
@@ -107,8 +140,8 @@ export default function BookingThankYouScreen({ navigation, route }) {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  // SMS — the same receipt text WhatsApp sends, in the customer's SMS app.
-  const shareSms = () => openSmsComposer({ phone: customer.phone, message: buildMessage() });
+  // SMS — the short booking confirmation, in the customer's SMS app.
+  const shareSms = () => openSmsComposer({ phone: customer.phone, message: buildSmsMessage() });
 
   // Barcode Print — same Barcode / QR screen the Bookings list opens. It
   // prints one ticket, so a multi-device booking asks which device first.
@@ -131,14 +164,16 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // Share to WhatsApp — WhatsApp only, never the system share sheet or any
   // other app (see lib/whatsappShare).
   const shareWhatsApp = async () => {
-    if (sharing) return;
+    if (sharing || !shopLoaded) return;
     setSharing(true);
     try {
       await shareReceiptToWhatsApp({
         viewRef: receiptRef,
-        message: buildMessage(),
+        message: buildWhatsAppMessage(),
         phone: customer.phone,
-        filename: `ggfix-receipt-${trackingId}`,
+        filename: `neargfix-receipt-${trackingId}`,
+        // Image + text together (WhatsApp then asks which chat to send to).
+        withImage: true,
       });
     } finally {
       setSharing(false);
@@ -220,7 +255,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
 
           <View className="flex-row" style={{ marginHorizontal: -4, marginTop: rs(12) }}>
             <ActionTile icon="person-add-outline" label="Assign" color={PRIMARY} tint={MINT} onPress={assignTechnician} />
-            <ActionTile icon="logo-whatsapp" label="WhatsApp" color="#16A34A" tint="#E6F7E3" onPress={shareWhatsApp} busy={sharing} disabled={sharing} />
+            <ActionTile icon="logo-whatsapp" label="WhatsApp" color="#16A34A" tint="#E6F7E3" onPress={shareWhatsApp} busy={sharing || !shopLoaded} disabled={sharing || !shopLoaded} />
             <ActionTile icon="chatbubble-ellipses-outline" label="SMS" color="#2563EB" tint="#E4EEFF" onPress={shareSms} />
             <ActionTile icon="barcode-outline" label="QR Print" color="#B45309" tint="#FFF0D2" onPress={printBarcode} />
           </View>
@@ -262,12 +297,12 @@ export default function BookingThankYouScreen({ navigation, route }) {
         ))}
       </ResponsiveModal>
 
-      {/* The image Share to WhatsApp sends: the GGFix receipt slip, rendered
+      {/* The image Share to WhatsApp sends: the Booking Confirmed card, rendered
           off-screen at a phone receipt's width so captureRef has a laid-out
           view to draw. Not visible, not touchable. */}
       <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0, width: 360 }}>
         <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-          <ReceiptSlip {...receiptProps} />
+          <BookingConfirmCard {...confirmProps} />
         </ViewShot>
       </View>
     </View>

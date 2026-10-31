@@ -253,7 +253,7 @@ export default function OwnerSellHubScreen({ navigation, route }) {
     <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
       {/* ---------- Header: back · Sell on GGFIX · my sell orders ---------- */}
       <PageHeader
-        title="Sell on Near G Fix"
+        title="Sell on NearGFix"
         subtitle="Sell your device. Get quotes from verified shops."
         onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
         right={<HeaderIconButton icon={FileText} color={ACCENT} size={17} label="My sell orders" onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' })} />}

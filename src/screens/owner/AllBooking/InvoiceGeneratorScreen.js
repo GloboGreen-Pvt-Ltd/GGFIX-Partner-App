@@ -48,6 +48,13 @@ import { stepBlockedBy } from '../../common/serviceHistoryPhases';
 // account keyed by this number, so "would this be accepted?" has to be one
 // question with one answer on both sides.
 import { formatPhone, isValidPhone } from '../../../api/ledgerParties';
+import { issueNoteFor, withNote } from './ReceiptCard';
+import { resolveRecordCategory } from '../../../utils/imeiPolicy';
+import ImeiVerifyModal from '../../../components/ImeiVerifyModal';
+
+// Internal repair note recorded when the shop confirms the customer doesn't
+// know the phone's IMEI — also how a later visit knows not to ask again.
+const IMEI_UNKNOWN_NOTE = "IMEI not provided — customer doesn't know the device IMEI";
 
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -167,6 +174,12 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
   // The booking's Service History — a NEW invoice records "Invoice Generated"
   // on it, so it waits its turn like any other step (see invoiceBlockedBy).
   const [events, setEvents] = useState([]);
+  // Mobile phones without an IMEI: confirm it (or "customer doesn't know")
+  // before the invoice is generated.
+  const [imeiGate, setImeiGate] = useState(false);
+  // Kept here, not only in the popup: this screen reloads (and re-mounts the
+  // popup) on focus, i.e. right after the IMEI scanner closes.
+  const [imeiValue, setImeiValue] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -220,7 +233,7 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         const rate = Number(it.amount || 0);
         return {
           id: it.id || `spare-${i}`,
-          description: it.label || it.serviceName || `Item ${i + 1}`,
+          description: withNote(it.label || it.serviceName, issueNoteFor(t, it.label || it.serviceName)) || `Item ${i + 1}`,
           rate: rate || '',
           warranty: it.warranty || '',
           qty: 1,
@@ -254,10 +267,36 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
       // deposit as the first one.
       setPaidNowStr(Number(inv?.amountPaid) > 0 ? String(Number(inv.amountPaid)) : '');
       setPaymentNote(inv?.paymentNote || '');
+
+      // Mobile phone with no IMEI on the booking → IMEI Verification first,
+      // unless the shop already recorded that the customer doesn't know it.
+      // Other categories: the invoice flow is unchanged.
+      if (t && !String(t.imei || '').trim()) {
+        const [cat, notes] = await Promise.all([
+          resolveRecordCategory(t).catch(() => null),
+          ticketApi.get(`/tickets/${ticketId}/notes`).catch(() => []),
+        ]);
+        const list = Array.isArray(notes) ? notes : (notes?.content ?? []);
+        const known = list.some((n) => String(n?.note || '').startsWith(IMEI_UNKNOWN_NOTE));
+        if (cat === 'MOBILE' && !known) setImeiGate(true);
+      }
     } finally {
       setLoading(false);
     }
   }, [ticketId]);
+
+  // IMEI Verification → save the verified number (or "customer doesn't know"
+  // as an internal note) on the booking, then carry on here. Errors go back to
+  // the popup (409 IMEI_ALREADY_USED shows inline there).
+  const saveImei = async (imei) => {
+    await ticketApi.patch(`/tickets/${ticketId}`, { body: { imei } });
+    setTicket((prev) => ({ ...(prev || {}), imei }));
+    setImeiGate(false);
+  };
+  const imeiUnknown = async () => {
+    await ticketApi.post(`/tickets/${ticketId}/notes`, { body: { note: IMEI_UNKNOWN_NOTE, isInternal: true } });
+    setImeiGate(false);
+  };
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -863,6 +902,22 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
           )}
         </ModalInsets>
       </SafeModal>
+
+      {/* Device IMEI Verification — mobile phones only, before invoicing.
+          Closing it leaves this screen: the invoice waits for an answer. */}
+      <ImeiVerifyModal
+        visible={imeiGate}
+        navigation={navigation}
+        ticketId={ticketId}
+        initialValue={imeiValue}
+        subtitle="This booking is a mobile phone with no IMEI saved. Verify it before generating the invoice."
+        onScanned={setImeiValue}
+        onSave={saveImei}
+        onCancel={() => navigation.goBack()}
+        secondaryLabel="Customer Doesn't Know IMEI"
+        secondarySub="Continue without an IMEI (saved as an internal note)"
+        onSecondary={imeiUnknown}
+      />
     </View>
   );
 }

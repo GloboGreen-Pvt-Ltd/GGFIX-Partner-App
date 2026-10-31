@@ -2,6 +2,9 @@
 // (.env for local runs, eas.json `env` for builds) — the values mirrored into
 // `extra` below are informational only. Default is the TLS edge; set
 // EXPO_PUBLIC_API_HOST=192.168.1.5 to point at a backend on your LAN instead.
+import fs from 'fs';
+import path from 'path';
+
 const host = process.env.EXPO_PUBLIC_API_HOST || '';
 const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.ggfix.in';
 const masterPort = process.env.EXPO_PUBLIC_MASTER_PORT || '8091';
@@ -10,10 +13,15 @@ const masterBase =
   process.env.EXPO_PUBLIC_MASTER_BASE ||
   (host ? `http://${host}:${masterPort}` : edge);
 
+// Firebase config for Android push (FCM). Only wired in once the file has been
+// added to the project root, so builds keep working until then — without it a
+// build simply gets no push token.
+const hasGoogleServices = fs.existsSync(path.join(__dirname, 'google-services.json'));
+
 export default {
   expo: {
-    name: 'Near G Fix Partner',
-    slug: 'ggfix-partner-app',
+    name: 'NearGFix Partner',
+    slug: 'neargfix-partner',
     // EAS account/organization that owns the project (from your Expo dashboard).
     // Verify this matches expo.dev → your account. Change if different.
     owner: 'globogreen-system-and-technology-private-limited',
@@ -25,11 +33,11 @@ export default {
     icon: './assets/logo.png',
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.ggfix.shopapp',
+      bundleIdentifier: 'com.neargfix.partner',
       infoPlist: {
         // iOS has no shared Downloads folder, so a saved statement lands in the
         // app's own Documents directory. These two keys are what make that
-        // directory show up in the Files app under "Near G Fix Partner" — without them
+        // directory show up in the Files app under "NearGFix Partner" — without them
         // the file is saved somewhere the owner cannot reach.
         UIFileSharingEnabled: true,
         LSSupportsOpeningDocumentsInPlace: true,
@@ -38,10 +46,12 @@ export default {
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: true,
         },
+        // Razorpay UPI intent (react-native-razorpay README, Expo section).
+        LSApplicationQueriesSchemes: ['tez', 'phonepe', 'paytmmp'],
       },
     },
     android: {
-      package: 'com.ggfix.shopapp',
+      package: 'com.neargfix.partner',
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#ffffff' },
       // 'resize' (not the default 'pan') so the root view actually shrinks
       // when the keyboard opens — KeyboardAvoidingView's Android behaviors
@@ -49,9 +59,11 @@ export default {
       // which is what was pushing/cropping the login card. Native-config
       // only — takes effect on the next native rebuild, not a JS/Metro reload.
       softwareKeyboardLayoutMode: 'resize',
+      ...(hasGoogleServices ? { googleServicesFile: './google-services.json' } : {}),
       // READ_CONTACTS backs Cash Book → Add Customer → "Add from Contacts".
       // POST_NOTIFICATIONS backs the "Download complete" receipt a saved
-      // statement leaves in the shade (Android 13+).
+      // statement leaves in the shade and the shop's push notifications
+      // (Android 13+).
       // The expo-contacts plugin below injects the first too, but they are
       // listed here so the manifest's permission set is readable in one place.
       // BLUETOOTH_CONNECT backs the QR label printer (Android 12+ "Nearby
@@ -90,11 +102,11 @@ export default {
       // audio asset is touched.
       'expo-font',
       'expo-asset',
-      ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock Near G Fix Partner.' }],
+      ['expo-local-authentication', { faceIDPermission: 'Use Face ID to unlock NearGFix Partner.' }],
       ['expo-audio', { microphonePermission: 'We use your microphone to record voice notes for tickets and chat.' }],
       // Product camera / QR scanner and gallery pick (iOS usage strings).
-      ['expo-camera', { cameraPermission: 'Near G Fix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
-      ['expo-image-picker', { photosPermission: 'Near G Fix Partner uses your photos only to identify a device from a picture you choose.', cameraPermission: 'Near G Fix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
+      ['expo-camera', { cameraPermission: 'NearGFix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', recordAudioAndroid: false }],
+      ['expo-image-picker', { photosPermission: 'NearGFix Partner uses your photos only to identify a device from a picture you choose.', cameraPermission: 'NearGFix Partner uses your camera to identify a device from a photo and to scan QR codes and barcodes.', microphonePermission: false }],
       // Android 11+ package visibility for the WhatsApp / SMS receipt share.
       // `android/` is gitignored in the mirror, so the hand-edited manifest never
       // reaches an EAS build — this is what puts the <queries> block in the
@@ -139,6 +151,17 @@ export default {
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
             useLegacyPackaging: true,
+            // react-native-razorpay (subscription UPI checkout) — rules from its
+            // README; R8 above would otherwise strip the SDK's callbacks.
+            extraProguardRules: [
+              '-keepattributes *Annotation*',
+              '-dontwarn com.razorpay.**',
+              '-keep class com.razorpay.** {*;}',
+              '-optimizations !method/inlining/',
+              '-keepclasseswithmembers class * {',
+              '  public void onPayment*(...);',
+              '}',
+            ].join('\n'),
           },
         },
       ],
@@ -156,6 +179,10 @@ export default {
             'We use your contacts so you can pick a customer or supplier from your phone book instead of typing the number.',
         },
       ],
+      // Push notifications: accent colour and the FCM default channel, matching
+      // the 'default' channel lib/pushNotifications.js creates and the server
+      // targets. No `icon` — there is no monochrome notification asset yet.
+      ['expo-notifications', { color: '#035C6C', defaultChannel: 'default' }],
       'expo-image',
       'expo-sharing',
       'expo-status-bar',
@@ -177,7 +204,7 @@ export default {
       eas: {
         projectId:
           process.env.EAS_PROJECT_ID ||
-          '758360b1-f465-47b7-a1bd-867b8387a932',
+          '6a0559ba-0f56-4eac-a7ad-49c793780620',
       },
     },
   },

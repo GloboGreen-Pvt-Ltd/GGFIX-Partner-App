@@ -103,7 +103,7 @@ export default function RepairIssuesPicker({ categoryId, initialServices, onChan
   const [pickedIds, setPickedIds] = useState(() => new Set(seed.idSeed));
   const [customIssues, setCustomIssues] = useState(seed.customSeed);
   const [sheetId, setSheetId] = useState(null);
-  // withNotes: every issue in the sheet shows its own notes box.
+  // withNotes: every selected issue in the list shows its own notes box.
   const [notes, setNotes] = useState(seed.noteSeed);
   // Booking only: a shop service charge, sent as its own price line.
   const [serviceCharge, setServiceCharge] = useState(seed.chargeSeed);
@@ -405,7 +405,9 @@ export default function RepairIssuesPicker({ categoryId, initialServices, onChan
               <SelectedIssueRow
                 key={id}
                 name={name}
-                sub={withNotes && notes[id]?.trim() ? `Note: ${notes[id].trim()}` : (catByService[id] || undefined)}
+                sub={catByService[id] || undefined}
+                note={notes[id]}
+                onNoteChange={withNotes ? (v) => setNotes((m) => ({ ...m, [id]: v })) : undefined}
                 Icon={iconFor(x?.code, name)}
                 price={row(id).price}
                 onPriceChange={(v) => setField(id, 'price', String(v).replace(/[^0-9.]/g, ''))}
@@ -488,17 +490,6 @@ export default function RepairIssuesPicker({ categoryId, initialServices, onChan
                       {on ? <Check size={12} color="#FFFFFF" strokeWidth={3} /> : null}
                     </View>
                   </Pressable>
-                  {withNotes ? (
-                    <TextInput
-                      value={notes[x.id] || ''}
-                      onChangeText={(v) => setNotes((m) => ({ ...m, [x.id]: v }))}
-                      placeholder="Additional notes (optional)"
-                      placeholderTextColor="#9CA3AF"
-                      maxLength={200}
-                      cursorColor={ACCENT}
-                      style={{ height: 42, marginTop: -2, marginBottom: 8, paddingHorizontal: 12, fontSize: 13, color: INK, includeFontPadding: false, borderWidth: 1, borderColor: LINE, borderRadius: 10, backgroundColor: '#FFFFFF' }}
-                    />
-                  ) : null}
                   </React.Fragment>
                 );
               })}

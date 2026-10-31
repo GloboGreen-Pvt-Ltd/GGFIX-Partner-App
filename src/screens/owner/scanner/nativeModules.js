@@ -81,12 +81,12 @@ export function liveModulesDiagnosis() {
   const host = C ? `${C.executionEnvironment || '?'}${C.executionEnvironment === 'storeClient' ? ' = EXPO GO' : ''}, app ${C.expoConfig?.android?.package || C.expoConfig?.slug || '?'}` : 'unknown host';
   if (!getLiveModules()) {
     const why = failures['react-native-vision-camera'] || 'VisionCamera API incomplete';
-    return `native camera module not in this app build [${host}] (${why}) — install the GGFIX dev build, not Expo Go`;
+    return `native camera module not in this app build [${host}] (${why}) — install the NearGFix dev build, not Expo Go`;
   }
   const m = getLiveModules();
   if (!m) {
     const why = failures['react-native-vision-camera'] || 'VisionCamera API incomplete';
-    return `native camera module not in this app build (${why}) — install the GGFIX dev build, not Expo Go`;
+    return `native camera module not in this app build (${why}) — install the NearGFix dev build, not Expo Go`;
   }
   if (!m.tflite) return `TFLite not in this app build (${failures['react-native-fast-tflite'] || 'loadTensorflowModel missing'})`;
   return 'native modules loaded';

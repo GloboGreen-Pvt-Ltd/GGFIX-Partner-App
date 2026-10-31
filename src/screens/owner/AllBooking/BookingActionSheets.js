@@ -9,8 +9,8 @@
 //                           shop can make from here
 //   PickupPersonPickerSheet — the pickup-eligible staff list
 //
-// All four follow the fade-in scrim + stopPropagation idiom already used by
-// the Share Receipt sheet in TicketDetailScreen, so they look native here.
+// All four share SheetShell: a fade-in scrim with a sibling backdrop Pressable
+// (not a wrapping one, which steals scroll gestures on Android).
 //
 // The receipt PNG is captured from a hidden <ViewShot> owned by the *host*
 // screen (see JobsScreen) rather than by these modals: a view inside
@@ -50,9 +50,10 @@ import {
   markPickupReceivedAtShop,
 } from '../../../api/orders';
 import { confirm, notify } from '../../../components/confirm';
+import { emitTicketUpdated } from '../../../lib/ticketEvents';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
-import { ReceiptCard, buildReceiptMessage, receiptShopFromSession } from './ReceiptCard';
-import { getSession } from '../../../auth/session';
+import { buildReceiptMessage, loadReceiptShop } from './ReceiptCard';
+import BookingConfirmCard, { useTicketConfirmProps } from '../service-booking-shop/BookingConfirmCard';
 import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 
 const BRAND_GREEN_DARK = '#035C6C';
@@ -131,7 +132,7 @@ function SheetShellBody({ onClose, title, subtitle, children, maxHeightRatio }) 
   const ratioCap = maxHeightRatio ? winH * maxHeightRatio : Infinity;
 
   return (
-    <Pressable
+    <View
       style={{
         flex: 1,
         backgroundColor: 'rgba(17, 17, 17, 0.5)',
@@ -139,10 +140,15 @@ function SheetShellBody({ onClose, title, subtitle, children, maxHeightRatio }) 
         // What actually lifts the sheet clear of the keys.
         paddingBottom: kb,
       }}
-      onPress={onClose}
     >
+      {/* Backdrop tap closes. A sibling, not a wrapper, so a ScrollView in
+          the sheet gets its scroll gestures on Android. */}
       <Pressable
-        onPress={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        onPress={onClose}
+        accessibilityLabel="Close"
+      />
+      <View
         style={{
           backgroundColor: '#FFFFFF',
           borderTopLeftRadius: 24,
@@ -170,8 +176,8 @@ function SheetShellBody({ onClose, title, subtitle, children, maxHeightRatio }) 
           <View style={{ height: 12 }} />
         )}
         {children}
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -248,7 +254,7 @@ const SERVICE_STATUS_TYPES = [
     stages: [
       [{ key: 'READY',                label: 'Ready for Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Out of Delivery' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -263,7 +269,7 @@ const SERVICE_STATUS_TYPES = [
       ],
       [{ key: 'RETURN_DELIVERY',      label: 'Return Delivery' }],
       [{ key: 'INVOICE_GENERATED',    label: 'Invoice Generated', action: 'INVOICE' }],
-      [{ key: 'DELIVERED_PROCESSING', label: 'Dispatched' }],
+      [{ key: 'DELIVERED_PROCESSING', label: 'Out of Delivery' }],
       [{ key: 'DELIVERED',            label: 'Delivered to Customer' }],
     ],
   },
@@ -1120,6 +1126,7 @@ export function TechnicianPickerSheet({
     setAssigningId(technicianId);
     try {
       await ticketApi.patch(`/tickets/${bookingId}`, { body: { assignedTechnicianId: technicianId } });
+      emitTicketUpdated(bookingId, { assignedTechnicianId: technicianId, technician: tech });
       // Move the marker and go back to the assigned view before anything else:
       // the sheet stays open, so the owner sees the replacement land rather
       // than the sheet vanishing and leaving them to reopen it to check.
@@ -1341,34 +1348,43 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
   const previewWidth = Math.round(Math.min(winW - 56, 360));
   const columnStyle = { width: '100%', maxWidth: 560, alignSelf: 'center' };
   const receiptRef = useRef(null);
+  // The Booking Confirmed card is drawn at its own 360pt width (that's the
+  // shared image) and scaled down to fit the preview on narrow phones.
+  const [cardH, setCardH] = useState(0);
+  const cardScale = Math.min(1, (previewWidth - 2) / 360);
   const [sharing, setSharing] = useState(false);
   // Shop name + picture for the receipt header, off the logged-in session.
   const [shop, setShop] = useState(null);
   useEffect(() => {
     if (!visible) return undefined;
     let cancelled = false;
-    getSession()
-      .then((sess) => { if (!cancelled) setShop(receiptShopFromSession(sess)); })
+    loadReceiptShop()
+      .then((s) => { if (!cancelled) setShop(s); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [visible]);
 
+  // Card data (brand, category, alt. number) — share waits until it's loaded.
+  const confirm = useTicketConfirmProps(visible ? ticket : null, shop);
+
   const doShareWhatsApp = useCallback(async () => {
-    if (!ticket || sharing) return;
+    if (!ticket || sharing || !confirm.ready) return;
     setSharing(true);
     try {
       await shareReceiptToWhatsApp({
         viewRef: receiptRef,
         message: buildReceiptMessage(ticket, shop),
         phone: ticket.customerPhone,
-        filename: `ggfix-receipt-${String(ticket.trackingId || ticket.id || '').replace(/^#+/, '')}`,
+        filename: `neargfix-receipt-${String(ticket.trackingId || ticket.id || '').replace(/^#+/, '')}`,
+        // Image + text together, same as the Booking Thank You share.
+        withImage: true,
       });
     } catch (e) {
       notify('Share failed', e?.message || 'Could not open WhatsApp.', { preset: 'error' });
     } finally {
       setSharing(false);
     }
-  }, [ticket, sharing, shop]);
+  }, [ticket, sharing, shop, confirm.ready]);
 
   return (
     <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1410,7 +1426,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
                 {/* Receipt preview — ONLY the ViewShot is captured for the shared image. */}
                 <View className="items-center" style={{ marginTop: 14 }}>
                   <View style={{ width: previewWidth }}>
-                    {!ticket ? (
+                    {!confirm.ready ? (
                       <View
                         className="items-center justify-center"
                         style={{ height: 320, borderRadius: 22, borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: SHARE_SOFT_MINT }}
@@ -1422,11 +1438,17 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
                         style={{
                           borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: SHARE_BORDER, backgroundColor: '#FFFFFF',
                           shadowColor: '#111111', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+                          height: cardH ? Math.ceil(cardH * cardScale) + 2 : undefined,
                         }}
                       >
-                        <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-                          <ReceiptCard ticket={ticket} shop={shop} />
-                        </ViewShot>
+                        <View
+                          style={{ width: 360, transform: [{ scale: cardScale }], transformOrigin: 'top left' }}
+                          onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
+                        >
+                          <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
+                            <BookingConfirmCard {...confirm.props} />
+                          </ViewShot>
+                        </View>
                       </View>
                     )}
                   </View>
@@ -1438,13 +1460,13 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
                 <View style={{ marginTop: 16, marginHorizontal: 18 }}>
                   <Pressable
                     onPress={doShareWhatsApp}
-                    disabled={!ticket || sharing}
+                    disabled={!confirm.ready || sharing}
                     accessibilityRole="button"
                     accessibilityLabel="Share to WhatsApp"
                     style={{
                       height: 48, borderRadius: 14, backgroundColor: SHARE_ACCENT,
                       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                      opacity: !ticket ? 0.5 : sharing ? 0.8 : 1,
+                      opacity: !confirm.ready ? 0.5 : sharing ? 0.8 : 1,
                       shadowColor: SHARE_ACCENT, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
                     }}
                   >

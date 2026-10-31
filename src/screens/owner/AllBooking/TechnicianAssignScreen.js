@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check, RefreshCw, Search, Smartphone, UserX, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
+import { emitTicketUpdated } from '../../../lib/ticketEvents';
 import { useResponsive } from '../../../theme/responsive';
 
 const ACCENT = '#035C6C';
@@ -82,6 +83,7 @@ export default function TechnicianAssignScreen({ navigation, route }) {
     try {
       const res = await ticketApi.patch(`/tickets/${ticketId}`, { body: { assignedTechnicianId: picked.id } });
       if (res?.assignedTechnicianId && res.assignedTechnicianId !== picked.id) throw new Error('The server did not save the technician.');
+      emitTicketUpdated(ticketId, { assignedTechnicianId: picked.id, technician: picked });
       notify(currentTechnicianId ? 'Technician changed' : 'Technician assigned', `${techName(picked)} is now on #${trackingId || 'this job'}.`, { preset: 'done' });
       navigation.goBack();
     } catch (e) {

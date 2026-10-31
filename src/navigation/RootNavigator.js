@@ -19,6 +19,7 @@ import AppLockGate from '../components/AppLockGate';
 import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 import LegalConsentGate from '../legal/LegalConsentGate';
 import BootSplash from '../components/BootSplash';
+import { registerForPush, unregisterPush } from '../lib/pushNotifications';
 import colors from '../theme/colors';
 import { since } from '../utils/bootClock'; // TEMP DEBUG — remove with the other [BOOT] logs
 
@@ -50,9 +51,9 @@ function UnsupportedRoleScreen({ onLogout }) {
         Account not supported here
       </Text>
       <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 21 }}>
-        This account can&apos;t be used in the Near G Fix Partner app — it is for shop
+        This account can&apos;t be used in the NearGFix Partner app — it is for shop
         owners and shop logins only. Employees (technicians, staff and pickup
-        persons) should sign in from the Near G Fix Employee app, and admin accounts
+        persons) should sign in from the NearGFix Employee app, and admin accounts
         from the admin web dashboard.
       </Text>
       <Pressable
@@ -99,36 +100,41 @@ export default function RootNavigator() {
   // When the API client detects an expired/invalid token, drop to Login.
   useEffect(() => {
     setAuthExpiredHandler(() => {
+      notify('Session expired. Please log in again.', '', { type: 'warning' });
       setSessionState(null);
       dispatch(clearAuth());
     });
     return () => setAuthExpiredHandler(null);
   }, [dispatch]);
 
-  const handleLogout = async () => {
+  const handleLogout = async ({ silent = false } = {}) => {
+    // While the session (and so the auth header) still exists. Never throws.
+    await unregisterPush();
     try { await logout(); } catch (_) {}
     await clearSession();
     setSessionState(null);
     dispatch(clearAuth());
+    if (!silent) notify('Logged out successfully', '', { preset: 'done' });
   };
   // Every way in (OTP login, password-reset login) lands here, so the owner /
   // shop-only rule is enforced once for all of them: anything else is signed
   // straight back out with the reason.
   const handleLogin = (newSession) => {
     if (!isPartnerAccount(newSession)) {
-      handleLogout();
+      handleLogout({ silent: true });
       notify('Not allowed', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
       return;
     }
     setSessionState(newSession);
     dispatch(setSession(newSession));
+    notify('Logged in successfully', '', { preset: 'done' });
   };
 
   // A session saved on this device by an account that may not use the app any
   // more (an employee signed in before this rule) is signed out on launch.
   useEffect(() => {
     if (sessionLoading || !session?.accessToken || isPartnerAccount(session)) return;
-    handleLogout();
+    handleLogout({ silent: true });
     notify('Signed out', PARTNER_ONLY_MESSAGE, { preset: 'error', haptic: 'error', duration: 4 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLoading, session]);
@@ -161,6 +167,16 @@ export default function RootNavigator() {
       });
     }
   }, [sessionLoading, minTimeElapsed, showBootOverlay, bootFade]);
+
+  // Push: register this device for the signed-in shop — on every login (owner
+  // or shop) and on launch with a saved session. Waits for BootSplash to clear
+  // so a first-time permission prompt never lands on the splash. Not awaited:
+  // a failure only means no pushes, never a blocked login.
+  useEffect(() => {
+    if (showBootOverlay || !session?.accessToken || !isPartnerAccount(session)) return;
+    registerForPush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBootOverlay, session?.accessToken]);
 
   const hasLoggedDestination = useRef(false);
   useEffect(() => {

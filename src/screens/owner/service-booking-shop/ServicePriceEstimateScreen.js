@@ -837,7 +837,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                   <Text style={{ marginLeft: rs(8), fontSize: rf(12.5), fontWeight: '800', color: ACCENT }}>Device {i + 1}</Text>
                   <Text style={{ flex: 1, marginLeft: rs(8), fontSize: rf(12.5), color: INK }} numberOfLines={1}>{d.modelName || 'Device'}</Text>
                   <Text style={{ fontSize: rf(11.5), color: MUTED }}>
-                    {(d.services || []).length} issue{(d.services || []).length === 1 ? '' : 's'}
+                    {(d.services || []).filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE).length} issue{(d.services || []).filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE).length === 1 ? '' : 's'}
                   </Text>
                 </View>
               ))}
@@ -1283,7 +1283,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
               picked as a calendar date + clock time (Material pickers), so a
               repair can be set hours or days (7, 9…) ahead. ──────────────── */}
           <View style={{ paddingHorizontal: rs(16), paddingTop: rs(16) }}>
-            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Booking & Delivery</Text>
+            <Text style={{ fontSize: rf(14), fontWeight: '700', color: INK, marginBottom: rs(8) }}>Booking Time</Text>
             <View style={[card, { paddingHorizontal: rs(12), paddingVertical: rs(4) }]}>
               <View className="flex-row items-center" style={{ minHeight: rs(42) }}>
                 <MaterialIcons name="event-available" size={rf(19)} color={INK} />
@@ -1291,7 +1291,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
                 <Text style={{ fontSize: rf(13.5), fontWeight: '700', color: INK }} numberOfLines={1}>{dayWord(now)}, {timeLabel}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: INK, marginTop: rs(10), marginBottom: rs(6) }}>Estimated Delivery</Text>
+            <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: INK, marginTop: rs(10), marginBottom: rs(6) }}>Estimated &amp; Delivery Time</Text>
             <View className="flex-row" style={{ gap: rs(8) }}>
               <Pressable
                 onPress={openDatePicker}

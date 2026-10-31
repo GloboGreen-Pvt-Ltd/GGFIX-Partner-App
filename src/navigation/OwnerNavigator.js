@@ -132,9 +132,26 @@ import OwnerLeaveRequestsScreen from '../screens/owner/OwnerLeaveRequestsScreen'
 import ShopChatInboxScreen from '../screens/owner/chat/ShopChatInboxScreen';
 import ShopChatThreadScreen from '../screens/owner/chat/ShopChatThreadScreen';
 import SubscriptionScreen from '../screens/owner/SubscriptionScreen';
+import SubscriptionSelectShopsScreen from '../screens/owner/subscription/SubscriptionSelectShopsScreen';
+import SubscriptionSummaryScreen from '../screens/owner/subscription/SubscriptionSummaryScreen';
+import SubscriptionPaymentScreen from '../screens/owner/subscription/SubscriptionPaymentScreen';
+import SubscriptionSuccessScreen from '../screens/owner/subscription/SubscriptionSuccessScreen';
+import SubscriptionHistoryScreen from '../screens/owner/subscription/SubscriptionHistoryScreen';
+import SubscriptionReceiptScreen from '../screens/owner/subscription/SubscriptionReceiptScreen';
+import { SubscriptionGateContext } from '../subscription/ui';
 import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 import HelpSupportScreen from '../screens/owner/HelpSupportScreen';
 import { subscriptionApi } from '../api/client';
+// Staff Task Management (Home → Employee → Staff Tasks).
+import StaffTasksHomeScreen from '../screens/owner/staffTasks/StaffTasksHomeScreen';
+import StaffTaskCalendarScreen from '../screens/owner/staffTasks/StaffTaskCalendarScreen';
+import StaffTaskFormScreen from '../screens/owner/staffTasks/StaffTaskFormScreen';
+import StaffTaskSelectEmployeeScreen from '../screens/owner/staffTasks/StaffTaskSelectEmployeeScreen';
+import StaffTaskDetailScreen from '../screens/owner/staffTasks/StaffTaskDetailScreen';
+import StaffTaskLocationScreen from '../screens/owner/staffTasks/StaffTaskLocationScreen';
+import StaffTaskChecklistScreen from '../screens/owner/staffTasks/StaffTaskChecklistScreen';
+import StaffTaskReviewScreen from '../screens/owner/staffTasks/StaffTaskReviewScreen';
+import StaffTaskCreatedScreen from '../screens/owner/staffTasks/StaffTaskCreatedScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -477,9 +494,27 @@ export default function OwnerNavigator({ session, onLogout }) {
   const { state, recheck } = useOwnerAccess(session);
 
   if (state === 'loading') return <GateLoader />;
-  // Trial expired / subscription lapsed → lock to the Subscription screen.
+  // Trial expired / subscription lapsed → lock to the Subscription flow only
+  // (plans → shops → summary → payment → success, plus Add Shop and legal).
   if (state === 'blocked') {
-    return <SubscriptionScreen gated onUnlock={recheck} onLogout={onLogout} />;
+    return (
+      <SubscriptionGateContext.Provider value={{ gated: true, onUnlock: recheck, onLogout }}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="OwnerSubscription">
+            {(props) => <SubscriptionScreen {...props} gated onUnlock={recheck} onLogout={onLogout} />}
+          </Stack.Screen>
+          <Stack.Screen name="SubscriptionSelectShops" component={SubscriptionSelectShopsScreen} />
+          <Stack.Screen name="SubscriptionSummary" component={SubscriptionSummaryScreen} />
+          <Stack.Screen name="SubscriptionPayment" component={SubscriptionPaymentScreen} options={{ gestureEnabled: false }} />
+          <Stack.Screen name="SubscriptionSuccess" component={SubscriptionSuccessScreen} options={{ gestureEnabled: false }} />
+          <Stack.Screen name="SubscriptionHistory" component={SubscriptionHistoryScreen} />
+          <Stack.Screen name="SubscriptionReceipt" component={SubscriptionReceiptScreen} />
+          <Stack.Screen name="OwnerShopInfo" component={OwnerShopInfoScreen} />
+          <Stack.Screen name="Terms" component={LegalDocumentScreen} initialParams={{ type: 'TERMS' }} />
+          <Stack.Screen name="PrivacyPolicy" component={LegalDocumentScreen} initialParams={{ type: 'PRIVACY' }} />
+        </Stack.Navigator>
+      </SubscriptionGateContext.Provider>
+    );
   }
 
   return (
@@ -708,11 +743,28 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerLeaveRequests" component={OwnerLeaveRequestsScreen} options={{ headerShown: false }} />
       {/* Same screen, PERMISSION-type requests only (Dashboard → Permissions). */}
       <Stack.Screen name="OwnerPermissionRequests" component={OwnerLeaveRequestsScreen} initialParams={{ kind: 'PERMISSION' }} options={{ headerShown: false }} />
+      {/* Staff Tasks — draw their own headers. */}
+      <Stack.Screen name="StaffTasks" component={StaffTasksHomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskCalendar" component={StaffTaskCalendarScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskForm" component={StaffTaskFormScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskSelectEmployee" component={StaffTaskSelectEmployeeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskDetail" component={StaffTaskDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskLocation" component={StaffTaskLocationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskChecklist" component={StaffTaskChecklistScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskReview" component={StaffTaskReviewScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StaffTaskCreated" component={StaffTaskCreatedScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerQrCode" component={OwnerQrCodeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerModelCompatibility" component={OwnerModelCompatibilityScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopChatInbox" component={ShopChatInboxScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopChatThread" component={ShopChatThreadScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSubscription" component={SubscriptionScreen} options={{ headerShown: false }} />
+      {/* Subscription v2 purchase flow (also mounted in the gated stack above). */}
+      <Stack.Screen name="SubscriptionSelectShops" component={SubscriptionSelectShopsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SubscriptionSummary" component={SubscriptionSummaryScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SubscriptionPayment" component={SubscriptionPaymentScreen} options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="SubscriptionSuccess" component={SubscriptionSuccessScreen} options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="SubscriptionHistory" component={SubscriptionHistoryScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SubscriptionReceipt" component={SubscriptionReceiptScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Terms" component={LegalDocumentScreen} initialParams={{ type: 'TERMS' }} options={{ headerShown: false }} />
       <Stack.Screen name="PrivacyPolicy" component={LegalDocumentScreen} initialParams={{ type: 'PRIVACY' }} options={{ headerShown: false }} />
       <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: false }} />

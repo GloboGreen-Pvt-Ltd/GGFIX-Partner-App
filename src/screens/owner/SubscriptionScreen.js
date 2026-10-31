@@ -1,394 +1,286 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Crown,
-  Gift,
   Check,
-  Store,
-  Clock,
-  CreditCard,
-  Minus,
-  Plus,
-  AlertCircle,
   CheckCircle2,
-  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Crown,
   FileText,
-  Calendar,
-  CalendarCheck,
-  Timer,
-  Users,
-  Package,
-  Truck,
-  IndianRupee,
-  ChartColumnIncreasing,
+  Gem,
+  Gift,
+  LayoutList,
+  Receipt,
+  Store,
 } from 'lucide-react-native';
-import { rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
-import { T } from '../../components/dashboard/theme';
-import { subscriptionApi } from '../../api/client';
-import { FEATURE, coverageLabel, fetchEntitlements, usageLabel } from '../../subscription/entitlements';
 import { getSession } from '../../auth/session';
-import { fetchMe } from '../../api/auth';
+import { getCatalog, getMySubscription, getPaymentHistory } from '../../api/subscription';
+import { formatDate, formatPaise, methodLabel, perTerm, titleCase } from '../../subscription/format';
+import { inAppCheckoutStatus } from '../../subscription/razorpay';
+import {
+  Badge, Btn, C, Card, CheckoutUnavailable, EmptyState, ErrorState, KV, Notice, SectionTitle,
+  SkeletonCards, SubHeader, capFor, statusTone, useSubscriptionGate,
+} from '../../subscription/ui';
 
-// GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
-const ACCENT = '#035C6C';
-const PRIMARY = '#035C6C';
-const BRIGHT = '#035C6C';
-const MINT = '#E5F3F5';
-const SOFT_MINT = '#F3F4F6';
-const PAGE_BG = '#F3F4F6';
-const CARD_BG = '#FFFFFF';
-const BORDER = '#E5E7EB';
-const TEXT_PRIMARY = '#111111';
-const TEXT_SECONDARY = '#6B7280';
-const TRIAL_ACCENT = '#F59E0B';
-const TRIAL_TINT = '#FEF3C7';
-const PRO_ACCENT = '#8B5CF6';
-const PRO_TINT = '#F3EEFF';
+// Subscription home: current plan, plan details, the server's plan catalogue,
+// covered shops and payment history. Every price, feature and limit comes from
+// the subscription service (contract v2) — nothing is hardcoded here.
 
-const cardShadow = {
-  shadowColor: '#111111',
-  shadowOpacity: 0.07,
-  shadowRadius: 16,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 4,
-};
+const TYPE_RANK = { TRIAL: 0, BASIC: 1, PREMIUM: 2 };
+const TYPE_ICON = { TRIAL: Gift, BASIC: Crown, PREMIUM: Gem };
+const TYPE_COLOR = { TRIAL: C.orange, BASIC: C.teal, PREMIUM: C.navy };
+const LIVE = new Set(['ACTIVE', 'TRIAL']);
+const FEATURES_COLLAPSED = 4;
 
-const softShadow = {
-  shadowColor: '#111111',
-  shadowOpacity: 0.05,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 2,
-};
+const isTrialPlan = (p) => p?.planType === 'TRIAL' || p?.code === 'FREE_TRIAL';
+const planColor = (p) => (/^#[0-9a-f]{6}$/i.test(String(p?.color || '')) ? p.color : (TYPE_COLOR[p?.planType] || C.teal));
+const durationMonths = (p) => (String(p?.durationUnit).toUpperCase() === 'MONTHS' ? Number(p?.durationValue) || 0 : (Number(p?.durationValue) || 0) / 30);
 
-// Static pricing table for Basic multi-shop (1 shop = 3000, N>=2 = N x 2500).
-const PRICING_ROWS = [
-  { shops: 1, amount: 3000 },
-  { shops: 2, amount: 5000 },
-  { shops: 3, amount: 7500 },
-  { shops: 4, amount: 10000 },
-  { shops: 5, amount: 12500 },
-];
-
-const STATUS_META = {
-  FREE_TRIAL: { label: 'Free Trial', color: TRIAL_ACCENT, tint: TRIAL_TINT },
-  ACTIVE:     { label: 'Active',     color: ACCENT,        tint: MINT },
-  EXPIRED:    { label: 'Expired',    color: '#B91C1C',     tint: '#FEE2E2' },
-  CANCELLED:  { label: 'Cancelled',  color: '#B91C1C',     tint: '#FEE2E2' },
-};
-
-const STATUS_DESCRIPTION = {
-  FREE_TRIAL: 'You’re on a free trial — explore every feature before you choose a plan.',
-  ACTIVE: 'Your subscription is active and all features are enabled.',
-  EXPIRED: 'Your subscription has expired. Choose a plan below to keep going.',
-  CANCELLED: 'Your subscription was cancelled. Choose a plan below to reactivate.',
-};
-
-function money(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+function planBadge(plan, sub, trialAvailable) {
+  const isCurrent = !!sub?.planCode && sub.planCode === plan.code;
+  if (isCurrent && LIVE.has(sub.status)) return { label: 'Current Plan', tone: 'teal', icon: Check };
+  if (isCurrent && (sub.status === 'EXPIRED' || sub.status === 'CANCELLED')) return { label: 'Expired', tone: 'red' };
+  if (plan.status === 'COMING_SOON') return { label: 'Coming Soon', tone: 'blue', icon: Clock };
+  if (isTrialPlan(plan) && !trialAvailable) return null;
+  if (plan.purchasable) return { label: 'Available', tone: 'green' };
+  return null;
 }
 
-function formatDate(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+/** The plan card's main action, or null (read-only / not purchasable). */
+function planAction(plan, sub, trialAvailable, catalogPlans) {
+  if (plan.status === 'COMING_SOON' || !plan.purchasable) return null;
+  if (isTrialPlan(plan)) return trialAvailable ? { label: 'Start Free Trial', kind: 'trial' } : null;
+  if (sub?.planCode === plan.code && sub.status !== 'NONE') return { label: 'Renew', kind: 'renew' };
+  if (sub?.status === 'ACTIVE') {
+    const cur = catalogPlans.find((p) => p.code === sub.planCode);
+    if (!cur) return { label: 'Select Plan', kind: 'select' };
+    const up = (TYPE_RANK[plan.planType] ?? 0) > (TYPE_RANK[cur.planType] ?? 0)
+      || ((TYPE_RANK[plan.planType] ?? 0) === (TYPE_RANK[cur.planType] ?? 0) && durationMonths(plan) > durationMonths(cur));
+    return { label: up ? 'Upgrade' : 'Select Plan', kind: 'select' };
+  }
+  return { label: 'Select Plan', kind: 'select' };
 }
 
-// FREE_TRIAL / BASIC plan visuals keyed by plan code; anything else (e.g. a
-// real "Pro" plan the API returns) falls back to a generic premium icon/tint
-// rather than assuming a fixed 3-plan catalogue.
-const PLAN_ICON = { FREE_TRIAL: Gift, BASIC: Crown };
-const PLAN_TONE = {
-  FREE_TRIAL: { accent: TRIAL_ACCENT, tint: TRIAL_TINT },
-  BASIC:      { accent: ACCENT,       tint: MINT },
-};
-const DEFAULT_TONE = { accent: PRO_ACCENT, tint: PRO_TINT };
-
-export default function SubscriptionScreen({ navigation, gated = false, onUnlock, onLogout }) {
+export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnlock: unlockProp, onLogout: logoutProp }) {
+  const gate = useSubscriptionGate();
+  const gated = gatedProp ?? gate.gated;
+  const onUnlock = unlockProp || gate.onUnlock;
+  const onLogout = logoutProp || gate.onLogout;
   const r = useResponsive();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - rs(32), 960), alignSelf: 'center' } : null;
-  // Plan Details grid: 3 across on phones, 2 on very narrow ones, 5 on tablets.
-  const detailCols = r.isTablet ? 5 : (r.width < 350 ? 2 : 3);
+  const cap = capFor(r);
 
-  const [ownerUserId, setOwnerUserId] = useState(null);
   const [isShopLogin, setIsShopLogin] = useState(false);
-  const [current, setCurrent] = useState(null);
-  // Live allowances + usage, from the same engine the create APIs enforce with.
-  const [entitlements, setEntitlements] = useState(null);
-  const [plans, setPlans] = useState([]);
+  const [me, setMe] = useState(null);
+  const [catalog, setCatalog] = useState(null);
+  const [history, setHistory] = useState(null);
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState({});
+  const loadedOnce = useRef(false);
 
-  // Upgrade flow state
-  const [upgrading, setUpgrading] = useState(false);      // upgrade panel open
-  const [shopCount, setShopCount] = useState(1);
-  const [quote, setQuote] = useState(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [activating, setActivating] = useState(false);
-  const [activated, setActivated] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Resolve the logged-in owner id (fetchMe heals old sessions; id === userId).
-      let uid = null;
-      try {
-        const me = await fetchMe();
-        uid = me?.id || me?.userId || null;
-        setIsShopLogin(me?.loginScope === 'SHOP' || me?.loginType === 'SHOP_LOGIN');
-      } catch {
-        const s = await getSession();
-        uid = s?.userId || s?.id || null;
-        setIsShopLogin(s?.loginScope === 'SHOP' || s?.loginType === 'SHOP_LOGIN');
-      }
-      setOwnerUserId(uid);
-
-      const [planList, cur, ent] = await Promise.all([
-        subscriptionApi.get('/subscriptions/plans').catch(() => []),
-        uid
-          ? subscriptionApi.get(`/subscriptions/owner/${uid}`).catch(() => null)
-          : Promise.resolve(null),
-        // Live usage against live ceilings. The subscription ROW carries its own
-        // limit columns, but those are a snapshot written when the row was
-        // created — this payload is what the create APIs actually enforce, so
-        // showing it is what keeps this screen honest.
-        fetchEntitlements(),
-      ]);
-      setPlans(Array.isArray(planList) ? planList : []);
-      setCurrent(cur || null);
-      setEntitlements(ent || null);
-    } catch (e) {
-      setError(e?.message || 'Failed to load subscription');
-    } finally {
-      setLoading(false);
-    }
+  const load = useCallback(async (mode = 'initial') => {
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    const s = await getSession().catch(() => null);
+    const shopLogin = s?.loginScope === 'SHOP' || s?.loginType === 'SHOP_LOGIN';
+    setIsShopLogin(shopLogin);
+    const [meR, catR, histR] = await Promise.allSettled([
+      getMySubscription(),
+      getCatalog(),
+      shopLogin ? Promise.resolve([]) : getPaymentHistory(),
+    ]);
+    // Keep the last good payload on a failed silent refresh.
+    if (meR.status === 'fulfilled') setMe(meR.value || null);
+    if (catR.status === 'fulfilled') setCatalog(catR.value || null);
+    if (histR.status === 'fulfilled') setHistory(Array.isArray(histR.value) ? histR.value : []);
+    setErrors({
+      me: meR.status === 'rejected' ? (meR.reason?.message || 'Could not load your subscription.') : null,
+      catalog: catR.status === 'rejected' ? (catR.reason?.message || 'Could not load plans.') : null,
+      history: histR.status === 'rejected' ? (histR.reason?.message || 'Could not load payments.') : null,
+    });
+    loadedOnce.current = true;
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // First focus loads with skeletons; returning from a purchase refreshes quietly.
+  useFocusEffect(useCallback(() => { load(loadedOnce.current ? 'silent' : 'initial'); }, [load]));
 
-  // Refetch the quote whenever the picked shop count changes (upgrade panel open).
-  useEffect(() => {
-    if (!upgrading) return;
-    let cancelled = false;
-    (async () => {
-      setQuoteLoading(true);
-      try {
-        const q = await subscriptionApi.get('/subscriptions/quote', { query: { shops: shopCount } });
-        if (!cancelled) setQuote(q || null);
-      } catch {
-        if (!cancelled) setQuote(null);
-      } finally {
-        if (!cancelled) setQuoteLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [upgrading, shopCount]);
+  const sub = me?.subscription || null;
+  const status = sub?.status || 'NONE';
+  const plans = useMemo(() => (Array.isArray(catalog?.plans) ? catalog.plans : []), [catalog]);
+  const checkout = inAppCheckoutStatus(catalog?.checkout);
+  const live = LIVE.has(status);
+  const currentPlan = plans.find((p) => p.code === sub?.planCode) || null;
+  const coveredIds = (me?.shops || []).map((x) => x.shopId).filter(Boolean);
 
-  const currentType = current?.subscriptionType || null;
-  const currentStatus = current?.status || null;
-  // Upgrade CTA only when on trial or nothing active yet.
-  const canUpgrade = !current || currentStatus === 'FREE_TRIAL' || currentStatus === 'EXPIRED' || currentStatus === 'CANCELLED';
-
-  const fallbackQuoteTotal = useMemo(() => {
-    const row = PRICING_ROWS.find((r2) => r2.shops === shopCount);
-    return row ? row.amount : (shopCount >= 2 ? shopCount * 2500 : 3000);
-  }, [shopCount]);
-
-  const quoteTotal = quote?.total ?? fallbackQuoteTotal;
-
-  const handleActivate = async () => {
-    if (!ownerUserId) { setError('Could not resolve your account. Please try again.'); return; }
-    setActivating(true);
-    setError(null);
-    try {
-      await subscriptionApi.post('/subscriptions/activate', {
-        body: { ownerUserId, shopCount },
-      });
-      // Re-read both, so the new allowances are in hand the moment the plan
-      // changes. Nothing is cached anywhere, so every other screen picks the
-      // upgrade up on its next focus — no manual reset of employees or shops.
-      const [cur, ent] = await Promise.all([
-        subscriptionApi.get(`/subscriptions/owner/${ownerUserId}`).catch(() => null),
-        fetchEntitlements(),
-      ]);
-      setCurrent(cur || null);
-      setEntitlements(ent || null);
-      setActivated(true);
-      setUpgrading(false);
-    } catch (e) {
-      setError(e?.message || 'Could not activate the plan. Please try again.');
-    } finally {
-      setActivating(false);
-    }
+  const startPlan = (plan, kind) => {
+    navigation?.navigate?.('SubscriptionSelectShops', {
+      planCode: plan.code,
+      trial: kind === 'trial',
+      // Renewing keeps the shops already covered selected.
+      preselect: kind === 'renew' ? coveredIds : [],
+    });
   };
 
-  // Opens the ONE real upgrade mechanism this app has — every non-current plan
-  // card's CTA routes here rather than each pretending to activate its own
-  // plan: there's no plan-code param on /subscriptions/activate, so "Upgrade
-  // Now" on any card genuinely means "open Basic activation", and the panel
-  // it opens says exactly that before anything is confirmed.
-  const openUpgrade = () => {
-    setActivated(false);
-    setShopCount(Math.max(1, current?.shopCount || 1));
-    setUpgrading(true);
-  };
+  const headerRight = gated ? (
+    <Pressable onPress={onLogout} hitSlop={8} accessibilityRole="button" style={{ paddingVertical: 8 }}>
+      <Text style={{ fontSize: 12.5, fontWeight: '800', color: C.red }}>Logout</Text>
+    </Pressable>
+  ) : null;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: PAGE_BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* Header — same pattern as the Buy / Sell / Booking / Personal Info
-          screens: white bar with a bottom border, round back button, centred
-          title + subtitle, right slot (Logout while the plan gate is up). */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF', paddingHorizontal: rs(16), paddingTop: rs(8), paddingBottom: rs(12),
-            borderBottomWidth: 1, borderBottomColor: BORDER,
-          }}
-        >
-          <View style={capStyle}>
-            <View className="flex-row items-center">
-              {!gated ? (
-                <Pressable
-                  onPress={() => navigation?.goBack?.()}
-                  hitSlop={8}
-                  className="items-center justify-center"
-                  style={{ height: rs(36), width: rs(36), borderRadius: rs(18), backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
-                >
-                  <ChevronLeft size={19} color={TEXT_PRIMARY} />
-                </Pressable>
-              ) : (
-                <View style={{ width: rs(56) }} />
-              )}
-              <View className="flex-1 items-center" style={{ marginHorizontal: rs(8) }}>
-                <Text className="font-extrabold" style={{ fontSize: T.headline, color: TEXT_PRIMARY }} numberOfLines={1}>
-                  Subscription
-                </Text>
-                <Text style={{ fontSize: T.caption2, color: TEXT_SECONDARY, marginTop: rs(2) }} numberOfLines={1}>
-                  Manage your plan and features
-                </Text>
-              </View>
-              {gated ? (
-                <Pressable onPress={onLogout} hitSlop={8} style={{ width: rs(56), alignItems: 'flex-end', paddingVertical: rs(4) }}>
-                  <Text className="font-extrabold" style={{ fontSize: T.caption1, color: '#B91C1C' }}>Logout</Text>
-                </Pressable>
-              ) : (
-                <View style={{ width: rs(36) }} />
-              )}
-            </View>
-          </View>
-        </View>
-      </SafeAreaView>
+    <View style={{ flex: 1, backgroundColor: C.white }}>
+      <SubHeader
+        title="Subscription"
+        subtitle="Manage your plan, shops and payments"
+        onBack={gated ? null : () => navigation?.goBack?.()}
+        right={headerRight}
+        capStyle={cap}
+      />
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={ACCENT} />
-          <Text style={{ marginTop: rs(12), fontSize: 12.5, color: TEXT_SECONDARY }}>Loading your plan…</Text>
-        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 }}>
+          <View style={cap}><SkeletonCards count={4} /></View>
+        </ScrollView>
       ) : (
         <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: rs(14), paddingTop: rs(10), paddingBottom: 24 + r.insets.bottom }}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 + r.insets.bottom }}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={C.teal} colors={[C.teal]} />}
         >
-          <View style={capStyle}>
-          {gated && !activated ? (
-            <Notice tone="warn" icon={AlertCircle} title="Your free trial has ended">
-              Choose a plan below to continue using Near G Fix. You can log out anytime from the top-right.
-            </Notice>
-          ) : null}
+          <View style={cap}>
+            {gated && !live ? (
+              <Notice tone="warn" title="Your subscription has ended">
+                Choose a plan below to continue using NearGFix. You can log out anytime from the top-right.
+              </Notice>
+            ) : null}
 
-          {error ? <Notice tone="error" icon={AlertCircle} title={error} /> : null}
-
-          {activated ? <Notice tone="ok" icon={CheckCircle2} title="Basic plan activated. You're all set!" /> : null}
-
-          {gated && activated ? (
-            <Pressable
-              onPress={onUnlock}
-              className="flex-row items-center justify-center"
-              style={{ borderRadius: 14, paddingVertical: 12, marginBottom: rs(10), backgroundColor: ACCENT, ...cardShadow }}
-            >
-              <CheckCircle2 size={17} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: rs(8), fontSize: 14 }}>Continue to App</Text>
-            </Pressable>
-          ) : null}
-
-          {/* ---------- CURRENT PLAN ---------- */}
-          <CurrentPlanHero current={current} />
-
-          {/* ---------- PLAN DETAILS (every line, as a compact grid) ---------- */}
-          {current ? <PlanDetailsCard current={current} entitlements={entitlements} cols={detailCols} /> : null}
-
-          {/* ---------- AVAILABLE PLANS ----------
-              Shown on every login so no plan detail is hidden. Shop-scoped
-              logins get them read-only: no upgrade CTA, because plan
-              management, multi-shop pricing and payments stay in the owner's
-              account. */}
-          <View
-            style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: rs(10), borderWidth: 1, borderColor: BORDER, ...softShadow }}
-          >
-            <SectionHeader icon={ChartColumnIncreasing} title="Available Plans" />
-            {plans.length === 0 ? (
-              <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>No plans available right now.</Text>
-            ) : (
-              // Side by side, two to a row (one plan spans the full width).
-              <View className="flex-row flex-wrap" style={{ marginHorizontal: -4 }}>
-                {plans.map((plan) => (
-                  <View key={plan.code} style={{ width: plans.length === 1 || r.isSmallPhone ? '100%' : '50%', padding: 4 }}>
-                    <PlanCard
-                      plan={plan}
-                      isCurrent={currentType === plan.code || currentType === plan.name}
-                      onUpgrade={canUpgrade && !isShopLogin ? openUpgrade : null}
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
-            {isShopLogin ? (
-              <View className="flex-row items-start" style={{ marginTop: 8 }}>
-                <AlertCircle size={13} color={TEXT_SECONDARY} style={{ marginTop: 1 }} />
-                <Text style={{ marginLeft: 6, flex: 1, fontSize: 11, color: TEXT_SECONDARY, lineHeight: 15 }}>
-                  Your plan is managed by the shop owner. Upgrades and payments are available from the owner&apos;s account.
-                </Text>
+            {gated && live ? (
+              <View style={{ marginTop: 10 }}>
+                <Notice tone="info" icon={CheckCircle2} title={`${sub?.planName || 'Your plan'} is active. You're all set!`} />
+                <Btn label="Continue to App" icon={CheckCircle2} onPress={onUnlock} style={{ marginTop: 8 }} />
               </View>
             ) : null}
-          </View>
 
-          {!isShopLogin ? (
-            <>
-              {/* ---------- UPGRADE PANEL (opened from any non-current plan's CTA) ---------- */}
-              {upgrading ? (
-                <View style={{ marginTop: rs(10) }}>
-                  <UpgradePanel
-                    shopCount={shopCount}
-                    onDec={() => setShopCount((n) => Math.max(1, n - 1))}
-                    onInc={() => setShopCount((n) => Math.min(5, n + 1))}
-                    onSet={setShopCount}
-                    quote={quote}
-                    quoteLoading={quoteLoading}
-                    quoteTotal={quoteTotal}
-                    activating={activating}
-                    onConfirm={handleActivate}
-                    onCancel={() => setUpgrading(false)}
-                  />
+            {me?.pendingOrder && !isShopLogin ? (
+              <Notice tone="warn" icon={Clock} title="You have a payment in progress">
+                <Text style={{ fontSize: 11.5, color: C.muted, lineHeight: 16 }}>
+                  {`${me.pendingOrder.planName || 'Plan'} · ${formatPaise(me.pendingOrder.totalPaise)} · ${titleCase(me.pendingOrder.status)}`}
+                </Text>
+                <Btn
+                  label="Check payment status"
+                  variant="outline"
+                  compact
+                  style={{ marginTop: 8, alignSelf: 'flex-start' }}
+                  onPress={() => navigation?.navigate?.('SubscriptionPayment', { resumeOrderId: me.pendingOrder.id, order: me.pendingOrder })}
+                />
+              </Notice>
+            ) : null}
+
+            {errors.me && !me ? (
+              <Card><ErrorState title="Subscription unavailable" message={errors.me} onRetry={() => load('initial')} /></Card>
+            ) : (
+              <CurrentPlanCard
+                sub={sub}
+                trialAvailable={!!me?.trialAvailable}
+                canRenew={!isShopLogin && !!currentPlan?.purchasable && !isTrialPlan(currentPlan) && status !== 'NONE'}
+                onRenew={() => currentPlan && startPlan(currentPlan, 'renew')}
+              />
+            )}
+
+            {sub && status !== 'NONE' ? <PlanDetailsCard me={me} /> : null}
+
+            {/* ---------- AVAILABLE PLANS ---------- */}
+            <Card>
+              <SectionTitle icon={LayoutList} title="Available Plans" />
+              {errors.catalog && !catalog ? (
+                <ErrorState title="Plans unavailable" message={errors.catalog} onRetry={() => load('initial')} />
+              ) : plans.length === 0 ? (
+                <EmptyState title="No plans available right now" message="Please check again later." />
+              ) : (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                  {plans.map((plan) => (
+                    <View key={plan.code} style={{ width: r.isTablet ? '50%' : '100%', padding: 4 }}>
+                      <PlanCard
+                        plan={plan}
+                        badge={planBadge(plan, sub, !!me?.trialAvailable)}
+                        action={isShopLogin ? null : planAction(plan, sub, !!me?.trialAvailable, plans)}
+                        trialUsed={isTrialPlan(plan) && me && !me.trialAvailable && sub?.planCode !== plan.code}
+                        expanded={!!expanded[plan.code]}
+                        onToggle={() => setExpanded((e) => ({ ...e, [plan.code]: !e[plan.code] }))}
+                        onAction={(kind) => startPlan(plan, kind)}
+                      />
+                    </View>
+                  ))}
                 </View>
+              )}
+              {!isShopLogin && catalog && !checkout.available ? <CheckoutUnavailable /> : null}
+              {isShopLogin ? (
+                <Notice tone="info" title="Your plan is managed by the shop owner.">
+                  Upgrades and payments are available from the owner&apos;s account.
+                </Notice>
               ) : null}
-            </>
-          ) : null}
+            </Card>
+
+            {/* ---------- MANAGE SHOPS ---------- */}
+            {sub && status !== 'NONE' ? (
+              <Card>
+                <SectionTitle icon={Store} title="Manage Shops" right={<Text style={{ fontSize: 11.5, color: C.muted }}>{(me?.shops || []).length} covered</Text>} />
+                {(me?.shops || []).length === 0 ? (
+                  <EmptyState icon={Store} title="No shops covered" message="Select a plan to cover your shops." />
+                ) : (me.shops.map((s, i) => (
+                  <View key={s.shopId || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i === me.shops.length - 1 ? 0 : 1, borderBottomColor: C.soft }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>{s.name || 'Shop'}</Text>
+                      <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{`Until ${formatDate(s.endsAt)}`}</Text>
+                    </View>
+                    <Badge label={titleCase(s.status)} tone={statusTone(s.status)} />
+                  </View>
+                )))}
+                {!isShopLogin && currentPlan?.purchasable && !isTrialPlan(currentPlan) ? (
+                  <Btn
+                    label="Add or Change Shops"
+                    variant="outline"
+                    compact
+                    icon={Store}
+                    style={{ marginTop: 8 }}
+                    onPress={() => startPlan(currentPlan, 'renew')}
+                  />
+                ) : null}
+              </Card>
+            ) : null}
+
+            {/* ---------- PAYMENT HISTORY (preview) ---------- */}
+            {!isShopLogin ? (
+              <Card>
+                <SectionTitle
+                  icon={Receipt}
+                  title="Payment History"
+                  right={(history || []).length > 0 ? (
+                    <Pressable onPress={() => navigation?.navigate?.('SubscriptionHistory')} hitSlop={10} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: C.teal }}>View all</Text>
+                      <ChevronRight size={14} color={C.teal} />
+                    </Pressable>
+                  ) : null}
+                />
+                {errors.history && !history ? (
+                  <Text style={{ fontSize: 11.5, color: C.muted }}>Payment history is unavailable right now.</Text>
+                ) : (history || []).length === 0 ? (
+                  <EmptyState icon={Receipt} title="No payments yet" message="Your subscription payments will appear here." />
+                ) : history.slice(0, 3).map((h, i) => (
+                  <PaymentRow
+                    key={h.paymentId || h.orderId || i}
+                    item={h}
+                    last={i === Math.min(history.length, 3) - 1}
+                    onPress={h.paymentId ? () => navigation?.navigate?.('SubscriptionReceipt', { paymentId: h.paymentId }) : null}
+                  />
+                ))}
+              </Card>
+            ) : null}
           </View>
         </ScrollView>
       )}
@@ -398,382 +290,177 @@ export default function SubscriptionScreen({ navigation, gated = false, onUnlock
 
 /* ------------------------------------------------------------------ */
 
-const NOTICE_TONE = {
-  warn: { bg: TRIAL_TINT, border: '#FDE68A', ink: '#B45309' },
-  error: { bg: '#FEE2E2', border: '#FCA5A5', ink: '#B91C1C' },
-  ok: { bg: MINT, border: '#C7E6EA', ink: PRIMARY },
-};
-
-/** One-line status banner (trial ended / error / activated). */
-function Notice({ tone, icon: Icon, title, children }) {
-  const t = NOTICE_TONE[tone];
-  return (
-    <View style={{ borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: rs(10), backgroundColor: t.bg, borderWidth: 1, borderColor: t.border }}>
-      <View className="flex-row items-center">
-        <Icon size={15} color={t.ink} />
-        <Text className="font-extrabold" style={{ marginLeft: rs(8), flex: 1, fontSize: 12.5, color: t.ink }}>{title}</Text>
-      </View>
-      {children ? <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 3, lineHeight: 16 }}>{children}</Text> : null}
-    </View>
-  );
-}
-
-/** Compact card heading: small icon + title, optional one-line caption. */
-function SectionHeader({ icon: Icon, title, subtitle, right }) {
-  return (
-    <View className="flex-row items-center" style={{ marginBottom: 10 }}>
-      <View className="items-center justify-center" style={{ height: 28, width: 28, borderRadius: 9, backgroundColor: MINT, marginRight: 9 }}>
-        <Icon size={14} color={ACCENT} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }} numberOfLines={1}>{subtitle}</Text> : null}
-      </View>
-      {right}
-    </View>
-  );
-}
-
-function CurrentPlanHero({ current }) {
-  if (!current) {
+function CurrentPlanCard({ sub, trialAvailable, canRenew, onRenew }) {
+  const status = sub?.status || 'NONE';
+  if (!sub || status === 'NONE') {
     return (
-      <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
-        <View className="flex-row items-center">
-          <View className="items-center justify-center" style={{ width: 38, height: 38, borderRadius: 12, marginRight: 10, backgroundColor: SOFT_MINT }}>
-            <CreditCard size={18} color={TEXT_SECONDARY} />
-          </View>
-          <View className="flex-1">
-            <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.8, color: TEXT_SECONDARY }}>Current Plan</Text>
-            <Text className="font-extrabold" style={{ fontSize: 16, color: TEXT_PRIMARY, marginTop: 1 }}>No active plan</Text>
-            <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 1 }}>Choose a plan below to get started.</Text>
-          </View>
-        </View>
-      </View>
+      <Card>
+        <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: C.muted }}>CURRENT PLAN</Text>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: C.ink, marginTop: 2 }}>No active plan</Text>
+        <Text style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+          {trialAvailable ? 'Start your free trial or choose a plan below.' : 'Choose a plan below to get started.'}
+        </Text>
+      </Card>
     );
   }
-
-  const status = current.status || '';
-  const meta = STATUS_META[status] || { label: status, color: TEXT_SECONDARY, tint: SOFT_MINT };
-  const isTrial = status === 'FREE_TRIAL';
-  const isActive = status === 'ACTIVE';
-  const planName = current.subscriptionType === 'BASIC' || current.subscriptionType === 'Basic'
-    ? 'Basic'
-    : (current.subscriptionType === 'FREE_TRIAL' || isTrial ? 'Free Trial' : (current.subscriptionType || meta.label));
-  const days = Number(current.daysRemaining);
-  const description = STATUS_DESCRIPTION[status] || 'Manage your plan and features below.';
-
+  const Icon = TYPE_ICON[sub.planType] || Crown;
+  const color = TYPE_COLOR[sub.planType] || C.teal;
+  const isTrial = status === 'TRIAL' || sub.planType === 'TRIAL';
   return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
-      <View className="flex-row items-center">
-        <View
-          className="items-center justify-center"
-          style={{ width: 40, height: 40, borderRadius: 13, marginRight: 10, backgroundColor: isTrial ? TRIAL_TINT : MINT }}
-        >
-          {isTrial ? <Gift size={20} color={TRIAL_ACCENT} /> : <Crown size={20} color={ACCENT} />}
+    <Card style={{ borderColor: C.tealLine }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ width: 40, height: 40, borderRadius: 12, marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.tealSoft }}>
+          <Icon size={19} color={color} />
         </View>
-        <View className="flex-1">
-          <Text className="uppercase font-bold" style={{ fontSize: 10, letterSpacing: 0.8, color: TEXT_SECONDARY }}>Current Plan</Text>
-          <View className="flex-row items-center flex-wrap" style={{ marginTop: 1 }}>
-            <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY, marginRight: 7 }}>{planName}</Text>
-            <View className="rounded-full" style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: meta.tint }}>
-              <Text className="font-extrabold" style={{ fontSize: 9.5, color: meta.color, letterSpacing: 0.4 }}>{meta.label.toUpperCase()}</Text>
-            </View>
-          </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: C.muted }}>CURRENT PLAN</Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: C.ink, marginTop: 1 }}>
+            {[sub.planName, sub.durationLabel].filter(Boolean).join(' · ') || 'Plan'}
+          </Text>
         </View>
-        {/* Time left / end date (trial) or validity + amount (active) */}
-        {isTrial ? (
-          <View className="items-end" style={{ marginLeft: 8, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: TRIAL_TINT }}>
-            <View className="flex-row items-center">
-              <Clock size={12} color={TRIAL_ACCENT} />
-              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 12.5, color: '#B45309' }}>
-                {Number.isFinite(days) ? `${days} day${days === 1 ? '' : 's'} left` : 'Trial active'}
-              </Text>
-            </View>
-            {formatDate(current.inactiveDate) ? (
-              <Text style={{ fontSize: 10.5, color: TEXT_SECONDARY, marginTop: 1 }}>Ends {formatDate(current.inactiveDate)}</Text>
-            ) : null}
-          </View>
-        ) : isActive ? (
-          <View className="items-end" style={{ marginLeft: 8, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: MINT }}>
-            <View className="flex-row items-center">
-              <Check size={12} color={PRIMARY} strokeWidth={3} />
-              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 12, color: PRIMARY }}>
-                {formatDate(current.inactiveDate) ? `Until ${formatDate(current.inactiveDate)}` : 'Active'}
-              </Text>
-            </View>
-            {money(current.priceAmount) ? (
-              <Text className="font-extrabold" style={{ fontSize: 12, color: PRIMARY, marginTop: 1 }}>{money(current.priceAmount)}</Text>
-            ) : null}
-          </View>
-        ) : null}
+        <View style={{ alignItems: 'flex-end' }}>
+          <Badge label={titleCase(status)} tone={statusTone(status)} />
+          {sub.legacy ? <View style={{ marginTop: 4 }}><Badge label="Legacy" tone="gray" /></View> : null}
+        </View>
       </View>
-      <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 7, lineHeight: 16 }}>{description}</Text>
-    </View>
+      <View style={{ marginTop: 8 }}>
+        <KV label="Started" value={formatDate(sub.startedAt)} />
+        <KV label="Valid until" value={formatDate(sub.endsAt)} />
+        <KV label="Amount paid" value={isTrial && !Number(sub.amountPaidPaise) ? 'Free trial' : formatPaise(sub.amountPaidPaise)} strong last />
+      </View>
+      {canRenew ? <Btn label="Renew" onPress={onRenew} style={{ marginTop: 8 }} /> : null}
+    </Card>
   );
 }
 
-function PlanDetailsCard({ current, entitlements, cols = 3 }) {
-  const status = current.status || '';
-  const isTrial = status === 'FREE_TRIAL';
-  const days = Number(current.daysRemaining);
-  const startedText = formatDate(current.activeDate || current.subscriptionStartDate || current.trialStartDate);
-  const endsText = formatDate(current.inactiveDate || current.subscriptionEndDate || current.trialEndDate);
+const FEATURE_FLAGS = [
+  ['serviceBookingEnabled', 'Service Booking'],
+  ['pickupEnabled', 'Pickup'],
+  ['whatsappEnabled', 'WhatsApp'],
+  ['smsEnabled', 'SMS'],
+  ['reportsEnabled', 'Reports'],
+  ['exportEnabled', 'Export'],
+  ['prioritySupportEnabled', 'Priority Support'],
+];
 
-  // Live entitlement readings. Each falls back to null (tile hidden) when the
-  // payload is unavailable — better a missing tile than a stale number presented
-  // as the plan's actual allowance.
-  //
-  // Usage tiles come from the entitlements payload, NOT from the subscription
-  // row's own limit columns. Those columns are a snapshot written when the row
-  // was created, so a backfilled or pre-plan-change row can carry a number the
-  // API no longer honours — and a plan screen that advertises an allowance the
-  // create API refuses is the exact bug this system exists to prevent.
-  // "Shops covered 1 of 2" is USED of ALLOWED — one shop currently open out of
-  // two the plan permits — not "one shop has been paid for".
-  const shopsCovered = coverageLabel(entitlements, FEATURE.SHOPS);
-  const employeeUsage = usageLabel(entitlements, FEATURE.EMPLOYEES);
-  const sellOrderUsage = usageLabel(entitlements, FEATURE.SELL_ORDERS);
-  const pickupText = entitlements?.features?.pickupService === undefined
-    ? null
-    : (entitlements.features.pickupService ? 'Enabled' : 'Disabled');
-
-  // What the Current Plan card above already shows (see CurrentPlanHero).
-  const isActive = status === 'ACTIVE';
-  const heroShowsEnd = (isTrial || isActive) && !!formatDate(current.inactiveDate);
-  const heroShowsDays = isTrial && Number.isFinite(days);
-  const heroShowsAmount = isActive && !!money(current.priceAmount);
-
-  const items = [
-    startedText ? { icon: Calendar, label: 'Started on', value: startedText } : null,
-    endsText && !heroShowsEnd ? { icon: CalendarCheck, label: isTrial ? 'Trial ends' : 'Valid till', value: endsText } : null,
-    Number.isFinite(days) && !heroShowsDays ? { icon: Timer, label: 'Days left', value: `${days} day${days === 1 ? '' : 's'}`, strong: true } : null,
-    shopsCovered ? { icon: Store, label: 'Shops covered', value: shopsCovered } : null,
-    employeeUsage ? { icon: Users, label: 'Employees', value: employeeUsage } : null,
-    sellOrderUsage ? { icon: Package, label: 'Sell orders', value: sellOrderUsage } : null,
-    pickupText ? {
-      icon: Truck, label: 'Pickup service', value: pickupText,
-      pillColor: pickupText === 'Enabled' ? PRIMARY : TEXT_SECONDARY, pillTint: pickupText === 'Enabled' ? MINT : SOFT_MINT,
-    } : null,
-    money(current.priceAmount) && !heroShowsAmount ? { icon: IndianRupee, label: 'Amount', value: money(current.priceAmount), strong: true } : null,
-  ].filter(Boolean);
-  if (items.length === 0) return null;
-
-  // A plain list, like the plan cards' feature lists: one fact per row, the
-  // full label on the left and its value on the right — nothing truncated
-  // ("Shops covered", "Pickup service"). Tablets split it into two columns.
-  const twoCols = cols >= 5;
-  const half = Math.ceil(items.length / 2);
-  const columns = twoCols ? [items.slice(0, half), items.slice(half)] : [items];
-
+function PlanDetailsCard({ me }) {
+  const sub = me?.subscription || {};
+  const ent = me?.entitlements || {};
+  const usage = me?.usage || {};
+  const covered = Array.isArray(me?.shops) ? me.shops.length : sub.shopCount;
+  const of = (used, limit, unit = '') => {
+    const u = used === null || used === undefined ? '—' : used;
+    return limit === null || limit === undefined ? `${u} · Unlimited` : `${u} of ${limit}${unit}`;
+  };
+  const days = Number(sub.daysRemaining);
+  const enabled = FEATURE_FLAGS.filter(([k]) => ent[k]).map(([, label]) => label);
   return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: rs(10), borderWidth: 1, borderColor: BORDER, ...softShadow }}>
-      <SectionHeader icon={FileText} title="Plan Details" />
-      <View className="flex-row" style={{ gap: 16 }}>
-        {columns.map((colItems, ci) => (
-          <View key={ci} style={{ flex: 1, minWidth: 0 }}>
-            {colItems.map((it, i) => (
-              <DetailRow key={it.label} {...it} isLast={i === colItems.length - 1} />
+    <Card>
+      <SectionTitle icon={FileText} title="Plan Details" />
+      <KV label="Started" value={formatDate(sub.startedAt)} />
+      <KV label="Expires" value={formatDate(sub.endsAt)} />
+      <KV label="Days remaining" value={Number.isFinite(days) ? `${days} day${days === 1 ? '' : 's'}` : '—'} strong />
+      <KV label="Shops covered" value={ent.shopLimit === null || ent.shopLimit === undefined ? `${covered ?? '—'}` : `${covered ?? 0} of ${ent.shopLimit}`} />
+      <KV label="Employees used" value={of(usage.employeesUsedMaxPerShop, ent.employeeLimit, ent.employeeLimitScope === 'PER_SHOP' ? ' per shop' : '')} />
+      <KV label="Sell orders" value={of(usage.sellOrdersUsed, ent.sellOrderLimit)} />
+      <KV label="Pickup" value={ent.pickupEnabled === undefined ? '—' : ent.pickupEnabled ? 'Enabled' : 'Disabled'} tone={ent.pickupEnabled ? C.green : C.muted} last={enabled.length === 0} />
+      {enabled.length ? (
+        <View style={{ paddingTop: 8 }}>
+          <Text style={{ fontSize: 12.5, color: C.muted, marginBottom: 6 }}>Enabled features</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {enabled.map((f) => <Badge key={f} label={f} tone="teal" icon={Check} />)}
+          </View>
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+function PlanCard({ plan, badge, action, trialUsed, expanded, onToggle, onAction }) {
+  const Icon = TYPE_ICON[plan.planType] || Crown;
+  const color = planColor(plan);
+  const trial = isTrialPlan(plan);
+  const features = Array.isArray(plan.features) ? plan.features : [];
+  const shown = expanded ? features : features.slice(0, FEATURES_COLLAPSED);
+  const pct = Number(plan.additionalShopDiscountPct) || 0;
+  const term = perTerm(plan);
+  const isCurrent = badge?.label === 'Current Plan';
+  return (
+    <View style={{ borderRadius: 14, borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? color : C.line, backgroundColor: C.white, overflow: 'hidden', ...{ shadowColor: '#111', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 } }}>
+      <View style={{ height: 4, backgroundColor: color }} />
+      <View style={{ padding: 11 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.soft, marginRight: 9 }}>
+            <Icon size={16} color={color} />
+          </View>
+          <View style={{ flex: 1, marginRight: 6 }}>
+            <Text style={{ fontSize: 14.5, fontWeight: '800', color: C.ink }}>{plan.name || plan.code}</Text>
+            {plan.durationLabel ? <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{plan.durationLabel}</Text> : null}
+          </View>
+          {badge ? <Badge label={badge.label} tone={badge.tone} icon={badge.icon} /> : null}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 8, flexWrap: 'wrap' }}>
+          <Text style={{ fontSize: 19, fontWeight: '800', color }}>
+            {trial && !Number(plan.pricePaise) ? 'Free' : formatPaise(plan.pricePaise)}
+          </Text>
+          {term ? <Text style={{ fontSize: 11.5, color: C.muted, marginLeft: 4, marginBottom: 3 }}>{`/ ${term}`}</Text> : null}
+        </View>
+        {!trial ? (
+          <Text style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+            {'Per shop'}
+            {pct > 0 ? <Text style={{ fontWeight: '700', color: C.green }}>{` · Additional shop: ${pct}% off`}</Text> : null}
+          </Text>
+        ) : null}
+        {plan.description ? <Text style={{ fontSize: 11.5, color: C.muted, marginTop: 4, lineHeight: 16 }}>{plan.description}</Text> : null}
+
+        {shown.length ? (
+          <View style={{ marginTop: 8 }}>
+            {shown.map((f, i) => (
+              <View key={`${i}-${f}`} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 }}>
+                <View style={{ width: 15, height: 15, borderRadius: 8, backgroundColor: C.tealSoft, alignItems: 'center', justifyContent: 'center', marginRight: 6, marginTop: 1 }}>
+                  <Check size={9} color={C.teal} strokeWidth={3.4} />
+                </View>
+                <Text style={{ flex: 1, fontSize: 12, color: C.ink, lineHeight: 17 }}>{String(f)}</Text>
+              </View>
             ))}
           </View>
-        ))}
+        ) : null}
+
+        {trialUsed ? <Text style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Free trial already used.</Text> : null}
+
+        <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
+          {features.length > FEATURES_COLLAPSED ? (
+            <Btn label={expanded ? 'Hide Details' : 'View Details'} variant="outline" compact onPress={onToggle} style={{ flex: 1 }} />
+          ) : null}
+          {action ? <Btn label={action.label} compact onPress={() => onAction(action.kind)} style={{ flex: 1 }} /> : null}
+        </View>
       </View>
     </View>
   );
 }
 
-/** One Plan Details fact as a list row: mint icon + label left, value right. */
-function DetailRow({ icon: Icon, label, value, pillColor, pillTint, strong, isLast }) {
+function PaymentRow({ item, last, onPress }) {
   return (
-    <View
-      className="flex-row items-center"
-      style={{ paddingVertical: 8, borderBottomWidth: isLast ? 0 : 1, borderBottomColor: SOFT_MINT }}
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, minHeight: 48, borderBottomWidth: last ? 0 : 1, borderBottomColor: C.soft, opacity: pressed ? 0.7 : 1 })}
     >
-      <View className="items-center justify-center" style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: MINT, marginRight: 8 }}>
-        <Icon size={11} color={ACCENT} />
-      </View>
-      <Text style={{ flex: 1, fontSize: 12, color: TEXT_SECONDARY }} numberOfLines={1}>{label}</Text>
-      {pillColor ? (
-        <View className="rounded-full" style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: pillTint || MINT }}>
-          <Text className="font-extrabold" style={{ fontSize: 11, color: pillColor }} numberOfLines={1}>{value}</Text>
-        </View>
-      ) : (
-        <Text
-          className="font-extrabold"
-          style={{ marginLeft: 8, fontSize: 13, color: strong ? PRIMARY : TEXT_PRIMARY, textAlign: 'right' }}
-          numberOfLines={1}
-        >
-          {value}
+      <View style={{ flex: 1, marginRight: 8 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
+          {[item.planName, item.durationLabel].filter(Boolean).join(' · ') || 'Subscription'}
         </Text>
-      )}
-    </View>
-  );
-}
-
-function PlanCard({ plan, isCurrent, onUpgrade }) {
-  const Icon = PLAN_ICON[plan.code] || Crown;
-  const isTrial = plan.code === 'FREE_TRIAL';
-  const tone = PLAN_TONE[plan.code] || DEFAULT_TONE;
-  const priceLabel = isTrial
-    ? `Free · ${plan.durationDays || 15} days`
-    : `${money(plan.price) || '₹3,000'} / year`;
-  const features = Array.isArray(plan.features) ? plan.features : [];
-
-  return (
-    <View
-      style={{
-        flex: 1, borderRadius: 14, padding: 10,
-        backgroundColor: isCurrent ? MINT : CARD_BG,
-        borderWidth: isCurrent ? 1.5 : 1,
-        borderColor: isCurrent ? BRIGHT : BORDER,
-      }}
-    >
-      <View className="flex-row items-center">
-        <View className="items-center justify-center" style={{ width: 30, height: 30, borderRadius: 10, marginRight: 8, backgroundColor: isCurrent ? CARD_BG : tone.tint }}>
-          <Icon size={15} color={tone.accent} />
-        </View>
-        <View className="flex-1">
-          <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }} numberOfLines={1}>
-            {plan.name || (isTrial ? 'Free Trial' : 'Plan')}
-          </Text>
-          <Text className="font-extrabold" style={{ fontSize: 11.5, color: isTrial ? '#B45309' : tone.accent, marginTop: 1 }} numberOfLines={1}>{priceLabel}</Text>
-        </View>
-      </View>
-      {isCurrent ? (
-        <View className="flex-row items-center" style={{ alignSelf: 'flex-start', marginTop: 7, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ACCENT }}>
-          <Check size={10} color="#FFFFFF" strokeWidth={3} />
-          <Text className="text-white font-extrabold" style={{ fontSize: 10, marginLeft: 3 }}>Current Plan</Text>
-        </View>
-      ) : null}
-
-      {features.length > 0 ? (
-        <View style={{ marginTop: 8 }}>
-          {features.map((f, i) => (
-            <View key={i} className="flex-row items-start" style={{ marginBottom: 5 }}>
-              <View className="items-center justify-center" style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: isCurrent ? CARD_BG : MINT, marginRight: 5, marginTop: 1 }}>
-                <Check size={9} color={ACCENT} strokeWidth={3.2} />
-              </View>
-              <Text className="flex-1" style={{ fontSize: 11, color: TEXT_PRIMARY, lineHeight: 15 }} numberOfLines={2}>{f}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {/* The current plan is marked by its badge; only other plans get a CTA. */}
-      {!isCurrent && onUpgrade ? (
-        <Pressable
-          onPress={onUpgrade}
-          className="items-center justify-center"
-          style={
-            isTrial
-              ? { marginTop: 'auto', borderRadius: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: tone.accent }
-              : { marginTop: 'auto', borderRadius: 12, paddingVertical: 9, backgroundColor: ACCENT }
-          }
-        >
-          <Text className="font-extrabold" style={{ fontSize: 13, color: isTrial ? tone.accent : '#FFFFFF' }}>
-            {isTrial ? 'Get Started' : 'Upgrade Now'}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-function UpgradePanel({
-  shopCount, onDec, onInc, onSet, quote, quoteLoading, quoteTotal, activating, onConfirm, onCancel,
-}) {
-  return (
-    <View style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}>
-      <View className="flex-row items-center">
-        <Crown size={16} color={ACCENT} />
-        <Text className="font-extrabold" style={{ marginLeft: 7, fontSize: 14, color: TEXT_PRIMARY }}>Activate Basic Plan</Text>
-      </View>
-      <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 3 }}>How many shops do you want to cover?</Text>
-
-      {/* Stepper + quick-pick chips 1..5 on one row (chips wrap below on <360pt phones) */}
-      <View className="flex-row items-center flex-wrap" style={{ marginTop: 12, rowGap: 8 }}>
-        <Pressable
-          onPress={onDec}
-          disabled={shopCount <= 1}
-          hitSlop={6}
-          className="items-center justify-center rounded-full"
-          style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount <= 1 ? 0.45 : 1 }}
-        >
-          <Minus size={16} color={ACCENT} strokeWidth={2.6} />
-        </Pressable>
-        <View className="items-center" style={{ width: 62 }}>
-          <Text className="font-extrabold" style={{ fontSize: 22, color: TEXT_PRIMARY }}>{shopCount}</Text>
-          <Text className="uppercase font-bold" style={{ fontSize: 9.5, color: TEXT_SECONDARY, letterSpacing: 0.6 }}>shop{shopCount === 1 ? '' : 's'}</Text>
-        </View>
-        <Pressable
-          onPress={onInc}
-          disabled={shopCount >= 5}
-          hitSlop={6}
-          className="items-center justify-center rounded-full"
-          style={{ width: 36, height: 36, backgroundColor: MINT, opacity: shopCount >= 5 ? 0.45 : 1 }}
-        >
-          <Plus size={16} color={ACCENT} strokeWidth={2.6} />
-        </Pressable>
-        <View className="flex-row flex-1 justify-end" style={{ minWidth: 170 }}>
-          {[1, 2, 3, 4, 5].map((n) => {
-            const active = n === shopCount;
-            return (
-              <Pressable
-                key={n}
-                onPress={() => onSet(n)}
-                className="items-center justify-center rounded-full"
-                style={{ width: 30, height: 30, marginLeft: 4, backgroundColor: active ? ACCENT : SOFT_MINT }}
-              >
-                <Text className="font-extrabold" style={{ fontSize: 12.5, color: active ? '#FFFFFF' : TEXT_SECONDARY }}>{n}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Total */}
-      <View
-        className="flex-row items-center"
-        style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, backgroundColor: MINT, borderWidth: 1, borderColor: '#C7E6EA' }}
-      >
-        <Text className="font-bold flex-1" style={{ fontSize: 12, color: TEXT_SECONDARY }}>Total payable</Text>
-        {quoteLoading ? (
-          <ActivityIndicator color={ACCENT} />
-        ) : (
-          <Text className="font-extrabold" style={{ fontSize: 17, color: PRIMARY }}>{money(quoteTotal)}</Text>
-        )}
-      </View>
-      {quote?.discountApplied ? (
-        <Text className="font-semibold text-center" style={{ fontSize: 11, color: PRIMARY, marginTop: 5 }}>
-          Multi-shop discount applied ({money(quote.pricePerShop)}/shop)
+        <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+          {`${formatDate(item.paidAt)} · ${item.shopCount ?? '—'} shop${item.shopCount === 1 ? '' : 's'} · ${methodLabel(item.method)}`}
         </Text>
-      ) : null}
-
-      {/* Confirm / cancel */}
-      <View className="flex-row" style={{ marginTop: 12 }}>
-        <Pressable
-          onPress={onCancel}
-          disabled={activating}
-          className="items-center justify-center"
-          style={{ flex: 1, marginRight: 8, borderRadius: 12, paddingVertical: 11, borderWidth: 1.5, borderColor: BORDER, backgroundColor: CARD_BG }}
-        >
-          <Text className="font-bold" style={{ fontSize: 13, color: TEXT_SECONDARY }}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          onPress={onConfirm}
-          disabled={activating}
-          className="flex-row items-center justify-center"
-          style={{ flex: 2, borderRadius: 12, paddingVertical: 11, backgroundColor: ACCENT, opacity: activating ? 0.6 : 1 }}
-        >
-          {activating ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <CreditCard size={15} color="#FFFFFF" />
-              <Text className="text-white font-extrabold" style={{ marginLeft: 7, fontSize: 13.5 }}>Confirm &amp; Activate</Text>
-            </>
-          )}
-        </Pressable>
       </View>
-    </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>{formatPaise(item.amountPaise)}</Text>
+        <View style={{ marginTop: 3 }}><Badge label={titleCase(item.status)} tone={statusTone(item.status)} /></View>
+      </View>
+      {onPress ? <ChevronRight size={15} color={C.subtle} style={{ marginLeft: 4 }} /> : null}
+    </Pressable>
   );
 }

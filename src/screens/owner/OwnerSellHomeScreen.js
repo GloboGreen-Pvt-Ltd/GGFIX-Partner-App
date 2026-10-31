@@ -293,7 +293,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   <ChevronLeft size={19} color={TEXT_PRIMARY} />
                 </Pressable>
                 <View className="flex-1 items-center">
-                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on Near G Fix</Text>
+                  <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on NearGFix</Text>
                   <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
                 <Pressable

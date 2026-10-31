@@ -109,7 +109,7 @@ function ScanSearchQrScreen({ navigation, route }) {
   const [torchOn, setTorchOn] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState('Searching Near G Fix…');
+  const [loadingStage, setLoadingStage] = useState('Searching NearGFix…');
   const [result, setResult] = useState(null); // { kind: 'ticket'|'pickup'|'device'|'device-found'|'multi'|'visual-matches'|'visual-unavailable'|'none'|'ocr-failed'|'error', ... }
   const [ocrPhotoUri, setOcrPhotoUri] = useState(null); // last lens capture/pick — kept for Retake + result thumbnail
   const [showManualEntry, setShowManualEntry] = useState(false); // fallback-only, see runLensOCR
@@ -129,7 +129,7 @@ function ScanSearchQrScreen({ navigation, route }) {
     handlingRef.current = false;
     setScanned(false);
     setLoading(false);
-    setLoadingStage('Searching Near G Fix…');
+    setLoadingStage('Searching NearGFix…');
     setResult(null);
     setOcrPhotoUri(null);
     setShowManualEntry(false);
@@ -294,7 +294,7 @@ function ScanSearchQrScreen({ navigation, route }) {
       }
     }
 
-    setLoadingStage('Searching Near G Fix image library…');
+    setLoadingStage('Searching NearGFix image library…');
     console.log('[LENS] visual search started');
     const visual = await runVisualSearch(uri, { ocrText: ocr.ok ? ocr.text : null });
     console.log(`[LENS] visual search ${visual.ok ? `ok, confidence=${visual.confidence}, candidates=${visual.matches.length}` : `unavailable: ${visual.message}`}`);
@@ -324,7 +324,7 @@ function ScanSearchQrScreen({ navigation, route }) {
     //    that brand's models to pick from.
     const readText = ocr.ok ? String(ocr.text || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
     if (readText) {
-      setLoadingStage('Matching the Near G Fix catalogue…');
+      setLoadingStage('Matching the NearGFix catalogue…');
       const fromText = await catalogueMatchesFromText(ocr.text).catch(() => null);
       console.log(`[LENS] catalogue text match: ${fromText?.matchedOn || 'none'}, rows=${fromText?.rows?.length || 0}`);
       if (fromText?.exact) {
@@ -409,7 +409,7 @@ function ScanSearchQrScreen({ navigation, route }) {
     setShowManualEntry(false);
     setScanned(true);
     setLoading(true);
-    setLoadingStage('Searching Near G Fix…');
+    setLoadingStage('Searching NearGFix…');
     runSearch(text);
   };
 
@@ -432,7 +432,7 @@ function ScanSearchQrScreen({ navigation, route }) {
           </View>
           <Text className="font-extrabold text-center" style={{ fontSize: 15 }}>Camera access is required to scan.</Text>
           <Text className="text-center" style={{ fontSize: 12, color: '#6B7280', marginTop: rs(8), lineHeight: rf(18) }}>
-            Near G Fix needs your camera to scan QR codes, barcodes and devices.
+            NearGFix needs your camera to scan QR codes, barcodes and devices.
           </Text>
           <View className="flex-row" style={{ marginTop: rs(22) }}>
             <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: rs(20), paddingVertical: rs(12), borderRadius: rs(14), borderWidth: 1, borderColor: '#C7E6EA', marginRight: rs(10) }}>
@@ -559,7 +559,7 @@ function ScanSearchQrScreen({ navigation, route }) {
             <View className="flex-1">
               <Text className="font-extrabold" style={{ fontSize: 13 }}>Search manually</Text>
               <Text style={{ fontSize: 11, color: '#6B7280', marginTop: rs(2) }}>
-                Type the model, brand, IMEI or tracking ID and it'll search Near G Fix for you.
+                Type the model, brand, IMEI or tracking ID and it'll search NearGFix for you.
               </Text>
             </View>
           </View>
@@ -582,7 +582,7 @@ function ScanSearchQrScreen({ navigation, route }) {
               disabled={!manualText.trim()}
               style={{ flex: 1, alignItems: 'center', paddingVertical: rs(13), borderRadius: rs(14), backgroundColor: ACCENT, opacity: manualText.trim() ? 1 : 0.5 }}
             >
-              <Text className="text-white font-extrabold">Search Near G Fix</Text>
+              <Text className="text-white font-extrabold">Search NearGFix</Text>
             </Pressable>
           </View>
         </View>
@@ -745,7 +745,7 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: rs(18) }}>
         <Text className="font-extrabold" style={{ fontSize: 13, marginBottom: rs(2) }}>Visual matches</Text>
         <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: rs(14) }}>
-          {result.label ? `Recognised as “${result.label}”. ` : ''}Closest matches from the Near G Fix device catalogue — confirm before opening.
+          {result.label ? `Recognised as “${result.label}”. ` : ''}Closest matches from the NearGFix device catalogue — confirm before opening.
         </Text>
 
         <Pressable
@@ -978,9 +978,9 @@ function ResultBody({ result, onOpenTicket, onOpenPickup, onOpenVisualMatch, onV
       <View className="items-center justify-center" style={{ width: rs(56), height: rs(56), borderRadius: rs(28), backgroundColor: '#FEE2E2', marginBottom: rs(12) }}>
         <AlertTriangle size={rf(24)} color="#B91C1C" />
       </View>
-      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching Near G Fix record found</Text>
+      <Text className="font-extrabold text-center" style={{ fontSize: 13 }}>No matching NearGFix record found</Text>
       <Text className="text-center" style={{ fontSize: 12, color: '#6B7280', marginTop: rs(6), lineHeight: rf(17) }}>
-        {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in Near G Fix.` : "Couldn't match that to anything in Near G Fix."}
+        {result.raw ? `Couldn't match "${String(result.raw).slice(0, 40)}" to anything in NearGFix.` : "Couldn't match that to anything in NearGFix."}
       </Text>
       {detectedLines.length ? (
         <View style={{ marginTop: rs(12), alignSelf: 'stretch', backgroundColor: '#F3F4F6', borderRadius: rs(14), padding: rs(12) }}>

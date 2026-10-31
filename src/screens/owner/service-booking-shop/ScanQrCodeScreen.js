@@ -318,7 +318,7 @@ export default function ScanQrCodeScreen({ navigation }) {
               </View>
               <Text className="text-gray-900 font-extrabold text-[13px] text-center">No ticket found</Text>
               <Text className="text-gray-500 text-[12px] text-center mt-1.5 leading-5">
-                Couldn't match <Text className="font-extrabold text-gray-700">{notFound}</Text> to a ticket in this shop. Make sure it's a Near G Fix QR slip.
+                Couldn't match <Text className="font-extrabold text-gray-700">{notFound}</Text> to a ticket in this shop. Make sure it's a NearGFix QR slip.
               </Text>
               <Pressable onPress={reset} className="mt-5 rounded-2xl py-3.5 px-8 flex-row items-center justify-center active:opacity-90" style={{ backgroundColor: BRAND_GREEN }}>
                 <RotateCcw size={16} color="#fff" />

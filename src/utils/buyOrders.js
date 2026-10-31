@@ -1,8 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
-import { isRunningInExpoGo } from 'expo';
 import { listShopChats, getShopChatMessages, sendShopChatMessage } from '../api/chat';
-import { notify } from '../components/confirm';
 
 /**
  * Customer buy orders reach the seller as a chat message — the Customer app's
@@ -12,13 +8,13 @@ import { notify } from '../components/confirm';
  *   Total: …
  *   Buyer: <name> · Phone: <mobile> · Address: <line>   (one per line)
  * There is no shop-side buy-order endpoint, so this is the one source for My
- * Orders' Order Placed / Buyer Details steps, the "new order" notification and
- * the sold / not-sold confirmation sent back to the buyer's chat.
+ * Orders' Order Placed / Buyer Details steps and the sold / not-sold
+ * confirmation sent back to the buyer's chat. The "new order" alert is a
+ * server push now (kind BUY_ORDER, lib/pushNotifications) — the local one this
+ * file used to post from chat polling fired stale bursts and crossed accounts.
  */
 const ORDER_HEAD = /^🛒\s*New order\s*(#\S+)?/;
 const MAX_THREADS = 30;
-const SEEN_KEY = 'owner.buyOrders.notified';
-const CHANNEL_ID = 'orders';
 
 export function parseBuyOrderMessage(text) {
   const lines = String(text || '').split('\n').map((l) => l.trim());
@@ -92,55 +88,4 @@ export async function sendOrderOutcome(listing, sold) {
     return sendShopChatMessage(o.threadId, { body });
   }));
   return results.filter((r) => r.status === 'fulfilled').length;
-}
-
-/* Local "new order" notification. expo-notifications is required defensively
-   and skipped in Expo Go — same reasoning as lib/downloads.js. */
-let Notifications = null;
-try {
-  const inExpoGo = (() => { try { return isRunningInExpoGo(); } catch (_) { return false; } })();
-  if (!inExpoGo) Notifications = require('expo-notifications');
-} catch (_) { Notifications = null; }
-
-async function postLocal(title, body) {
-  if (!Notifications) { notify(title, body); return; }
-  try {
-    const allowed = (p) => p?.granted
-      || p?.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
-    if (!allowed(await Notifications.getPermissionsAsync())
-      && !allowed(await Notifications.requestPermissionsAsync())) { notify(title, body); return; }
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Orders',
-        description: 'New customer orders on your listings.',
-        importance: Notifications.AndroidImportance.HIGH,
-      });
-    }
-    await Notifications.scheduleNotificationAsync({
-      content: { title, body, data: { type: 'BUY_ORDER' } },
-      trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
-    });
-  } catch (_) {
-    notify(title, body);
-  }
-}
-
-/**
- * Notify once per new buy order. The first run on a device only records what
- * is already there, so old orders don't fire a burst of notifications.
- */
-export async function notifyNewBuyOrders(orders) {
-  if (!orders?.length) return;
-  let seen = null;
-  try { seen = JSON.parse((await AsyncStorage.getItem(SEEN_KEY)) || 'null'); } catch (_) { seen = null; }
-  const known = new Set(Array.isArray(seen) ? seen : []);
-  const fresh = Array.isArray(seen) ? orders.filter((o) => !known.has(o.key)) : [];
-  orders.forEach((o) => known.add(o.key));
-  try { await AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...known].slice(-300))); } catch (_) {}
-  for (const o of fresh) {
-    await postLocal(
-      `Order placed${o.orderNo ? ` ${o.orderNo}` : ''}`,
-      [o.titles.join(', '), o.buyer ? `by ${o.buyer}` : null].filter(Boolean).join(' '),
-    );
-  }
 }

@@ -15,6 +15,7 @@ import {
 import { getToken, clearSession, notifyAuthExpired } from '../auth/session';
 import { Platform } from 'react-native';
 import { File, UploadType } from 'expo-file-system';
+import { safeHttpMessage, safeNetworkMessage } from '../lib/safeError';
 
 // RN's fetch has NO default timeout. Against this 12-service backend a single
 // down/hung service would otherwise leave every awaiting screen stuck on a
@@ -72,7 +73,8 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
     const msg = timedOut
       ? `Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s — the server may be down or unreachable.`
       : (e?.message || 'Network request failed');
-    const err = new Error(`Network request failed${baseHint}. URL: ${urlString}. ${msg}`);
+    const err = new Error(safeNetworkMessage(timedOut));
+    err.devMessage = `Network request failed${baseHint}. URL: ${urlString}. ${msg}`;
     err.status = 0;
     err.timeout = timedOut;
     throw err;
@@ -100,10 +102,12 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
       await clearSession();
       notifyAuthExpired();
     }
+    const rawMessage = (json && (json.message || json.error)) || text || `HTTP ${res.status}`;
     const message = res.status === 401 && token && isAuthService
-      ? 'Your session has expired. Please log in again.'
-      : (json && (json.message || json.error)) || text || `HTTP ${res.status}`;
+      ? 'Session expired. Please log in again.'
+      : safeHttpMessage(res.status === 401 && !token ? 400 : res.status, rawMessage);
     const err = new Error(message);
+    err.devMessage = rawMessage;
     err.status = res.status;
     err.payload = json;
     throw err;
@@ -193,7 +197,8 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fiel
     const msg = timedOut
       ? `Upload timed out after ${Math.round(UPLOAD_TIMEOUT_MS / 1000)}s.`
       : (e?.message || 'Network request failed');
-    const err = new Error(`Upload failed. URL: ${urlString}. ${msg}`);
+    const err = new Error(safeNetworkMessage(timedOut));
+    err.devMessage = `Upload failed. URL: ${urlString}. ${msg}`;
     err.status = 0;
     err.timeout = timedOut;
     throw err;
@@ -207,8 +212,9 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fiel
   if (status < 200 || status >= 300) {
     // Same rule as request(): only an auth-service 401 ends the session.
     if (status === 401 && token && base === AUTH_BASE) { await clearSession(); notifyAuthExpired(); }
-    const message = (json && (json.message || json.error)) || text || `HTTP ${status}`;
-    const err = new Error(message);
+    const rawMessage = (json && (json.message || json.error)) || text || `HTTP ${status}`;
+    const err = new Error(safeHttpMessage(status, rawMessage));
+    err.devMessage = rawMessage;
     err.status = status;
     throw err;
   }

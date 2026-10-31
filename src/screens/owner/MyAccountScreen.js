@@ -44,6 +44,7 @@ import { isAppLockEnabled, setAppLockEnabled, isDeviceSecure, authenticate } fro
 import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
+import { notify } from '../../components/confirm';
 
 // My Account palette — the Oct 2026 brand sheet (theme/colors.js `brand`).
 const G = brand.teal;           // Primary teal: header, key actions
@@ -474,7 +475,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           <MenuRow tone="navy" Icon={SOLID.terms} label="Terms & Conditions" sub="Platform usage rules" onPress={() => navigation?.navigate?.('Terms')} />
           <MenuRow tone="green" Icon={SOLID.privacy} label="Privacy Policy" sub="How we handle your data" onPress={() => navigation?.navigate?.('PrivacyPolicy')} />
           <MenuRow tone="blue" Icon={SOLID.faq} label="FAQs" sub="Common questions answered" />
-          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the Near G Fix team" onPress={() => navigation?.navigate?.('HelpSupport')} last />
+          <MenuRow tone="orange" Icon={SOLID.support} label="Help & Support" sub="Talk to the NearGFix team" onPress={() => navigation?.navigate?.('HelpSupport')} last />
         </View>
 
         {onLogout ? (
@@ -655,7 +656,7 @@ function AppLockRow() {
   const toggle = async (next) => {
     if (next) {
       if (!(await isDeviceSecure())) {
-        Alert.alert('Set a screen lock', 'Add a fingerprint, pattern or PIN in your phone settings first, then turn on App Lock.');
+        notify('Set a screen lock first', 'Add a fingerprint, pattern or PIN in phone settings.', { type: 'warning', duration: 4 });
         return;
       }
       if (!(await authenticate())) return;

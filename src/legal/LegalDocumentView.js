@@ -56,15 +56,15 @@ const SPY_MARGIN = 56; // a section is "current" once its top is this close to t
 const PAGE = {
   [LEGAL_DOC_TYPES.TERMS]: {
     title: 'Terms and Conditions',
-    description: 'The rules for using the Near G Fix app, website and services.',
+    description: 'The rules for using the NearGFix app, website and services.',
     Icon: FileText,
     related: { type: LEGAL_DOC_TYPES.PRIVACY, title: 'Privacy Policy', description: 'How we collect, use and protect your data.', Icon: ShieldCheck },
   },
   [LEGAL_DOC_TYPES.PRIVACY]: {
     title: 'Privacy Policy',
-    description: 'How Near G Fix collects, uses, shares and protects your information.',
+    description: 'How NearGFix collects, uses, shares and protects your information.',
     Icon: ShieldCheck,
-    related: { type: LEGAL_DOC_TYPES.TERMS, title: 'Terms and Conditions', description: 'The rules for using Near G Fix.', Icon: FileText },
+    related: { type: LEGAL_DOC_TYPES.TERMS, title: 'Terms and Conditions', description: 'The rules for using NearGFix.', Icon: FileText },
   },
 };
 

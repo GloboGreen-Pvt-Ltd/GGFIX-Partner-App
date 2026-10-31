@@ -29,6 +29,8 @@ const PACKAGES = [
 const SCHEMES = [
   { action: 'android.intent.action.VIEW', scheme: 'sms' },
   { action: 'android.intent.action.SENDTO', scheme: 'smsto' },
+  // Razorpay checkout (subscription payment) lists installed UPI apps.
+  { action: 'android.intent.action.VIEW', scheme: 'upi' },
 ];
 
 module.exports = function withAndroidQueries(config) {

@@ -45,7 +45,6 @@ import { getBanners, getDeviceCategories, getModelsByBrand } from '../../api/mas
 import { resolveDeviceImageSource } from '../../utils/images';
 import { listShopRepairBookings } from '../../api/orders';
 import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
-import { loadChatBuyOrders, notifyNewBuyOrders } from '../../utils/buyOrders';
 import { READY_BAND, SCOPES, countScope, pickupsOnly } from './AllBooking/bookingScopes';
 import { getOwnerKycDocuments } from '../../api/shops';
 import { getUnreadCount as getNotifUnreadCount } from '../../api/notifications';
@@ -210,6 +209,8 @@ export const QUICK_ACTIONS: DashboardTool[] = [
 // OwnerTabs on the owner stack, hence `via: 'parent'` on every one.
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
+  // Staff Task Management first (screens/owner/staffTasks).
+  { key: 'StaffTasks', label: 'Staff Tasks', icon: mci('clipboard-check'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
   { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
   { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { mode: 'attendance' } },
   { key: 'OwnerEmployeeWorkingRecord', label: 'Job Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
@@ -436,14 +437,6 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   }, [loadPickups]);
   // Silent poll so a new customer pickup bumps the Home counts live.
   useFocusPolling(loadPickups);
-
-  // A customer buy order on one of this shop's listings (arrives in chat)
-  // raises an "Order placed" notification while Home is open.
-  const checkBuyOrders = useCallback(() => {
-    loadChatBuyOrders({ unreadOnly: true }).then(notifyNewBuyOrders);
-  }, []);
-  useEffect(() => { checkBuyOrders(); }, [checkBuyOrders]);
-  useFocusPolling(checkBuyOrders, 30000);
 
   // GET /marketplace/buy/nearby via the shared helper (Buy's origin/radius/
   // exclude-own-shop rules), customer listings only, nearest first, 4 shown.

@@ -422,7 +422,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
         >
           <View className="self-center bg-card border border-border rounded-full px-3 py-1 mb-3 flex-row items-center">
             <ShieldCheck size={11} color={GREEN_DARK} />
-            <Text className="text-[10px] text-text-muted ml-1">Encrypted via ggfix · Customer chat</Text>
+            <Text className="text-[10px] text-text-muted ml-1">Encrypted via NearGFix · Customer chat</Text>
           </View>
 
           {messages.length === 0 ? (

@@ -93,7 +93,7 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: '800', color: INK, letterSpacing: 0.2 }}>
-              Sell on ggfix
+              Sell on NearGFix
             </Text>
             <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
               Reach nearby buyers in minutes
@@ -293,7 +293,7 @@ export default function OwnerSellChooseSalesCategoryScreen({ navigation, route }
               letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
             }}
           >
-            Why sell on ggfix
+            Why sell on NearGFix
           </Text>
 
           {[

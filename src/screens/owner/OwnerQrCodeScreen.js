@@ -135,7 +135,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
     (shopPhone ? `TEL;TYPE=WORK,VOICE:${shopPhone}\n` : '') +
     (ownerPhone ? `TEL;TYPE=CELL,VOICE:${ownerPhone}\n` : '') +
     (shopAddress ? `ADR;TYPE=WORK:;;${shopAddress.replace(/,\s*/g, ';')};;;;\n` : '') +
-    'NOTE:Listed on GGfix\nEND:VCARD'
+    'NOTE:Listed on NearGFix\nEND:VCARD'
   ), [shopName, ownerName, ownerPhone, shopPhone, shopAddress]);
 
   // Share the QR image only. captureRef on qrOnlyRef pulls just the
@@ -148,7 +148,7 @@ export default function OwnerQrCodeScreen({ navigation }) {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           mimeType: 'image/png',
-          dialogTitle: `${shopName} on GGfix`,
+          dialogTitle: `${shopName} on NearGFix`,
           UTI: 'public.png',
         });
         return;
@@ -156,8 +156,8 @@ export default function OwnerQrCodeScreen({ navigation }) {
     } catch (_) { /* fall through to text share */ }
     try {
       await Share.share({
-        message: `${shopName} on GGfix — scan my QR to view the shop.`,
-        title: `${shopName} on GGfix`,
+        message: `${shopName} on NearGFix — scan my QR to view the shop.`,
+        title: `${shopName} on NearGFix`,
       });
     } catch (e) {
       notify('Share failed', e?.message || 'Try again');

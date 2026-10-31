@@ -34,13 +34,15 @@ import { Provider } from 'react-redux';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import SystemBarGuard from './src/components/SystemBarGuard';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
+import { ToastHost } from './src/components/Toast';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 import { store } from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import colors from './src/theme/colors';
 import { attachDownloadNotifications } from './src/lib/downloads';
+import { attachPushNavigation } from './src/lib/pushNotifications';
 
 // @gluestack-ui/themed's own bundled SafeAreaView wrapper
 // (node_modules/@gluestack-ui/themed/build/components/SafeAreaView/styled-components/Root.js)
@@ -58,6 +60,9 @@ LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 SplashScreen.preventAutoHideAsync()
   .then(() => console.log('[BOOT] Native splash prevented @', since())) // TEMP DEBUG — remove once verified on a real device/dev-client build
   .catch(() => {});
+
+// Lets a tapped push open its screen from outside any screen (lib/pushNotifications).
+const navigationRef = createNavigationContainerRef();
 
 const navTheme = {
   ...DefaultTheme,
@@ -79,6 +84,8 @@ export default function App() {
   // and a tap on one has to open the saved file. Both are app-wide concerns, so
   // they are wired once here rather than by the screen that saves the file.
   useEffect(() => attachDownloadNotifications(), []);
+  // A tapped push (live or the one that launched the app) opens its screen.
+  useEffect(() => attachPushNavigation(navigationRef), []);
   useEffect(() => console.log('[BOOT] App root mounted @', since()), []); // TEMP DEBUG — remove once verified
 
   // RootNavigator's first render is synchronous and is always BootSplash (its
@@ -135,10 +142,12 @@ export default function App() {
               <StatusBar style="dark" />
               {/* Android: everything laid out above the system navigation bar. */}
               <SystemBarGuard>
-                <NavigationContainer theme={navTheme}>
+                <NavigationContainer ref={navigationRef} theme={navTheme}>
                   <RootNavigator />
                 </NavigationContainer>
               </SystemBarGuard>
+              {/* App-wide toasts (components/Toast) — above every screen. */}
+              <ToastHost />
             </SafeAreaProvider>
           </KeyboardProvider>
         </GluestackUIProvider>
