@@ -19,7 +19,10 @@ export function getRazorpay() {
   if (cached !== undefined) return cached;
   cached = null;
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return cached;
-  if (!nativePresent('RNRazorpayCheckout') || !nativePresent('RazorpayEventEmitter')) return cached;
+  // Android registers only RNRazorpayCheckout (events arrive via
+  // DeviceEventEmitter); RazorpayEventEmitter is an iOS-only module.
+  if (!nativePresent('RNRazorpayCheckout')) return cached;
+  if (Platform.OS === 'ios' && !nativePresent('RazorpayEventEmitter')) return cached;
   try {
     const mod = require('react-native-razorpay');
     const Checkout = mod?.default || mod;

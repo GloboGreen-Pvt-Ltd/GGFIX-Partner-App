@@ -16,7 +16,10 @@ const masterBase =
 // Firebase config for Android push (FCM). Only wired in once the file has been
 // added to the project root, so builds keep working until then — without it a
 // build simply gets no push token.
-const hasGoogleServices = fs.existsSync(path.join(__dirname, 'google-services.json'));
+// EAS: secret file env var GOOGLE_SERVICES_JSON (the JSON is not in git);
+// local builds fall back to the untracked ./google-services.json.
+const googleServicesFile = process.env.GOOGLE_SERVICES_JSON
+  || (fs.existsSync(path.join(__dirname, 'google-services.json')) ? './google-services.json' : null);
 
 export default {
   expo: {
@@ -59,7 +62,7 @@ export default {
       // which is what was pushing/cropping the login card. Native-config
       // only — takes effect on the next native rebuild, not a JS/Metro reload.
       softwareKeyboardLayoutMode: 'resize',
-      ...(hasGoogleServices ? { googleServicesFile: './google-services.json' } : {}),
+      ...(googleServicesFile ? { googleServicesFile } : {}),
       // READ_CONTACTS backs Cash Book → Add Customer → "Add from Contacts".
       // POST_NOTIFICATIONS backs the "Download complete" receipt a saved
       // statement leaves in the shade and the shop's push notifications
