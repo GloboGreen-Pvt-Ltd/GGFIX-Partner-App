@@ -21,6 +21,7 @@ import {
   TriangleAlert,
   CalendarClock,
   MapPin,
+  MessageCircle,
 } from 'lucide-react-native';
 import { Avatar } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
@@ -200,6 +201,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
 
   const [devices] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
+  // Customer agreed to the WhatsApp booking confirmation (sent by the server after the booking saves).
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   // Remembers tickets already created in a previous submit attempt (index → response),
   // so a retry after a partial failure never re-posts an already-booked device.
   const createdRef = useRef({});
@@ -330,6 +333,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     estimatedReadyAt: d.estimatedReadyIso || null,
     estimatedDeliveryAt: d.estimatedDeliveryIso || null,
     customerApproval: d.customerApproved ?? null,
+    // Create only; the server ignores it on edit. One message per booking.
+    whatsappOptIn,
   });
 
   const submit = async () => {
@@ -842,6 +847,31 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
             onChangeAmount={onChangeAmount}
             colStyle={colStyle}
           />
+        ) : null}
+
+        {/* ── WhatsApp booking confirmation (new bookings only) ───────── */}
+        {deviceCount > 0 && !params.editMode ? (
+          <View style={[{ paddingHorizontal: rs(16), paddingTop: rs(12) }, colStyle]}>
+            <Pressable
+              onPress={() => setWhatsappOptIn((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: whatsappOptIn }}
+              className="flex-row items-center"
+              style={{ borderRadius: 16, padding: 12, backgroundColor: CARD_BG, borderWidth: 1, borderColor: HAIR }}
+            >
+              <MessageCircle size={18} color="#25D366" strokeWidth={2.2} />
+              <View className="flex-1" style={{ marginLeft: rs(10) }}>
+                <Text className="font-extrabold" style={{ color: INK, fontSize: 13 }}>Send confirmation on WhatsApp</Text>
+                <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(2) }}>Customer agreed to get booking updates on WhatsApp</Text>
+              </View>
+              <View style={{
+                height: 22, width: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: whatsappOptIn ? ACCENT : '#FFFFFF', borderWidth: 1.5, borderColor: whatsappOptIn ? ACCENT : '#C4C4C4',
+              }}>
+                {whatsappOptIn ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
+              </View>
+            </Pressable>
+          </View>
         ) : null}
 
       </ScrollView>

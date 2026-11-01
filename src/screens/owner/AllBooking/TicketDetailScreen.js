@@ -51,6 +51,7 @@ import {
   Headphones,
   ThumbsUp,
   Ban,
+  MessageCircle,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
@@ -66,6 +67,7 @@ import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
 import { RescheduleSheet, ShareReceiptSheet } from './BookingActionSheets';
 import ImageViewerModal from '../../../components/ImageViewerModal';
 import WhatsAppIcon from '../../../components/WhatsAppIcon';
+import WhatsAppStatusCard from './WhatsAppStatusCard';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 import { labelForStatus, stepBlockedBy, withoutSupersededVerdicts } from '../../common/serviceHistoryPhases';
 import ImeiVerifyModal from '../../../components/ImeiVerifyModal';
@@ -1141,6 +1143,10 @@ export default function TicketDetailScreen({ route, navigation }) {
             )}
           </View>
         </View>
+
+        {/* ── WhatsApp booking confirmation — status, Resend after a failure ── */}
+        <SectionHeader icon={MessageCircle} label="WHATSAPP CONFIRMATION" />
+        <WhatsAppStatusCard ticketId={ticketId} cardShadow={cardShadow} />
 
         {/* ── Warranty per service — validity runs from the delivery date ── */}
         <SectionHeader icon={ShieldCheck} label="WARRANTY" />
