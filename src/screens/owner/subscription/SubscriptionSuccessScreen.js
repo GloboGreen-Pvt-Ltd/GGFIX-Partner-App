@@ -1,23 +1,60 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Check, Download, House, LayoutList } from 'lucide-react-native';
+import { Check, Download, FileText, House, LayoutList } from 'lucide-react-native';
 import { useResponsive } from '../../../theme/responsive';
-import { getPaymentHistory } from '../../../api/subscription';
+import { getInvoiceByOrder, getPaymentHistory } from '../../../api/subscription';
 import { notify } from '../../../components/confirm';
 import { formatDateTime, formatDate, formatPaise, methodLabel, titleCase } from '../../../subscription/format';
-import { Btn, C, Card, KV, SubHeader, capFor, useSubscriptionGate } from '../../../subscription/ui';
+import { Badge, Btn, C, Card, KV, SectionTitle, SubHeader, capFor, useSubscriptionGate } from '../../../subscription/ui';
+import GstBreakdown, { documentLabel, hasGst } from '../../../subscription/GstBreakdown';
+import { InvoiceActions, WhatsAppStatus } from '../../../subscription/invoice';
 import { backToSubscription } from './SubscriptionSummaryScreen';
+
+// The invoice is issued right after activation; poll briefly (404 = not yet).
+const INVOICE_POLLS = 5;
+const INVOICE_POLL_MS = 2000;
+// These mean "this server has no invoices" — stop polling and keep the old UI.
+const NO_INVOICES = new Set([401, 403, 405, 501]);
 
 /** Shown after a server-verified payment (or a trial activation). */
 export default function SubscriptionSuccessScreen({ navigation, route }) {
-  const { kind = 'paid', order = null, subscription: subParam = null, me = null, shops: shopsParam = [], planName, durationLabel } = route?.params || {};
+  const { kind = 'paid', order = null, subscription: subParam = null, me = null, shops: shopsParam = [], planName, durationLabel, gst: quoteGst = null } = route?.params || {};
   const gate = useSubscriptionGate();
   const r = useResponsive();
   const cap = capFor(r);
   const [receiptBusy, setReceiptBusy] = useState(false);
+  const [invoice, setInvoice] = useState(null);
+  const [invoicePolling, setInvoicePolling] = useState(false);
+  const [invoicePollDone, setInvoicePollDone] = useState(false);
 
   const trial = kind === 'trial';
+  const orderId = order?.id || null;
+
+  useEffect(() => {
+    if (trial || !orderId) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const stop = () => { if (!cancelled) { setInvoicePolling(false); setInvoicePollDone(true); } };
+    const attempt = async (n) => {
+      try {
+        const inv = await getInvoiceByOrder(orderId);
+        if (cancelled) return;
+        if (inv?.id) { setInvoice(inv); setInvoicePolling(false); return; }
+      } catch (e) {
+        if (cancelled) return;
+        if (NO_INVOICES.has(e?.status)) { stop(); return; }
+      }
+      if (n + 1 >= INVOICE_POLLS) { stop(); return; }
+      timer = setTimeout(() => attempt(n + 1), INVOICE_POLL_MS);
+    };
+    setInvoicePolling(true);
+    attempt(0);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [trial, orderId]);
+
+  // Quote breakdown until the invoice arrives — only for exactly the paid amount.
+  const fallbackGst = !invoice && hasGst(quoteGst) && Number(quoteGst.totalPaise) === Number(order?.totalPaise) ? quoteGst : null;
   const sub = subParam || me?.subscription || null;
   const shopNames = (order?.shops?.length ? order.shops : (me?.shops?.length ? me.shops : shopsParam)).map((s) => s?.name).filter(Boolean);
   const plan = [order?.planName || sub?.planName || planName, order?.durationLabel || sub?.durationLabel || durationLabel].filter(Boolean).join(' · ');
@@ -92,9 +129,37 @@ export default function SubscriptionSuccessScreen({ navigation, route }) {
             <KV label="Valid until" value={formatDate(sub?.endsAt)} last />
           </Card>
 
+          {!trial && invoice ? (
+            <Card>
+              <SectionTitle
+                icon={FileText}
+                title={invoice.title || `NearGFix Subscription ${documentLabel(invoice.documentType || invoice.gst?.documentType)}`}
+                right={<Badge label={documentLabel(invoice.documentType || invoice.gst?.documentType)} tone="teal" />}
+              />
+              <KV label="Invoice No." value={invoice.invoiceNo} />
+              <KV label="Issued on" value={formatDateTime(invoice.issuedAt)} last={!hasGst(invoice.gst)} />
+              {hasGst(invoice.gst) ? <GstBreakdown gst={invoice.gst} totalLabel="Total Paid" /> : null}
+              <WhatsAppStatus invoice={invoice} onUpdated={setInvoice} style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.soft }} />
+              <InvoiceActions invoice={invoice} style={{ marginTop: 12 }} />
+            </Card>
+          ) : !trial && fallbackGst ? (
+            <Card>
+              <SectionTitle icon={FileText} title="Price Breakdown" />
+              <GstBreakdown gst={fallbackGst} totalLabel="Total Paid" />
+              {invoicePolling ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                  <ActivityIndicator size="small" color={C.teal} />
+                  <Text style={{ marginLeft: 6, fontSize: 12, color: C.muted }}>Preparing your invoice…</Text>
+                </View>
+              ) : invoicePollDone ? (
+                <Text style={{ marginTop: 10, fontSize: 12, color: C.muted }}>Your invoice will appear in Payment History shortly.</Text>
+              ) : null}
+            </Card>
+          ) : null}
+
           <View style={{ marginTop: 14, gap: 8 }}>
             <Btn label="View Subscription" icon={LayoutList} onPress={viewSubscription} />
-            {!trial ? <Btn label="Download Receipt" icon={Download} variant="outline" onPress={openReceipt} loading={receiptBusy} disabled={!order?.id} /> : null}
+            {!trial && !invoice ? <Btn label="Download Receipt" icon={Download} variant="outline" onPress={openReceipt} loading={receiptBusy} disabled={!order?.id} /> : null}
             <Btn label="Go to Dashboard" icon={House} variant="outline" onPress={goDashboard} />
           </View>
         </View>

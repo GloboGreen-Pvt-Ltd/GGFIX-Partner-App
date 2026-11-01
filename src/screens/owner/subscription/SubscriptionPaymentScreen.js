@@ -9,6 +9,7 @@ import { notify } from '../../../components/confirm';
 import { formatPaise, titleCase } from '../../../subscription/format';
 import { inAppCheckoutStatus, openRazorpayCheckout } from '../../../subscription/razorpay';
 import { Btn, C, Card, CheckoutUnavailable, KV, SubHeader, capFor } from '../../../subscription/ui';
+import GstBreakdown, { hasGst } from '../../../subscription/GstBreakdown';
 import { backToSubscription } from './SubscriptionSummaryScreen';
 
 // Payment flow: POST /purchase → POST /payment/order → Razorpay checkout →
@@ -52,6 +53,8 @@ export default function SubscriptionPaymentScreen({ navigation, route }) {
   const finished = useRef(false);
   const mounted = useRef(true);
   const started = useRef(false);
+  // Server GST breakdown from the quote (display only), handed on to the success screen.
+  const gstRef = useRef(hasGst(params.quote?.gst) ? params.quote.gst : null);
 
   const setP = (p) => { phaseRef.current = p; if (mounted.current) setPhase(p); };
   const keepOrder = (o) => { if (o) { orderRef.current = o; if (mounted.current) setOrder(o); } };
@@ -65,7 +68,7 @@ export default function SubscriptionPaymentScreen({ navigation, route }) {
     setP('SUCCESS');
     let sub = subscription || null;
     if (!sub) sub = (await getMySubscription().catch(() => null))?.subscription || null;
-    navigation.replace('SubscriptionSuccess', { kind: 'paid', order: paidOrder, subscription: sub });
+    navigation.replace('SubscriptionSuccess', { kind: 'paid', order: paidOrder, subscription: sub, gst: gstRef.current });
   }, [navigation]);
 
   /** Re-read the order from the server; promote to success or settle on `fallback`. */
@@ -213,6 +216,8 @@ export default function SubscriptionPaymentScreen({ navigation, route }) {
   const shopCount = order?.shopIds?.length ?? params.shopIds?.length;
   const busy = BUSY.has(phase) || (phase === 'AWAITING');
   const canRetry = !checking && statusChecked;
+  // Only when the quoted breakdown is for exactly this amount.
+  const showGst = !!gstRef.current && amount != null && Number(gstRef.current.totalPaise) === Number(amount);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.white }}>
@@ -242,7 +247,7 @@ export default function SubscriptionPaymentScreen({ navigation, route }) {
             <KV label="Shops" value={shopCount != null ? String(shopCount) : '—'} />
             {order?.orderNo ? <KV label="Order No." value={order.orderNo} /> : null}
             {order?.status ? <KV label="Order status" value={titleCase(order.status)} /> : null}
-            <KV label="Amount" value={formatPaise(amount)} strong last />
+            {showGst ? <GstBreakdown gst={gstRef.current} totalLabel="Amount" /> : <KV label="Amount" value={formatPaise(amount)} strong last />}
           </Card>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>

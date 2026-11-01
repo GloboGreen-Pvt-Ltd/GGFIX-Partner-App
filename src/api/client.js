@@ -229,6 +229,8 @@ function createClient(baseUrl) {
     patch: (path, opts) => request(baseUrl, 'PATCH', path, opts),
     del: (path, opts) => request(baseUrl, 'DELETE', path, opts),
     upload: (path, opts) => uploadRequest(baseUrl, path, opts),
+    /** Absolute URL for a path on this service (for native file downloads). */
+    url: (path) => joinUrl(resolveBase(baseUrl), path),
   };
 }
 
