@@ -42,6 +42,7 @@ import {
 } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
+import { sendBookingConfirmation } from '../../../lib/whatsappConfirmation';
 import SafeModal from '../../../components/SafeModal';
 import { confirmShopRepairBooking, listShopRepairBookings } from '../../../api/orders';
 import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
@@ -544,7 +545,7 @@ export default function JobsScreen({ navigation, route }) {
       // Delivered: no Assign / Update Status — Re-Service starts a new linked booking.
       isInvoiceMenu || delivered ? null : { key: 'assign', label: 'Assign', icon: UserCog, run: openTechPickerFor },
       { key: 'history', label: 'History', icon: History, run: goTimelineFor },
-      done ? null : { key: 'receipt', label: 'Receipt', icon: Share2, run: openShareFor },
+      done ? null : { key: 'receipt', label: 'Receipt', icon: Share2, run: sendBookingConfirmation }, // WhatsApp confirmation via the server
       done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: goBarcodeFor },
       invoiced ? { key: 'invoice', label: 'Invoice', icon: ReceiptIndianRupee, run: goInvoiceFor } : null,
       { key: 'details', label: 'Details', icon: FileText, run: goDetailsFor },
