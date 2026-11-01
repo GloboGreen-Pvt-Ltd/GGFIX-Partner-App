@@ -3,15 +3,24 @@ import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronRight, Receipt } from 'lucide-react-native';
 import { useResponsive } from '../../../theme/responsive';
-import { getPaymentHistory } from '../../../api/subscription';
+import { getInvoices, getPaymentHistory } from '../../../api/subscription';
 import { formatDate, formatPaise, methodLabel, titleCase } from '../../../subscription/format';
 import { Badge, C, EmptyState, ErrorState, SkeletonCards, SubHeader, capFor, shadow, statusTone } from '../../../subscription/ui';
+import { documentLabel } from '../../../subscription/GstBreakdown';
+import { InvoiceActions, WhatsAppStatus } from '../../../subscription/invoice';
 
-/** Every subscription payment: date, plan, duration, shops, amount, method, status, receipt. */
+/** The InvoiceView for a history row (newer servers; additive fields first). */
+const invoiceFor = (h, invoices) => invoices.find((v) => (h.invoiceId && v.id === h.invoiceId)
+  || (h.invoiceNo && v.invoiceNo === h.invoiceNo)
+  || (h.orderNo && v.payment?.orderNo === h.orderNo)
+  || (h.razorpayPaymentId && v.payment?.razorpayPaymentId === h.razorpayPaymentId)) || null;
+
+/** Every subscription payment: date, plan, duration, shops, amount, method, status, receipt / invoice. */
 export default function SubscriptionHistoryScreen({ navigation }) {
   const r = useResponsive();
   const cap = capFor(r);
   const [rows, setRows] = useState(null);
+  const [invoices, setInvoices] = useState([]);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const loaded = useRef(false);
@@ -19,8 +28,10 @@ export default function SubscriptionHistoryScreen({ navigation }) {
   const load = useCallback(async (mode) => {
     if (mode === 'refresh') setRefreshing(true);
     try {
-      const list = await getPaymentHistory();
+      // Invoices are optional: an older server 404s and the rows stay as before.
+      const [list, invs] = await Promise.all([getPaymentHistory(), getInvoices().catch(() => null)]);
       setRows(Array.isArray(list) ? list : []);
+      setInvoices(Array.isArray(invs) ? invs : []);
       setError(null);
     } catch (e) {
       if (!loaded.current) setRows(null);
@@ -33,8 +44,18 @@ export default function SubscriptionHistoryScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const onInvoiceUpdated = useCallback((next) => {
+    if (!next?.id) return;
+    setInvoices((list) => (list.some((v) => v.id === next.id) ? list.map((v) => (v.id === next.id ? next : v)) : [...list, next]));
+  }, []);
+
   const renderItem = ({ item: h }) => {
-    const open = h.paymentId ? () => navigation.navigate('SubscriptionReceipt', { paymentId: h.paymentId }) : null;
+    const full = invoiceFor(h, invoices);
+    const inv = full || (h.invoiceId ? { id: h.invoiceId, invoiceNo: h.invoiceNo } : null);
+    const invoiceNo = h.invoiceNo || full?.invoiceNo;
+    const docType = h.documentType || full?.documentType || full?.gst?.documentType;
+    const whatsapp = full?.whatsapp || (h.whatsappStatus ? { status: h.whatsappStatus } : null);
+    const open = h.paymentId ? () => navigation.navigate('SubscriptionReceipt', { paymentId: h.paymentId, invoiceId: inv?.id }) : null;
     return (
       <Pressable
         onPress={open}
@@ -59,7 +80,9 @@ export default function SubscriptionHistoryScreen({ navigation }) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.soft }}>
           <Receipt size={13} color={C.muted} />
-          <Text style={{ flex: 1, marginLeft: 6, fontSize: 11.5, color: C.muted }}>{h.receiptNo ? `Receipt ${h.receiptNo}` : 'Receipt pending'}</Text>
+          <Text style={{ flex: 1, marginLeft: 6, fontSize: 11.5, color: C.muted }}>
+            {invoiceNo ? `${documentLabel(docType)} ${invoiceNo}` : h.receiptNo ? `Receipt ${h.receiptNo}` : 'Receipt pending'}
+          </Text>
           {open ? (
             <>
               <Text style={{ fontSize: 12, fontWeight: '800', color: C.teal }}>View</Text>
@@ -67,6 +90,8 @@ export default function SubscriptionHistoryScreen({ navigation }) {
             </>
           ) : null}
         </View>
+        {whatsapp ? <WhatsAppStatus invoice={full} whatsapp={whatsapp} onUpdated={onInvoiceUpdated} style={{ marginTop: 8 }} /> : null}
+        {inv?.id ? <InvoiceActions invoice={inv} compact style={{ marginTop: 8 }} /> : null}
       </Pressable>
     );
   };
@@ -83,6 +108,7 @@ export default function SubscriptionHistoryScreen({ navigation }) {
           data={rows}
           keyExtractor={(h, i) => String(h.paymentId || h.orderId || i)}
           renderItem={renderItem}
+          extraData={invoices}
           contentContainerStyle={[{ paddingHorizontal: 14, paddingBottom: 24 + r.insets.bottom }, cap]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={C.teal} colors={[C.teal]} />}
           ListEmptyComponent={<EmptyState icon={Receipt} title="No payments yet" message="Your subscription payments will appear here." />}

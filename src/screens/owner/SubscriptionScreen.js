@@ -4,7 +4,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
   Crown,
   FileText,
@@ -22,6 +24,7 @@ import { activateTrial, getCatalog, getEligibleShops, getMySubscription, getPaym
 import { confirm, notify } from '../../components/confirm';
 import { formatDate, formatPaise, methodLabel, perTerm, titleCase } from '../../subscription/format';
 import { inAppCheckoutStatus, razorpayFailureReason } from '../../subscription/razorpay';
+import GstBreakdown, { gstCaption, hasGst } from '../../subscription/GstBreakdown';
 import {
   Badge, Btn, C, Card, CheckoutUnavailable, EmptyState, ErrorState, KV, Notice, SectionTitle,
   SkeletonCards, SubHeader, capFor, statusTone, useSubscriptionGate,
@@ -391,6 +394,7 @@ Details: ${razorpayFailureReason()}` : ''}`;
           maxCount={maxCount}
           onCount={setShopCount}
           total={selTrial ? 'Free' : estimating ? null : estimate ? formatPaise(estimate.totalPaise) : '—'}
+          gst={!selTrial && !estimating && hasGst(estimate?.gst) ? estimate.gst : null}
           shopsError={errors.shops}
           submitting={submitting}
           onSubmit={submit}
@@ -589,7 +593,9 @@ function Stepper({ value, max, onChange }) {
 }
 
 /** Sticky footer for the selected plan: shop count − / +, total, Submit. */
-function CheckoutBar({ plan, trial, count, maxCount, onCount, total, shopsError, submitting, onSubmit, onAddShop, bottomInset, capStyle }) {
+function CheckoutBar({ plan, trial, count, maxCount, onCount, total, gst, shopsError, submitting, onSubmit, onAddShop, bottomInset, capStyle }) {
+  const [showGst, setShowGst] = useState(false);
+  const caption = count ? gstCaption(gst) : null;
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 + bottomInset }}>
       <View style={capStyle}>
@@ -610,6 +616,24 @@ function CheckoutBar({ plan, trial, count, maxCount, onCount, total, shopsError,
             <Text style={{ fontSize: 17, fontWeight: '800', color: C.teal }}>{count ? total : '—'}</Text>
           )}
         </View>
+        {caption ? (
+          <Pressable
+            onPress={() => setShowGst((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showGst }}
+            hitSlop={6}
+            style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+          >
+            <Text style={{ flex: 1, fontSize: 11, color: C.muted }} numberOfLines={1}>{caption}</Text>
+            <Text style={{ fontSize: 11.5, fontWeight: '800', color: C.teal }}>{showGst ? 'Hide' : 'Details'}</Text>
+            {showGst ? <ChevronUp size={13} color={C.teal} /> : <ChevronDown size={13} color={C.teal} />}
+          </Pressable>
+        ) : null}
+        {caption && showGst ? (
+          <View style={{ marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.line }}>
+            <GstBreakdown gst={gst} />
+          </View>
+        ) : null}
         {maxCount ? (
           <Btn label={trial ? 'Start Free Trial' : 'Submit & Pay'} onPress={onSubmit} disabled={!count || submitting} loading={submitting} style={{ marginTop: 8 }} />
         ) : (

@@ -7,6 +7,7 @@ import { getSession } from '../../../auth/session';
 import { getCatalog, getQuote } from '../../../api/subscription';
 import { formatDate, formatPaise, titleCase } from '../../../subscription/format';
 import { inAppCheckoutStatus } from '../../../subscription/razorpay';
+import GstBreakdown, { hasGst } from '../../../subscription/GstBreakdown';
 import {
   Badge, Btn, C, Card, Checkbox, CheckoutUnavailable, ErrorState, KV, Notice, SectionTitle, SkeletonCards, SubHeader, capFor,
 } from '../../../subscription/ui';
@@ -66,6 +67,9 @@ export default function SubscriptionSummaryScreen({ navigation, route }) {
   const needsReplaceAck = !!quote?.replacesCurrent;
   const canPay = !!quote && !refreshing && terms && (!needsReplaceAck || replaceAck) && !!checkout?.available;
   const taxPct = Number(quote?.taxPercent) || 0;
+  // Server GST breakdown (newer servers only); without it the old rows stay.
+  const gst = hasGst(quote?.gst) ? quote.gst : null;
+  const discountLabel = `Discount (${Number(quote?.additionalShopDiscountPct) || 0}% on additional shops)`;
 
   const onPay = () => {
     if (!canPay) return;
@@ -113,15 +117,21 @@ export default function SubscriptionSummaryScreen({ navigation, route }) {
                 {Number(quote.additionalShopsCount) > 0 ? (
                   <>
                     <KV label={`Additional shops (${quote.additionalShopsCount} × ${formatPaise(quote.additionalShopUnitPaise)})`} value={formatPaise(quote.additionalShopsTotalPaise)} />
-                    <KV label={`Discount (${Number(quote.additionalShopDiscountPct) || 0}% on additional shops)`} value={`− ${formatPaise(quote.discountPaise)}`} tone={C.green} />
+                    {!gst ? <KV label={discountLabel} value={`− ${formatPaise(quote.discountPaise)}`} tone={C.green} /> : null}
                   </>
                 ) : null}
-                <KV label="Subtotal" value={formatPaise(quote.subtotalPaise)} />
-                <KV
-                  label={taxPct > 0 ? `Tax (${taxPct}%${quote.taxInclusive ? ', included' : ''})` : 'Tax'}
-                  value={taxPct > 0 ? formatPaise(quote.taxPaise) : 'Not applicable'}
-                />
-                <KV label="Final payable" value={formatPaise(quote.totalPaise)} strong last />
+                {gst ? (
+                  <GstBreakdown gst={gst} discountLabel={Number(quote.additionalShopsCount) > 0 ? discountLabel : 'Discount'} />
+                ) : (
+                  <>
+                    <KV label="Subtotal" value={formatPaise(quote.subtotalPaise)} />
+                    <KV
+                      label={taxPct > 0 ? `Tax (${taxPct}%${quote.taxInclusive ? ', included' : ''})` : 'Tax'}
+                      value={taxPct > 0 ? formatPaise(quote.taxPaise) : 'Not applicable'}
+                    />
+                    <KV label="Final payable" value={formatPaise(quote.totalPaise)} strong last />
+                  </>
+                )}
               </Card>
 
               <Card>
