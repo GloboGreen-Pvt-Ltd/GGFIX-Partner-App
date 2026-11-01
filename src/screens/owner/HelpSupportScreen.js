@@ -146,7 +146,7 @@ export default function HelpSupportScreen({ navigation }) {
           <View style={[{ paddingHorizontal: rs(16), paddingTop: rs(6), paddingBottom: rs(20) }, capStyle]}>
             <View style={HEADER.row}>
               <Pressable
-                onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('OwnerTabs'))}
+                onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs'))}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Back"

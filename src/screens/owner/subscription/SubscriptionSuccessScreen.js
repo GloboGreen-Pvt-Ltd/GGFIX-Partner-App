@@ -42,7 +42,7 @@ export default function SubscriptionSuccessScreen({ navigation, route }) {
 
   const goDashboard = () => {
     if (gate.gated && gate.onUnlock) { gate.onUnlock(); return; }
-    navigation.navigate('OwnerTabs', { screen: 'Home' });
+    navigation.popTo('OwnerTabs', { screen: 'Home' });
   };
 
   const openReceipt = async () => {

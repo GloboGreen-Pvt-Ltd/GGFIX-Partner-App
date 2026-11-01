@@ -206,6 +206,9 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
   // Remembers tickets already created in a previous submit attempt (index → response),
   // so a retry after a partial failure never re-posts an already-booked device.
   const createdRef = useRef({});
+  // Set synchronously: two quick taps can both run submit() before
+  // `submitting` re-renders the button as disabled.
+  const submitLockRef = useRef(false);
   const reopenedRef = useRef(false);
 
   const totalFor = (d) => (d.services || []).reduce((s, x) => s + (Number(x.price) || 0), 0);
@@ -359,6 +362,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       notify('Payment', `Amount collected can't be more than the grand total ₹${formatINR(grandTotal)}`);
       return;
     }
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setSubmitting(true);
     try {
       // Edit mode: update the existing ticket in place via PUT and route to the
@@ -466,7 +471,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       // (the toast disappears in ~2s).
       if (partial) Alert.alert('Booking incomplete', msg);
       else notify('Unable to create booking. Please try again.', '', { preset: 'error' });
-    } finally { setSubmitting(false); }
+    } finally { submitLockRef.current = false; setSubmitting(false); }
   };
 
   const customerName = params.customer?.name || params.customer?.fullName || 'Customer';

@@ -164,7 +164,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
 
   // The booking is done, so Back (header, Android hardware back, iOS swipe)
   // goes to Home — never back into the wizard screen before this one.
-  const goHome = useCallback(() => navigation.navigate('OwnerTabs', { screen: 'Home' }), [navigation]);
+  // popTo, not navigate: in React Navigation 7 navigate() PUSHES a second
+  // OwnerTabs above the booking stack, so Back from that Home came straight
+  // back here. popTo returns to the existing tabs and drops the finished
+  // booking stack (wizard + this screen) from the back history.
+  const goHome = useCallback(() => navigation.popTo('OwnerTabs', { screen: 'Home' }), [navigation]);
   useEffect(() => { navigation.setOptions({ gestureEnabled: false }); }, [navigation]);
   useFocusEffect(useCallback(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { goHome(); return true; });

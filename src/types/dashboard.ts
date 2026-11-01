@@ -25,6 +25,9 @@ export interface DashboardNavigationProp {
   addListener: (event: 'focus', callback: () => void) => () => void;
   getParent?: () => DashboardNavigationProp | undefined;
   canGoBack?: () => boolean;
+  /** Root-stack state + dispatch — Home drops stale history under the tabs. */
+  getState?: () => { index: number; routes: { name: string; key: string }[] } & Record<string, unknown>;
+  dispatch?: (action: unknown) => void;
 }
 
 /** Raw `/tickets/counts` response — a free-form status → count map. */

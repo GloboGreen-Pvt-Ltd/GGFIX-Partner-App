@@ -17,7 +17,7 @@ export default function OwnerKycPendingScreen({ navigation }) {
         <TouchableOpacity
           style={styles.button}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          onPress={() => navigation.navigate('OwnerTabs')}
+          onPress={() => navigation.popTo('OwnerTabs')}
         >
           <Ionicons name="arrow-back-outline" size={18} color="#FFFFFF" />
           <Text style={styles.buttonText}>Back to Home</Text>
