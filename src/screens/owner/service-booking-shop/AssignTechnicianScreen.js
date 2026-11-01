@@ -36,7 +36,7 @@ export default function AssignTechnicianScreen({ navigation, route }) {
       // new booking (Thank You page): straight to Home.
       notify('Technician assigned', `${tech.name || 'Technician'} has been assigned.`, { preset: 'done' });
       if (returnToTicketId) navigation.goBack();
-      else navigation.navigate('OwnerTabs', { screen: 'Home' });
+      else navigation.popTo('OwnerTabs', { screen: 'Home' });
     } catch (e) {
       notify('Error', e?.message || 'Failed to assign');
     } finally { setBusy(null); }

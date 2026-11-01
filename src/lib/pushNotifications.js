@@ -138,6 +138,9 @@ function routeFor(data) {
       return ['MarketplaceOrders', { initialTab: 'Sell' }];
     case 'CHAT':
       return threadId ? ['ShopChatThread', { threadId }] : ['ShopChatInbox'];
+    case 'STAFF_TASK':
+      // An employee started / completed / could not complete a staff task.
+      return data?.taskId ? ['StaffTaskDetail', { taskId: data.taskId }] : ['StaffTasks'];
     default:
       return ['OwnerNotifications'];
   }

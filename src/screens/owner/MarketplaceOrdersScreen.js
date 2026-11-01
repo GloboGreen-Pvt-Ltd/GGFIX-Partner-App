@@ -325,7 +325,7 @@ function BottomNavMimic({ navigation, activeKey }) {
         return (
           <Pressable
             key={it.key}
-            onPress={() => navigation.navigate('OwnerTabs', { screen: it.key })}
+            onPress={() => navigation.popTo('OwnerTabs', { screen: it.key })}
             className="flex-1 items-center"
           >
             <View
@@ -663,7 +663,7 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
               {/* Explore Products — same real Buy tab, no new route. */}
               <View className="px-4" style={{ marginTop: 14 }}>
                 <Pressable
-                  onPress={() => navigation.navigate('OwnerTabs', { screen: 'Buy' })}
+                  onPress={() => navigation.popTo('OwnerTabs', { screen: 'Buy' })}
                   className="flex-row items-center justify-center active:opacity-90"
                   style={{ borderRadius: 999, backgroundColor: ACCENT, minHeight: 46, ...cardShadow, shadowColor: ACCENT, shadowOpacity: 0.25 }}
                 >

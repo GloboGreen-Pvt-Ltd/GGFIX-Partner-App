@@ -6,6 +6,9 @@ import { Linking, NativeModules, Platform, TurboModuleRegistry } from 'react-nat
 import { SHOP_WEB_SUBSCRIPTION_URL } from '../api/config';
 
 let cached;
+// Why the last getRazorpay() found no SDK — shown in the "Payment unavailable"
+// alert so a screenshot from a release APK names the failing step.
+let lastFailure = '';
 
 function nativePresent(name) {
   try {
@@ -21,17 +24,27 @@ export function getRazorpay() {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return cached;
   // Android registers only RNRazorpayCheckout (events arrive via
   // DeviceEventEmitter); RazorpayEventEmitter is an iOS-only module.
-  if (!nativePresent('RNRazorpayCheckout')) return cached;
-  if (Platform.OS === 'ios' && !nativePresent('RazorpayEventEmitter')) return cached;
+  if (!nativePresent('RNRazorpayCheckout')) {
+    let turbo = 'n/a';
+    try { turbo = TurboModuleRegistry?.get?.('RNRazorpayCheckout') ? 'yes' : 'no'; } catch (e) { turbo = `err ${e?.message || e}`; }
+    lastFailure = `native module RNRazorpayCheckout missing (turbo=${turbo}, legacy=${NativeModules?.RNRazorpayCheckout ? 'yes' : 'no'})`;
+    return cached;
+  }
+  if (Platform.OS === 'ios' && !nativePresent('RazorpayEventEmitter')) { lastFailure = 'iOS RazorpayEventEmitter missing'; return cached; }
   try {
     const mod = require('react-native-razorpay');
     const Checkout = mod?.default || mod;
     cached = typeof Checkout?.open === 'function' ? Checkout : null;
-  } catch (_) {
+    if (!cached) lastFailure = 'react-native-razorpay loaded without open()';
+  } catch (e) {
     cached = null;
+    lastFailure = `react-native-razorpay failed to load: ${String(e?.message || e).slice(0, 160)}`;
   }
   return cached;
 }
+
+/** One line for support: why this build reports no payment SDK ('' when it has one). */
+export const razorpayFailureReason = () => (getRazorpay() ? '' : lastFailure);
 
 /**
  * In-app payment is allowed only when the server enables this platform's

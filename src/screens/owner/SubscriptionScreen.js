@@ -21,7 +21,7 @@ import { getSession } from '../../auth/session';
 import { activateTrial, getCatalog, getEligibleShops, getMySubscription, getPaymentHistory, getQuotePreview } from '../../api/subscription';
 import { confirm, notify } from '../../components/confirm';
 import { formatDate, formatPaise, methodLabel, perTerm, titleCase } from '../../subscription/format';
-import { inAppCheckoutStatus } from '../../subscription/razorpay';
+import { inAppCheckoutStatus, razorpayFailureReason } from '../../subscription/razorpay';
 import {
   Badge, Btn, C, Card, CheckoutUnavailable, EmptyState, ErrorState, KV, Notice, SectionTitle,
   SkeletonCards, SubHeader, capFor, statusTone, useSubscriptionGate,
@@ -205,7 +205,9 @@ export default function SubscriptionScreen({ navigation, gated: gatedProp, onUnl
     if (!checkout.available) {
       const why = !checkout.platformEnabled ? 'In-app checkout is turned off for this platform in Management Settings.'
         : !checkout.configured ? 'Razorpay is not configured on the server.'
-          : 'This app build does not include the payment SDK. Install the latest app build.';
+          : `This app build does not include the payment SDK. Install the latest app build.${razorpayFailureReason() ? `
+
+Details: ${razorpayFailureReason()}` : ''}`;
       notify('Payment unavailable', why, { type: 'warning' });
       return;
     }

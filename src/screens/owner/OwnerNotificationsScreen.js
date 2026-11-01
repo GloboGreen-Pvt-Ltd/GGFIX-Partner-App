@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Bell, ChevronRight, CheckCheck, Trash2, Wrench, Truck, Tag, ShoppingCart } from 'lucide-react-native';
+import { ChevronLeft, Bell, ChevronRight, CheckCheck, Trash2, Wrench, Truck, Tag, ShoppingCart, Users } from 'lucide-react-native';
 import {
   listNotifications,
   markNotificationRead,
@@ -40,8 +40,9 @@ const cardShadow = {
 // correct instead of showing every item as unread.
 const isUnread = (n) => !(n?.read || n?.readAt || n?.isRead);
 
-// Filter tabs. The feed's `type` is bookings | pickups | enquiry | sell | buy
-// (older rows: system). pickups / enquiry / sell / buy decide the tab outright;
+// Filter tabs. The feed's `type` is bookings | pickups | enquiry | sell | buy |
+// team (employee staff-task updates; older rows: system). pickups / enquiry /
+// sell / buy / team decide the tab outright;
 // bookings and anything else are guessed from type + statusKey + title, so a
 // booking row about a pickup still lands on Pickup.
 const TABS = [
@@ -50,8 +51,9 @@ const TABS = [
   { key: 'PICKUP', label: 'Pickup', icon: Truck },
   { key: 'SELL', label: 'Sell', icon: Tag },
   { key: 'BUY', label: 'Buy', icon: ShoppingCart },
+  { key: 'TEAM', label: 'Team', icon: Users },
 ];
-const TYPE_TAB = { pickups: 'PICKUP', enquiry: 'SERVICE', sell: 'SELL', buy: 'BUY' };
+const TYPE_TAB = { pickups: 'PICKUP', enquiry: 'SERVICE', sell: 'SELL', buy: 'BUY', team: 'TEAM' };
 const categoryOf = (n) => {
   const known = TYPE_TAB[String(n?.type || '').toLowerCase()];
   if (known) return known;
@@ -98,7 +100,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
 
   const unread = items.filter(isUnread).length;
   const counts = useMemo(() => {
-    const c = { ALL: items.length, SERVICE: 0, PICKUP: 0, SELL: 0, BUY: 0 };
+    const c = { ALL: items.length, SERVICE: 0, PICKUP: 0, SELL: 0, BUY: 0, TEAM: 0 };
     items.forEach((n) => { c[categoryOf(n)] += 1; });
     return c;
   }, [items]);
@@ -118,6 +120,7 @@ export default function OwnerNotificationsScreen({ navigation }) {
     const cat = categoryOf(n);
     if (cat === 'SELL') { navigation.navigate('OwnerSellRequests'); return; }
     if (cat === 'BUY') { navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' }); return; }
+    if (cat === 'TEAM') { navigation.navigate('StaffTasks'); return; }
     if (n.ticketId) {
       navigation.navigate('BookingTimeline', { ticketId: n.ticketId });
       return;

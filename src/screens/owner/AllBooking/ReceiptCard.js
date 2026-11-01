@@ -209,79 +209,82 @@ export async function loadReceiptShop() {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Receipt times are shop time, Asia/Kolkata (UTC+05:30, no DST) — the same on
+// every phone whatever its own timezone. Read with getUTC* after the shift.
+const IST_OFFSET_MS = 330 * 60000;
+function istDate(value) {
+  const t = value ? new Date(value) : null;
+  return !t || Number.isNaN(t.getTime()) ? null : new Date(t.getTime() + IST_OFFSET_MS);
+}
+
 // "02 Oct 2026" / "06:58 PM". Formatted by hand rather than toLocaleString so
 // the receipt reads the same on every device and JS engine.
 export function receiptDateParts(value) {
-  const d = value ? new Date(value) : null;
-  if (!d || Number.isNaN(d.getTime())) return null;
+  const d = istDate(value);
+  if (!d) return null;
   const pad = (n) => String(n).padStart(2, '0');
-  const h = d.getHours();
+  const h = d.getUTCHours();
   return {
-    date: `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
-    time: `${pad(h % 12 || 12)}:${pad(d.getMinutes())} ${h < 12 ? 'AM' : 'PM'}`,
+    date: `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+    time: `${pad(h % 12 || 12)}:${pad(d.getUTCMinutes())} ${h < 12 ? 'AM' : 'PM'}`,
   };
 }
 
 // The auto "Service charge" row is a charge, not a repair issue.
 const isServiceChargeItem = (x) => String(x?.code || x?.serviceCode || '').toUpperCase() === 'SERVICE_CHARGE';
-const receiptWhen = (iso) => {
-  if (!iso) return null;
-  const t = new Date(iso);
-  return Number.isNaN(t.getTime()) ? null
-    : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
+// "30 Oct 2026, 2:57 AM" (withYear) / "30 Oct, 2:57 AM", Asia/Kolkata —
+// hand-formatted so the image, WhatsApp and SMS read the same on every device.
+export const readyWhen = (iso, withYear) => {
+  const t = istDate(iso);
+  if (!t) return null;
+  const h = t.getUTCHours();
+  const day = `${String(t.getUTCDate()).padStart(2, '0')} ${MONTHS[t.getUTCMonth()]}${withYear ? ` ${t.getUTCFullYear()}` : ''}`;
+  return `${day}, ${h % 12 || 12}:${String(t.getUTCMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 };
+const receiptWhen = (iso) => readyWhen(iso, true);
 
 const inr2 = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
+/** The shop number every receipt prints: the shop's own, else the fixed receipt number. */
+export const receiptShopPhone = (shop) => shop?.phone || RECEIPT_SHOP_NUMBER;
+
 /**
- * The plain-text twin of <BookingReceipt>, used when the image can't be
- * captured or shared. Same sections, same order.
- *
- * `devices` = [{ modelName, serviceNames: string[], price }].
+ * The WhatsApp text sent with the receipt image — the approved
+ * "neargfix_booking_confirmed" wording, filled from the SAME props object as
+ * <BookingConfirmCard>, so text and image never disagree. Several devices are
+ * joined on one line each ("A, B" / "services of A; services of B");
+ * Estimated Cost is the booking total, never a single line such as the service charge.
  */
 export function buildBookingReceiptText({
-  shop = {}, createdAt, customer = {}, devices = [], trackingId, statusLabel, total = 0, payment = null,
+  shop = {}, customer = {}, devices = [], trackingId, statusLabel, total = 0,
 }) {
-  const when = receiptDateParts(createdAt);
-  const tid = String(trackingId || '').replace(/^#+/, '');
-  const deviceLines = devices.map((d, i) => {
-    const svcs = (d.serviceNames || []).join(', ') || '-';
-    const price = d.price != null ? `\n   Price: ₹${(Number(d.price) || 0).toLocaleString('en-IN')}` : '';
-    const eta = receiptWhen(d.estimatedDeliveryIso);
-    return `${i + 1}. ${d.modelName || 'Device'}${d.variant ? ` (${d.variant})` : ''}${d.imei ? `\n   IMEI: ${d.imei}` : ''}\n   Issues: ${svcs}${d.serviceCharge ? `\n   Service charge: ₹${(Number(d.serviceCharge) || 0).toLocaleString('en-IN')}` : ''}${price}${eta ? `\n   Estimated Time: ${eta}` : ''}`;
-  }).join('\n');
+  const shopName = shop.name || 'Your Shop';
+  const tid = String(trackingId || '').replace(/^#+/, '') || '-';
+  const device = devices.map((d) => {
+    const spec = [d.ramStorage, d.color].filter(Boolean).join(' · ');
+    return `${d.deviceName || d.modelName || 'Device'}${d.modelNumber ? ` · ${d.modelNumber}` : ''}${spec ? ` (${spec})` : ''}`;
+  }).join(', ') || 'Device';
+  const service = devices.map((d) => {
+    const lines = Array.isArray(d.serviceLines) ? d.serviceLines : (d.serviceNames || []).map((name) => ({ name }));
+    return lines.map((x) => x.name).filter(Boolean).join(', ');
+  }).filter(Boolean).join('; ') || '-';
+  const delivery = readyWhen(latestReadyIso(devices), true) || 'To Be Confirmed';
   return (
-    `🧾 NearGFix Booking Receipt\n` +
-    (when ? `${when.date} · ${when.time}\n` : '') +
-    `\n— SHOP INFORMATION —\n` +
-    `Shop: ${shop.name || 'Your Shop'}\n` +
-    `Mobile: ${RECEIPT_SHOP_NUMBER}\n` +
-    `\n— CUSTOMER DETAILS —\n` +
-    `Name: ${customer.name || '-'}\n` +
-    `Mobile: ${customer.phone || '-'}\n` +
-    (customer.alternatePhone ? `Alternate Mobile: ${customer.alternatePhone}\n` : '') +
-    (customer.address ? `Address: ${customer.address}\n` : '') +
-    `\n— DEVICE & REPAIR DETAILS —\n${deviceLines || '-'}\n\n` +
-    `— SERVICE INFORMATION —\n` +
-    `Tracking ID: #${tid}\n` +
-    `Service Status: ${statusLabel || 'Order Placed'}\n` +
-    `Estimated Repair Price: ${inr2(total)}\n` +
-    (payment
-      ? `${payment.label}: ${inr2(payment.amount)}\nBalance Amount: ${inr2(payment.balance)}\n`
-      : '') +
-    `\nTrack your repair in the NearGFix app.`
+    `✅ *${shopName} | Service Booking Confirmed*\n\n` +
+    `Dear *${customer.name || 'Customer'}*,\n\n` +
+    `Your device repair booking has been successfully registered with *${shopName}*.\n\n` +
+    `🎫 *Booking ID:* ${tid}\n` +
+    `📱 *Device:* ${device}\n` +
+    `🔧 *Service:* ${service}\n` +
+    `💰 *Estimated Cost:* ₹${inr0(total)}\n` +
+    `🕒 *Estimated Delivery:* ${delivery}\n` +
+    `📋 *Status:* ${statusLabel || 'Order Placed'}\n\n` +
+    `📞 *For Assistance:* ${receiptShopPhone(shop)}\n\n` +
+    `Thank you for trusting *${shopName}* with your device. We appreciate your business! 💚\n` +
+    `Powered by NearGFix`
   );
 }
 
-// "30 Oct 2026, 2:57 AM" (withYear) / "30 Oct, 2:57 AM" — hand-formatted so
-// WhatsApp and SMS read the same on every device.
-export const readyWhen = (iso, withYear) => {
-  const t = iso ? new Date(iso) : null;
-  if (!t || Number.isNaN(t.getTime())) return null;
-  const h = t.getHours();
-  const day = `${String(t.getDate()).padStart(2, '0')} ${MONTHS[t.getMonth()]}${withYear ? ` ${t.getFullYear()}` : ''}`;
-  return `${day}, ${h % 12 || 12}:${String(t.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-};
 // Latest ready time across the booked devices.
 export const latestReadyIso = (devices) => devices
   .map((d) => d.estimatedDeliveryIso).filter((x) => x && !Number.isNaN(new Date(x).getTime()))

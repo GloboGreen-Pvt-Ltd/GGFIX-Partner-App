@@ -15,6 +15,7 @@ import { enableInterFont } from './src/theme/appFont';
 import './src/theme/remScaling';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { LogBox, View } from 'react-native';
+import * as ScreenCapture from 'expo-screen-capture';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -86,6 +87,17 @@ export default function App() {
   useEffect(() => attachDownloadNotifications(), []);
   // A tapped push (live or the one that launched the app) opens its screen.
   useEffect(() => attachPushNavigation(navigationRef), []);
+  // Screenshot / screen-recording protection, once for the whole app. Android:
+  // FLAG_SECURE — screenshots, recordings and screen sharing show black and the
+  // Recent Apps preview is hidden. iOS: recordings are blanked (and screenshots
+  // blocked where the OS supports it). Release builds only, so dev builds stay
+  // screenshot-able. In-app captures (receipt image, invoice PDF, camera photos)
+  // are unaffected — they never go through the system screen capture.
+  useEffect(() => {
+    if (__DEV__) return undefined;
+    ScreenCapture.preventScreenCaptureAsync('app-root').catch(() => {});
+    return () => { ScreenCapture.allowScreenCaptureAsync('app-root').catch(() => {}); };
+  }, []);
   useEffect(() => console.log('[BOOT] App root mounted @', since()), []); // TEMP DEBUG — remove once verified
 
   // RootNavigator's first render is synchronous and is always BootSplash (its

@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   Text,
@@ -11,7 +13,9 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { confirm } from '../../components/confirm';
 import {
   BarChart3,
   CalendarOff,
@@ -296,6 +300,27 @@ export interface DashboardScreenProps {
 }
 
 export default function DashboardScreen({ navigation, onLogout }: DashboardScreenProps) {
+  // Home is the root. While it is focused: (1) nothing may sit under the tabs
+  // in the root stack — a leftover from an old flow (a pushed second OwnerTabs,
+  // a finished booking) is dropped, so Back can never reopen it; (2) Android
+  // Back asks before closing the app. Registered only while Home is focused,
+  // so it never catches Back on any other screen.
+  useFocusEffect(useCallback(() => {
+    const root = navigation.getParent?.();
+    const st = root?.getState?.();
+    if (root?.dispatch && st && st.index > 0 && st.routes[st.index]?.name === 'OwnerTabs') {
+      const current = st.routes[st.index];
+      root.dispatch(CommonActions.reset({ ...st, index: 0, routes: [current] } as Parameters<typeof CommonActions.reset>[0]));
+    }
+    if (Platform.OS !== 'android') return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      confirm({ title: 'Exit NearGFix?', message: 'Do you want to close the app?', confirmText: 'Exit', cancelText: 'Cancel' })
+        .then((ok: boolean) => { if (ok) BackHandler.exitApp(); });
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]));
+
   const { summary, loading, error, refresh } = useBookingCounts();
   const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);

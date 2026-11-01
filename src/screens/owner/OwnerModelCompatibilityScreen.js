@@ -282,6 +282,7 @@ export default function OwnerModelCompatibilityScreen({ navigation }) {
   useEffect(() => {
     if (!selected) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!navigation.isFocused()) return false; // another screen is on top
       setSelected(null);
       return true;
     });

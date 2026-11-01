@@ -8,7 +8,9 @@ import {
   AlertTriangle, CalendarClock, Check, Handshake, Headphones, Laptop, MessageSquareText, Palette,
   Phone, ScanLine, Smartphone, Tablet, Ticket, Wallet, Watch, Wrench,
 } from 'lucide-react-native';
-import { latestReadyIso, readyWhen, receiptPropsFromTicket } from '../AllBooking/ReceiptCard';
+import {
+  latestReadyIso, paymentAcrossTickets, readyWhen, receiptPropsFromTicket, receiptShopPhone,
+} from '../AllBooking/ReceiptCard';
 import { getBrands, getDeviceCategories, getModel } from '../../../api/masterData';
 import { ticketApi } from '../../../api/client';
 
@@ -55,6 +57,7 @@ export default function BookingConfirmCard({
   shop = {}, customer = {}, devices = [], trackingId, createdAt, statusLabel, total = 0, payment = null,
 }) {
   const shopName = shop.name || 'Your Shop';
+  const shopPhone = receiptShopPhone(shop);
   const tid = String(trackingId || '').replace(/^#+/, '') || '—';
   const bookedOn = readyWhen(createdAt, true);
   const delivery = readyWhen(latestReadyIso(devices), true);
@@ -211,14 +214,12 @@ export default function BookingConfirmCard({
           <Text style={{ fontSize: 8, color: MUTED }}>Shop Contact</Text>
           <Text style={valueStyle}>{shopName}</Text>
         </View>
-        {shop.phone ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
-            <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' }}>
-              <Phone size={11} color="#FFFFFF" strokeWidth={2.4} />
-            </View>
-            <Text style={[valueStyle, { marginLeft: 6, fontSize: 12 }]}>{shop.phone}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' }}>
+            <Phone size={11} color="#FFFFFF" strokeWidth={2.4} />
           </View>
-        ) : null}
+          <Text style={[valueStyle, { marginLeft: 6, fontSize: 12 }]}>{shopPhone}</Text>
+        </View>
       </View>
 
       {/* Footer — thank you (dark green) · Powered by NearGFix (white) */}
@@ -296,49 +297,83 @@ function MoneyRow({ label, value, bold, color = NAVY }) {
 }
 
 /**
- * A saved ticket → card props, once everything the card needs is loaded. The
- * ticket API carries no brand / category / alternate number, so those come
- * from master data and the customer record. `ready` stays false until then,
- * so a share never captures a half-filled card.
+ * The selected booking → card props, once everything the card needs is loaded.
+ * The ticket is re-read by id (GET /tickets/{id}) so the share never uses a
+ * stale list row, and a multi-device booking (GTS-001-A, -B …) pulls in its
+ * sibling devices, so one receipt covers the whole booking: every device,
+ * total = sum of the devices, payment added up. Brand / category / model no.
+ * / alternate number come from master data and the customer record. `ready`
+ * stays false until then, so a share never captures a half-filled card. The
+ * WhatsApp text is built from these same props.
  */
 export function useTicketConfirmProps(ticket, shop) {
-  const [extra, setExtra] = useState(null);
+  const [loaded, setLoaded] = useState(null); // { tickets, extra }
   useEffect(() => {
-    setExtra(null);
+    setLoaded(null);
     if (!ticket) return undefined;
     let alive = true;
-    const phone = String(ticket.customerPhone || '').replace(/\D/g, '').slice(-10);
     (async () => {
-      const model = ticket.modelId ? await getModel(ticket.modelId).catch(() => null) : null;
-      const brandId = ticket.brandId || model?.brandId;
+      const fresh = (ticket.id ? await ticketApi.get(`/tickets/${ticket.id}`).catch(() => null) : null) || ticket;
+      let tickets = [fresh];
+      const bn = fresh.bookingNumber;
+      if (bn && fresh.trackingId && fresh.trackingId !== bn) {
+        const res = await ticketApi.get('/tickets', { query: { page: 0, size: 50, q: bn } }).catch(() => null);
+        const rows = (Array.isArray(res) ? res : res?.content || [])
+          .filter((t) => t?.bookingNumber === bn && String(t.status || '').toUpperCase() !== 'CANCELLED');
+        if (rows.length) {
+          tickets = rows.map((t) => (t.id === fresh.id ? fresh : t))
+            .sort((x, y) => String(x.trackingId || '').localeCompare(String(y.trackingId || '')));
+          if (!tickets.some((t) => t.id === fresh.id)) tickets.unshift(fresh);
+        }
+      }
+      const phone = String(fresh.customerPhone || '').replace(/\D/g, '').slice(-10);
+      const models = await Promise.all(tickets.map((t) => (t.modelId ? getModel(t.modelId).catch(() => null) : null)));
+      const needBrands = tickets.some((t, i) => t.brandId || models[i]?.brandId);
+      const needCats = models.some((m) => m?.categoryId);
       const [brands, cats, cust] = await Promise.all([
-        brandId ? getBrands().catch(() => []) : [],
-        model?.categoryId ? getDeviceCategories().catch(() => []) : [],
+        needBrands ? getBrands().catch(() => []) : [],
+        needCats ? getDeviceCategories().catch(() => []) : [],
         phone.length === 10 ? ticketApi.get('/customers/lookup', { query: { mobile: phone } }).catch(() => null) : null,
       ]);
       if (!alive) return;
-      setExtra({
-        brandName: (Array.isArray(brands) ? brands : []).find((b) => b.id === brandId)?.name || null,
-        categoryName: (Array.isArray(cats) ? cats : []).find((c) => c.id === model?.categoryId)?.name || model?.category || null,
-        modelNumber: (Array.isArray(model?.modelNumber) ? model.modelNumber[0] : model?.modelNumber) || null,
+      const brandList = Array.isArray(brands) ? brands : [];
+      const catList = Array.isArray(cats) ? cats : [];
+      setLoaded({
+        tickets,
         alternatePhone: cust?.alternatePhone || null,
+        perDevice: tickets.map((t, i) => {
+          const model = models[i];
+          const brandId = t.brandId || model?.brandId;
+          return {
+            brandName: brandList.find((b) => b.id === brandId)?.name || null,
+            categoryName: catList.find((c) => c.id === model?.categoryId)?.name || model?.category || null,
+            modelNumber: (Array.isArray(model?.modelNumber) ? model.modelNumber[0] : model?.modelNumber) || null,
+          };
+        }),
       });
     })();
     return () => { alive = false; };
   }, [ticket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ticket || !extra || !shop) return { ready: false, props: null };
-  const base = receiptPropsFromTicket(ticket, shop, undefined, extra.alternatePhone);
+  if (!ticket || !loaded || !shop) return { ready: false, props: null };
+  const parts = loaded.tickets.map((t) => receiptPropsFromTicket(t, shop, undefined, loaded.alternatePhone));
+  const selected = parts[Math.max(0, loaded.tickets.findIndex((t) => t.id === ticket.id))];
+  const many = loaded.tickets.length > 1;
+  const total = parts.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
   return {
     ready: true,
     props: {
-      ...base,
-      devices: base.devices.map((d) => ({
+      ...selected,
+      createdAt: parts[0].createdAt,
+      trackingId: many ? loaded.tickets[0].bookingNumber : selected.trackingId,
+      total,
+      payment: many ? paymentAcrossTickets(loaded.tickets, total) : selected.payment,
+      devices: parts.flatMap((p, i) => p.devices.map((d) => ({
         ...d,
-        brandName: d.brandName || extra.brandName,
-        categoryName: d.categoryName || extra.categoryName,
-        modelNumber: d.modelNumber || extra.modelNumber,
-      })),
+        brandName: d.brandName || loaded.perDevice[i].brandName,
+        categoryName: d.categoryName || loaded.perDevice[i].categoryName,
+        modelNumber: d.modelNumber || loaded.perDevice[i].modelNumber,
+      }))),
     },
   };
 }

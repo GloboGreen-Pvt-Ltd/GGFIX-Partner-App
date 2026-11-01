@@ -52,7 +52,7 @@ import {
 import { confirm, notify } from '../../../components/confirm';
 import { emitTicketUpdated } from '../../../lib/ticketEvents';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
-import { buildReceiptMessage, loadReceiptShop } from './ReceiptCard';
+import { buildBookingReceiptText, loadReceiptShop } from './ReceiptCard';
 import BookingConfirmCard, { useTicketConfirmProps } from '../service-booking-shop/BookingConfirmCard';
 import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 
@@ -1364,7 +1364,8 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
     return () => { cancelled = true; };
   }, [visible]);
 
-  // Card data (brand, category, alt. number) — share waits until it's loaded.
+  // The booking re-read by id (all its devices) + brand, category, alt. number —
+  // share waits until it's loaded. The text and the image both come from it.
   const confirm = useTicketConfirmProps(visible ? ticket : null, shop);
 
   const doShareWhatsApp = useCallback(async () => {
@@ -1373,9 +1374,9 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
     try {
       await shareReceiptToWhatsApp({
         viewRef: receiptRef,
-        message: buildReceiptMessage(ticket, shop),
-        phone: ticket.customerPhone,
-        filename: `neargfix-receipt-${String(ticket.trackingId || ticket.id || '').replace(/^#+/, '')}`,
+        message: buildBookingReceiptText(confirm.props),
+        phone: confirm.props.customer?.phone || ticket.customerPhone,
+        filename: `neargfix-receipt-${String(confirm.props.trackingId || ticket.id || '').replace(/^#+/, '')}`,
         // Image + text together, same as the Booking Thank You share.
         withImage: true,
       });
@@ -1384,7 +1385,7 @@ export function ShareReceiptSheet({ visible, onClose, ticket, preparing }) {
     } finally {
       setSharing(false);
     }
-  }, [ticket, sharing, shop, confirm.ready]);
+  }, [ticket, sharing, confirm.ready, confirm.props]);
 
   return (
     <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

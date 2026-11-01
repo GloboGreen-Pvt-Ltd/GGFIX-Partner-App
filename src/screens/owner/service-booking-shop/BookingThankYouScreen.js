@@ -4,17 +4,14 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import ViewShot from 'react-native-view-shot';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
-import { shareReceiptToWhatsApp } from '../../../lib/whatsappShare';
 import { openSmsComposer } from '../../../lib/smsShare';
 import {
-  paymentAcrossTickets, BookingReceipt, buildBookingConfirmWhatsApp, buildBookingConfirmSms, loadReceiptShop, withNote, receiptComplaint, warrantySummary,
+  paymentAcrossTickets, BookingReceipt, buildBookingConfirmSms, loadReceiptShop, withNote, receiptComplaint, warrantySummary,
 } from '../AllBooking/ReceiptCard';
-import BookingConfirmCard from './BookingConfirmCard';
 import { rs } from '../../../utils/responsive';
 import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
@@ -42,14 +39,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // dispute at the counter later.
   const payment = paymentAcrossTickets(tickets, total);
 
-  const receiptRef = useRef(null);
-  const [sharing, setSharing] = useState(false);
-
   // The real shop name + picture come from the logged-in shop session, not
   // the customer.
   const [shop, setShop] = useState({ name: customer.shopName || '', imageUrl: null });
-  // WhatsApp waits for this, so the shared card never has a half-loaded shop.
-  const [shopLoaded, setShopLoaded] = useState(false);
+  // The WhatsApp confirmation (receipt image + text) is sent by the server
+  // after the booking saves (ticket-service WhatsApp outbox) — no manual share.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -58,7 +52,6 @@ export default function BookingThankYouScreen({ navigation, route }) {
         if (cancelled) return;
         setShop((prev) => ({ name: next.name || prev.name, imageUrl: next.imageUrl, phone: next.phone }));
       } catch {}
-      if (!cancelled) setShopLoaded(true);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -67,9 +60,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // moment this screen opened (it opens right after submit).
   const [bookedAt] = useState(() => tickets[0]?.createdAt || new Date().toISOString());
 
-  // One set of props for both receipts (AllBooking/ReceiptCard): the on-screen
-  // <BookingReceipt> and the <ReceiptSlip> image that Share to WhatsApp sends —
-  // the same slip the Bookings "Share image" sheet sends.
+  // Props for the on-screen <BookingReceipt> (AllBooking/ReceiptCard) and the SMS text.
   const receiptProps = {
     shop,
     createdAt: bookedAt,
@@ -114,12 +105,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
     payment,
   };
 
-  // Every created ticket's ID ("GTS-102, GTS-103") for the WhatsApp / SMS text.
+  // Every created ticket's ID ("GTS-102, GTS-103") for the SMS text.
   const confirmProps = {
     ...receiptProps,
     trackingId: tickets.map((t) => t?.trackingId).filter(Boolean).join(', ') || trackingId,
   };
-  const buildWhatsAppMessage = () => buildBookingConfirmWhatsApp(confirmProps);
   const buildSmsMessage = () => buildBookingConfirmSms(confirmProps);
 
   // Tickets that were actually created — Assign and Barcode Print act on these.
@@ -161,25 +151,6 @@ export default function BookingThankYouScreen({ navigation, route }) {
     setBarcodePickerOpen(true);
   };
 
-  // Share to WhatsApp — WhatsApp only, never the system share sheet or any
-  // other app (see lib/whatsappShare).
-  const shareWhatsApp = async () => {
-    if (sharing || !shopLoaded) return;
-    setSharing(true);
-    try {
-      await shareReceiptToWhatsApp({
-        viewRef: receiptRef,
-        message: buildWhatsAppMessage(),
-        phone: customer.phone,
-        filename: `neargfix-receipt-${trackingId}`,
-        // Image + text together (WhatsApp then asks which chat to send to).
-        withImage: true,
-      });
-    } finally {
-      setSharing(false);
-    }
-  };
-
   // `expo-clipboard` is already a project dependency (used nowhere in this
   // file before) — a real copy, not a decorative icon with no handler.
   const copyTrackingId = async () => {
@@ -193,7 +164,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
 
   // The booking is done, so Back (header, Android hardware back, iOS swipe)
   // goes to Home — never back into the wizard screen before this one.
-  const goHome = useCallback(() => navigation.navigate('OwnerTabs', { screen: 'Home' }), [navigation]);
+  // popTo, not navigate: in React Navigation 7 navigate() PUSHES a second
+  // OwnerTabs above the booking stack, so Back from that Home came straight
+  // back here. popTo returns to the existing tabs and drops the finished
+  // booking stack (wizard + this screen) from the back history.
+  const goHome = useCallback(() => navigation.popTo('OwnerTabs', { screen: 'Home' }), [navigation]);
   useEffect(() => { navigation.setOptions({ gestureEnabled: false }); }, [navigation]);
   useFocusEffect(useCallback(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { goHome(); return true; });
@@ -228,7 +203,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
 
       </ScrollView>
 
-      {/* Booking confirmed + actions — Assign · WhatsApp · SMS · Barcode Print —
+      {/* Booking confirmed + actions — Assign · SMS · Barcode Print —
           fixed at the bottom of the screen (was a popup that opened by itself). */}
       <View
         style={{
@@ -255,7 +230,6 @@ export default function BookingThankYouScreen({ navigation, route }) {
 
           <View className="flex-row" style={{ marginHorizontal: -4, marginTop: rs(12) }}>
             <ActionTile icon="person-add-outline" label="Assign" color={PRIMARY} tint={MINT} onPress={assignTechnician} />
-            <ActionTile icon="logo-whatsapp" label="WhatsApp" color="#16A34A" tint="#E6F7E3" onPress={shareWhatsApp} busy={sharing || !shopLoaded} disabled={sharing || !shopLoaded} />
             <ActionTile icon="chatbubble-ellipses-outline" label="SMS" color="#2563EB" tint="#E4EEFF" onPress={shareSms} />
             <ActionTile icon="barcode-outline" label="QR Print" color="#B45309" tint="#FFF0D2" onPress={printBarcode} />
           </View>
@@ -297,19 +271,11 @@ export default function BookingThankYouScreen({ navigation, route }) {
         ))}
       </ResponsiveModal>
 
-      {/* The image Share to WhatsApp sends: the Booking Confirmed card, rendered
-          off-screen at a phone receipt's width so captureRef has a laid-out
-          view to draw. Not visible, not touchable. */}
-      <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0, width: 360 }}>
-        <ViewShot ref={receiptRef} options={{ format: 'png', quality: 1 }} collapsable={false} style={{ backgroundColor: '#FFFFFF' }}>
-          <BookingConfirmCard {...confirmProps} />
-        </ViewShot>
-      </View>
     </View>
   );
 }
 
-/** One of the four booking actions: tinted icon circle over a short label. */
+/** One of the booking actions: tinted icon circle over a short label. */
 function ActionTile({ icon, label, color, tint, onPress, busy = false, disabled = false }) {
   return (
     <Pressable

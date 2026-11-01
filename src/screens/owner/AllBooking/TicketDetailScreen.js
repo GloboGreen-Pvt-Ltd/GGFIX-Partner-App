@@ -52,6 +52,7 @@ import {
   ThumbsUp,
   Ban,
   MessageCircle,
+  TriangleAlert,
 } from 'lucide-react-native';
 import { Loader, EmptyState } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
@@ -78,6 +79,9 @@ import { useImeiApplies } from '../../../utils/imeiPolicy';
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
 const BRAND_GREEN = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
+// Same tones as the booking review's Missing / Damaged Parts block.
+const PART_MISSING_TONE = { bg: '#FFF8E1', fg: '#8A6A00' };
+const PART_DAMAGE_TONE = { bg: '#FEECEC', fg: '#D63232' };
 const ACCENT_GREEN = '#035C6C';
 
 // Closing booking steps the owner records by ticking + Submit. Two parallel
@@ -711,6 +715,15 @@ export default function TicketDetailScreen({ route, navigation }) {
   const payment = paymentFromTicket(ticket, estimatedTotal);
   // Accessories handed over at booking ("Charger, Back cover").
   const accessoryList = String(ticket.accessories || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+  // Parts flagged at booking: [{ partId, partName, missing, damage, detail }].
+  const flaggedParts = (() => {
+    try {
+      const list = ticket.missingPartsJson ? JSON.parse(ticket.missingPartsJson) : [];
+      return (Array.isArray(list) ? list : []).filter((p) => p && (p.missing || p.damage));
+    } catch (_) {
+      return [];
+    }
+  })();
   // Warranty per service (price item `warranty`, e.g. "3 Months"); it runs from
   // the delivery date, so before delivery it only "starts on delivery".
   const deliveredAt = ticket.deliveredAt
@@ -1140,6 +1153,29 @@ export default function TicketDetailScreen({ route, navigation }) {
               </View>
             ) : (
               <Text className="text-[12px] text-text-muted">No accessories received with the device.</Text>
+            )}
+          </View>
+        </View>
+
+        {/* ── Missing / damaged parts flagged at booking (missingPartsJson) ── */}
+        <SectionHeader icon={TriangleAlert} label="MISSING / DAMAGED PARTS" />
+        <View className="px-4">
+          <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+            {flaggedParts.length ? flaggedParts.map((p, i) => {
+              const tone = p.damage ? PART_DAMAGE_TONE : PART_MISSING_TONE;
+              return (
+                <View key={p.partId || `${p.partName}-${i}`} style={{ marginTop: i ? 8 : 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#111111' }}>{p.partName || p.name || p.partId || 'Part'}</Text>
+                    <View style={{ marginLeft: 8, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: tone.bg }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: tone.fg }}>{p.damage ? 'Damaged' : 'Missing'}</Text>
+                    </View>
+                  </View>
+                  {p.detail ? <Text className="text-[12px] text-text-muted" style={{ marginTop: 2 }}>{p.detail}</Text> : null}
+                </View>
+              );
+            }) : (
+              <Text className="text-[12px] text-text-muted">No missing or damaged parts reported.</Text>
             )}
           </View>
         </View>
