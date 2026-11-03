@@ -36,7 +36,8 @@ export function safeHttpMessage(status, raw) {
   if (status === 404) return SAFE.notFound;
   if (status === 408 || status === 504) return SAFE.timeout;
   if (status === 413) return SAFE.tooLarge;
-  if (status >= 500) return SAFE.server;
+  // 5xx: show the server's own text only when it is plain language.
+  if (status >= 500) return isSafeMessage(raw) ? String(raw).trim() : SAFE.server;
   // 400 / 409 / 422…: the server's validation text when it is plain language.
   return isSafeMessage(raw) ? String(raw).trim() : SAFE.save;
 }
