@@ -65,7 +65,8 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
       signal: controller.signal,
     });
   } catch (e) {
-    const timedOut = e?.name === 'AbortError';
+    // Our timer is the only abort source — a timeout is never "No internet".
+    const timedOut = controller.signal.aborted || e?.name === 'AbortError';
     const baseHint =
       baseUrlOrNull && typeof baseUrlOrNull === 'string' && baseUrlOrNull.includes('localhost')
         ? ' (note: localhost on a phone means the phone itself)'
@@ -193,7 +194,8 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fiel
       });
     }
   } catch (e) {
-    const timedOut = e?.name === 'AbortError';
+    // Our timer is the only abort source — a timeout is never "No internet".
+    const timedOut = controller.signal.aborted || e?.name === 'AbortError';
     const msg = timedOut
       ? `Upload timed out after ${Math.round(UPLOAD_TIMEOUT_MS / 1000)}s.`
       : (e?.message || 'Network request failed');

@@ -804,12 +804,18 @@ export default function JobsScreen({ navigation, route }) {
         // Show the fresh list now; changed rows get their invoice right after.
         setItems(enriched);
         if (stale.length) {
-          await Promise.all(stale.map(async (t) => {
-            const inv = await ticketApi.get(`/tickets/${t.id}/invoice`).catch(() => undefined);
-            if (inv === undefined) return; // failed — not cached, retried next load
-            const ok = inv && inv.finalPayableAmount != null ? inv : null;
-            invCache.set(t.id, { key: invKey(t), inv: ok });
-            if (ok) t._invoice = ok;
+          // Two at a time: firing every invoice at once held all of
+          // ticket-service's DB connections, stalling other screens' calls.
+          let next = 0;
+          await Promise.all([0, 1].map(async () => {
+            while (next < stale.length) {
+              const t = stale[next++];
+              const inv = await ticketApi.get(`/tickets/${t.id}/invoice`).catch(() => undefined);
+              if (inv === undefined) continue; // failed — not cached, retried next load
+              const ok = inv && inv.finalPayableAmount != null ? inv : null;
+              invCache.set(t.id, { key: invKey(t), inv: ok });
+              if (ok) t._invoice = ok;
+            }
           }));
           setItems([...enriched]);
         }
