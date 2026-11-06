@@ -9,7 +9,9 @@ export function normalizeDeviceImageUrl(url) {
   if (!url) return null;
   const s = String(url);
   if (s.startsWith('data:')) return s;
-  if (!s.includes(CLOUDINARY_HOST)) return s;
+  let host = '';
+  try { host = new URL(s).hostname.toLowerCase(); } catch { return s; }
+  if (host !== CLOUDINARY_HOST) return s;
   if (!UNSUPPORTED_EXT.test(s)) return s;
   if (/\/upload\/[^/]*f_(jpg|png|webp|auto)/i.test(s)) return s;
   return s.replace('/upload/', '/upload/f_jpg/');

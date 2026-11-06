@@ -1249,7 +1249,7 @@ function MoreAction({ icon: Icon, label, tint, bg, onPress }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label.replace('\n', ' ')}
+      accessibilityLabel={label.replace(/\n/g, ' ')}
       className="items-center active:opacity-70"
       style={{ width: '25%' }}
     >
