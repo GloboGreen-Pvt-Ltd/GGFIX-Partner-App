@@ -31,6 +31,9 @@ concurrency:
   group: eas-build-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build on EAS
