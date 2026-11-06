@@ -297,8 +297,6 @@ export default function DeviceServicesScreen({ navigation, route }) {
     setPickedIds((p) => { const n = new Set(p); n.delete(s.id); return n; });
   };
 
-  const toggleGroup = (gid) => setExpanded((e) => ({ ...e, [gid]: !e[gid] }));
-
   const addCustomIssue = () => {
     const name = (otherNameRef.current || '').trim();
     if (!name) return;
