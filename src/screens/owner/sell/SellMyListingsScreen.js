@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import {
-  Check, ChevronDown, ChevronUp, CircleCheck, EllipsisVertical, Eye, IndianRupee, Package, Pencil, Plus, Power, PowerOff, Rocket, Search, SlidersHorizontal, Trash2, X,
+  Check, ChevronDown, ChevronUp, CircleCheck, EllipsisVertical, Eye, IndianRupee, Package, Pencil, Plus, Power, PowerOff, Rocket, Search, ShoppingBag, SlidersHorizontal, Trash2, X,
 } from 'lucide-react-native';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { confirm, notify } from '../../../components/confirm';
@@ -639,7 +639,19 @@ export default function SellMyListingsScreen({ navigation, route }) {
       subtitle="Manage your device & part listings"
       onBack={() => navigation.goBack()}
       scroll={false}
+      rightWidth={76}
       right={(
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable
+          onPress={() => navigation.navigate('SellBuyOrders')}
+          accessibilityRole="button"
+          accessibilityLabel="Customer orders"
+          hitSlop={6}
+          className="active:opacity-70"
+          style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ShoppingBag size={17} color={C.teal} />
+        </Pressable>
         <Pressable
           onPress={addNew}
           accessibilityRole="button"
@@ -650,6 +662,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
         >
           <Plus size={18} color="#FFFFFF" />
         </Pressable>
+        </View>
       )}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
