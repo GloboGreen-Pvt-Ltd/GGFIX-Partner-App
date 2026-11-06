@@ -196,7 +196,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
   // empty space it saves.
   const contentW = r.isTablet ? Math.min(r.width - rs(32), 700) : undefined;
 
-  const [otherHasName, setOtherHasName] = useState(false); // toggles ADD enabled (boundary-only re-render)
+  const [, setOtherHasName] = useState(false); // toggles ADD enabled (boundary-only re-render)
   const [otherCatId, setOtherCatId] = useState(null);
   const [otherFormKey, setOtherFormKey] = useState(0); // bump to remount + clear the draft input
 
