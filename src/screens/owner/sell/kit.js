@@ -71,6 +71,8 @@ const STATUS_META = {
   ACTIVE: { label: 'Active', fg: C.green, bg: C.greenBg },
   DRAFT: { label: 'Draft', fg: C.amber, bg: C.amberBg },
   SOLD: { label: 'Sold', fg: C.teal, bg: C.mint },
+  // Stock held by an open buy order — sold only once handed over / delivered.
+  RESERVED: { label: 'Order in progress', fg: C.amber, bg: C.amberBg },
   INACTIVE: { label: 'Inactive', fg: C.muted, bg: '#F1F2F4' },
   OPEN: { label: 'New', fg: C.purple, bg: C.purpleBg },
   QUOTED: { label: 'Quote Sent', fg: C.teal, bg: C.mint },

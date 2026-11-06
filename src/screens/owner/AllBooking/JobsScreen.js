@@ -43,7 +43,6 @@ import {
 } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
 import { notify } from '../../../components/confirm';
-import { sendBookingConfirmation } from '../../../lib/whatsappConfirmation';
 import SafeModal from '../../../components/SafeModal';
 import { confirmShopRepairBooking, listShopRepairBookings } from '../../../api/orders';
 import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
@@ -548,7 +547,7 @@ export default function JobsScreen({ navigation, route }) {
       // Delivered: no Assign / Update Status — Re-Service starts a new linked booking.
       isInvoiceMenu || delivered ? null : { key: 'assign', label: 'Assign', icon: UserCog, run: openTechPickerFor },
       { key: 'history', label: 'History', icon: History, run: goTimelineFor },
-      done ? null : { key: 'receipt', label: 'Receipt', icon: Share2, run: sendBookingConfirmation }, // WhatsApp confirmation via the server
+      done ? null : { key: 'receipt', label: 'Receipt', icon: Share2, run: openShareFor }, // receipt image via the phone's share sheet (WhatsApp etc.)
       done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: goBarcodeFor },
       invoiced ? { key: 'invoice', label: 'Invoice', icon: ReceiptIndianRupee, run: goInvoiceFor } : null,
       { key: 'details', label: 'Details', icon: FileText, run: goDetailsFor },
@@ -725,8 +724,13 @@ export default function JobsScreen({ navigation, route }) {
   const lookupsRef = useRef({ ramById: null, storageById: null, modelById: {}, brands: new Set() });
   const invoiceCacheRef = useRef(new Map()); // ticketId → { key, inv }
 
+  // Latest load wins: an older, slower search response must not overwrite it.
+  const loadSeqRef = useRef(0);
+
   const load = useCallback(
     async (isRefresh = false) => {
+      const seq = ++loadSeqRef.current;
+      const isLatest = () => seq === loadSeqRef.current;
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
@@ -805,6 +809,7 @@ export default function JobsScreen({ navigation, route }) {
           stale.push(t);
         });
         // Show the fresh list now; changed rows get their invoice right after.
+        if (!isLatest()) return;
         setItems(enriched);
         if (stale.length) {
           // Two at a time: firing every invoice at once held all of
@@ -820,10 +825,10 @@ export default function JobsScreen({ navigation, route }) {
               if (ok) t._invoice = ok;
             }
           }));
-          setItems([...enriched]);
+          if (isLatest()) setItems([...enriched]);
         }
       } catch (e) {
-        setError(e.message || 'Failed to load jobs');
+        if (isLatest()) setError(e.message || 'Failed to load jobs');
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -1062,6 +1067,51 @@ export default function JobsScreen({ navigation, route }) {
     ? { right: 6, bottom: 6, paddingHorizontal: 10, paddingVertical: 3 }
     : { right: 8, bottom: 8, paddingHorizontal: 14, paddingVertical: 5 };
 
+  // VIEW · history · receipt · barcode · call · copy — shared by single and bulk cards.
+  const cardIconRow = (onView, cardIcons) => (
+    <View className="flex-row items-center" style={{ gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+      <Pressable
+        onPress={onView}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel="View booking details"
+        className="items-center justify-center active:opacity-70"
+        style={{ height: 26, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: ACCENT_GREEN, backgroundColor: '#FFFFFF' }}
+      >
+        <Text style={{ color: ACCENT_GREEN, fontSize: 11, fontWeight: '800' }}>VIEW</Text>
+      </Pressable>
+      {cardIcons.map((a) => {
+        const Icon = a.icon;
+        return (
+          <Pressable
+            key={a.key}
+            onPress={a.run}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={a.label}
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: CARD_ICON_TONES[a.key] }}
+          >
+            <Icon size={12} color="#FFFFFF" />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const iconsFor = (item) => {
+    const phone = item.customerPhone || item.customer?.phone || '';
+    // Receipt / Barcode dropped once delivered AND invoiced (same rule as the action grid).
+    const done = String(item.status || '').toUpperCase() === 'DELIVERED' && hasInvoice(item);
+    return [
+      { key: 'history', label: 'History', icon: History, run: () => goTimelineFor(item) },
+      done ? null : { key: 'receipt', label: 'Receipt', icon: Receipt, run: () => openShareFor(item) },
+      done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: () => goBarcodeFor(item) },
+      phone ? { key: 'call', label: `Call ${phone}`, icon: Phone, run: () => callPhone(phone) } : null,
+      phone ? { key: 'copy', label: `Copy mobile number ${phone}`, icon: Copy, run: () => copyPhone(phone) } : null,
+    ].filter(Boolean);
+  };
+
   const renderBulk = (group) => {
     const first = group.devices[0] || {};
     const newest = group.devices.reduce((acc, d) => (new Date(d.createdAt || 0) > new Date(acc.createdAt || 0) ? d : acc), first);
@@ -1150,22 +1200,14 @@ export default function JobsScreen({ navigation, route }) {
     const balRow = payRows.find((x) => x.short === 'Bal') || null;
     const paidStr = payRow && payRow.value !== 'on delivery' ? payRow.value : null;
 
-    // Receipt / Barcode dropped once delivered AND invoiced (same rule as the action grid).
-    const done = String(item.status || '').toUpperCase() === 'DELIVERED' && hasInvoice(item);
-    const cardIcons = [
-      { key: 'history', label: 'History', icon: History, run: () => goTimelineFor(item) },
-      done ? null : { key: 'receipt', label: 'Receipt', icon: Receipt, run: () => sendBookingConfirmation(item) },
-      done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: () => goBarcodeFor(item) },
-      phone ? { key: 'call', label: `Call ${phone}`, icon: Phone, run: () => callPhone(phone) } : null,
-      phone ? { key: 'copy', label: `Copy mobile number ${phone}`, icon: Copy, run: () => copyPhone(phone) } : null,
-    ].filter(Boolean);
+    const cardIcons = iconsFor(item);
 
     // Product-card tile: image panel (status tag), price chip, balance line,
     // device name, customer, then the icon row (VIEW · history · receipt · barcode · call · copy).
     return (
       <View style={[tileCard, { flexDirection: 'column' }]}>
-        {/* Image left + details right; the icon row runs full width below. */}
-        <View style={tileRow ? { flexDirection: 'row' } : null}>
+        {/* Image left + details right (tap → Booking Details); the icon row runs full width below. */}
+        <Pressable onPress={() => goDetailsFor(item)} accessibilityRole="button" accessibilityLabel={`${trackingId} booking details`} className="active:opacity-90" style={tileRow ? { flexDirection: 'row' } : null}>
         <View
           className="items-center justify-center overflow-hidden"
           style={tilePanel}
@@ -1213,36 +1255,9 @@ export default function JobsScreen({ navigation, route }) {
           </View>
         ) : null}
         </View>
-        </View>
+        </Pressable>
         {/* VIEW · history · receipt · barcode · call · copy, from the left edge. */}
-        <View className="flex-row items-center" style={{ gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-          <Pressable
-            onPress={() => goDetailsFor(item)}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel="View booking details"
-            className="items-center justify-center active:opacity-70"
-            style={{ height: 26, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: ACCENT_GREEN, backgroundColor: '#FFFFFF' }}
-          >
-            <Text style={{ color: ACCENT_GREEN, fontSize: 11, fontWeight: '800' }}>VIEW</Text>
-          </Pressable>
-          {cardIcons.map((a) => {
-            const Icon = a.icon;
-            return (
-              <Pressable
-                key={a.key}
-                onPress={a.run}
-                hitSlop={4}
-                accessibilityRole="button"
-                accessibilityLabel={a.label}
-                className="items-center justify-center active:opacity-70"
-                style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: CARD_ICON_TONES[a.key] }}
-              >
-                <Icon size={12} color="#FFFFFF" />
-              </Pressable>
-            );
-          })}
-        </View>
+        {cardIconRow(() => goDetailsFor(item), cardIcons)}
       </View>
     );
   };
@@ -1601,20 +1616,20 @@ export default function JobsScreen({ navigation, route }) {
             : ''}
         </Text>
         <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
-          Tap a device to see its actions
+          Tap a device to open its booking details
         </Text>
         {(devicePickerFor?.devices || []).map((d) => {
           const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
           const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
           const image = d._modelImage || d.deviceImageUrl || null;
           return (
+            <View key={d.id} style={{ marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
             <Pressable
-              key={d.id}
               onPress={() => { setDevicePickerFor(null); goDetailsFor(d); }}
               accessibilityRole="button"
-              accessibilityLabel={`${d.trackingId} actions`}
+              accessibilityLabel={`${d.trackingId} booking details`}
               className="flex-row items-center active:opacity-80"
-              style={{ padding: 10, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+              style={{ padding: 10 }}
             >
               <View className="items-center justify-center overflow-hidden" style={{ height: 44, width: 44, borderRadius: 12, backgroundColor: 'rgba(3, 92, 108, 0.10)', marginRight: 10 }}>
                 {image ? <Image source={{ uri: image }} style={{ width: 44, height: 44 }} resizeMode="cover" /> : <Smartphone size={20} color={ACCENT_GREEN} />}
@@ -1641,6 +1656,12 @@ export default function JobsScreen({ navigation, route }) {
                 </Text>
               </View>
             </Pressable>
+            {/* Popup closes first so History / Barcode screens aren't hidden behind it. */}
+            {cardIconRow(
+              () => { setDevicePickerFor(null); goDetailsFor(d); },
+              iconsFor(d).map((a) => ({ ...a, run: () => { setDevicePickerFor(null); a.run(); } })),
+            )}
+            </View>
           );
         })}
       </ResponsiveModal>

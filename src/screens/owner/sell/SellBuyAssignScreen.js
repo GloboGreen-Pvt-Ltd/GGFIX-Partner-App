@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CircleCheck, Circle, UserRound } from 'lucide-react-native';
-import { listAssignableStaff, shopBuyOrderAction } from '../../../api/buyOrders';
+import { listAssignableStaff, listShopBuyOrders, shopBuyOrderAction } from '../../../api/buyOrders';
 import { showToast } from '../../../components/Toast';
 import { C, Card, EmptyBox, ErrorBox, PrimaryButton, SellScreen, Thumb } from './kit';
 
@@ -15,12 +15,21 @@ export default function SellBuyAssignScreen({ navigation, route }) {
   const [error, setError] = useState('');
   const [chosen, setChosen] = useState(o.assignedStaffUserId || null);
   const [busy, setBusy] = useState(false);
+  const [activeBy, setActiveBy] = useState({});
   const lock = useRef(false);
 
   const load = useCallback(async () => {
     setError('');
     try { setStaff(await listAssignableStaff()); }
     catch (e) { setError(e?.message || 'Could not load employees'); }
+    try {
+      const list = await listShopBuyOrders();
+      const m = {};
+      (Array.isArray(list) ? list : []).forEach((x) => {
+        if (x?.assignedStaffUserId && ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY'].includes(x.status)) m[x.assignedStaffUserId] = (m[x.assignedStaffUserId] || 0) + 1;
+      });
+      setActiveBy(m);
+    } catch { /* availability is best-effort */ }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -61,6 +70,7 @@ export default function SellBuyAssignScreen({ navigation, route }) {
       {staff && !staff.length ? <EmptyBox icon={UserRound} title="No employees with a login" sub="Add an employee under Employees first." /> : null}
       {(staff || []).map((e) => {
         const on = chosen === e.userId;
+        const n = activeBy[e.userId] || 0;
         return (
           <Pressable key={e.userId} onPress={() => setChosen(e.userId)} accessibilityRole="radio" accessibilityState={{ selected: on }}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, borderWidth: on ? 1.5 : 1, borderColor: on ? C.green : C.border, backgroundColor: on ? C.greenBg : '#FFFFFF', marginBottom: 8 }}>
@@ -68,6 +78,7 @@ export default function SellBuyAssignScreen({ navigation, route }) {
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: C.text }}>{e.name}</Text>
               <Text style={{ fontSize: 11.5, color: C.green }}>{e.userId === o.assignedStaffUserId ? 'Currently assigned' : 'Shop employee'}</Text>
+              <Text style={{ alignSelf: 'flex-start', marginTop: 4, fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden', color: n ? C.amber : C.green, backgroundColor: n ? C.amberBg : C.greenBg }}>{n ? `Busy · ${n} active` : 'Available'}</Text>
             </View>
             {e.phone ? <Text style={{ fontSize: 11.5, color: C.muted }}>{e.phone}</Text> : null}
           </Pressable>

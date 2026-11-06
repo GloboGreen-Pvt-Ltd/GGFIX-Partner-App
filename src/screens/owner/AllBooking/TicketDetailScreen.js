@@ -472,11 +472,11 @@ export default function TicketDetailScreen({ route, navigation }) {
   // Update Status screen uses, exposed here as a light-themed bottom sheet. It
   // advances one lifecycle stage at a time, and only once the Service History
   // step before that stage is recorded (ADVANCE_STEP + stepBlockedBy).
-  const applyStatus = useCallback(async (nextStatus) => {
+  const applyStatus = useCallback(async (nextStatus, reason) => {
     if (!ticketId) return;
     setStatusBusy(nextStatus);
     try {
-      await ticketApi.patch(`/tickets/${ticketId}/status`, { query: { status: nextStatus } });
+      await ticketApi.patch(`/tickets/${ticketId}/status`, { query: { status: nextStatus, reason: reason || undefined } });
       setStatusOpen(false);
       const label = STATUS_VARIANT[nextStatus]?.label || nextStatus;
       notify('Status updated', `Booking moved to "${label}".`, { preset: 'done' });
@@ -498,8 +498,8 @@ export default function TicketDetailScreen({ route, navigation }) {
       confirmText: 'Cancel booking',
       destructive: true,
     });
-    if (ok) applyStatus('CANCELLED');
-  }, [applyStatus]);
+    if (ok) applyStatus('CANCELLED', rejectReason.trim());
+  }, [applyStatus, rejectReason]);
 
   // Update Status → Quality Check Completed, recorded by the shop (actor OWNER,
   // same progress event as History's QC button). The backend then moves the
@@ -1772,7 +1772,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   const isStep = !!STEP_OPTION_KEY[picked];
                   const isReject = picked === 'CUSTOMER_REJECTED';
                   const isInvoice = picked === 'INVOICE_GENERATED';
-                  const reasonOk = !isReject || rejectReason.trim().length >= 3;
+                  const reasonOk = !(isReject || isCancel) || rejectReason.trim().length >= 20;
                   const busy = statusBusy != null;
                   const canApply = !!picked && !busy && selectable(picked) && !blockerFor(picked) && reasonOk;
                   return (
@@ -1796,7 +1796,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                           return (
                             <Pressable
                               key={key}
-                              onPress={off ? undefined : () => setPickedStatus(key)}
+                              onPress={off ? undefined : () => { if (key !== picked) setRejectReason(''); setPickedStatus(key); }}
                               disabled={off}
                               accessibilityRole="radio"
                               accessibilityState={{ selected: on, disabled: off }}
@@ -1824,15 +1824,15 @@ export default function TicketDetailScreen({ route, navigation }) {
                         })}
                       </ScrollView>
 
-                      {isReject ? (
+                      {isReject || isCancel ? (
                         <View style={{ marginBottom: 10 }}>
                           <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
-                            Reason for rejection<Text style={{ color: '#F32C26' }}> *</Text>
+                            {isCancel ? 'Reason for cancellation' : 'Reason for rejection'}<Text style={{ color: '#F32C26' }}> *</Text>
                           </Text>
                           <TextInput
                             value={rejectReason}
                             onChangeText={setRejectReason}
-                            placeholder="e.g. Repair cost too high, customer will buy a new phone"
+                            placeholder={isCancel ? 'e.g. Customer did not turn up, parts unavailable' : 'e.g. Repair cost too high, customer will buy a new phone'}
                             placeholderTextColor="#9CA3AF"
                             multiline
                             maxLength={300}
@@ -1861,7 +1861,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                         {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
                           <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
                             {!pickedMeta ? 'Select a status'
-                              : isCancel ? 'Cancel Booking'
+                              : isCancel ? (reasonOk ? 'Cancel Booking' : 'Enter the cancellation reason')
                               : isReject ? (reasonOk ? 'Mark Customer Rejected' : 'Enter the rejection reason')
                               : isInvoice ? 'Generate Invoice'
                               : isStep ? `Mark ${pickedMeta.title}`

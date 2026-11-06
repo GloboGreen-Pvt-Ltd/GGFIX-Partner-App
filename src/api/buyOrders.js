@@ -20,7 +20,7 @@ export const BUY_ORDER_STATUS = {
 
 export const BUY_ORDER_TABS = [
   { key: 'NEW', label: 'New', statuses: ['PLACED'] },
-  { key: 'ACTIVE', label: 'In progress', statuses: ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'] },
+  { key: 'ACTIVE', label: 'Confirmed', statuses: ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'] },
   { key: 'DONE', label: 'Completed', statuses: ['DELIVERED', 'COMPLETED'] },
   { key: 'CLOSED', label: 'Closed', statuses: ['REJECTED', 'CANCELLED', 'RETURNED'] },
 ];
