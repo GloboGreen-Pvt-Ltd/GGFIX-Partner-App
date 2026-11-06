@@ -30,7 +30,7 @@ export const getShopBuyOrder = (id) => marketplaceApi.get(`/shop/buy-orders/${id
 
 // action: confirm | reject | assign | handover | return-received
 export const shopBuyOrderAction = (id, action, body = {}) =>
-  marketplaceApi.post(`/shop/buy-orders/${id}/${action}`, body);
+  marketplaceApi.post(`/shop/buy-orders/${id}/${action}`, { body });
 
 // Shop employees that can be assigned (server re-checks they belong to the shop).
 export async function listAssignableStaff() {

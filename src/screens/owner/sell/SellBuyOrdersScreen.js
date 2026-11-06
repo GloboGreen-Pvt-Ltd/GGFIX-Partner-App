@@ -1,9 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ShoppingBag, Store, Truck } from 'lucide-react-native';
-import { BUY_ORDER_STATUS, BUY_ORDER_TABS, listShopBuyOrders } from '../../../api/buyOrders';
-import { C, Card, EmptyBox, ErrorBox, SellScreen, StatusPill, Thumb, money } from './kit';
+import { BUY_ORDER_STATUS, BUY_ORDER_TABS, listShopBuyOrders, shopBuyOrderAction } from '../../../api/buyOrders';
+import { showToast } from '../../../components/Toast';
+import { C, Card, EmptyBox, ErrorBox, PrimaryButton, SellScreen, StatusPill, Thumb, money } from './kit';
 
 // Incoming fixed-price customer orders for this shop, grouped New / In progress /
 // Completed / Closed with live counts from the server.
@@ -12,6 +13,26 @@ export default function SellBuyOrdersScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState('NEW');
+  const [busyId, setBusyId] = useState(null);
+  const lock = useRef(false);
+
+  // Confirm straight from the list; home-delivery orders go on to Assign Pickup.
+  const confirmOrder = async (o) => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusyId(o.id);
+    try {
+      const d = await shopBuyOrderAction(o.id, 'confirm');
+      showToast({ type: 'success', title: 'Order confirmed', message: o.orderNumber });
+      await load();
+      if (d?.fulfilmentType === 'HOME_DELIVERY') navigation.navigate('SellBuyAssign', { order: d });
+    } catch (e) {
+      showToast({ type: 'error', title: 'Could not confirm', message: e?.message });
+    } finally {
+      lock.current = false;
+      setBusyId(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setError('');
@@ -70,8 +91,16 @@ export default function SellBuyOrdersScreen({ navigation }) {
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
                   {home ? <Truck size={14} color={C.muted} /> : <Store size={14} color={C.muted} />}
-                  <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>{home ? 'Home delivery' : 'Visit shop'}</Text>
+                  <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>{home ? 'Home Delivery' : 'Visit Shop'}</Text>
                   <StatusPill status={o.status} label={meta.label} />
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 8 }}>
+                  {o.status === 'PLACED' ? (
+                    <PrimaryButton small variant="green" title="Confirm" loading={busyId === o.id} disabled={!!busyId} onPress={() => confirmOrder(o)} />
+                  ) : home && ['CONFIRMED', 'DELIVERY_FAILED'].includes(o.status) ? (
+                    <PrimaryButton small variant="green" title="Assign" onPress={() => navigation.navigate('SellBuyAssign', { order: o })} />
+                  ) : null}
+                  <PrimaryButton small variant="outline" title="View" onPress={() => navigation.navigate('SellBuyOrderDetail', { id: o.id })} />
                 </View>
               </View>
             </View>
