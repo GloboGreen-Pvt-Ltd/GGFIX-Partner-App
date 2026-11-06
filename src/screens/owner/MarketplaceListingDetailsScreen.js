@@ -65,6 +65,7 @@ function SellHeader({ onBack }) {
 
 function statusMeta(rawStatus) {
   const s = String(rawStatus || '').toUpperCase();
+  if (s === 'RESERVED') return { label: 'Order in progress', icon: 'time-outline', bg: C.yellow, ink: C.yellowInk, tint: C.yellowTint };
   if (s === 'SOLD' || s === 'COMPLETED') return { label: 'Selling Completed', icon: 'checkmark', bg: C.green, ink: C.greenDark, tint: C.mint };
   if (s === 'CANCELLED' || s === 'CANCELED') return { label: 'Cancelled', icon: 'close', bg: C.red, ink: C.red, tint: C.redTint };
   return { label: 'Selling – Pending', icon: 'time-outline', bg: C.yellow, ink: C.yellowInk, tint: C.yellowTint };

@@ -419,7 +419,6 @@ export default function OwnerBuyHomeScreen({ navigation }) {
           <>
             <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
             <View style={{ width: 6 }} />
-            <HeaderIconButton icon={ShoppingCart} label="Cart" onPress={() => navigation.navigate('OwnerCart')} badge={cartCount} badgeColor="#F59E0B" badgeText={INK} />
           </>
         )}
       >
@@ -582,6 +581,9 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                   : buys[String(it.id)] ? purchaseHero(buys[String(it.id)]).title
                     : QUOTE_TAG[String(quotes[String(it.id)]?.quotationStatus || '').toUpperCase()] || 'For Customer'}
                 onPress={() => openItem(it)}
+                navigation={it.sellerType === 'CUSTOMER' ? navigation : undefined}
+                quoteStatus={quotes[String(it.id)]?.quotationStatus}
+                purchase={buys[String(it.id)]}
               />
             ))}
             {!loading && !feed.length ? (

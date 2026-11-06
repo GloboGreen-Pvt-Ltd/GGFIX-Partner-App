@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Check, ClipboardCheck, House, MapPin, PackageCheck, Phone, Store, UserPlus } from 'lucide-react-native';
+import { CalendarClock, Check, ClipboardCheck, House, MapPin, PackageCheck, Phone, Store, UserPlus } from 'lucide-react-native';
+import { scheduleShopPurchase } from '../../../api/orders';
+import { showToast } from '../../../components/Toast';
+import ScheduleSheet from './ScheduleSheet';
 import { getListingOrigin } from '../../../api/nearbyListings';
 import { rf } from '../../../utils/responsive';
 import { C, ErrorBox, PrimaryButton } from '../sell/kit';
@@ -89,6 +92,7 @@ export default function BuyPickupTrackingScreen({ navigation, route }) {
   const o = p.o;
   const leadRef = route?.params?.leadRef;
   const [shop, setShop] = useState(null);
+  const [sheet, setSheet] = useState(false);
 
   useEffect(() => { getListingOrigin().then((g) => setShop(g?.lat != null ? { lat: g.lat, lng: g.lng } : null)).catch(() => {}); }, []);
   const { load } = p;
@@ -110,12 +114,30 @@ export default function BuyPickupTrackingScreen({ navigation, route }) {
   const acts = o?.allowedActions || [];
 
   const reassign = () => navigation.navigate('BuyAssignPickup', { id: o.id, leadRef });
+  // Server decides: SCHEDULE only before the journey starts, ASSIGN while the pickup can still change hands.
+  const canAssign = acts.includes('ASSIGN');
+  const canSchedule = acts.includes('SCHEDULE');
+  const reschedule = async (slot) => {
+    try {
+      await scheduleShopPurchase(o.id, slot);
+      setSheet(false);
+      await load();
+      showToast({ type: 'success', title: 'Pickup rescheduled', message: 'The customer has been notified.' });
+    } catch (e) {
+      showToast({ type: 'error', title: 'Could not reschedule', message: e?.message });
+    }
+  };
 
   const footer = !o ? null : (
     <View style={{ gap: 10 }}>
       {o.pickupInspection ? <PrimaryButton title="Review Inspection" icon={ClipboardCheck} variant={status === 'PICKED_UP' ? 'outline' : 'primary'} onPress={() => navigation.navigate('BuyInspectionReview', { id: o.id, order: o, leadRef })} /> : null}
       {status === 'PICKED_UP' ? <PrimaryButton title="Verify Shop Handover" icon={PackageCheck} onPress={() => navigation.navigate('BuyHandover', { id: o.id, order: o, leadRef })} /> : null}
-      {acts.includes('ASSIGN') ? <PrimaryButton title="Reassign Employee" icon={UserPlus} variant="outline" onPress={reassign} /> : null}
+      {canAssign || canSchedule ? (
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {canAssign ? <PrimaryButton title="Reassign Employee" icon={UserPlus} variant="outline" style={{ flex: 1 }} onPress={reassign} /> : null}
+          {canSchedule ? <PrimaryButton title="Reschedule" icon={CalendarClock} variant="outline" style={{ flex: 1 }} onPress={() => setSheet(true)} /> : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -147,6 +169,16 @@ export default function BuyPickupTrackingScreen({ navigation, route }) {
 
           <RouteCard from={customer} to={shop} address={o.address?.line} />
         </>
+      ) : null}
+      {o ? (
+        <ScheduleSheet
+          visible={sheet}
+          title="Reschedule Pickup"
+          initialDate={o.pickupDate}
+          initialStart={o.pickupSlotStart}
+          onClose={() => setSheet(false)}
+          onSubmit={reschedule}
+        />
       ) : null}
     </PurchasePage>
   );

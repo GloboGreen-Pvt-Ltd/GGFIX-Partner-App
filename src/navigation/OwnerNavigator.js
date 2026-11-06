@@ -95,6 +95,9 @@ import SellStepPhotosScreen from '../screens/owner/sell/SellStepPhotosScreen';
 import SellStepPriceScreen from '../screens/owner/sell/SellStepPriceScreen';
 import SellListingSuccessScreen from '../screens/owner/sell/SellListingSuccessScreen';
 import SellMyListingsScreen from '../screens/owner/sell/SellMyListingsScreen';
+import SellBuyOrdersScreen from '../screens/owner/sell/SellBuyOrdersScreen';
+import SellBuyOrderDetailScreen from '../screens/owner/sell/SellBuyOrderDetailScreen';
+import SellBuyAssignScreen from '../screens/owner/sell/SellBuyAssignScreen';
 import SellEnquiriesScreen from '../screens/owner/sell/SellEnquiriesScreen';
 import SellEnquiryDetailScreen from '../screens/owner/sell/SellEnquiryDetailScreen';
 import BulkTypeScreen from '../screens/owner/sell/bulk/BulkTypeScreen';
@@ -649,6 +652,9 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SellStepPrice" component={SellStepPriceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellListingSuccess" component={SellListingSuccessScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellMyListings" component={SellMyListingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SellBuyOrders" component={SellBuyOrdersScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SellBuyOrderDetail" component={SellBuyOrderDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SellBuyAssign" component={SellBuyAssignScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellEnquiries" component={SellEnquiriesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellEnquiryDetail" component={SellEnquiryDetailScreen} options={{ headerShown: false }} />
       {/* Bulk listing: type → template → items → photos → pricing → review → status. */}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowRight, Check, ChevronRight, CircleCheck, Clock, Lock, Navigation, Send, Store, Truck, XCircle } from 'lucide-react-native';
 import { getListingOrigin, listingConditionLabel } from '../../../api/nearbyListings';
@@ -23,8 +23,63 @@ import { purchaseHero } from './PurchaseWorkflow';
 
 const drafts = new Map(); // lead id → { amount, fulfil }
 
+// Every image the lead carries (cover first, no duplicates).
+const leadImages = (l) => {
+  const extra = [l.images, l.imageUrls, l.extraImageUrls, l.photos].flatMap((v) => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string' && v.trim().startsWith('[')) { try { return JSON.parse(v); } catch { return []; } }
+    return [];
+  });
+  return [...new Set([l.productImage, ...extra].map((u) => (typeof u === 'string' ? u : u?.url)).filter((u) => typeof u === 'string' && /^https?:/.test(u)))];
+};
+
+// Auto-advancing image strip: swipe any time; a touch pauses it for a few
+// seconds; the timer stops when the screen loses focus or unmounts.
+function ImageCarousel({ images, size }) {
+  const ref = useRef(null);
+  const [index, setIndex] = useState(0);
+  const pausedUntil = useRef(0);
+  const idx = useRef(0);
+  useFocusEffect(useCallback(() => {
+    if (images.length < 2) return undefined;
+    const t = setInterval(() => {
+      if (Date.now() < pausedUntil.current) return;
+      idx.current = (idx.current + 1) % images.length;
+      ref.current?.scrollTo({ x: idx.current * size, animated: true });
+      setIndex(idx.current);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [images.length, size]));
+  const pause = () => { pausedUntil.current = Date.now() + 5000; };
+  if (!images.length) {
+    return <Thumb uri={null} size={Math.min(size, 240)} radius={16} style={{ alignSelf: 'center', marginTop: 6 }} />;
+  }
+  return (
+    <View style={{ marginTop: 6, borderRadius: 16, overflow: 'hidden', backgroundColor: '#F6F7F9' }}>
+      <ScrollView
+        ref={ref}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScrollBeginDrag={pause}
+        onTouchStart={pause}
+        onMomentumScrollEnd={(e) => { idx.current = Math.round(e.nativeEvent.contentOffset.x / size); setIndex(idx.current); pause(); }}
+      >
+        {images.map((u) => <Image key={u} source={{ uri: u }} style={{ width: size, height: Math.min(size, 240) }} resizeMode="contain" accessibilityIgnoresInvertColors />)}
+      </ScrollView>
+      {images.length > 1 ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, paddingVertical: 6 }}>
+          {images.map((u, i) => <View key={u} style={{ height: 6, width: i === index ? 14 : 6, borderRadius: 3, backgroundColor: i === index ? C.green : '#D1D5DB' }} />)}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function BuyLeadDetailScreen({ navigation, route }) {
   const l = route?.params?.lead || {};
+  // 'detail' = Product Detail (read only); otherwise Product Quotation (quote form).
+  const mode = route?.params?.mode === 'detail' ? 'detail' : 'quote';
   const { width } = useWindowDimensions();
   const saved = drafts.get(l.id) || { amount: '', fulfil: 'PICKUP' };
   const [amount, setAmountState] = useState(saved.amount);
@@ -85,7 +140,8 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
   const edited = sentOpen && (Number(amount) !== Number(q.quotationPrice)
     || fulfil !== (/visit the shop/i.test(q.note || '') ? 'SHOP_VISIT' : 'PICKUP'));
 
-  const submit = async () => {
+  // which: 'quote' (price button) | 'fulfil' (fulfilment button) — same API, own spinner.
+  const submit = async (which = 'quote') => {
     const v = Number(amount);
     if (!(v > 0)) {
       setError({ message: 'Enter your buying price' });
@@ -94,7 +150,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
     }
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
+    setBusy(which);
     setError(null);
     try {
       const res = await submitLeadQuote({ listingId: l.id, quotationPrice: v, fulfilment: fulfil });
@@ -177,30 +233,17 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
 
   return (
     <SellScreen
-      title="Lead Details"
-      subtitle={accepted ? 'Quote accepted' : 'Review & send your quote'}
+      title={mode === 'detail' ? 'Product Detail' : 'Product Quotation'}
+      subtitle={mode === 'detail' ? 'Lead information' : accepted ? 'Quote accepted' : 'Send or revise your quote'}
       onBack={() => navigation.goBack()}
       right={<BellButton navigation={navigation} />}
-      footer={accepted ? (
-        <PrimaryButton
-          title={visit ? 'Manage Shop Visit' : 'Manage Pickup'}
-          icon={visit ? Store : Truck}
-          onPress={manage}
-          disabled={!orderId}
-        />
-      ) : (
-        <PrimaryButton
-          title={sentOpen ? 'Continue' : 'Submit Quote'}
-          icon={sentOpen ? ArrowRight : Send}
-          onPress={sentOpen && !edited ? () => openQuote(mine) : submit}
-          loading={busy}
-          disabled={!canSubmit || busy}
-        />
-      )}
     >
-      <View style={{ alignItems: 'center', backgroundColor: '#F6F7F9', borderRadius: 16, marginTop: 6, overflow: 'hidden' }}>
-        <Thumb uri={l.productImage} size={Math.min(imgSize, 280)} radius={0} style={{ backgroundColor: '#F6F7F9' }} />
-      </View>
+      {mode === 'detail' ? <ImageCarousel images={leadImages(l)} size={imgSize} /> : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+          <Thumb uri={l.productImage} size={56} radius={10} />
+          <Text numberOfLines={2} style={{ flex: 1, marginLeft: 10, fontSize: rf(12), color: C.muted }}>Quote a fixed buying price and how you will collect the device.</Text>
+        </View>
+      )}
       <Text style={{ fontSize: rf(17), fontWeight: '800', color: C.text, marginTop: 12 }}>{l.productName || 'Device'}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
         <Text style={{ flex: 1, fontSize: rf(13), color: C.text }}>
@@ -223,6 +266,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
         </View>
       ) : null}
 
+      {mode === 'detail' ? (
       <Section title="Device Details">
         <Card>
           <InfoRow label="Condition" value={l.condition ? listingConditionLabel(l.condition) : null} />
@@ -232,6 +276,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
         </Card>
         {hasGeo ? <PrimaryButton title="Directions" icon={Navigation} variant="soft" small onPress={openMaps} style={{ marginTop: 10, alignSelf: 'flex-start' }} /> : null}
       </Section>
+      ) : null}
 
       {accepted ? (
         <Section title="Accepted Quote">
@@ -269,12 +314,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
                     <Text style={{ fontSize: rf(13), fontWeight: '800', color: st.done || now ? C.text : C.muted }}>{st.label}</Text>
                     {st.sub ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 1 }}>{st.sub}</Text> : null}
                   </View>
-                  {now ? (
-                    <>
-                      <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.teal }}>Next</Text>
-                      <ChevronRight size={16} color={C.teal} />
-                    </>
-                  ) : st.done ? <Text style={{ fontSize: rf(11), fontWeight: '700', color: C.green }}>Done</Text> : null}
+                  {st.done ? <Text style={{ fontSize: rf(11), fontWeight: '700', color: C.green }}>Done</Text> : null}
                 </Pressable>
               );
             })}
@@ -284,6 +324,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
 
       {loading ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} /> : null}
 
+      {mode === 'quote' ? (<>
       {accepted ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 18 }}>
           <Lock size={14} color={C.muted} />
@@ -303,8 +344,19 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
         editable={canSubmit}
         style={{ marginTop: accepted ? 8 : 18 }}
       />
+      {!accepted ? (
+        <PrimaryButton
+          title={sentOpen ? 'Update Quotation' : 'Submit Quotation'}
+          icon={Send}
+          small
+          onPress={() => submit('quote')}
+          loading={busy === 'quote'}
+          disabled={!canSubmit || !!busy || (sentOpen && !edited)}
+          style={{ marginTop: 10 }}
+        />
+      ) : null}
 
-      <Section title="Fulfillment">
+      <Section title="Order Fulfillment">
         {picked || (q && !canSubmit) ? (
           // Chosen: just the selected method as text.
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -324,6 +376,25 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
           </>
         )}
       </Section>
+
+      {accepted ? (
+        <PrimaryButton title={visit ? 'Open Shop Visit' : 'Open Pickup'} icon={visit ? Store : Truck} onPress={manage} disabled={!orderId} style={{ marginTop: 16 }} />
+      ) : (
+        <>
+          <PrimaryButton
+            title="Submit Fulfillment"
+            icon={Send}
+            onPress={() => submit('fulfil')}
+            loading={busy === 'fulfil'}
+            disabled={!canSubmit || !!busy || (sentOpen && !edited) || !picked}
+            style={{ marginTop: 16 }}
+          />
+          {sentOpen ? (
+            <PrimaryButton title="View Quotation Status" icon={ArrowRight} variant="outline" small onPress={() => openQuote(mine)} style={{ marginTop: 8 }} />
+          ) : null}
+        </>
+      )}
+      </>) : null}
 
       {blocked ? <ErrorBox tone="warning" message={loadError.message} style={{ marginTop: 16 }} /> : null}
       {loadError && !blocked ? <ErrorBox message={loadError.message || 'Could not load your quote.'} onRetry={() => { setLoading(true); load(); }} style={{ marginTop: 16 }} /> : null}

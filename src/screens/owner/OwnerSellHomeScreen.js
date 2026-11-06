@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -22,7 +22,9 @@ import {
   LayoutGrid,
   Package,
   EllipsisVertical,
+  ShoppingBag,
 } from 'lucide-react-native';
+import { listShopBuyOrders } from '../../api/buyOrders';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { EmptyState, Loader } from '../../components/rnr';
@@ -155,6 +157,19 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const shopId = useSelector(selectShopId);
   const userId = useSelector(selectUserId);
   const [listings, setListings] = useState([]);
+  // Customer buy orders: New = waiting for your confirmation; Active = in delivery.
+  const [orderCounts, setOrderCounts] = useState(null);
+  useFocusEffect(useCallback(() => {
+    listShopBuyOrders()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setOrderCounts({
+          fresh: list.filter((o) => o.status === 'PLACED').length,
+          active: list.filter((o) => ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status)).length,
+        });
+      })
+      .catch(() => setOrderCounts(null));
+  }, []));
 
   // useFocusEffect, not useEffect: coming back from the listing flow has to show
   // the device that was just published.
@@ -296,14 +311,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   <Text className="font-extrabold" style={{ fontSize: 17, color: TEXT_PRIMARY }} numberOfLines={1}>Sell on NearGFix</Text>
                   <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }} numberOfLines={1}>List your device. Reach verified buyers nearby.</Text>
                 </View>
-                <Pressable
-                  onPress={() => navigation.navigate('MarketplaceOrders')}
-                  hitSlop={8}
-                  className="items-center justify-center"
-                  style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: SOFT_MINT, borderWidth: 1, borderColor: BORDER }}
-                >
-                  <FileText size={17} color={ACCENT} />
-                </Pressable>
+                <View style={{ width: 36 }} />
               </View>
             </View>
           </View>
@@ -402,9 +410,9 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                           banner (its headline sits at the left edge) is cut. */}
                       <Pressable onPress={startSelling} className="rounded-3xl overflow-hidden active:opacity-95" style={{ borderWidth: 1, borderColor: BORDER, backgroundColor: CARD_BG, ...cardShadow }}>
                         {uri ? (
-                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: heroRatio }} resizeMode="contain" />
+                          <Image source={{ uri }} style={{ width: '100%', aspectRatio: Math.max(heroRatio, 2.9) }} resizeMode="contain" />
                         ) : (
-                          <View style={{ width: '100%', aspectRatio: heroRatio, backgroundColor: MINT }} />
+                          <View style={{ width: '100%', aspectRatio: Math.max(heroRatio, 2.9), backgroundColor: MINT }} />
                         )}
                       </Pressable>
                     </View>
@@ -515,7 +523,27 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
             })}
           </View>
 
-          {/* ── Your listed products ─────────────────────────────
+          {/* ── Customer Orders ── */}
+          <Pressable
+            onPress={() => navigation.navigate('SellBuyOrders')}
+            accessibilityRole="button"
+            accessibilityLabel="Customer orders"
+            className="flex-row items-center active:opacity-90"
+            style={{ marginHorizontal: padH, marginTop: 14, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: orderCounts?.fresh ? '#01AC77' : BORDER, backgroundColor: orderCounts?.fresh ? '#E6F7F0' : CARD_BG }}
+          >
+            <View className="items-center justify-center" style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: '#FFFFFF' }}>
+              <ShoppingBag size={19} color="#01AC77" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }}>Customer Orders</Text>
+              <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 1 }}>
+                {orderCounts ? `${orderCounts.fresh} new to confirm · ${orderCounts.active} in progress` : 'Confirm orders and assign pickup'}
+              </Text>
+            </View>
+            <ChevronRight size={18} color={ACCENT} />
+          </Pressable>
+
+          {/* ── Recent Listings ─────────────────────────────
               Hidden entirely when there is nothing listed: an empty card
               here would push the categories up the screen for a shop that
               has never sold anything. */}
@@ -535,7 +563,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                 </Pressable>
               </View>
 
-              {/* Compact grid — 3 across on phones, 4 on tablets — wrapping
+              {/* Compact grid — 2 across on phones, 3 on tablets — wrapping
                   flex rather than FlatList's numColumns: this list is capped
                   at 4 items and already lives inside the page's own
                   ScrollView, so a second scrollable list isn't needed here. */}
@@ -547,7 +575,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   const sold = status === 'SOLD' || status === 'COMPLETED';
                   const cancelled = status === 'CANCELLED' || status === 'CANCELED';
                   const pill = sold
-                    ? { label: 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
+                    ? { label: status === 'SOLD' ? 'Out of stock' : 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
                     : cancelled
                       ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
                       : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: PRIMARY, bg: MINT };
@@ -558,7 +586,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                     ? specDisplayParts(p).join(' / ')
                     : [p.storageLabel, p.ramLabel].filter(Boolean).join(' / ');
                   return (
-                    <View key={p.id} style={{ width: isTablet ? '25%' : '33.333%', paddingHorizontal: 4, marginBottom: 8 }}>
+                    <View key={p.id} style={{ width: isTablet ? '33.333%' : '50%', paddingHorizontal: 4, marginBottom: 8 }}>
                       <Pressable
                         onPress={() => navigation.navigate('MarketplaceOrders')}
                         className="active:opacity-90"
@@ -570,7 +598,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                         <View style={{ position: 'relative' }}>
                           <View
                             className="items-center justify-center"
-                            style={{ width: '100%', aspectRatio: 1.15, borderRadius: 10, backgroundColor: CARD_BG, overflow: 'hidden' }}
+                            style={{ width: '100%', aspectRatio: 1.7, borderRadius: 10, backgroundColor: CARD_BG, overflow: 'hidden' }}
                           >
                             {img ? (
                               <DeviceImage url={p.imageUrl} style={{ width: '86%', height: '86%' }} contentFit="contain" />

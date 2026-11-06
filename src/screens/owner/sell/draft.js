@@ -135,7 +135,10 @@ export function emptyListingDraft(listingType = LISTING_TYPES.DEVICE) {
       price: '',
       negotiable: false,
       quantity: 1,
-      fulfilment: ['PICKUP'],
+      fulfilment: [],       // server PICKUP / SHIPPING, derived from fulfilmentKeys
+      buyerType: null,      // CUSTOMER | SHOP — chosen first, nothing preselected
+      fulfilmentKeys: [],   // HOME | VISIT (customer) · SHOP | COURIER (shop)
+      deliveryRadiusKm: '', // required with HOME
       publishMode: 'PUBLISH', // PUBLISH | DRAFT
     },
   };
@@ -233,6 +236,8 @@ export function draftToFields(d) {
       warranty: c.warrantyType,
       warrantyValidTill: c.warrantyValidTill || null,
       descriptionMode: c.descriptionMode,
+      // Buyer type + exact options + radius: the server stores only PICKUP / SHIPPING.
+      sellFulfilment: { buyerType: pr.buyerType || null, options: pr.fulfilmentKeys || [], deliveryRadiusKm: Number(pr.deliveryRadiusKm) || null },
     },
   };
 }
@@ -297,6 +302,9 @@ export function draftFromProduct(prod) {
       negotiable: !!prod.negotiable,
       quantity: prod.quantity || 1,
       fulfilment: Array.isArray(prod.fulfilmentOptions) && prod.fulfilmentOptions.length ? prod.fulfilmentOptions : ['PICKUP'],
+      buyerType: a.sellFulfilment?.buyerType || null,
+      fulfilmentKeys: Array.isArray(a.sellFulfilment?.options) ? a.sellFulfilment.options : [],
+      deliveryRadiusKm: a.sellFulfilment?.deliveryRadiusKm ? String(a.sellFulfilment.deliveryRadiusKm) : '',
       publishMode: prod._status === 'DRAFT' ? 'DRAFT' : 'PUBLISH',
     },
   };

@@ -17,7 +17,22 @@ const WORKING = [
   { value: 'DEAD', label: 'Dead', sub: 'Not working / for parts', icon: Power },
   { value: 'UNVERIFIED', label: 'Unverified', sub: 'Not tested yet', icon: CircleHelp },
 ];
-const ACCESSORIES = ['Original Box', 'Charging Cable', 'Adapter', 'Earphones', 'Bill / Invoice'];
+// Per device family (no Earphones — rarely boxed any more).
+const ACCESSORY_SETS = {
+  mobile: ['Original Box', 'Charging Cable', 'Adapter', 'Bill / Invoice'],
+  laptop: ['Original Box', 'Charger', 'Laptop Bag', 'Bill / Invoice'],
+  tablet: ['Original Box', 'Charging Cable', 'Adapter', 'Stylus / Pen', 'Bill / Invoice'],
+  watch: ['Original Box', 'Charging Cable', 'Extra Strap', 'Bill / Invoice'],
+  audio: ['Original Box', 'Charging Case', 'Charging Cable', 'Bill / Invoice'],
+};
+const familyOf = (p) => {
+  const t = `${p?.categoryCode || ''} ${p?.categoryName || ''}`.toLowerCase();
+  if (/laptop|notebook|macbook/.test(t)) return 'laptop';
+  if (/tab|ipad/.test(t)) return 'tablet';
+  if (/watch/.test(t)) return 'watch';
+  if (/audio|ear|head|bud|speaker/.test(t)) return 'audio';
+  return 'mobile';
+};
 const ITEM_CONDITIONS = [
   { value: 'NEW', label: 'New' },
   { value: 'USED', label: 'Used' },
@@ -148,16 +163,25 @@ export default function SellStepConditionScreen({ navigation }) {
   const limit = DESC_LIMIT[c.descriptionMode] || 500;
   const needsWorking = !isAccessory;
   const showDefects = isDevice && issues.length > 0;
+  const family = familyOf(product);
+  const isMobile = family === 'mobile';
+  const ACCESSORIES = ACCESSORY_SETS[family];
+  // Description only for devices that are Dead / Unverified (accessories & parts keep it).
+  const showDescription = !needsWorking || c.working === 'DEAD' || c.working === 'UNVERIFIED';
+  // A Working device must carry its IMEI (phones) or serial number (others).
+  const idRequired = isDevice && c.working === 'WORKING';
 
   const validate = () => {
     const e = {};
     if (isDevice && !product.itemCondition) e.itemCondition = 'Select the condition type';
     const imei = String(product.imei || '').replace(/\s/g, '');
-    if (isDevice && imei && !/^\d{15}$/.test(imei)) e.imei = 'IMEI must be 15 digits';
+    if (idRequired && !imei) e.imei = isMobile ? 'Enter the 15-digit IMEI' : 'Enter the serial number';
+    else if (isDevice && imei && isMobile && !/^\d{15}$/.test(imei)) e.imei = 'IMEI must be 15 digits';
+    else if (isDevice && imei && !isMobile && !/^[A-Za-z0-9-]{4,30}$/.test(imei)) e.imei = 'Serial number: 4-30 letters or digits';
     if (needsWorking && !c.working) e.working = 'Select the item condition';
     const len = c.description.trim().length;
-    if (len < DESC_MIN[c.descriptionMode]) e.description = `Write at least ${DESC_MIN[c.descriptionMode]} characters`;
-    if (len > limit) e.description = `Keep it under ${limit} characters`;
+    if (showDescription && len < DESC_MIN[c.descriptionMode]) e.description = `Write at least ${DESC_MIN[c.descriptionMode]} characters`;
+    if (showDescription && len > limit) e.description = `Keep it under ${limit} characters`;
     if (isDevice && c.working === 'DEAD' && showDefects && !c.issues.length && !c.missingParts.trim()) {
       e.issues = 'Tell buyers what is not working';
     }
@@ -213,18 +237,20 @@ export default function SellStepConditionScreen({ navigation }) {
           <Segmented options={ITEM_CONDITIONS} value={product.itemCondition} onChange={(v) => { setProduct({ itemCondition: v }); setErrors((e) => ({ ...e, itemCondition: null })); }} />
           {errors.itemCondition ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.itemCondition}</Text> : null}
           <TextField
-            label="IMEI / Serial"
-            hint="(Optional)"
+            label={isMobile ? 'IMEI Number' : 'Serial Number'}
+            required={idRequired}
+            hint={idRequired ? undefined : '(Optional)'}
             value={product.imei}
-            onChangeText={(t) => { setProduct({ imei: t.replace(/[^0-9]/g, '') }); setErrors((e) => ({ ...e, imei: null })); }}
-            placeholder="15-digit IMEI"
-            keyboardType="number-pad"
-            maxLength={15}
+            onChangeText={(t) => { setProduct({ imei: isMobile ? t.replace(/[^0-9]/g, '') : t.replace(/[^A-Za-z0-9-]/g, '').toUpperCase() }); setErrors((e) => ({ ...e, imei: null })); }}
+            placeholder={isMobile ? '15-digit IMEI (dial *#06#)' : 'Serial number on the device label'}
+            keyboardType={isMobile ? 'number-pad' : 'default'}
+            maxLength={isMobile ? 15 : 30}
             error={errors.imei}
           />
         </View>
       ) : null}
 
+      {showDescription ? (
       <View style={{ marginTop: 16 }}>
         <FieldLabel label="Description" required />
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -257,27 +283,6 @@ export default function SellStepConditionScreen({ navigation }) {
           style={{ marginTop: 8 }}
         />
       </View>
-
-      {showDefects ? (
-        <Section
-          title={c.working === 'DEAD' ? "What's not working?" : 'Functional or Physical Problems'}
-          sub="Choose every problem the device has — buyers see these on the listing"
-        >
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
-            {issues.map((name) => (
-              <ArtCard
-                key={name}
-                label={name}
-                kind={artFor(name)}
-                width={cardW}
-                danger
-                on={c.issues.includes(name)}
-                onPress={() => { toggleIn('issues', name); setErrors((e) => ({ ...e, issues: null })); }}
-              />
-            ))}
-          </View>
-          {errors.issues ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 6 }}>{errors.issues}</Text> : null}
-        </Section>
       ) : null}
 
       {isDevice && questions.length ? (
@@ -314,6 +319,28 @@ export default function SellStepConditionScreen({ navigation }) {
             </View>
           ))}
           {errors.physical ? <Text style={{ fontSize: rf(11), color: C.red }}>{errors.physical}</Text> : null}
+        </Section>
+      ) : null}
+
+      {showDefects ? (
+        <Section
+          title={c.working === 'DEAD' ? "What's not working?" : 'Functional or Physical Problems'}
+          sub="Choose every problem the device has — buyers see these on the listing"
+        >
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
+            {issues.map((name) => (
+              <ArtCard
+                key={name}
+                label={name}
+                kind={artFor(name)}
+                width={cardW}
+                danger
+                on={c.issues.includes(name)}
+                onPress={() => { toggleIn('issues', name); setErrors((e) => ({ ...e, issues: null })); }}
+              />
+            ))}
+          </View>
+          {errors.issues ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 6 }}>{errors.issues}</Text> : null}
         </Section>
       ) : null}
 

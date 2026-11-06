@@ -1,8 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowRight, MapPin } from 'lucide-react-native';
+import { Eye, FileText, MapPin, Truck } from 'lucide-react-native';
 import { fetchNearbyListings, getListingOrigin, listingConditionLabel } from '../../../api/nearbyListings';
+import { getMyLeadQuote, listMyLeadQuotes, listShopPurchases } from '../../../api/orders';
+import { showToast } from '../../../components/Toast';
 import { rf } from '../../../utils/responsive';
 import { C, EmptyBox, ErrorBox, SearchInput, SellScreen, TabPills, Thumb, money } from '../sell/kit';
 import { BellButton } from './buyKit';
@@ -36,40 +38,84 @@ export const leadDistance = (l, origin) => {
   return `${d < 10 ? d.toFixed(1) : Math.round(d)} km away`;
 };
 
-export function LeadCard({ l, onPress, tag }) {
+function ActionIcon({ Icon, label, text, onPress, disabled }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={disabled ? 'Available after the customer accepts your quote' : undefined}
+      accessibilityState={{ disabled: !!disabled }}
+      className="active:opacity-70"
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 32, borderRadius: 10, backgroundColor: disabled ? '#F3F4F6' : C.greenBg, opacity: disabled ? 0.55 : 1 }}
+    >
+      <Icon size={14} color={disabled ? C.faint : C.green} />
+      <Text numberOfLines={1} style={{ marginLeft: 4, fontSize: rf(11), fontWeight: '800', color: disabled ? C.faint : C.green }}>{text}</Text>
+    </Pressable>
+  );
+}
+
+// Lead row. With `navigation`, the right side carries View · Quotation · Pickup ·
+// Track. Pickup and Track unlock only once the server reports the quote
+// ACCEPTED (or a purchase exists for the lead).
+export function LeadCard({ l, onPress, tag, navigation, quoteStatus, purchase }) {
   const price = leadPrice(l);
   const dist = leadDistance(l);
+  const customer = l?.sellerType === 'CUSTOMER' || !l?.sellerType;
+  const accepted = !!purchase || String(quoteStatus || '').toUpperCase() === 'ACCEPTED';
+  const view = () => (navigation ? navigation.navigate('BuyLeadDetail', { lead: l, mode: 'detail' }) : onPress?.());
+  const track = async () => {
+    try {
+      const id = purchase?.id || (await getMyLeadQuote(l.id))?.purchaseOrderId;
+      if (!id) { showToast({ type: 'info', title: 'No pickup yet', message: 'Tracking starts once the purchase is created.' }); return; }
+      navigation.navigate('BuyPickupTracking', { id, order: purchase || undefined, leadRef: purchase?.orderNumber || '' });
+    } catch (e) {
+      showToast({ type: 'error', title: 'Could not open tracking', message: e?.message });
+    }
+  };
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={l.productName || 'Device'} className="active:opacity-90" style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 10 }}>
-      <Thumb uri={l.productImage} size={72} radius={10} />
-      <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+    <Pressable onPress={onPress || view} accessibilityRole="button" accessibilityLabel={l.productName || 'Device'} className="active:opacity-90" style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Thumb uri={l.productImage} size={60} radius={10} />
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
         {tag ? (
-          <View style={{ alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: C.mint, marginBottom: 4 }}>
-            <Text style={{ fontSize: rf(10), fontWeight: '800', color: C.teal }}>{tag}</Text>
+          <View style={{ alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: C.mint, marginBottom: 3 }}>
+            <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: C.teal }} numberOfLines={1}>{tag}</Text>
           </View>
         ) : null}
-        <Text numberOfLines={1} style={{ fontSize: rf(13.5), fontWeight: '800', color: C.text }}>{l.productName || 'Device'}</Text>
-        <Text style={{ fontSize: rf(12), color: C.text, marginTop: 4 }}>
-          Exp. Price: <Text style={{ fontWeight: '800', color: price ? C.teal : C.amber }}>{price || 'Open for quotation'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text }}>{l.productName || 'Device'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(11.5), color: C.text, marginTop: 2 }}>
+          Exp: <Text style={{ fontWeight: '800', color: price ? C.teal : C.amber }}>{price || 'Open for quote'}</Text>
         </Text>
-        {l.condition ? (
-          <View style={{ alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: C.greenBg, marginTop: 6 }}>
-            <Text style={{ fontSize: rf(10), fontWeight: '800', color: '#0B6B4B' }}>{listingConditionLabel(l.condition)}</Text>
-          </View>
-        ) : null}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-          {dist ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-              <MapPin size={12} color={C.muted} />
-              <Text style={{ fontSize: rf(11), color: C.muted, marginLeft: 3 }}>{dist}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+          {l.condition ? (
+            <View style={{ borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: C.greenBg, marginRight: 6 }}>
+              <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: '#0B6B4B' }}>{listingConditionLabel(l.condition)}</Text>
             </View>
-          ) : <View style={{ flex: 1 }} />}
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.mint, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-            <Text style={{ fontSize: rf(11), fontWeight: '800', color: C.teal, marginRight: 4 }}>View Details</Text>
-            <ArrowRight size={12} color={C.teal} />
-          </View>
+          ) : null}
+          {dist ? (
+            <>
+              <MapPin size={11} color={C.muted} />
+              <Text numberOfLines={1} style={{ fontSize: rf(10.5), color: C.muted, marginLeft: 2, flexShrink: 1 }}>{dist}</Text>
+            </>
+          ) : null}
         </View>
       </View>
+      </View>
+      {navigation ? (
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+          <ActionIcon Icon={Eye} text="View" label="View product detail" onPress={view} />
+          {customer ? (
+            <>
+              <ActionIcon Icon={FileText} text="Quote" label="Product quotation" onPress={() => navigation.navigate('BuyLeadDetail', { lead: l, mode: 'quote' })} />
+              <ActionIcon Icon={Truck} text="Pickup" label="Pickup" disabled={!accepted} onPress={() => navigation.navigate('BuyLeadQuote', { lead: l })} />
+              <ActionIcon Icon={MapPin} text="Track" label="Track pickup" disabled={!accepted} onPress={track} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -81,12 +127,17 @@ export default function BuyLeadsScreen({ navigation }) {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('ALL');
   const [q, setQ] = useState('');
+  const [quotes, setQuotes] = useState({}); // listingId → my quote row (quotationStatus)
+  const [buys, setBuys] = useState({}); // listingId → purchase (exists once accepted)
 
   const load = useCallback(async () => {
     try {
       const origin = await getListingOrigin();
       const list = await fetchNearbyListings(origin);
       setRows(list.filter((l) => l?.sellerType === 'CUSTOMER'));
+      const byListing = (rows) => Object.fromEntries((rows || []).filter((r) => r?.listingId).map((r) => [String(r.listingId), r]));
+      listMyLeadQuotes().then((r) => setQuotes(byListing(r))).catch(() => {});
+      listShopPurchases().then((r) => setBuys(byListing(r))).catch(() => {});
       setError(null);
     } catch (e) {
       setError(e?.message || 'Could not load customer sell leads.');
@@ -130,7 +181,7 @@ export default function BuyLeadsScreen({ navigation }) {
         ListEmptyComponent={loading ? <ActivityIndicator color={C.teal} style={{ marginTop: 30 }} /> : (
           <EmptyBox title={tab === 'NEARBY' ? `No leads within ${NEARBY_KM} km` : tab === 'NEW' ? 'No new leads in the last 48 hours' : 'No customer sell leads yet'} sub="Customers near your shop who want to sell a device appear here." />
         )}
-        renderItem={({ item }) => <LeadCard l={item} onPress={() => navigation.navigate('BuyLeadDetail', { lead: item })} />}
+        renderItem={({ item }) => <LeadCard l={item} navigation={navigation} quoteStatus={quotes[String(item.id)]?.quotationStatus} purchase={buys[String(item.id)]} />}
       />
     </SellScreen>
   );

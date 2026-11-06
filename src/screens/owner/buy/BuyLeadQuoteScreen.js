@@ -117,7 +117,7 @@ export default function BuyLeadQuoteScreen({ navigation, route }) {
   };
 
   const ref = mine?.sellNumber || `#${String(l.id || '').slice(0, 8).toUpperCase()}`;
-  const header = { title: 'Quotation', subtitle: `Lead ${ref}`, onBack: () => navigation.goBack(), right: <BellButton navigation={navigation} /> };
+  const header = { title: 'Product Quotation', subtitle: `Lead ${ref}`, onBack: () => navigation.goBack(), right: <BellButton navigation={navigation} /> };
 
   // Accepted → Purchase Management (collection method, progress, Manage Pickup).
   if (state === 'ACCEPTED') {
@@ -174,7 +174,6 @@ export default function BuyLeadQuoteScreen({ navigation, route }) {
     <SellScreen
       {...header}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
-      footer={<PrimaryButton title="Continue" icon={CalendarDays} iconRight={ArrowRight} onPress={() => navigation.popTo('OwnerSellRequests')} />}
     >
       {/* Status + response window */}
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: hero.tint, borderRadius: 16, padding: 14, marginTop: 6 }}>

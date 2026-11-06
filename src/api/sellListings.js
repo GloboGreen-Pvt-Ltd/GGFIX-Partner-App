@@ -155,7 +155,7 @@ function matchesQuery(p, q) {
 
 function countsOf(list) {
   const counts = { ALL: list.length, ACTIVE: 0, DRAFT: 0, SOLD: 0, INACTIVE: 0 };
-  list.forEach((p) => { if (counts[p._status] != null) counts[p._status] += 1; });
+  list.forEach((p) => { const k = p._status === 'RESERVED' ? 'ACTIVE' : p._status; if (counts[k] != null) counts[k] += 1; });
   return counts;
 }
 

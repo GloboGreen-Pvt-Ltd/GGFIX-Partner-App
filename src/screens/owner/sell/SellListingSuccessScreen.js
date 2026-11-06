@@ -1,6 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import { CircleCheck, Eye, LayoutList, Plus } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
+import { CircleCheck, Eye, House, LayoutList } from 'lucide-react-native';
 import { rf } from '../../../utils/responsive';
 import { C, Card, PrimaryButton, SellScreen, StatusPill, Thumb, listingImage, listingSub, money } from './kit';
 
@@ -21,16 +21,16 @@ export default function SellListingSuccessScreen({ navigation, route }) {
 
   return (
     <SellScreen title="Listing" onBack={() => navigation.goBack()}>
-      <View style={{ alignItems: 'center', marginTop: 20 }}>
-        <View style={{ height: 72, width: 72, borderRadius: 36, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
-          <CircleCheck size={40} color={C.green} />
+      <View style={{ alignItems: 'center', marginTop: 12 }}>
+        <View style={{ height: 60, width: 60, borderRadius: 30, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
+          <CircleCheck size={34} color={C.green} />
         </View>
         <Text style={{ fontSize: rf(19), fontWeight: '800', color: C.text, marginTop: 12 }}>{head.title}</Text>
         <Text style={{ fontSize: rf(12.5), color: C.muted, marginTop: 4, textAlign: 'center' }}>{head.sub}</Text>
       </View>
 
       {listing ? (
-        <Card style={{ marginTop: 20 }}>
+        <Card style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Thumb uri={listingImage(listing)} size={64} />
             <View style={{ flex: 1, marginLeft: 10 }}>
@@ -49,13 +49,22 @@ export default function SellListingSuccessScreen({ navigation, route }) {
         </Card>
       ) : null}
 
-      <View style={{ gap: 10, marginTop: 20 }}>
-        {listing?.id ? (
-          <PrimaryButton title="View Listing" icon={Eye} onPress={() => navigation.navigate('MarketplaceListingDetails', { productId: listing.id, listing })} />
-        ) : null}
-        <PrimaryButton variant="outline" title="My Listings" icon={LayoutList} onPress={() => navigation.replace('SellMyListings', { initialStatus: status === 'DRAFT' ? 'DRAFT' : 'ACTIVE' })} />
-        <PrimaryButton variant="soft" title="Add Another Listing" icon={Plus} onPress={() => navigation.replace('SellListingType')} />
-        <PrimaryButton variant="soft" title="Back to Sell Home" onPress={() => navigation.popTo('OwnerTabs', { screen: 'Sell' })} />
+      {/* Exactly three next steps, icon over label. */}
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+        {[
+          { label: 'My Listings', Icon: LayoutList, onPress: () => navigation.replace('SellMyListings', { initialStatus: status === 'DRAFT' ? 'DRAFT' : 'ACTIVE' }) },
+          { label: 'View Listing', Icon: Eye, disabled: !listing?.id, onPress: () => navigation.navigate('MarketplaceListingDetails', { productId: listing.id, listing }) },
+          { label: 'Back to Sell Home', Icon: House, onPress: () => navigation.popTo('OwnerTabs', { screen: 'Sell' }) },
+        ].map(({ label, Icon, onPress, disabled }) => (
+          <Pressable key={label} onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
+            className="active:opacity-80"
+            style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF', opacity: disabled ? 0.45 : 1 }}>
+            <View style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon size={19} color={C.green} />
+            </View>
+            <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.text, marginTop: 6 }}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
     </SellScreen>
   );

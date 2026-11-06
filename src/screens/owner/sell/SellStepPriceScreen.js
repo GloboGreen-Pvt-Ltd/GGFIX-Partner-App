@@ -21,6 +21,20 @@ const MAX_PRICE = 10000000;
 const WORKING_LABEL = { WORKING: 'Working', DEAD: 'Dead / for parts', UNVERIFIED: 'Unverified' };
 const ITEM_LABEL = { NEW: 'New', USED: 'Used', REFURBISHED: 'Refurbished' };
 
+// Order fulfilment by buyer type. The server stores only fulfilmentOptions
+// (PICKUP / SHIPPING), so each choice maps onto one of those; the buyer type
+// and a delivery radius have no server field yet and are not saved.
+const FULFIL = {
+  CUSTOMER: [
+    { key: 'HOME', value: 'SHIPPING', title: 'Delivery to Home', sub: 'Your employee delivers · cash on delivery' },
+    { key: 'VISIT', value: 'PICKUP', title: 'Direct Visit to Shop', sub: 'Customer buys at your shop' },
+  ],
+  SHOP: [
+    { key: 'SHOP', value: 'PICKUP', title: 'Direct to Shop', sub: 'Buyer shop collects from you' },
+    { key: 'COURIER', value: 'SHIPPING', title: 'Shipping by Courier', sub: 'Ship to the buyer shop' },
+  ],
+};
+
 export default function SellStepPriceScreen({ navigation }) {
   const { draft, ready } = useSellDraft();
   const pr = draft.pricing;
@@ -34,6 +48,15 @@ export default function SellStepPriceScreen({ navigation }) {
   const [submitError, setSubmitError] = useState(null);
   const [similar, setSimilar] = useState(null); // { min, max, n }
   const lock = useRef(false);
+  // Buyer type first (nothing preselected), then that type's options only.
+  const [audience, setAudience] = useState(() => pr.buyerType || null);
+  const [picked, setPicked] = useState(() => (pr.fulfilmentKeys || []).slice()); // option keys (HOME / VISIT / SHOP / COURIER)
+  // Edit: the draft loads asynchronously — show the listing's saved choice once it is ready.
+  useEffect(() => {
+    if (ready && draft.editingId) { setAudience(pr.buyerType || null); setPicked((pr.fulfilmentKeys || []).slice()); }
+  }, [ready, draft.editingId]);
+  const radiusOk = !picked.includes('HOME') || Number(pr.deliveryRadiusKm) > 0;
+  const fulfilmentValid = !!audience && picked.length > 0 && radiusOk;
 
   // A unit with its own IMEI is one physical device.
   const maxQty = p.imei ? 1 : 9999;
@@ -68,7 +91,9 @@ export default function SellStepPriceScreen({ navigation }) {
       else if (price > MAX_PRICE) e.price = 'That price looks too high';
     }
     if (!(Number(pr.quantity) >= 1)) e.quantity = 'Quantity must be at least 1';
-    if (!pr.fulfilment.length) e.fulfilment = 'Choose at least one option';
+    if (!audience) e.fulfilment = 'Choose who can buy: Customer or Shop';
+    else if (!picked.length) e.fulfilment = 'Choose at least one option';
+    else if (!radiusOk) e.fulfilment = 'Enter the delivery radius in KM';
     // Photos can change after the Photos step (Edit → Back), so check again here.
     const media = sellDraftStore.get().media;
     const need = minPhotos(draft.listingType);
@@ -81,8 +106,19 @@ export default function SellStepPriceScreen({ navigation }) {
     return reportErrors(e);
   };
 
-  const toggleFulfilment = (v) => {
-    set({ fulfilment: pr.fulfilment.includes(v) ? pr.fulfilment.filter((x) => x !== v) : [...pr.fulfilment, v] });
+  const valueOf = (key) => Object.values(FULFIL).flat().find((f) => f.key === key)?.value;
+  const toggleFulfilment = (key) => {
+    const next = picked.includes(key) ? picked.filter((x) => x !== key) : [...picked, key];
+    setPicked(next);
+    set({ fulfilmentKeys: next, fulfilment: [...new Set(next.map(valueOf))] });
+    setErrors((x) => ({ ...x, fulfilment: null }));
+  };
+  // Switching buyer type clears the previous selection.
+  const chooseAudience = (k) => {
+    if (k === audience) return;
+    setAudience(k);
+    setPicked([]);
+    set({ buyerType: k, fulfilmentKeys: [], fulfilment: [], deliveryRadiusKm: '' });
     setErrors((x) => ({ ...x, fulfilment: null }));
   };
 
@@ -136,7 +172,7 @@ export default function SellStepPriceScreen({ navigation }) {
       subtitle="Step 4 of 4 • Set price & publish"
       step={4}
       onBack={() => navigation.goBack()}
-      footer={<PrimaryButton title={publishTitle} icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} />}
+      footer={fulfilmentValid ? <PrimaryButton title={publishTitle} icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
     >
       <TextField
         label="Selling Price"
@@ -167,9 +203,33 @@ export default function SellStepPriceScreen({ navigation }) {
         {errors.quantity ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.quantity}</Text> : null}
       </View>
 
-      <Section title="Fulfilment Options" sub="How buyers get the item" style={{ marginTop: 18 }}>
-        <ChoiceCard title="Pickup (Free)" sub="Buyer can pick up from your shop" selected={pr.fulfilment.includes('PICKUP')} onPress={() => toggleFulfilment('PICKUP')} style={{ marginTop: 0 }} />
-        <ChoiceCard title="Shipping" sub="Ship to buyer via partnered courier" selected={pr.fulfilment.includes('SHIPPING')} onPress={() => toggleFulfilment('SHIPPING')} />
+      <Section title="Order Fulfillment" sub="Who buys and how they get the item" style={{ marginTop: 18 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          {[['CUSTOMER', 'Customer'], ['SHOP', 'Shop']].map(([k, label]) => {
+            const on = audience === k;
+            return (
+              <Pressable key={k} onPress={() => chooseAudience(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                style={{ flex: 1, height: 34, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: on ? C.green : C.border, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
+                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: on ? C.green : C.muted }}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {audience ? FULFIL[audience].map((f) => (
+          <ChoiceCard key={f.key} title={f.title} sub={f.sub} selected={picked.includes(f.key)} onPress={() => toggleFulfilment(f.key)} style={{ marginTop: 0, marginBottom: 8 }} />
+        )) : <Text style={{ fontSize: rf(11), color: C.muted }}>Choose Customer or Shop to see delivery options.</Text>}
+        {audience === 'CUSTOMER' && picked.includes('HOME') ? (
+          <TextField
+            label="Delivery radius (KM)"
+            required
+            value={pr.deliveryRadiusKm || ''}
+            onChangeText={(t) => { set({ deliveryRadiusKm: t.replace(/[^0-9]/g, '').slice(0, 3) }); setErrors((x) => ({ ...x, fulfilment: null })); }}
+            placeholder="e.g. 10"
+            keyboardType="number-pad"
+            maxLength={3}
+          />
+        ) : null}
+        {audience && !picked.length ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 4 }}>Select at least one option to publish.</Text> : null}
         {errors.fulfilment ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.fulfilment}</Text> : null}
       </Section>
 
@@ -205,7 +265,7 @@ export default function SellStepPriceScreen({ navigation }) {
           </View>
           <InfoRow label="Photos" value={`${photos.length} photo${photos.length === 1 ? '' : 's'}${draft.media.video?.status === 'done' ? ' + video' : ''}`} />
           <InfoRow label="Stock" value={`${pr.quantity} unit${Number(pr.quantity) === 1 ? '' : 's'}${pr.negotiable ? ' · Negotiable' : ''}`} />
-          <InfoRow label="Fulfilment" value={pr.fulfilment.map((f) => (f === 'PICKUP' ? 'Pickup' : 'Shipping')).join(', ')} />
+          <InfoRow label="Fulfilment" value={[audience === 'SHOP' ? 'Shop buyers' : audience ? 'Customers' : null, ...picked.map((k) => Object.values(FULFIL).flat().find((f) => f.key === k)?.title), picked.includes('HOME') && pr.deliveryRadiusKm ? `${pr.deliveryRadiusKm} km radius` : null].filter(Boolean).join(' · ')} />
         </Card>
       </Section>
 
