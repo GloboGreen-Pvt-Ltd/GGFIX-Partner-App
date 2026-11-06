@@ -6,13 +6,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowRight, Bell, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package, ShoppingCart,
+  ArrowRight, Bell, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package,
 } from 'lucide-react-native';
 import { selectShopId, selectUserId } from '../../store/authSlice';
 import { getBanners } from '../../api/masterData';
 import { getSellSummary, listMyListings, listEnquiries } from '../../api/sellListings';
 import { fetchNearbyListings, getListingOrigin } from '../../api/nearbyListings';
-import { getCart } from '../../api/marketplace';
 import { getUnreadCount } from '../../api/notifications';
 import { HeaderIconButton, HEADER_FONT } from '../../components/PageHeader';
 import { rf } from '../../utils/responsive';
@@ -59,14 +58,11 @@ function StatCard({ Icon, iconColor, tint, title, count, countColor = C.text, on
       accessibilityRole="button"
       accessibilityLabel={count != null ? `${title}, ${count}` : title}
       className="active:opacity-90"
-      style={{ width, minHeight: 112, borderRadius: 16, padding: 14, backgroundColor: tint, justifyContent: 'space-between' }}
+      style={{ width, minHeight: 84, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 6, backgroundColor: tint, alignItems: 'center' }}
     >
-      <Icon size={24} color={iconColor} strokeWidth={1.9} />
-      <Text numberOfLines={2} style={{ marginTop: 10, fontSize: rf(13.5), fontWeight: '800', color: C.text, lineHeight: rf(17) }}>{title}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-        <Text style={{ flex: 1, fontSize: rf(20), fontWeight: '800', color: countColor }}>{count ?? '–'}</Text>
-        <ChevronRight size={18} color={C.text} />
-      </View>
+      <Icon size={18} color={iconColor} strokeWidth={2} />
+      <Text style={{ marginTop: 4, fontSize: rf(16), fontWeight: '800', color: countColor }}>{count ?? '–'}</Text>
+      <Text numberOfLines={2} style={{ marginTop: 2, fontSize: rf(10), fontWeight: '700', color: C.text, lineHeight: rf(12.5), textAlign: 'center' }}>{title}</Text>
     </Pressable>
   );
 }
@@ -91,6 +87,30 @@ function ListingRow({ p, onPress }) {
   );
 }
 
+// Recent Listings grid tile: image · title · price · condition · status.
+function ListingTile({ p, onPress, width }) {
+  const img = listingImage(p);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={p.title || 'Listing'}
+      className="active:opacity-90"
+      style={{ width, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}
+    >
+      <View style={{ height: 96, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
+        {img ? <Image resizeMethod="resize" source={{ uri: img }} style={{ width: '80%', height: 84 }} resizeMode="contain" /> : <Package size={26} color={C.muted} />}
+      </View>
+      <View style={{ padding: 8 }}>
+        <Text numberOfLines={1} style={{ fontSize: rf(12), fontWeight: '800', color: C.text }}>{p.title || 'Listing'}</Text>
+        {p.price != null ? <Text style={{ fontSize: rf(13), fontWeight: '800', color: C.green, marginTop: 2 }}>{money(p.price)}</Text> : null}
+        <Text numberOfLines={1} style={{ fontSize: rf(10), color: C.muted, marginTop: 1 }}>{p.conditionLabel || listingSub(p)}</Text>
+        <StatusPill status={p._status} style={{ marginTop: 5, alignSelf: 'flex-start' }} />
+      </View>
+    </Pressable>
+  );
+}
+
 function EnquiryRow({ e, onPress }) {
   return (
     <Pressable
@@ -111,7 +131,7 @@ function EnquiryRow({ e, onPress }) {
 
 function SectionTitle({ title, sub, action, onAction }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: rf(15), fontWeight: '800', color: C.text }}>{title}</Text>
         {sub ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{sub}</Text> : null}
@@ -137,7 +157,6 @@ export default function OwnerSellHubScreen({ navigation }) {
   const [summary, setSummary] = useState(null);
   const [leadCount, setLeadCount] = useState(null);
   const [unread, setUnread] = useState(0);
-  const [cartCount, setCartCount] = useState(0);
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -154,11 +173,8 @@ export default function OwnerSellHubScreen({ navigation }) {
   const bannerRef = useRef(null);
 
   const load = useCallback(async () => {
-    // Bell / cart badges: best effort, never block the page.
-    Promise.all([getUnreadCount().catch(() => null), getCart().catch(() => null)]).then(([n, cart]) => {
-      if (n != null) setUnread(Number(n) || 0);
-      if (Array.isArray(cart)) setCartCount(cart.reduce((sum, it) => sum + (it.quantity || 1), 0));
-    });
+    // Bell badge: best effort, never block the page.
+    getUnreadCount().then((n) => { if (n != null) setUnread(Number(n) || 0); }).catch(() => {});
     // Customer sell requests (GET /marketplace/buy/nearby, sellerType CUSTOMER) —
     // the same feed as Customer Sell Leads, so new sales from the customer app show here.
     getListingOrigin()
@@ -168,7 +184,7 @@ export default function OwnerSellHubScreen({ navigation }) {
     try {
       const [s, list] = await Promise.all([
         getSellSummary(ctx),
-        listMyListings({ status: 'ALL', page: 0, size: 5 }, ctx),
+        listMyListings({ status: 'ALL', page: 0, size: 6 }, ctx),
       ]);
       setSummary(s);
       setRecent(list.content || []);
@@ -242,8 +258,9 @@ export default function OwnerSellHubScreen({ navigation }) {
   const contentW = Math.min(width, MAX_W);
   const padH = width >= 768 ? 24 : 16;
   const innerW = contentW - padH * 2;
-  const cardGap = 12;
-  const cardW = Math.floor((innerW - cardGap) / 2);
+  const cardGap = 8;
+  const cardW = Math.floor((innerW - cardGap * 3) / 4); // four stat cards in one row
+  const tileW = Math.floor((innerW - 10) / 2); // two-column Recent Listings
   const pageW = bannerPageW || contentW;
   const bannerW = pageW - padH * 2;
   const bannerH = Math.round(bannerW / bannerRatio);
@@ -268,15 +285,13 @@ export default function OwnerSellHubScreen({ navigation }) {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ---------- Header: title · notifications · cart ---------- */}
-      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 10, paddingBottom: 4 }]}>
+      {/* ---------- Header: title · notifications ---------- */}
+      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 8, paddingBottom: 2 }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(19), color: C.text }}>Sell on NearGFix</Text>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(12), color: C.muted, marginTop: 2 }}>Sell your device & spare parts</Text>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(17), color: C.text }}>Sell on NearGFix</Text>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(11), color: C.muted, marginTop: 1 }}>Devices, spare parts & accessories</Text>
         </View>
         <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
-        <View style={{ width: 6 }} />
-        <HeaderIconButton icon={ShoppingCart} label="Cart" onPress={() => navigation.navigate('OwnerCart')} badge={cartCount} badgeColor="#F59E0B" badgeText={C.text} />
       </View>
 
       <ScrollView
@@ -288,30 +303,30 @@ export default function OwnerSellHubScreen({ navigation }) {
       >
         <View style={[centered, { paddingHorizontal: padH }]}>
           {/* ---------- Search listings & enquiries ---------- */}
-          <SearchInput value={query} onChangeText={setQuery} placeholder="Search your listings, enquiries..." style={{ marginTop: 10, height: 46, borderRadius: 14 }} />
+          <SearchInput value={query} onChangeText={setQuery} placeholder="Search your listings, enquiries..." style={{ marginTop: 8, height: 40, borderRadius: 12 }} />
 
           {!query.trim() ? (
             <>
               {/* ---------- Banner ---------- */}
-              <View style={{ marginTop: 16, backgroundColor: C.teal, borderRadius: 18, overflow: 'hidden', flexDirection: 'row', minHeight: 152 }}>
+              <View style={{ marginTop: 10, backgroundColor: C.teal, borderRadius: 16, overflow: 'hidden', flexDirection: 'row', minHeight: 84 }}>
                 <View style={{ position: 'absolute', right: -40, top: -50, height: 170, width: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)' }} />
                 <View style={{ position: 'absolute', right: 40, bottom: -70, height: 150, width: 150, borderRadius: 75, backgroundColor: 'rgba(1,172,119,0.22)' }} />
-                <View style={{ flex: 1, paddingVertical: 16, paddingLeft: 16, paddingRight: 4, justifyContent: 'center' }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: rf(19), fontWeight: '800', lineHeight: rf(24) }}>Sell Devices,{'\n'}Parts & More</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: rf(12), marginTop: 6, lineHeight: rf(17) }}>Reach verified buyers{'\n'}and get the best price.</Text>
+                <View style={{ flex: 1, paddingVertical: 10, paddingLeft: 14, paddingRight: 4, justifyContent: 'center' }}>
+                  <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: rf(15), fontWeight: '800' }}>Sell Devices, Parts & More</Text>
+                  <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.88)', fontSize: rf(11), marginTop: 2 }}>Reach verified buyers, best price.</Text>
                   <Pressable
                     onPress={() => navigation.navigate('SellListingType')}
                     accessibilityRole="button"
                     accessibilityLabel="Start selling"
                     className="active:opacity-90"
-                    style={{ alignSelf: 'flex-start', marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}
+                    style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}
                   >
                     <Text style={{ color: C.teal, fontSize: rf(12.5), fontWeight: '800', marginRight: 6 }}>Start Selling</Text>
                     <ArrowRight size={14} color={C.teal} />
                   </Pressable>
                 </View>
-                <View style={{ width: Math.min(150, innerW * 0.38), justifyContent: 'center', alignItems: 'center', paddingRight: 6 }}>
-                  <Image resizeMethod="resize" source={{ uri: SELL_IMAGES.MOBILE }} style={{ width: '100%', height: 140 }} resizeMode="contain" accessibilityIgnoresInvertColors />
+                <View style={{ width: Math.min(96, innerW * 0.26), justifyContent: 'center', alignItems: 'center', paddingRight: 6 }}>
+                  <Image resizeMethod="resize" source={{ uri: SELL_IMAGES.MOBILE }} style={{ width: '100%', height: 76 }} resizeMode="contain" accessibilityIgnoresInvertColors />
                 </View>
               </View>
 
@@ -321,20 +336,20 @@ export default function OwnerSellHubScreen({ navigation }) {
                 accessibilityRole="button"
                 accessibilityLabel="Add new listing"
                 className="active:opacity-90"
-                style={{ marginTop: 16, height: 56, borderRadius: 16, backgroundColor: C.teal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                style={{ marginTop: 10, height: 44, borderRadius: 12, backgroundColor: C.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               >
-                <CirclePlus size={24} color={C.teal} fill="#FFFFFF" strokeWidth={2.2} />
-                <Text style={{ color: '#FFFFFF', fontSize: rf(15.5), fontWeight: '800', marginLeft: 10 }}>Add New Listing</Text>
+                <CirclePlus size={20} color={C.green} fill="#FFFFFF" strokeWidth={2.2} />
+                <Text style={{ color: '#FFFFFF', fontSize: rf(14), fontWeight: '800', marginLeft: 8 }}>Add New Listing</Text>
               </Pressable>
 
               {/* ---------- Dashboard ---------- */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: cardGap, rowGap: cardGap, marginTop: 16 }}>
+              <View style={{ flexDirection: 'row', columnGap: cardGap, marginTop: 10 }}>
                 <StatCard width={cardW} Icon={Box} iconColor={C.teal} tint="#EDF6F7" title="My Listings" count={count(summary?.active)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'ACTIVE' })} />
                 {/* Buyer Enquiries: buyers' enquiries + price requests on this shop's listings. */}
-                <StatCard width={cardW} Icon={MessageSquareDot} iconColor="#7C5CD6" tint="#F4F0FB" title={'Buyer\nEnquiries'} count={count(summary?.enquiriesOpen == null && summary?.purchaseRequestsOpen == null ? null : (summary?.enquiriesOpen || 0) + (summary?.purchaseRequestsOpen || 0))} onPress={() => navigation.navigate('SellEnquiries', {})} />
+                <StatCard width={cardW} Icon={MessageSquareDot} iconColor="#7C5CD6" tint="#F4F0FB" title="Buyer Enquiries" count={count(summary?.enquiriesOpen == null && summary?.purchaseRequestsOpen == null ? null : (summary?.enquiriesOpen || 0) + (summary?.purchaseRequestsOpen || 0))} onPress={() => navigation.navigate('SellEnquiries', {})} />
                 {/* Quotation Requests: customers (customer app) asking shops to quote on their device. */}
-                <StatCard width={cardW} Icon={MapPin} iconColor="#E08A1E" tint="#FFF5EA" title={'Quotation\nRequests'} count={leadCount} onPress={() => navigation.navigate('OwnerSellRequests')} />
-                <StatCard width={cardW} Icon={Package} iconColor={C.green} tint="#EDF7F0" countColor={C.green} title={'Sold\nItems'} count={count(summary?.sold)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'SOLD' })} />
+                <StatCard width={cardW} Icon={MapPin} iconColor="#E08A1E" tint="#FFF5EA" title="Quotation Requests" count={leadCount} onPress={() => navigation.navigate('OwnerSellRequests')} />
+                <StatCard width={cardW} Icon={Package} iconColor={C.green} tint="#EDF7F0" countColor={C.green} title="Sold Items" count={count(summary?.sold)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'SOLD' })} />
               </View>
             </>
           ) : null}
@@ -366,7 +381,9 @@ export default function OwnerSellHubScreen({ navigation }) {
               {loading && !recent.length ? (
                 <ActivityIndicator color={C.teal} style={{ marginVertical: 16 }} />
               ) : recent.length ? (
-                recent.map((p) => <ListingRow key={p.id} p={p} onPress={() => openListing(p)} />)
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10 }}>
+                  {recent.map((p) => <ListingTile key={p.id} p={p} width={tileW} onPress={() => openListing(p)} />)}
+                </View>
               ) : !error ? (
                 <View style={{ alignItems: 'center', backgroundColor: C.field, borderRadius: 16, paddingVertical: 20, paddingHorizontal: 16 }}>
                   <Package size={22} color={C.teal} />

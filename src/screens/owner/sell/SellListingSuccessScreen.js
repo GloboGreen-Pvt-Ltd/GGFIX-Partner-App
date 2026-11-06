@@ -54,9 +54,9 @@ export default function SellListingSuccessScreen({ navigation, route }) {
         {[
           { label: 'My Listings', Icon: LayoutList, onPress: () => navigation.replace('SellMyListings', { initialStatus: status === 'DRAFT' ? 'DRAFT' : 'ACTIVE' }) },
           { label: 'View Listing', Icon: Eye, disabled: !listing?.id, onPress: () => navigation.navigate('MarketplaceListingDetails', { productId: listing.id, listing }) },
-          { label: 'Sell Home', Icon: House, onPress: () => navigation.popTo('OwnerTabs', { screen: 'Sell' }) },
+          { label: 'Back to Sell Home', Icon: House, onPress: () => navigation.popTo('OwnerTabs', { screen: 'Sell' }) },
         ].map(({ label, Icon, onPress, disabled }) => (
-          <Pressable key={label} onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label === 'Sell Home' ? 'Back to Sell Home' : label}
+          <Pressable key={label} onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
             className="active:opacity-80"
             style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF', opacity: disabled ? 0.45 : 1 }}>
             <View style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
