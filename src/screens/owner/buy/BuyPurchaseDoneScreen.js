@@ -19,7 +19,7 @@ const DOTS = [
 
 function Action({ Icon, label, onPress }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')} className="active:opacity-70" style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label.replace(/\n/g, ' ')} className="active:opacity-70" style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
       <Icon size={26} color={C.teal} />
       <Text style={{ fontSize: rf(11.5), color: C.text, marginTop: 6, textAlign: 'center' }}>{label}</Text>
     </Pressable>
