@@ -1,26 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Keyboard, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import {
   Search, ShoppingCart, Bell, ChevronRight, X, Plus, SlidersHorizontal,
-  LayoutGrid, Tag, BadgeCheck, RotateCcw, TrendingUp, Smartphone, ClipboardList,
+  LayoutGrid, BadgeCheck, TrendingUp, Smartphone, ClipboardList, ArrowRight, Cpu, UserRound, Wrench,
 } from 'lucide-react-native';
 import { EmptyState, Loader } from '../../components/rnr';
 import { notify } from '../../components/confirm';
 import SafeModal from '../../components/SafeModal';
-import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
+import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey, getAllModels } from '../../api/masterData';
 import { listProducts, getCart, addToCart } from '../../api/marketplace';
 import { isOwnListing, ownShopIdsOf } from '../../api/nearbyListings';
 import { getSession } from '../../auth/session';
 import { getUnreadCount } from '../../api/notifications';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { rf } from '../../utils/responsive';
+import { fetchNearbyListings, getListingOrigin, toListingCard } from '../../api/nearbyListings';
+import { LeadCard } from './buy/BuyLeadsScreen';
+import { purchaseHero } from './buy/PurchaseWorkflow';
+import { listMyLeadQuotes, listShopPurchases } from '../../api/orders';
 import { tintFor } from '../shared/categoryTints';
 import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
 import { selectShopId } from '../../store/authSlice';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
+import { productToCard } from './OwnerBuyListingScreen';
 
 // Same page as the Customer app's Buy home (BuyHomeScreen); listings, product
 // details, orders, cart and notifications open the Partner screens.
@@ -34,11 +39,12 @@ const MUTED = '#6B7280';
 const HINT = '#9CA3AF';
 const FIELD = '#F3F4F6';
 const LINE = '#E5E7EB';
+const CARD_LINE = '#CBD5E1';    // card borders (darker than LINE so cards read as cards)
 const PAGE_BG = '#F3F4F6';
 const RED = '#F84141';
 
 const MAX_W = 720;
-const PAD = 16;
+const PAD = 12; // tighter gutter beside the category rail
 
 const cardShadow = {
   shadowColor: INK, shadowOpacity: 0.06, shadowRadius: 10,
@@ -51,7 +57,7 @@ const CATEGORY_ORDER = [
   'MOBILE', 'SMARTPHONE', 'LAPTOP', 'TABLET', 'SMARTWATCH', 'SMARTWATCHES', 'WATCH',
   'AUDIO', 'AUDIO_DEVICE', 'AUDIO_DEVICES', 'ACCESSORY', 'ACCESSORIES',
 ];
-function sortCategories(list) {
+export function sortCategories(list) {
   const rank = (c) => {
     const i = CATEGORY_ORDER.indexOf((c.code || '').toUpperCase());
     return i === -1 ? CATEGORY_ORDER.length : i;
@@ -59,20 +65,17 @@ function sortCategories(list) {
   return [...list].sort((a, b) => rank(a) - rank(b) || (a.name || '').localeCompare(b.name || ''));
 }
 
-// Trust strip — the same three claims this page made before, in the
-// Partner strip layout.
-const TRUST = [
-  { icon: Tag, title: 'Best Prices', sub: 'Everyday' },
-  { icon: BadgeCheck, title: 'Original', sub: '& Certified' },
-  { icon: RotateCcw, title: 'Easy Returns', sub: '& Support' },
-];
-
 const SORTS = [
   { key: 'default', label: 'Recommended' },
   { key: 'price_asc', label: 'Price: Low to High' },
   { key: 'price_desc', label: 'Price: High to Low' },
 ];
 const MAX_PRICES = [null, 10000, 20000, 30000, 50000];
+
+// Rail selection: 'ALL', a category id, or Spares — filtered in place (like Job Report).
+const SPARES = '__spares';
+const QUOTE_TAG = { PROPOSED: 'Quote Sent', REJECTED: 'Quote Declined', EXPIRED: 'Quote Expired', ACCEPTED: 'Quote Accepted', WITHDRAWN: 'Quote Withdrawn' };
+const parseJson = (s) => { try { return s ? JSON.parse(s) : {}; } catch (_) { return {}; } };
 
 const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 const imageOf = (x) => resolveDeviceImageSource({ url: x?.imageUrl, base64: x?.imageBase64 });
@@ -96,9 +99,9 @@ function pricing(p) {
 // NOTE: Pressables take plain style objects only — NativeWind's cssInterop
 // drops function-form `style={({ pressed }) => ...}` on native. Press feedback
 // uses the `active:` className.
-function CategoryChip({ label, size, isAll, active, uri, photo, code, onPress }) {
+function CategoryChip({ label, size, cellW, isAll, active, uri, photo, code, onPress }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} className="active:opacity-80" style={{ width: size, marginRight: 10, alignItems: 'center' }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} className="active:opacity-80" style={{ width: cellW, alignItems: 'center' }}>
       <View
         style={{
           height: size, width: size, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
@@ -147,7 +150,7 @@ function DealCard({ product, width, onPress, onAdd, adding }) {
   // The card body and the add-to-cart button are SIBLING tap targets — a button
   // nested inside another button is invalid on web (and ambiguous for screen readers).
   return (
-    <View style={{ width, marginRight: 12, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: LINE, ...cardShadow }}>
+    <View style={{ width, marginRight: 12, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: CARD_LINE, ...cardShadow }}>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
@@ -235,6 +238,14 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   const [menuImages, setMenuImages] = useState({});
   const [buyBanners, setBuyBanners] = useState([]);
   const [products, setProducts] = useState([]);
+  // Every nearby sell listing — customer and shop (GET /marketplace/buy/nearby).
+  const [leads, setLeads] = useState([]);
+  const [buys, setBuys] = useState({}); // listingId → my purchase (accepted quote)
+  const [quotes, setQuotes] = useState({}); // listingId → my quote status
+  const [selCat, setSelCat] = useState('ALL');
+  // Products carry a modelId, not a category: mapped through the catalogue.
+  const [modelCat, setModelCat] = useState({});
+  const listRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [cartCount, setCartCount] = useState(0);
   const [unread, setUnread] = useState(0);
@@ -273,6 +284,11 @@ export default function OwnerBuyHomeScreen({ navigation }) {
       } catch (_) {}
       setLoading(false);
     })();
+    getAllModels().then((rows) => {
+      const m = {};
+      (rows || []).forEach((r) => { if (r.id && r.categoryId) m[r.id] = r.categoryId; });
+      setModelCat(m);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -280,6 +296,19 @@ export default function OwnerBuyHomeScreen({ navigation }) {
     if (!first) return;
     Image.getSize(first, (w, h) => { if (w > 0 && h > 0) setBannerRatio(w / h); }, () => {});
   }, [buyBanners]);
+
+  useFocusEffect(useCallback(() => {
+    getListingOrigin()
+      .then((o) => fetchNearbyListings(o))
+      .then((list) => setLeads((list || []).filter(Boolean)))
+      .catch(() => {});
+    listShopPurchases()
+      .then((rows) => setBuys(Object.fromEntries((rows || []).filter((r) => r?.listingId).map((r) => [String(r.listingId), r]))))
+      .catch(() => {});
+    listMyLeadQuotes()
+      .then((rows) => setQuotes(Object.fromEntries((rows || []).filter((r) => r?.listingId).map((r) => [String(r.listingId), r]))))
+      .catch(() => {});
+  }, []));
 
   // Header counters refresh whenever the tab regains focus.
   const refreshHeader = useCallback(async () => {
@@ -292,26 +321,55 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   }, []);
   useFocusEffect(useCallback(() => { refreshHeader(); }, [refreshHeader]));
 
-  const openCategory = (c) => {
-    navigation.navigate('OwnerBuyListing', {
-      categoryId: c.id,
-      categoryCode: (c.code || '').toUpperCase(),
-      categoryName: c.name,
-      title: c.name,
-    });
+  // Rail taps filter this page in place — no navigation.
+  const pickCat = (id) => {
+    setSelCat(id);
+    listRef.current?.scrollTo({ y: 0, animated: false });
   };
-  const openAll = () => navigation.navigate('OwnerBuyListing', {});
+  const openAll = () => pickCat('ALL');
 
   const activeFilters = (sortBy !== 'default' ? 1 : 0) + (maxPrice ? 1 : 0);
-  // Search text + Filters go to the listing (q / sort / maxPrice params).
-  const runSearch = () => {
-    const q = searchText.trim();
-    if (!q && !activeFilters) { openAll(); return; }
-    navigation.navigate('OwnerBuyListing', {
-      q: q || undefined,
-      sort: sortBy !== 'default' ? sortBy : undefined,
-      maxPrice: maxPrice || undefined,
-      title: q || (maxPrice ? `Under ${inr(maxPrice)}` : 'All products'),
+  // Search text + Filters also apply in place (see `feed` below).
+  const runSearch = () => Keyboard.dismiss();
+
+  // Category match: the row's category id, else its category name/code.
+  const sel = cats.find((c) => c.id === selCat);
+  const selKeys = [sel?.name, sel?.code].filter(Boolean).map((v) => String(v).toLowerCase());
+  const inCat = (spare, catId, names) => {
+    if (selCat === 'ALL') return true;
+    if (selCat === SPARES) return spare;
+    if (spare) return false;
+    return catId ? String(catId) === String(selCat) : names.some((v) => v && selKeys.includes(String(v).toLowerCase()));
+  };
+  const productCat = (p) => {
+    const meta = parseJson(p.assessmentJson);
+    const lc = meta?.listing?.category || {};
+    const spare = p.descriptionType === 'SPARE_PARTS' || meta?.sellMeta?.listingType === 'SPARE_PART';
+    return { spare, id: lc.id || modelCat[p.modelId] || null, names: [lc.name, lc.code] };
+  };
+  const catProducts = products.filter((p) => { const c = productCat(p); return inCat(c.spare, c.id, c.names); });
+
+  // One list: shop catalogue products + nearby customer / shop sell listings.
+  const needle = searchText.trim().toLowerCase();
+  const feed = [
+    ...catProducts.filter((p) => (p.type || 'SELL') === 'SELL')
+      .map((p) => ({ ...productToCard(p), categoryId: productCat(p).id, createdAt: p.createdAt })),
+    ...leads.filter((l) => inCat(l.productType === 'SPARE_PART', l.categoryId ?? l.category?.id, [l.categoryName, l.categoryCode, l.category?.name])),
+  ].filter((it) => {
+    if (needle && !`${it.productName || ''} ${it.description || ''}`.toLowerCase().includes(needle)) return false;
+    if (maxPrice && !(Number(it.expectedPrice) > 0 && Number(it.expectedPrice) <= maxPrice)) return false;
+    return true;
+  });
+  const priceOf = (it) => Number(it.expectedPrice) || 0;
+  if (sortBy === 'price_asc') feed.sort((a, b) => priceOf(a) - priceOf(b));
+  else if (sortBy === 'price_desc') feed.sort((a, b) => priceOf(b) - priceOf(a));
+  else feed.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  const openItem = (it) => {
+    if (it.sellerType === 'CUSTOMER') { navigation.navigate('BuyLeadDetail', { lead: it }); return; }
+    const card = it.source === 'product' ? it : toListingCard(it);
+    navigation.navigate('OwnerBuyListingDetails', {
+      listing: { ...card, categoryName: it.categoryName || cats.find((c) => c.id === it.categoryId)?.name || undefined },
     });
   };
 
@@ -325,21 +383,28 @@ export default function OwnerBuyHomeScreen({ navigation }) {
     finally { setAdding(null); }
   };
 
-  const contentW = Math.min(width, MAX_W);
+  // Left category rail — same widths as the Job Report rail.
+  const railW = width >= 680 ? 104 : (width < 360 ? 70 : 78);
+  const railChip = railW - 22;
+  const contentW = Math.min(width - railW, MAX_W);
   const bannerW = contentW - PAD * 2;
-  const bannerH = Math.round(bannerW / bannerRatio);
-  const chipSize = width < 360 ? 50 : 56;
+  // Scales with the space beside the category rail: follows the admin banner's
+  // shape, kept between 40% and 60% of the width (min 120px, max 240px).
+  const bannerH = Math.round(Math.max(120, Math.min(240, bannerW * 0.6, Math.max(bannerW * 0.4, bannerW / bannerRatio))));
+  const heroTitle = Math.max(15, Math.min(rf(24), bannerW * 0.07));
+  const heroSmall = bannerW < 340;
+  const heroImage = menuImages[categoryMenuKey('Mobile')] || 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png';
   // Two deal cards per screen with the next one peeking in (reference layout).
   const dealW = Math.max(150, Math.round((contentW - PAD - 12) / 2.15));
   const centered = { width: '100%', maxWidth: MAX_W, alignSelf: 'center' };
 
   // Deals: listings with a real discount first (largest first), then the rest.
-  const deals = [...products]
+  const deals = [...catProducts]
     .sort((a, b) => pricing(b).off - pricing(a).off)
     .slice(0, 3);
 
   const onBannerScroll = (e) => {
-    const i = Math.round(e.nativeEvent.contentOffset.x / (bannerW || 1));
+    const i = Math.round(e.nativeEvent.contentOffset.x / (bannerW - 2 || 1));
     if (i !== slide) setSlide(i);
   };
 
@@ -349,12 +414,9 @@ export default function OwnerBuyHomeScreen({ navigation }) {
       <PageHeader
         title="Buy"
         subtitle="Devices & spares"
-        onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-        sideWidth={120}
+        sideWidth={90}
         right={(
           <>
-            <HeaderIconButton icon={ClipboardList} label="My buy orders" onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Buy' })} />
-            <View style={{ width: 6 }} />
             <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
             <View style={{ width: 6 }} />
             <HeaderIconButton icon={ShoppingCart} label="Cart" onPress={() => navigation.navigate('OwnerCart')} badge={cartCount} badgeColor="#F59E0B" badgeText={INK} />
@@ -404,36 +466,84 @@ export default function OwnerBuyHomeScreen({ navigation }) {
         </View>
       </PageHeader>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}>
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+            {/* Category strip — "All" plus each category; tapping filters this page. */}
+            {loading ? (
+              <View style={{ width: railW, paddingVertical: 24 }}><Loader /></View>
+            ) : cats.length === 0 ? (
+              <View style={{ width: railW }}>
+                <EmptyState title="No categories yet" description="The admin hasn't published any device categories." />
+              </View>
+            ) : (
+              // Vertical left rail, like Job Report.
+              <ScrollView style={{ width: railW, flexGrow: 0, borderRightWidth: 1, borderRightColor: LINE, backgroundColor: '#FFFFFF' }} contentContainerStyle={{ alignItems: 'center', rowGap: 12, paddingVertical: 10, paddingBottom: tabSpace }} showsVerticalScrollIndicator={false}>
+                <CategoryChip label="All" isAll active={selCat === 'ALL'} size={railChip} cellW={railW - 8} onPress={openAll} />
+                {cats.map((c) => {
+                  const menuUri = menuImages[categoryMenuKey(c.name)] || menuImages[categoryMenuKey(c.code)] || null;
+                  return (
+                    <CategoryChip
+                      key={c.id}
+                      label={c.name}
+                      code={c.code}
+                      size={railChip}
+                      cellW={railW - 8}
+                      uri={menuUri || imageOf(c)}
+                      photo={!!menuUri}
+                      active={selCat === c.id}
+                      onPress={() => pickCat(c.id)}
+                    />
+                  );
+                })}
+                <CategoryChip label="Spares" code="SPARES" size={railChip} cellW={railW - 8} uri={null} active={selCat === SPARES} onPress={() => pickCat(SPARES)} />
+              </ScrollView>
+            )}
+
+      <ScrollView ref={listRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}>
         <View style={centered}>
-          {/* Hero — admin "Buy" banner artwork only (its text is baked in). */}
-          {buyBanners.length ? (
+          {/* Hero: the Buy promo first, then any admin "Buy" banners. */}
+          {true ? (
             <View style={{ marginTop: 14 }}>
-              <View style={{ marginHorizontal: PAD, height: bannerH, borderRadius: 24, overflow: 'hidden', backgroundColor: '#FFFFFF', ...cardShadow }}>
+              <View style={{ marginHorizontal: PAD, height: bannerH, borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: CARD_LINE, ...cardShadow }}>
                 <ScrollView
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   onScroll={onBannerScroll}
                   scrollEventThrottle={16}
-                  style={{ width: bannerW, height: bannerH, flexGrow: 0 }}
+                  style={{ width: bannerW - 2, height: bannerH - 2, flexGrow: 0 }}
                 >
+                  <View style={{ width: bannerW - 2, height: bannerH - 2, flexDirection: 'row', backgroundColor: '#EEF6FB' }}>
+                    <View style={{ position: 'absolute', right: -30, top: -40, height: bannerH * 1.1, width: bannerH * 1.1, borderRadius: bannerH, backgroundColor: '#DCEFF6' }} />
+                    <View style={{ flex: 1, paddingLeft: bannerW > 500 ? 28 : (heroSmall ? 12 : 16), paddingVertical: 10, justifyContent: 'center' }}>
+                      <Text style={{ fontSize: rf(11), fontWeight: '800', color: GREEN }}>GGFIX</Text>
+                      <Text numberOfLines={2} adjustsFontSizeToFit style={{ fontSize: heroTitle, fontWeight: '800', color: '#0B2A4A', lineHeight: Math.round(heroTitle * 1.2), marginTop: 4 }}>Buy Devices{'\n'}<Text style={{ color: GREEN }}>& Spares</Text></Text>
+                      {heroSmall ? null : <Text numberOfLines={1} style={{ fontSize: rf(11), color: MUTED, marginTop: 4 }}>Phones • Parts • Leads</Text>}
+                      <Pressable onPress={openAll} accessibilityRole="button" accessibilityLabel="Shop now" className="active:opacity-90" style={{ alignSelf: 'flex-start', marginTop: heroSmall ? 8 : 10, flexDirection: 'row', alignItems: 'center', backgroundColor: GREEN, borderRadius: 999, paddingHorizontal: heroSmall ? 10 : 14, paddingVertical: heroSmall ? 5 : 7 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: heroSmall ? rf(11) : rf(12), fontWeight: '800', marginRight: 6 }}>Shop Now</Text>
+                        <ArrowRight size={13} color="#FFFFFF" />
+                      </Pressable>
+                    </View>
+                    <View style={{ width: Math.min(bannerW * 0.38, bannerH * 1.2), alignItems: 'center', justifyContent: 'center', marginRight: bannerW > 500 ? 16 : 4 }}>
+                      <Image resizeMethod="resize" source={{ uri: heroImage }} style={{ width: '100%', height: bannerH * 0.86 }} resizeMode="contain" />
+                    </View>
+                  </View>
                   {buyBanners.map((b) => (
                     <Pressable
                       key={b.key}
                       onPress={openAll}
                       accessibilityRole="imagebutton"
                       accessibilityLabel="Buy offer banner"
-                      style={{ width: bannerW, height: bannerH }}
+                      style={{ width: bannerW - 2, height: bannerH - 2 }}
                     >
-                      <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW, height: bannerH }} resizeMode="contain" />
+                      {/* cover: fills the frame (no white bars); the height above follows the artwork's shape. */}
+                      <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW - 2, height: bannerH - 2 }} resizeMode="cover" />
                     </Pressable>
                   ))}
                 </ScrollView>
               </View>
-              {buyBanners.length > 1 ? (
+              {buyBanners.length ? (
                 <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
-                  {buyBanners.map((b, i) => (
+                  {[{ key: 'promo' }, ...buyBanners].map((b, i) => (
                     <View
                       key={b.key}
                       style={{ height: 6, width: i === slide ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === slide ? GREEN : '#D1D5DB' }}
@@ -443,33 +553,6 @@ export default function OwnerBuyHomeScreen({ navigation }) {
               ) : null}
             </View>
           ) : null}
-
-          {/* Category strip — "All" plus each category; tapping opens its listing. */}
-          {loading ? (
-            <View style={{ paddingVertical: 24 }}><Loader label="Loading categories..." /></View>
-          ) : cats.length === 0 ? (
-            <View style={{ paddingHorizontal: PAD, paddingTop: 14 }}>
-              <EmptyState title="No categories yet" description="The admin hasn't published any device categories." />
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 16, paddingBottom: 2 }}>
-              <CategoryChip label="All" isAll active size={chipSize} onPress={openAll} />
-              {cats.map((c) => {
-                const menuUri = menuImages[categoryMenuKey(c.name)] || menuImages[categoryMenuKey(c.code)] || null;
-                return (
-                  <CategoryChip
-                    key={c.id}
-                    label={c.name}
-                    code={c.code}
-                    size={chipSize}
-                    uri={menuUri || imageOf(c)}
-                    photo={!!menuUri}
-                    onPress={() => openCategory(c)}
-                  />
-                );
-              })}
-            </ScrollView>
-          )}
 
           {deals.length ? (
             <>
@@ -481,7 +564,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                     product={p}
                     width={dealW}
                     adding={adding === p.id}
-                    onPress={() => navigation.navigate('OwnerBuyListingDetails', { listing: p })}
+                    onPress={() => navigation.navigate('OwnerBuyListingDetails', { listing: productToCard(p) })}
                     onAdd={() => add(p)}
                   />
                 ))}
@@ -489,25 +572,28 @@ export default function OwnerBuyHomeScreen({ navigation }) {
             </>
           ) : null}
 
-          {/* Trust strip */}
-          <View style={{ paddingHorizontal: PAD, marginTop: 14 }}>
-            <View style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 6, ...cardShadow }}>
-              {TRUST.map((t) => {
-                const Icon = t.icon;
-                return (
-                  <View key={t.title} style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
-                    <View style={{ height: 36, width: 36, borderRadius: 18, backgroundColor: GREEN_LIGHT, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                      <Icon size={17} color={GREEN} strokeWidth={2.3} />
-                    </View>
-                    <Text numberOfLines={1} style={{ fontSize: rf(10.5), fontWeight: '800', color: INK, textAlign: 'center' }}>{t.title}</Text>
-                    <Text numberOfLines={1} style={{ fontSize: rf(9), color: MUTED, textAlign: 'center', marginTop: 1 }}>{t.sub}</Text>
-                  </View>
-                );
-              })}
-            </View>
+          {/* Customer + shop sell listings for the selected category. */}
+          <View style={{ paddingHorizontal: PAD, paddingTop: 14 }}>
+            {feed.map((it) => (
+              <LeadCard
+                key={it._key || `listing:${it.id}`}
+                l={it}
+                tag={it.sellerType !== 'CUSTOMER' ? 'From Shop'
+                  : buys[String(it.id)] ? purchaseHero(buys[String(it.id)]).title
+                    : QUOTE_TAG[String(quotes[String(it.id)]?.quotationStatus || '').toUpperCase()] || 'For Customer'}
+                onPress={() => openItem(it)}
+              />
+            ))}
+            {!loading && !feed.length ? (
+              <EmptyState
+                title="No devices found"
+                description={needle || activeFilters || selCat !== 'ALL' ? 'Try another category, search or filter.' : 'No customer or shop listings yet.'}
+              />
+            ) : null}
           </View>
         </View>
       </ScrollView>
+      </View>
 
       {/* Filters sheet — Sort + Max price, applied to the listing (with any search text). */}
       <SafeModal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
@@ -540,7 +626,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                 <Text style={{ fontSize: rf(13), fontWeight: '800', color: INK }}>Clear</Text>
               </Pressable>
               <Pressable
-                onPress={() => { setShowFilters(false); runSearch(); }}
+                onPress={() => setShowFilters(false)}
                 className="active:opacity-90"
                 style={{ flex: 1, marginLeft: 6, paddingVertical: 13, borderRadius: 14, alignItems: 'center', backgroundColor: GREEN }}
               >

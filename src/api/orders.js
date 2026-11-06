@@ -89,6 +89,82 @@ export async function getSellOrder(id) {
 export async function getSellOrderQuotations(id) {
   return unwrap(await orderApi.get(`/sell-orders/${id}/quotations`));
 }
+
+// Shop quote on a customer's marketplace sell request ("Customer Sell Leads").
+// The server links (or creates) the customer's sell order; the customer sees
+// the quote in their sell order. A second submit revises this shop's quote.
+// Servers without the endpoint answer 404 "No handler…" → SERVER_UPDATE_REQUIRED.
+function leadQuoteError(e) {
+  if (e?.status === 404 && /no handler/i.test(`${e?.devMessage || ''}`)) {
+    const err = new Error('Sending quotes needs the latest NearGFix server update. Ask your admin to deploy the order service.');
+    err.code = 'SERVER_UPDATE_REQUIRED';
+    return err;
+  }
+  return e;
+}
+export async function getMyLeadQuote(listingId) {
+  try { return await orderApi.get(`/sell-orders/listing-quotations/${listingId}`); } catch (e) { throw leadQuoteError(e); }
+}
+export async function submitLeadQuote({ listingId, quotationPrice, note, fulfilment }) {
+  try {
+    return await orderApi.post('/sell-orders/listing-quotations', { body: { listingId, quotationPrice, note: note || null, fulfilment } });
+  } catch (e) { throw leadQuoteError(e); }
+}
+// Purchase Orders from customer sell leads: sell orders whose quote the
+// customer accepted (sell_orders.shop_id = this shop). SELL_CONFIRMED →
+// PICKUP_SCHEDULED → COMPLETED. Older servers answer 404 "No handler…", or 500
+// "Failed to convert" where the path hits GET /sell-orders/{id}.
+function purchaseError(e) {
+  const dev = `${e?.devMessage || ''}`;
+  if ((e?.status === 404 && /no handler|no static resource/i.test(dev)) || (e?.status === 500 && /MethodArgumentTypeMismatch|failed to convert|no static resource|no handler/i.test(dev))) {
+    const err = new Error('Purchase orders from customer leads need the latest NearGFix server update. Ask your admin to deploy the order service.');
+    err.code = 'SERVER_UPDATE_REQUIRED';
+    return err;
+  }
+  return e;
+}
+export async function listShopPurchases() {
+  try { return unwrap(await orderApi.get('/sell-orders/shop-purchases')); } catch (e) { throw purchaseError(e); }
+}
+export async function getShopPurchase(id) {
+  try { return await orderApi.get(`/sell-orders/shop-purchases/${id}`); } catch (e) { throw purchaseError(e); }
+}
+/** pickupDate 'YYYY-MM-DD', slotStart / slotEnd 'HH:mm'. */
+export async function scheduleShopPurchase(id, { pickupDate, slotStart, slotEnd }) {
+  try { return await orderApi.post(`/sell-orders/shop-purchases/${id}/schedule`, { body: { pickupDate, slotStart, slotEnd } }); } catch (e) { throw purchaseError(e); }
+}
+export async function completeShopPurchase(id) {
+  try { return await orderApi.post(`/sell-orders/shop-purchases/${id}/complete`); } catch (e) { throw purchaseError(e); }
+}
+// Purchase workflow steps (each returns the updated purchase detail).
+const purchaseStep = (id, step, body) => orderApi.post(`/sell-orders/shop-purchases/${id}/${step}`, body ? { body } : undefined).catch((e) => { throw purchaseError(e); });
+/** Pickup person = a technicians.id of this shop (Employee App). */
+export const assignPurchasePickup = (id, technicianId) => purchaseStep(id, 'assign', { technicianId });
+/** Pickup handover: { imei, orderVerified, conditionVerified } — the server checks the IMEI against the doorstep inspection. */
+export const receivePurchaseDevice = (id, handover) => purchaseStep(id, 'receive', handover);
+export const setPurchaseFulfilment = (id, fulfilment) => purchaseStep(id, 'fulfilment', { fulfilment });
+/** { imei | serial, modelVerified, condition, checks: {key: bool}, photos: [url], notes } */
+export const savePurchaseInspection = (id, inspection) => purchaseStep(id, 'inspection', inspection);
+export const confirmPurchasePrice = (id) => purchaseStep(id, 'price/confirm');
+export const revisePurchasePrice = (id, { amount, reason }) => purchaseStep(id, 'price/revise', { amount, reason });
+/** method UPI | BANK; the customer confirms receipt before it counts as paid. */
+export const recordPurchasePayout = (id, { method, account, reference }) => purchaseStep(id, 'payout', { method, account, reference });
+export const cancelShopPurchase = (id, reason) => purchaseStep(id, 'cancel', { reason });
+/** The pickup person's revised price from the doorstep inspection (Employee App): the owner decides first, then the customer. */
+export const approvePickupRevision = (id) => purchaseStep(id, 'pickup-revision/approve');
+export const rejectPickupRevision = (id, reason) => purchaseStep(id, 'pickup-revision/reject', { reason });
+/** Doorstep price after the inspection: keep the quote (the employee may pay), set the owner's price (the customer accepts it), or ask for a re-check. */
+export const confirmPickupQuote = (id) => purchaseStep(id, 'pickup-price/confirm');
+export const revisePickupPrice = (id, { amount, reason }) => purchaseStep(id, 'pickup-price/revise', { amount, reason });
+export const requestPickupReinspection = (id, reason) => purchaseStep(id, 'pickup-reinspect', { reason });
+/** The shop's stock (inventory_items) via order-service, read-only — used while inventory-service has no endpoints. */
+export async function listShopInventory() {
+  try { return unwrap(await orderApi.get('/sell-orders/shop-purchases/inventory')); } catch (e) { throw purchaseError(e); }
+}
+/** Every quote this shop sent on customer sell leads: [{ listingId, quotationStatus, quotationPrice, orderStatus }]. */
+export async function listMyLeadQuotes() {
+  try { return unwrap(await orderApi.get('/sell-orders/listing-quotations/mine')); } catch (e) { throw leadQuoteError(e); }
+}
 export async function chooseSellQuotation(id, quotationId) {
   return await orderApi.post(`/sell-orders/${id}/choose-quotation`, { body: { quotationId } });
 }

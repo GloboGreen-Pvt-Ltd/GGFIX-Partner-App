@@ -25,6 +25,7 @@ import {
   StopCircle,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import { RecordingPresets, createAudioPlayer, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { Loader } from '../../../components/rnr';
 import {
@@ -341,7 +342,7 @@ export default function ShopChatThreadScreen({ navigation, route }) {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) return;
       const r = fromCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
+        ? await launchCamera({ quality: 0.8 })
         : await ImagePicker.launchImageLibraryAsync({ quality: 0.8, mediaTypes: 'images' });
       if (r.canceled || !r.assets?.[0]) return;
       const url = await uploadMedia(r.assets[0], 'chat');

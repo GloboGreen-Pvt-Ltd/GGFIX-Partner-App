@@ -1,117 +1,94 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ticketApi } from '../../api/client';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+import { Avatar, Button, Card, ScreenHeader } from '../../components/rnr';
+import { authApi, ticketApi } from '../../api/client';
+import { selectShopId } from '../../store/authSlice';
 import { notify } from '../../components/confirm';
-import { CONTENT_MAX } from '../../theme/responsive';
+import { ResponsiveContainer } from '../../components/responsive';
 
-export default function AssignTechnicianScreen({ route, navigation }) {
-  const { ticketId } = route.params || {};
-  const [technicians, setTechnicians] = useState([]);
+export default function AssignTechnicianScreen({ navigation, route }) {
+  const shopId = useSelector(selectShopId);
+  const { tickets = [], customer, devices, returnToTicketId } = route?.params || {};
+  const [techs, setTechs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [assigning, setAssigning] = useState(null);
+  const [busy, setBusy] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await ticketApi.get('/technicians');
-      setTechnicians(Array.isArray(data) ? data : data?.content ?? data?.data ?? []);
-    } catch (e) {
-      setTechnicians([]);
-    } finally {
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await authApi.get(`/auth/shops/${shopId}/technicians`);
+        setTechs(Array.isArray(data) ? data : []);
+      } catch (_) { setTechs([]); }
       setLoading(false);
-    }
-  }, []);
+    })();
+  }, [shopId]);
 
-  React.useEffect(() => { load(); }, [load]);
-
-  const onAssign = async (tech) => {
-    const technicianId = tech?.id ?? tech;
-    if (!ticketId || !technicianId) {
-      notify('Error', `Missing data: ticketId=${ticketId}, technicianId=${technicianId}`, { preset: 'error' });
-      return;
-    }
-    setAssigning(technicianId);
+  const assign = async (tech) => {
+    setBusy(tech.id);
     try {
-      await ticketApi.patch(`/tickets/${ticketId}`, { body: { assignedTechnicianId: technicianId } });
-      notify('Technician assigned', 'Returning to the previous screen.', { preset: 'done' });
-      navigation.goBack();
+      for (const t of tickets) {
+        await ticketApi.patch(`/tickets/${t.id}`, { body: { assignedTechnicianId: tech.id } });
+      }
+      // No separate success screen: show the (system) toast, then —
+      // re-assign from TicketDetail: pop back so its focus listener refetches;
+      // new booking (Thank You page): straight to Home.
+      notify('Technician assigned', `${tech.name || 'Technician'} has been assigned.`, { preset: 'done' });
+      if (returnToTicketId) navigation.goBack();
+      else navigation.popTo('OwnerTabs', { screen: 'Home' });
     } catch (e) {
-      notify('Error', e.message || 'Failed to assign', { preset: 'error', haptic: 'error' });
-    } finally {
-      setAssigning(null);
-    }
+      notify('Error', e?.message || 'Failed to assign');
+    } finally { setBusy(null); }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <ActivityIndicator size="large" color="#035C6C" style={styles.loader} />
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <FlatList
-        data={technicians}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          ticketId ? (
-            <Text style={styles.hint}>Tap a technician to assign this booking to them.</Text>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => onAssign(item)}
-            disabled={assigning != null}
-          >
-            <View style={styles.rowContent}>
-              <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.role} numberOfLines={1}>{item.roleLabel || item.email}</Text>
-            </View>
-            {assigning === item.id ? (
-              <ActivityIndicator size="small" color="#035C6C" />
-            ) : (
-              <Text style={styles.assignLabel}>Assign</Text>
-            )}
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No technicians. Add from Employee Management.</Text>}
-      />
-    </SafeAreaView>
+    <View className="flex-1 bg-background">
+      <ScreenHeader title="Technician Assign" onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerClassName="px-4 pt-4 pb-12">
+        {/* Capped + centred on tablets; phones keep full width. */}
+        <ResponsiveContainer pad={false}>
+        <View className="flex-row items-center mb-4">
+          <Ionicons name="person" size={22} color="#111111" />
+          <Text className="ml-2 font-bold text-text">All Technician List</Text>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color="#035C6C" />
+        ) : techs.length === 0 ? (
+          <Text className="text-text-muted text-center py-12">No technicians registered for this shop</Text>
+        ) : techs.map((t) => {
+          const isAvailable = t.isAvailable !== false;
+          const statusLabel = isAvailable ? 'Available' : 'Unavailable';
+          const statusColor = isAvailable ? 'text-success' : 'text-error';
+          return (
+            <Card key={t.id} className="mb-3 flex-row items-center">
+              <Avatar fallback={(t.name || '?').slice(0, 2)} size={40} />
+              <View className="flex-1 ml-3">
+                <Text className="font-bold text-text" numberOfLines={1}>{t.name} {t.code ? `- ${t.code}` : ''}</Text>
+                <Text className="text-xs text-text-muted">
+                  {t.roleLabel || 'Technician'} <Text className={`font-semibold ${statusColor}`}>● {statusLabel}</Text>
+                </Text>
+              </View>
+              <Button
+                variant="secondary"
+                // Explicit hex, not `bg-primary`: NativeWind's cached stylesheet
+                // still carries the old green for that token. `bg-purple-500`
+                // was here before and was simply wrong — nothing else in this
+                // app is purple. Button forwards `style` onto its Pressable.
+                style={{ backgroundColor: '#035C6C' }}
+                size="sm"
+                loading={busy === t.id}
+                disabled={!isAvailable}
+                onPress={() => assign(t)}
+              >
+                Assign
+              </Button>
+            </Card>
+          );
+        })}
+        </ResponsiveContainer>
+      </ScrollView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#111111' },
-  loader: { flex: 1, justifyContent: 'center' },
-  // Tablets: cap and centre the list instead of stretching rows edge-to-edge.
-  list: { padding: 12, paddingBottom: 24, width: '100%', maxWidth: CONTENT_MAX.list, alignSelf: 'center' },
-  hint: { fontSize: 13, color: '#9CA3AF', marginBottom: 10 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#111111',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: '#111111',
-  },
-  rowContent: { flex: 1, marginRight: 8 },
-  name: { fontSize: 15, fontWeight: '600', color: '#F3F4F6' },
-  role: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
-  assignLabel: { fontSize: 13, fontWeight: '600', color: '#035C6C' },
-  empty: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', marginTop: 24 },
-});

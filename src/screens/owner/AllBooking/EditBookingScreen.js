@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, StatusBar, Text, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import {
   ArrowLeft, Camera, ChevronDown, IdCard, ImagePlus, Lock, Mail, MapPin, Mic, Pencil, Phone, ScanLine, Smartphone, User, Video, X,
 } from 'lucide-react-native';
@@ -355,7 +356,7 @@ export default function EditBookingScreen({ navigation, route }) {
     const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to upload the ID proof.`); return; }
     const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    const res = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
     const asset = res.canceled ? null : res.assets?.[0];
     if (!asset) return;
     if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('File too large', 'The ID proof must be 10 MB or smaller.'); return; }
@@ -393,7 +394,7 @@ export default function EditBookingScreen({ navigation, route }) {
       const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to add a device photo.`); return; }
       const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-      const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const res = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (res.canceled || !res.assets?.[0]) return;
       await uploadPhoto(res.assets[0]);
       return;

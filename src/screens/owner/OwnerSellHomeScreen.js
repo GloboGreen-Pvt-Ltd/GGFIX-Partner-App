@@ -71,15 +71,15 @@ function metaFor(code) { return CODE_META[String(code || '').toUpperCase()] || D
 // the shared master_device_categories row (that image is also used elsewhere,
 // so it isn't always right for the Sell context).
 const SELL_IMAGES = {
-  MOBILE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  SMARTPHONE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  LAPTOP: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Laptop.png',
-  SMARTWATCH: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  SMARTWATCHES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  TABLET: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Tablet.png',
-  AUDIO: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+  MOBILE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  SMARTPHONE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  LAPTOP: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Laptop.png',
+  SMARTWATCH: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  SMARTWATCHES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  TABLET: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Tablet.png',
+  AUDIO: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
 };
 
 function imgUri(item) {

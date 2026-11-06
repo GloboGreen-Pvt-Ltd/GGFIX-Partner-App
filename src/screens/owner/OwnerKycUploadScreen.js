@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../components/InAppCamera';
 import { CommonActions } from '@react-navigation/native';
 import {
   AppHeader, Card, BottomActionBar, ScreenContainer, useBottomBarInset,
@@ -243,7 +244,7 @@ export default function OwnerKycUploadScreen({ navigation, route }) {
       }
       const opts = { quality: 0.8, mediaTypes: ['images'] };
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
+        ? await launchCamera(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const asset = result.assets[0];

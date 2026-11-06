@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 const host = process.env.EXPO_PUBLIC_API_HOST || '';
-const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.ggfix.in';
+const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.neargfix.com';
 const masterPort = process.env.EXPO_PUBLIC_MASTER_PORT || '8091';
 const masterBase =
   process.env.EXPO_PUBLIC_MASTER_DATA_BASE ||
@@ -137,7 +137,8 @@ export default {
         'expo-build-properties',
         {
           android: {
-            usesCleartextTraffic: true,
+            // Only LAN dev (EXPO_PUBLIC_API_HOST) talks plain http; EAS builds use https.
+            usesCleartextTraffic: !!host,
             // Ship native libraries for real phones only (arm64-v8a). This drops the
             // emulator-only ABIs (x86/x86_64, ~52MB) and old 32-bit devices
             // (armeabi-v7a, ~16MB), shrinking the universal APK from ~114MB to ~50MB.

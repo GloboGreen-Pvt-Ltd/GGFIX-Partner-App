@@ -24,7 +24,7 @@ import { safeHttpMessage, safeNetworkMessage } from '../lib/safeError';
 const REQUEST_TIMEOUT_MS = 20000;
 const UPLOAD_TIMEOUT_MS = 60000;
 
-// Bases may carry a routing prefix (https://api.ggfix.in/ticket) as well as a
+// Bases may carry a routing prefix (https://api.neargfix.com/ticket) as well as a
 // bare origin (http://10.0.0.5:8082), so base and path are CONCATENATED. Using
 // `new URL(path, base)` here would resolve an absolute path like `/tickets/1`
 // against the origin and silently drop the `/ticket` prefix nginx routes on.

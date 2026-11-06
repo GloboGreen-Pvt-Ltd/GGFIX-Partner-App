@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../components/InAppCamera';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import {
   ArrowDown,
@@ -466,7 +467,7 @@ export default function OwnerLedgerEntryAddScreen({ navigation, route }) {
 
     const opts = { quality: 0.7, mediaTypes: ['images'] };
     const result = from === 'camera'
-      ? await ImagePicker.launchCameraAsync(opts)
+      ? await launchCamera(opts)
       : await ImagePicker.launchImageLibraryAsync(opts);
     const asset = result?.assets?.[0];
     if (result?.canceled || !asset) return;

@@ -37,6 +37,7 @@ import SystemBarGuard from './src/components/SystemBarGuard';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { ToastHost } from './src/components/Toast';
+import { CameraHost } from './src/components/InAppCamera';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 import { store } from './src/store';
@@ -160,6 +161,8 @@ export default function App() {
               </SystemBarGuard>
               {/* App-wide toasts (components/Toast) — above every screen. */}
               <ToastHost />
+              {/* In-app "Take Photo" camera (components/InAppCamera). */}
+              <CameraHost />
             </SafeAreaProvider>
           </KeyboardProvider>
         </GluestackUIProvider>

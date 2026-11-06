@@ -7,9 +7,9 @@ import { SELL, SellButton, SellCard, SellFooter, SellIntro, EditingBanner, Check
 // Stable per-option key for the selected state. An option without an id would
 // otherwise compare `undefined === undefined` and render as selected before
 // anything was tapped. (The payload still carries the option's real id.)
-const optKey = (g, o) => (o.id != null ? o.id : `${g.id}::${o.label}`);
+export const optKey = (g, o) => (o.id != null ? o.id : `${g.id}::${o.label}`);
 
-const FALLBACK_GROUPS = [
+export const FALLBACK_GROUPS = [
   { id: 'SCREEN_VISIBLE', code: 'SCREEN_VISIBLE', name: 'Screen Condition on your Device', options: ['No Damage', 'Minor Spot or patches', 'Major Spot or patches', 'Major Spot or patches', 'Discoloration'] },
   { id: 'TOUCH_GLASS', code: 'TOUCH_GLASS', name: 'Touch Glass Condition on your device', options: ['No Damage', '1 or 2 Minor Scratches', 'Heavy Scratches', 'TouchGlass Broken'] },
   { id: 'BACK_PANEL', code: 'BACK_PANEL', name: 'Back Panel Condition on your Device', options: ['No Damage', '1 or 2 Minor Scratches', 'Heavy Scratches or deep scratches', 'Light Cover Marks on Body', 'Heavy Cover Marks on Body', 'Back Panel Broken'] },
@@ -25,7 +25,7 @@ const orderRank = (g) => {
   if (n.includes('side') || n.includes('center')) return 4;
   return 99;
 };
-const sortGroups = (arr) => [...arr].sort((a, b) => orderRank(a) - orderRank(b));
+export const sortGroups = (arr) => [...arr].sort((a, b) => orderRank(a) - orderRank(b));
 
 export default function SellScreenConditionScreen({ navigation, route }) {
   const params = route.params || {};

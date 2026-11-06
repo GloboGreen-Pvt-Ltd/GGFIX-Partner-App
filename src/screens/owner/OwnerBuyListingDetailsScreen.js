@@ -13,6 +13,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { addToCart } from '../../api/marketplace';
+import { sendPurchaseOffer } from '../../api/buyEnquiries';
+import OfferSheet from './buy/OfferSheet';
 import { listingConditionLabel, listingCustomerName, listingPriceLabel } from '../../api/nearbyListings';
 import { getBrands, getDeviceCategories } from '../../api/masterData';
 import { normalizeDeviceImageUrl } from '../../utils/images';
@@ -97,6 +99,14 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listing.categoryId, listing.brandId]);
+
+  const [offerOpen, setOfferOpen] = useState(false);
+  const submitOffer = async ({ amount, note }) => {
+    await sendPurchaseOffer(listing.id, { offerAmount: amount, message: note });
+    setOfferOpen(false);
+    notify('Offer sent', 'Track the shop’s reply in Quotations.', { preset: 'done' });
+    navigation.navigate('BuyQuotations');
+  };
 
   const onAddToCart = async () => {
     if (!isProduct || adding) return;
@@ -265,12 +275,20 @@ export default function OwnerBuyListingDetailsScreen({ navigation, route }) {
         <Text style={styles.disclaimer}>* Contact the seller after placing your order.</Text>
       </ScrollView>
 
+      <OfferSheet visible={offerOpen} listPrice={listing.price} onClose={() => setOfferOpen(false)} onSubmit={submitOffer} />
       <View style={[styles.bottomBar, { paddingHorizontal: barPadH, paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
         {isProduct ? (
-          <TouchableOpacity style={styles.primaryBtn} onPress={onAddToCart} disabled={adding} activeOpacity={0.85}>
-            <Ionicons name="cart-outline" size={17} color="#FFFFFF" />
-            <Text style={styles.primaryText} numberOfLines={1}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
-          </TouchableOpacity>
+          <>
+            {/* Negotiate first: a purchase offer to the selling shop (Quotations). */}
+            <TouchableOpacity style={styles.outlineBtn} onPress={() => setOfferOpen(true)} activeOpacity={0.8} accessibilityRole="button">
+              <Ionicons name="pricetag-outline" size={16} color={PALETTE.primaryDark} />
+              <Text style={styles.outlineText} numberOfLines={1}>Make an Offer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryBtn} onPress={onAddToCart} disabled={adding} activeOpacity={0.85}>
+              <Ionicons name="cart-outline" size={17} color="#FFFFFF" />
+              <Text style={styles.primaryText} numberOfLines={1}>{adding ? 'Adding…' : 'Add to Cart'}</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <>
             <TouchableOpacity style={styles.outlineBtn} onPress={callSeller} activeOpacity={0.8} accessibilityRole="button">

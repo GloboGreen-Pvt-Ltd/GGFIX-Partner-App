@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { inventoryApi } from '../../api/client';
+import { listShopInventory } from '../../api/orders';
 import { CONTENT_MAX } from '../../theme/responsive';
 
 export default function InventoryScreen() {
@@ -14,7 +15,8 @@ export default function InventoryScreen() {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const data = await inventoryApi.get('/inventory/items');
+      // inventory-service first; while it has no endpoints, the read-only list from order-service.
+      const data = await inventoryApi.get('/inventory/items').catch(() => listShopInventory());
       setList(Array.isArray(data) ? data : data?.content ?? data?.data ?? []);
     } catch (e) {
       setError(e.message || 'Failed to load inventory');

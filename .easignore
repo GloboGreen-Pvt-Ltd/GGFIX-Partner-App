@@ -11,3 +11,12 @@ android/build/
 android/app/build/
 android/app/.cxx/
 android/.gradle/
+
+# Native folders are local-only (gitignored); EAS must regenerate them from
+# app.config.js so plugins (Firebase, cleartext, build properties) apply.
+android/
+ios/
+
+# Firebase config comes from the GOOGLE_SERVICES_JSON EAS file secret.
+google-services.json
+docs/

@@ -78,7 +78,7 @@ export default function WhatsAppStatusCard({ ticketId, cardShadow }) {
     || (info.status === 'NONE' ? (info.sendingEnabled ? 'No WhatsApp confirmation for this booking yet.' : 'WhatsApp sending is turned off.') : null);
 
   return (
-    <View className="px-4">
+    <View>
       <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <WhatsAppIcon size={18} color="#25D366" />

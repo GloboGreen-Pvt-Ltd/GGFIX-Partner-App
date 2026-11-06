@@ -50,7 +50,7 @@ import ImageViewerModal from '../../components/ImageViewerModal';
 import { ResponsiveModal } from '../../components/responsive';
 import { useResponsive } from '../../theme/responsive';
 
-// GGFIX palette — green #035C6C, red #F84141, ink #111111, neutrals
+// GGFIX palette â€” green #035C6C, red #F84141, ink #111111, neutrals
 // #F3F4F6 / #F3F4F6, yellow #F3BF23. One palette for view AND edit mode.
 const BRAND_GREEN      = '#035C6C';
 const BRAND_GREEN_DARK = '#035C6C';
@@ -86,7 +86,7 @@ const softShadow = {
 
 // Coordinate entry. iOS has a keyboard with digits + punctuation; Android does
 // not, and an unknown keyboardType there silently becomes the default text
-// keyboard — hence the platform split plus a filter on what gets stored.
+// keyboard â€” hence the platform split plus a filter on what gets stored.
 const COORD_KEYBOARD = Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'decimal-pad';
 
 // Keep only digits, one leading minus and one decimal point, so `Number(value)`
@@ -107,22 +107,22 @@ function coordOrUndefined(value) {
 }
 
 const WORKING_DAYS_OPTIONS = [
-  { value: 'MON_FRI', label: 'Mon – Fri' },
-  { value: 'MON_SAT', label: 'Mon – Sat' },
-  { value: 'MON_SUN', label: 'Mon – Sun' },
+  { value: 'MON_FRI', label: 'Mon â€“ Fri' },
+  { value: 'MON_SAT', label: 'Mon â€“ Sat' },
+  { value: 'MON_SUN', label: 'Mon â€“ Sun' },
 ];
 
 const workingDaysLabel = (v) =>
   WORKING_DAYS_OPTIONS.find((o) => o.value === v)?.label || '';
 
-// ── OpenStreetMap Nominatim address search ──────────────────────────────────
-// Free, no API key, ~1 req/s per their usage policy — the 400 ms debounce in
+// â”€â”€ OpenStreetMap Nominatim address search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Free, no API key, ~1 req/s per their usage policy â€” the 400 ms debounce in
 // the caller keeps us well under that. `fetch` works natively in React Native.
 async function nominatimSearch(q) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&countrycodes=in&limit=6`;
   try {
     const res = await fetch(url, {
-      headers: { 'Accept-Language': 'en', 'User-Agent': 'GGfixShopApp/1.0 (support@ggfix.in)' },
+      headers: { 'Accept-Language': 'en', 'User-Agent': 'GGfixShopApp/1.0 (support@neargfix.com)' },
     });
     if (!res.ok) return [];
     return await res.json();
@@ -182,7 +182,7 @@ const ANDROID_SERVICES = [
 const APPLE_SERVICES = ANDROID_SERVICES;
 
 /**
- * Shop Information — doubles as the ADD SHOP form.
+ * Shop Information â€” doubles as the ADD SHOP form.
  *
  * `route.params.mode === 'create'` opens the same form with nothing hydrated
  * and no shopId, and the save button POSTs a new location instead of PATCHing
@@ -243,7 +243,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       const fullShop = session?.activeShop || null;
       setOwnerId(session?.userId || null);
       existingShopIds.current = new Set((session?.shops || []).map((s) => s.id));
-      // Add Shop starts from an empty form — hydrating it from the active shop
+      // Add Shop starts from an empty form â€” hydrating it from the active shop
       // would pre-fill the new record with the current shop's address and
       // photos, which is the fastest way to end up with two identical shops.
       if (isCreate) {
@@ -256,7 +256,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
         setShopName(fullShop.name || '');
         setShopSince(fullShop.createdAt ? new Date(fullShop.createdAt).getFullYear().toString() : '');
         // Normalise to the bare 10 digits the field (and the save validation)
-        // now expect — legacy rows can hold "+91 80123 45280", which would
+        // now expect â€” legacy rows can hold "+91 80123 45280", which would
         // otherwise read as 12 digits and block every save until retyped.
         setMobile((fullShop.mobile || '').replace(/[^0-9]/g, '').slice(-10));
         setGstNumber(fullShop.gstNumber || '');
@@ -278,7 +278,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
         setUdyamCertificateUrl(fullShop.udyamCertificateUrl || '');
 
         // Rehydrate the Android / Apple service toggles from the saved JSON
-        // snapshot. NULL = first time on this screen → keep the default
+        // snapshot. NULL = first time on this screen â†’ keep the default
         // "all selected" so the owner sees the full list and can deselect.
         try {
           const parsed = fullShop.serviceCategoriesJson
@@ -294,7 +294,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               Object.fromEntries(APPLE_SERVICES.map((s) => [s, b.has(s)])),
             );
           }
-        } catch (_) { /* malformed JSON — fall back to defaults */ }
+        } catch (_) { /* malformed JSON â€” fall back to defaults */ }
 
         const looksComplete = !!(fullShop.name && (fullShop.address || fullShop.street) && fullShop.frontImageUrl);
         setEditing(!looksComplete);
@@ -427,7 +427,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       return;
     }
     // A shop mobile doubles as its login identity, so a half-typed number is
-    // worse than none — reject it rather than storing something unusable.
+    // worse than none â€” reject it rather than storing something unusable.
     const mobileDigits = mobile.replace(/\D/g, '');
     if (mobile && mobileDigits.length !== 10) {
       notify('Check the mobile number', 'Shop mobile must be 10 digits.', { preset: 'error' });
@@ -442,7 +442,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       // Persist selected Android / Apple categories as an opaque JSON snapshot
       // so the View tab shows exactly what the owner chose. Without this the
       // server returned NULL on next load and the toggles snapped back to
-      // "all selected" — the bug the owner reported.
+      // "all selected" â€” the bug the owner reported.
       const serviceCategoriesJson = JSON.stringify({
         android: ANDROID_SERVICES.filter((s) => androidSelected[s]),
         apple:   APPLE_SERVICES.filter((s) => appleSelected[s]),
@@ -460,7 +460,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
         district,
         state,
         pincode,
-        // Blank (or a half-typed "-" / ".") → omit, so the backend PATCH leaves
+        // Blank (or a half-typed "-" / ".") â†’ omit, so the backend PATCH leaves
         // the stored coord alone. Number('') is 0 and Number('-') is NaN, and
         // either one silently moves the shop off the map.
         latitude: coordOrUndefined(latitude),
@@ -490,7 +490,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               .slice()
               .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0] || null;
         await fetchMe().catch(() => null);
-        // Only offer the switch when the new shop was actually identified —
+        // Only offer the switch when the new shop was actually identified â€”
         // an "OK, switch" that silently does nothing is worse than no offer.
         if (created?.id) {
           const goNow = await confirm({
@@ -504,7 +504,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               await switchShop(created.id);
               await fetchMe().catch(() => null);
             } catch (e) {
-              notify('Could not switch', e?.message || 'The shop was created — switch to it from My Account.', { preset: 'error' });
+              notify('Could not switch', e?.message || 'The shop was created â€” switch to it from My Account.', { preset: 'error' });
             }
           }
         } else {
@@ -554,7 +554,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
   const activeAndroid = ANDROID_SERVICES.filter((s) => androidSelected[s]);
   const activeApple = APPLE_SERVICES.filter((s) => appleSelected[s]);
 
-  // Same two categories, wording and saved service lists as before — the
+  // Same two categories, wording and saved service lists as before â€” the
   // compact card and the "all services" sheet both read from here.
   const repairCategories = [
     {
@@ -598,7 +598,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
     );
   }
 
-  // Shop photo, name, since / location, trust badge and tagline — one row.
+  // Shop photo, name, since / location, trust badge and tagline â€” one row.
   const renderIdentity = () => (
     <View className="flex-row items-center" style={{ marginTop: rs(10) }}>
       <View style={{ position: 'relative' }}>
@@ -624,7 +624,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
       <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
         <View className="flex-row items-center">
           <Text className="font-extrabold" style={{ flexShrink: 1, fontSize: 15, color: TEXT_PRIMARY }} numberOfLines={1}>
-            {shopName || '—'}
+            {shopName || 'â€”'}
           </Text>
           <View className="rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: MINT }}>
             <Text className="font-extrabold" style={{ fontSize: 9, color: PRIMARY, letterSpacing: 0.8 }}>SHOP</Text>
@@ -657,7 +657,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
     </View>
   );
 
-  // Shared hero — decorative mint leaf shapes (same low-risk plain-View
+  // Shared hero â€” decorative mint leaf shapes (same low-risk plain-View
   // approximation used elsewhere in this app), title/subtitle + edit/view chip.
   const renderHero = () => (
     <SafeAreaView edges={['top']} style={{ backgroundColor: CARD_BG }}>
@@ -686,7 +686,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               {isCreate ? 'Set up your new business location' : 'Manage your shop details and services'}
             </Text>
           </View>
-          {/* No preview/edit toggle while adding — there is nothing saved to
+          {/* No preview/edit toggle while adding â€” there is nothing saved to
               preview yet, and switching to the view tab would strand the owner
               on an empty card with an "Edit Shop Information" button. */}
           {isCreate ? (
@@ -732,7 +732,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
           contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 72 + Math.max(insets.bottom, 10) }}
         >
           <View style={[{ gap: 10 }, capStyle]}>
-            {/* ── Repair service categories: two compact cards; tap for every service ── */}
+            {/* â”€â”€ Repair service categories: two compact cards; tap for every service â”€â”€ */}
             <View>
               <View className="flex-row items-center" style={{ marginBottom: 8 }}>
                 <View className="items-center justify-center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: MINT, marginRight: 8 }}>
@@ -744,7 +744,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 </View>
                 <View className="flex-row items-center rounded-full" style={{ marginLeft: 6, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: '#FFF8E1' }}>
                   <Award size={10} color={STAR} />
-                  <Text className="font-extrabold" style={{ marginLeft: 3, fontSize: 10, color: TEXT_PRIMARY }} numberOfLines={1}>Wide Range · Trusted</Text>
+                  <Text className="font-extrabold" style={{ marginLeft: 3, fontSize: 10, color: TEXT_PRIMARY }} numberOfLines={1}>Wide Range Â· Trusted</Text>
                 </View>
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -754,11 +754,11 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* ── Address + contact ── */}
+            {/* â”€â”€ Address + contact â”€â”€ */}
             <View style={{ backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 12 }}>
               <SectionHeader compact Icon={MapPin} label="SHOP ADDRESS" />
               <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_PRIMARY, lineHeight: 18 }}>
-                {fullAddress || '—'}
+                {fullAddress || 'â€”'}
               </Text>
               {(mobile || openingTime || closingTime || workingDaysLabel(workingDays)) ? (
                 <View className="flex-row flex-wrap" style={{ marginTop: 8, gap: 6 }}>
@@ -771,7 +771,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               ) : null}
             </View>
 
-            {/* ── Photos | Documents — 2-column grid; tap to preview ── */}
+            {/* â”€â”€ Photos | Documents â€” 2-column grid; tap to preview â”€â”€ */}
             <View style={{ flexDirection: 'row', backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 12 }}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <SectionHeader compact Icon={Camera} label="SHOP PHOTOS" required />
@@ -831,7 +831,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Every service of one category — the full card the screen used to show. */}
+        {/* Every service of one category â€” the full card the screen used to show. */}
         <ResponsiveModal visible={!!sheetCategory} onClose={() => setServiceSheet(null)} maxWidth={620}>
           <SheetHandle />
           <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
@@ -854,7 +854,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
           <SheetCloseButton onPress={() => setServiceSheet(null)} />
         </ResponsiveModal>
 
-        {/* Document details — status, number (GST) and the certificate itself. */}
+        {/* Document details â€” status, number (GST) and the certificate itself. */}
         <ResponsiveModal visible={!!sheetDoc} onClose={() => setDocSheet(null)} maxWidth={480}>
           <SheetHandle />
           {sheetDoc ? (
@@ -936,7 +936,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               />
               {/* Display-only: derived from the shop's created date (see hydrate).
                   It was editable but never included in the save payload and is
-                  re-derived from createdAt on reload, so editing did nothing —
+                  re-derived from createdAt on reload, so editing did nothing â€”
                   show it read-only rather than as a field that silently ignores
                   input. A shop being created has no created date yet. */}
               {!isCreate ? (
@@ -1066,8 +1066,8 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                       </Text>
                       <Text className="text-[10.5px] text-gray-500 mt-0.5" numberOfLines={1}>
                         {Number.isFinite(sug.lat) ? `${sug.lat.toFixed(4)}, ${sug.lng.toFixed(4)}` : ''}
-                        {sug.pincode ? ` · ${sug.pincode}` : ''}
-                        {sug.district ? ` · ${sug.district}` : ''}
+                        {sug.pincode ? ` Â· ${sug.pincode}` : ''}
+                        {sug.district ? ` Â· ${sug.district}` : ''}
                       </Text>
                     </Pressable>
                   ))}
@@ -1102,7 +1102,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                   <Crosshair size={15} color={BRAND_GREEN_DARK} />
                 )}
                 <Text className="ml-2 text-[12px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>
-                  {locating ? 'Locating…' : 'Get Current Location'}
+                  {locating ? 'Locatingâ€¦' : 'Get Current Location'}
                 </Text>
               </TouchableOpacity>
 
@@ -1131,7 +1131,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
                 keyboardType="number-pad"
               />
               <View className="flex-row">
-                {/* `numbers-and-punctuation` is iOS-only — Android fell back to
+                {/* `numbers-and-punctuation` is iOS-only â€” Android fell back to
                     the full alphabetic keyboard, so a coordinate could be typed
                     with letters in it. Digits + decimal point on both, and the
                     input is filtered to what Number() can actually parse. */}
@@ -1237,7 +1237,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* Documents — GST & Udyam certificates */}
+            {/* Documents â€” GST & Udyam certificates */}
             <View className="bg-white rounded-2xl p-3 mt-3" style={cardShadow}>
               <SectionHeader Icon={FileText} label="SHOP DOCUMENTS" />
               <Text className="text-[11px] text-gray-500 mb-3 leading-4">
@@ -1313,7 +1313,7 @@ export default function OwnerShopInfoScreen({ navigation, route }) {
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SectionHeader({ Icon, label, required, compact }) {
   const d = compact ? 22 : 26;
@@ -1332,7 +1332,7 @@ function SectionHeader({ Icon, label, required, compact }) {
 
 // View-mode repair category card: gradient header (icon, title, device types,
 // badge), the owner's selected services as a grid of identical fixed-size
-// tiles (the SAME activeAndroid / activeApple lists from the saved toggles —
+// tiles (the SAME activeAndroid / activeApple lists from the saved toggles â€”
 // nothing fabricated), and a tagline panel. Android = green, Apple = dark.
 // The gradient's row layout lives in `style` (LinearGradient ignores className).
 function RepairCategoryCard({ title, sub, Icon, badge, items, tone, cols = 2, footerIcon: FooterIcon, footerTitle, footerBody, style }) {

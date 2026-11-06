@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Upload, Check, X, ShieldCheck, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import {
   AppHeader, Card, BottomActionBar, ScreenContainer, useBottomBarInset,
 } from '../../../components/rnr';
@@ -98,7 +99,7 @@ export default function TechnicianKycUploadScreen({ navigation, route }) {
       }
       const opts = { quality: 0.8, mediaTypes: ['images'] };
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
+        ? await launchCamera(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]?.uri) return;
       setFiles((prev) => ({ ...prev, [key]: result.assets[0] }));
