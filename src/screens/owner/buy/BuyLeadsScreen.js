@@ -38,7 +38,7 @@ export const leadDistance = (l, origin) => {
   return `${d < 10 ? d.toFixed(1) : Math.round(d)} km away`;
 };
 
-function ActionIcon({ Icon, label, onPress, disabled }) {
+function ActionIcon({ Icon, label, text, onPress, disabled }) {
   return (
     <Pressable
       onPress={onPress}
@@ -49,9 +49,10 @@ function ActionIcon({ Icon, label, onPress, disabled }) {
       accessibilityHint={disabled ? 'Available after the customer accepts your quote' : undefined}
       accessibilityState={{ disabled: !!disabled }}
       className="active:opacity-70"
-      style={{ height: 32, width: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? '#F3F4F6' : C.greenBg, opacity: disabled ? 0.55 : 1 }}
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 32, borderRadius: 10, backgroundColor: disabled ? '#F3F4F6' : C.greenBg, opacity: disabled ? 0.55 : 1 }}
     >
-      <Icon size={16} color={disabled ? C.faint : C.green} />
+      <Icon size={14} color={disabled ? C.faint : C.green} />
+      <Text numberOfLines={1} style={{ marginLeft: 4, fontSize: rf(11), fontWeight: '800', color: disabled ? C.faint : C.green }}>{text}</Text>
     </Pressable>
   );
 }
@@ -75,7 +76,8 @@ export function LeadCard({ l, onPress, tag, navigation, quoteStatus, purchase })
     }
   };
   return (
-    <Pressable onPress={onPress || view} accessibilityRole="button" accessibilityLabel={l.productName || 'Device'} className="active:opacity-90" style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}>
+    <Pressable onPress={onPress || view} accessibilityRole="button" accessibilityLabel={l.productName || 'Device'} className="active:opacity-90" style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <Thumb uri={l.productImage} size={60} radius={10} />
       <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
         {tag ? (
@@ -101,17 +103,16 @@ export function LeadCard({ l, onPress, tag, navigation, quoteStatus, purchase })
           ) : null}
         </View>
       </View>
+      </View>
       {navigation ? (
-        <View style={{ marginLeft: 8, gap: 6 }}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <ActionIcon Icon={Eye} label="View product detail" onPress={view} />
-            {customer ? <ActionIcon Icon={FileText} label="Product quotation" onPress={() => navigation.navigate('BuyLeadDetail', { lead: l, mode: 'quote' })} /> : <View style={{ width: 32 }} />}
-          </View>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+          <ActionIcon Icon={Eye} text="View" label="View product detail" onPress={view} />
           {customer ? (
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <ActionIcon Icon={Truck} label="Pickup" disabled={!accepted} onPress={() => navigation.navigate('BuyLeadQuote', { lead: l })} />
-              <ActionIcon Icon={MapPin} label="Track pickup" disabled={!accepted} onPress={track} />
-            </View>
+            <>
+              <ActionIcon Icon={FileText} text="Quote" label="Product quotation" onPress={() => navigation.navigate('BuyLeadDetail', { lead: l, mode: 'quote' })} />
+              <ActionIcon Icon={Truck} text="Pickup" label="Pickup" disabled={!accepted} onPress={() => navigation.navigate('BuyLeadQuote', { lead: l })} />
+              <ActionIcon Icon={MapPin} text="Track" label="Track pickup" disabled={!accepted} onPress={track} />
+            </>
           ) : null}
         </View>
       ) : null}
