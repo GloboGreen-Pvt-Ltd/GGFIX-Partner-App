@@ -1,64 +1,43 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import {
-  TrendingUp, ShieldCheck, Truck, ChevronRight, FileText, LayoutGrid, Smartphone, ArrowRight, Wrench, ShoppingBag, Package,
+  ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ArrowRight, Bell, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package, ShoppingCart,
 } from 'lucide-react-native';
-import { marketplaceApi } from '../../api/client';
 import { selectShopId, selectUserId } from '../../store/authSlice';
-import { OfferBanner, EmptyState, Loader } from '../../components/rnr';
-import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
-import { tintFor } from '../shared/categoryTints';
-import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
+import { getBanners } from '../../api/masterData';
+import { getSellSummary, listMyListings, listEnquiries } from '../../api/sellListings';
+import { fetchNearbyListings, getListingOrigin } from '../../api/nearbyListings';
+import { getCart } from '../../api/marketplace';
+import { getUnreadCount } from '../../api/notifications';
+import { HeaderIconButton, HEADER_FONT } from '../../components/PageHeader';
 import { rf } from '../../utils/responsive';
-import { useCurrentDevice, deviceName, deviceTitle, roughEstimate } from '../../utils/currentDevice';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
-import { useResponsive } from '../../theme/responsive';
+import { C, ErrorBox, SearchInput, StatusPill, Thumb, listingImage, listingSub, money } from './sell/kit';
 
-// Same page as the Customer app's Sell home (SellHomeScreen); picking a device
-// starts the Partner listing flow (SelectBrand, OWNER_LIST).
+// Sell Home (Sell tab) — the shop's selling dashboard: search, start a listing
+// (single or bulk, chosen on the next screen), counters for listings /
+// enquiries / price requests / sold items, latest listings and admin offers. Counts are server data.
 
-// Partner app Sell palette — green #035C6C, ink #111111, neutrals #F3F4F6 / #F3F4F6.
-const ACCENT = '#035C6C';
-const PRIMARY = '#035C6C';      // green text
-const MINT = '#E5F3F5';
-const PAGE_BG = '#F3F4F6';
-const BORDER = '#E5E7EB';
-const TEXT = '#111111';
-const MUTED = '#6B7280';
-const AMBER_FG = '#B45309';
-const AMBER_BG = '#FFF3CD';
-const MAX_W = 1000;
-
-const cardShadow = {
-  shadowColor: TEXT, shadowOpacity: 0.06, shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 }, elevation: 2,
-};
+const MAX_W = 760;
 
 // Sell-specific category art, used when the admin's SELL Category Menu has
 // no image for a category (the shared category image is also Repair's).
 const SELL_IMAGES = {
-  MOBILE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  SMARTPHONE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  LAPTOP: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Laptop.png',
-  SMARTWATCH: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  SMARTWATCHES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  TABLET: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Tablet.png',
-  AUDIO: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+  MOBILE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  SMARTPHONE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  LAPTOP: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Laptop.png',
+  SMARTWATCH: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  SMARTWATCHES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  TABLET: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Tablet.png',
+  AUDIO: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
 };
-
-// Display order for the strip (backend returns categories alphabetically).
-const CATEGORY_ORDER = ['MOBILE', 'SMARTPHONE', 'LAPTOP', 'TABLET', 'SMARTWATCH', 'SMARTWATCHES', 'WATCH', 'AUDIO', 'AUDIO_DEVICE', 'AUDIO_DEVICES'];
-function sortCategories(list) {
-  const rank = (c) => {
-    const i = CATEGORY_ORDER.indexOf((c.code || '').toUpperCase());
-    return i === -1 ? CATEGORY_ORDER.length : i;
-  };
-  return [...list].sort((a, b) => rank(a) - rank(b) || (a.name || '').localeCompare(b.name || ''));
-}
 
 function imgUri(item) {
   if (!item) return null;
@@ -68,124 +47,179 @@ function imgUri(item) {
   return url || null;
 }
 
-// Benefit cards — the same three promises this page made before.
-const PROMISES = [
-  { icon: TrendingUp, title: 'Best Price', sub: 'Highest value guaranteed', color: ACCENT, bg: MINT },
-  { icon: ShieldCheck, title: 'Verified Shops', sub: 'Trusted & verified partners', color: AMBER_FG, bg: AMBER_BG },
-  { icon: Truck, title: 'Free Pickup', sub: 'Hassle-free at your doorstep', color: ACCENT, bg: MINT },
-];
-
 // NOTE: Pressables take plain style objects only — NativeWind's cssInterop
 // drops function-form `style={({ pressed }) => ...}` on native. Press feedback
 // uses the `active:` className.
-// Action card under the banner: art · kicker / title / sub · CTA pill.
-function ActionCard({ width, image, Icon, kicker, title, sub, cta, onPress }) {
+
+// Dashboard counter: tinted card · icon · title · count + chevron.
+function StatCard({ Icon, iconColor, tint, title, count, countColor = C.text, onPress, width }) {
   return (
     <Pressable
       onPress={onPress}
-      className="active:opacity-90"
       accessibilityRole="button"
-      accessibilityLabel={`${kicker}: ${title}`}
-      accessibilityHint={cta}
-      style={{
-        width, minHeight: 78, marginRight: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 18,
-        borderWidth: 1, borderColor: BORDER, paddingVertical: 8, paddingHorizontal: 10, overflow: 'hidden', ...cardShadow,
-      }}
+      accessibilityLabel={count != null ? `${title}, ${count}` : title}
+      className="active:opacity-90"
+      style={{ width, minHeight: 112, borderRadius: 16, padding: 14, backgroundColor: tint, justifyContent: 'space-between' }}
     >
-      {image ? (
-        <Image resizeMethod="resize" source={{ uri: image }} style={{ height: 56, width: 56, marginRight: 10 }} resizeMode="contain" />
-      ) : (
-        <View style={{ height: 52, width: 52, borderRadius: 14, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-          <Icon size={24} color={ACCENT} />
-        </View>
-      )}
-      <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-        <Text numberOfLines={1} style={{ color: PRIMARY, fontWeight: '800', fontSize: rf(11.5) }}>{kicker}</Text>
-        <Text numberOfLines={2} style={{ color: TEXT, fontWeight: '800', fontSize: rf(13), lineHeight: rf(17), marginTop: 1 }}>{title}</Text>
-        <Text numberOfLines={1} style={{ color: MUTED, fontSize: rf(11.5), marginTop: 1 }}>{sub}</Text>
-      </View>
-      <View style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }}>
-        <ArrowRight size={16} color="#FFFFFF" />
+      <Icon size={24} color={iconColor} strokeWidth={1.9} />
+      <Text numberOfLines={2} style={{ marginTop: 10, fontSize: rf(13.5), fontWeight: '800', color: C.text, lineHeight: rf(17) }}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+        <Text style={{ flex: 1, fontSize: rf(20), fontWeight: '800', color: countColor }}>{count ?? '–'}</Text>
+        <ChevronRight size={18} color={C.text} />
       </View>
     </Pressable>
   );
 }
 
-function CategoryChip({ label, size, isAll, uri, photo, code, onPress, gap = 10 }) {
+function ListingRow({ p, onPress }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} className="active:opacity-80" style={{ width: size, marginRight: gap, alignItems: 'center' }}>
-      <View
-        style={{
-          width: size, height: size, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
-          backgroundColor: isAll ? MINT : tintFor(code), borderWidth: isAll ? 1.5 : 1, borderColor: isAll ? ACCENT : BORDER, ...cardShadow,
-        }}
-      >
-        {isAll ? (
-          <LayoutGrid size={20} color={ACCENT} />
-        ) : uri ? (
-          <Image resizeMethod="resize" source={{ uri }} style={photo ? { width: '86%', height: '86%' } : { width: size * 0.6, height: size * 0.6 }} resizeMode="contain" />
-        ) : (
-          <Smartphone size={20} color={PRIMARY} />
-        )}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={p.title || 'Listing'}
+      className="active:opacity-90"
+      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}
+    >
+      <Thumb uri={listingImage(p)} />
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text }}>{p.title || 'Listing'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{listingSub(p)}</Text>
+        {p.price != null ? <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: C.teal, marginTop: 3 }}>{money(p.price)}</Text> : null}
       </View>
-      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ marginTop: 6, fontSize: rf(10), textAlign: 'center', alignSelf: 'stretch', color: isAll ? PRIMARY : TEXT, fontWeight: isAll ? '700' : '600' }}>
-        {label}
-      </Text>
+      <StatusPill status={p._status} style={{ marginLeft: 8, alignSelf: 'center' }} />
     </Pressable>
   );
 }
 
-export default function OwnerSellHubScreen({ navigation, route }) {
+function EnquiryRow({ e, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      className="active:opacity-90"
+      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}
+    >
+      <Thumb uri={e.product?.imageUrl} size={44} />
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text }}>{e.buyer?.name || 'Buyer'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{e.product?.title || ''}{e.message ? ` · ${e.message}` : ''}</Text>
+      </View>
+      <StatusPill status={e.status} style={{ marginLeft: 8, alignSelf: 'center' }} />
+    </Pressable>
+  );
+}
+
+function SectionTitle({ title, sub, action, onAction }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 10 }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: rf(15), fontWeight: '800', color: C.text }}>{title}</Text>
+        {sub ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{sub}</Text> : null}
+      </View>
+      {action ? (
+        <Pressable onPress={onAction} accessibilityRole="button" className="active:opacity-70" style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingLeft: 8 }}>
+          <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.teal }}>{action}</Text>
+          <ChevronRight size={14} color={C.teal} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export default function OwnerSellHubScreen({ navigation }) {
   // The tab bar floats over the page; keep the last items clear of it.
   const tabSpace = useTabBarSpace();
-  const [cats, setCats] = useState([]);
-  const [menuImages, setMenuImages] = useState({});
+  const { width } = useWindowDimensions();
+  const shopId = useSelector(selectShopId);
+  const userId = useSelector(selectUserId);
+  const ctx = useMemo(() => ({ shopId, userId }), [shopId, userId]);
+
+  const [summary, setSummary] = useState(null);
+  const [leadCount, setLeadCount] = useState(null);
+  const [unread, setUnread] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState(null); // { listings, enquiries, enquiriesNote }
+  const [searching, setSearching] = useState(false);
+
   const [banners, setBanners] = useState([]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerRatio, setBannerRatio] = useState(2.4);
-  // Carousel page width = the carousel's own measured width.
   const [bannerPageW, setBannerPageW] = useState(0);
-  const [loading, setLoading] = useState(true);
   const bannerRef = useRef(null);
-  const { width } = useWindowDimensions();
-  const r = useResponsive();
-  const currentDevice = useCurrentDevice();
 
-  // This shop's own sell listings (same source and ownership rule as My
-  // Orders → Sell), newest first — the latest few show at the bottom.
-  const shopId = useSelector(selectShopId);
-  const userId = useSelector(selectUserId);
-  const [listings, setListings] = useState([]);
-  const [listingsLoading, setListingsLoading] = useState(true);
-  const loadListings = useCallback(async () => {
+  const load = useCallback(async () => {
+    // Bell / cart badges: best effort, never block the page.
+    Promise.all([getUnreadCount().catch(() => null), getCart().catch(() => null)]).then(([n, cart]) => {
+      if (n != null) setUnread(Number(n) || 0);
+      if (Array.isArray(cart)) setCartCount(cart.reduce((sum, it) => sum + (it.quantity || 1), 0));
+    });
+    // Customer sell requests (GET /marketplace/buy/nearby, sellerType CUSTOMER) —
+    // the same feed as Customer Sell Leads, so new sales from the customer app show here.
+    getListingOrigin()
+      .then((origin) => fetchNearbyListings(origin))
+      .then((rows) => setLeadCount(rows.filter((l) => l?.sellerType === 'CUSTOMER').length))
+      .catch(() => setLeadCount(null));
     try {
-      const data = await marketplaceApi.get('/marketplace/products', { query: { type: 'SELL' } });
-      const list = Array.isArray(data) ? data : (data?.content || data?.data || []);
-      // By shop first: one owner runs several shops, so the user id alone would
-      // pull every shop's listings into whichever shop is active.
-      const mine = list.filter((p) => (shopId ? p.shopId === shopId : (userId && p.sellerUserId === userId)));
-      mine.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      setListings(mine);
-    } catch (_) {
-      setListings([]);
+      const [s, list] = await Promise.all([
+        getSellSummary(ctx),
+        listMyListings({ status: 'ALL', page: 0, size: 5 }, ctx),
+      ]);
+      setSummary(s);
+      setRecent(list.content || []);
+      setError(null);
+    } catch (e) {
+      // Keep what was loaded before; say why it may be stale.
+      setError(e?.message || 'Could not load your selling data.');
     } finally {
-      setListingsLoading(false);
+      setLoading(false);
     }
-  }, [shopId, userId]);
-  useFocusEffect(useCallback(() => { loadListings(); }, [loadListings]));
+  }, [ctx]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  // Search: listings server-side (q), enquiries by buyer / product / message.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setResults(null); setSearching(false); return undefined; }
+    setSearching(true);
+    let alive = true;
+    const t = setTimeout(async () => {
+      const needle = q.toLowerCase();
+      const [listRes, enqRes] = await Promise.allSettled([
+        listMyListings({ status: 'ALL', q, page: 0, size: 20 }, ctx),
+        listEnquiries({ status: 'ALL', page: 0, size: 50 }),
+      ]);
+      if (!alive) return;
+      const enquiries = enqRes.status === 'fulfilled'
+        ? (enqRes.value?.content || []).filter((e) => [e.buyer?.name, e.product?.title, e.message].some((v) => String(v || '').toLowerCase().includes(needle)))
+        : null;
+      setResults({
+        listings: listRes.status === 'fulfilled' ? listRes.value.content || [] : null,
+        listingsError: listRes.status === 'rejected' ? (listRes.reason?.message || 'Search failed.') : null,
+        enquiries,
+        enquiriesNote: enqRes.status === 'rejected' ? (enqRes.reason?.message || 'Enquiries could not be searched.') : null,
+      });
+      setSearching(false);
+    }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [query, ctx]);
 
   useEffect(() => {
     (async () => {
       try {
-        const [list, rows, imgs] = await Promise.all([
-          getDeviceCategories(),
-          getBanners().catch(() => []),
-          getCategoryMenuImages('SELL'),
-        ]);
-        setCats(sortCategories((list || []).filter((c) => c.isActive !== false)));
-        setMenuImages(imgs || {});
-        // Hero: the admin "Sell" banner(s) first, then the general "Slider"
-        // banners (same set the Partner app's Sell carousel shows).
+        const rows = await getBanners().catch(() => []);
+        // Offers: the admin "Sell" banner(s) first, then the general "Slider" banners.
         const active = (rows || []).filter((b) => b.isActive !== false);
         const bySort = (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
         const title = (b) => String(b.title || '').trim().toLowerCase();
@@ -195,7 +229,6 @@ export default function OwnerSellHubScreen({ navigation, route }) {
             .filter((b) => b.uri),
         );
       } catch (_) {}
-      setLoading(false);
     })();
   }, []);
 
@@ -208,15 +241,12 @@ export default function OwnerSellHubScreen({ navigation, route }) {
 
   const contentW = Math.min(width, MAX_W);
   const padH = width >= 768 ? 24 : 16;
+  const innerW = contentW - padH * 2;
+  const cardGap = 12;
+  const cardW = Math.floor((innerW - cardGap) / 2);
   const pageW = bannerPageW || contentW;
   const bannerW = pageW - padH * 2;
   const bannerH = Math.round(bannerW / bannerRatio);
-  // Sell for Cash: five category tiles across one row on phones, six on tablets.
-  const catCols = r.tileColumns({ phone: 5 });
-  const catGap = 8;
-  const catSize = Math.min(72, Math.floor((contentW - padH * 2 - catGap * (catCols - 1)) / catCols));
-  // Action cards: one per screen with the next peeking in.
-  const actionW = Math.min(360, Math.round((contentW - padH * 2) * 0.88));
   const centered = { width: '100%', maxWidth: MAX_W, alignSelf: 'center' };
 
   // Auto-advance the carousel every 3.5s when there's more than one banner.
@@ -232,235 +262,154 @@ export default function OwnerSellHubScreen({ navigation, route }) {
     return () => clearInterval(id);
   }, [banners.length, pageW]);
 
-  // Sell This Device: detected phone → its name + rough estimate; otherwise a generic card.
-  const detected = currentDevice.ready && (deviceName(currentDevice) || currentDevice.storageGb || currentDevice.image);
+  const openListing = (p) => navigation.navigate('MarketplaceListingDetails', { productId: p.id, listing: p });
 
-  // Category → brand → model (SelectBrand). No category picked (banner /
-  // Sell This Device) starts with the first one (Mobile).
-  const goPickDevice = (extra = {}) => {
-    const first = cats[0];
-    const cat = extra.categoryId ? extra
-      : first ? { categoryId: first.id, categoryCode: (first.code || '').toUpperCase(), categoryName: first.name } : null;
-    if (!cat) return;
-    navigation.navigate('SellDeviceDetails', {
-      flow: route?.params?.flow || 'OWNER_LIST',
-      ...cat,
-      editSellOrderId: route?.params?.editSellOrderId,
-    });
-  };
+  const count = (v) => (loading && !summary ? null : v ?? null);
 
   return (
-    <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
-      {/* ---------- Header: back · Sell on GGFIX · my sell orders ---------- */}
-      <PageHeader
-        title="Sell on NearGFix"
-        subtitle="Sell your device. Get quotes from verified shops."
-        onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
-        right={<HeaderIconButton icon={FileText} color={ACCENT} size={17} label="My sell orders" onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' })} />}
-      />
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* ---------- Header: title · notifications · cart ---------- */}
+      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 10, paddingBottom: 4 }]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(19), color: C.text }}>Sell on NearGFix</Text>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(12), color: C.muted, marginTop: 2 }}>Sell your device & spare parts</Text>
+        </View>
+        <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
+        <View style={{ width: 6 }} />
+        <HeaderIconButton icon={ShoppingCart} label="Cart" onPress={() => navigation.navigate('OwnerCart')} badge={cartCount} badgeColor="#F59E0B" badgeText={C.text} />
+      </View>
 
-      {loading ? (
-        <Loader label="Loading categories..." />
-      ) : (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabSpace }}>
-          <View style={centered}>
-            {/* Hero carousel (admin banners, image only). Falls back to the
-                built-in offer banner when none are published. */}
-            {banners.length ? (
-              <View style={{ marginTop: 14 }}>
-                <ScrollView
-                  ref={bannerRef}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onLayout={(e) => setBannerPageW(Math.round(e.nativeEvent.layout.width))}
-                  onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / (pageW || 1)))}
-                >
-                  {banners.map((b) => (
-                    <View key={b.key} style={{ width: pageW, paddingHorizontal: padH }}>
-                      <Pressable
-                        onPress={() => goPickDevice()}
-                        accessibilityRole="imagebutton"
-                        accessibilityLabel="Sell offer banner"
-                        className="active:opacity-95"
-                        style={{ borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: '#FFFFFF', ...cardShadow }}
-                      >
-                        <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW, height: bannerH }} resizeMode="contain" />
-                      </Pressable>
-                    </View>
-                  ))}
-                </ScrollView>
-                {banners.length > 1 ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
-                    {banners.map((b, i) => (
-                      <View key={b.key} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? ACCENT : BORDER }} />
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-            ) : (
-              <View style={{ paddingHorizontal: padH, marginTop: 12 }}>
-                <OfferBanner
-                  badge="GUARANTEED"
-                  title="Top price or free pickup"
-                  subtitle="Not happy with the offer? Free pickup, no questions."
-                  cta="Learn more"
-                  palette="emerald"
-                  onPress={() => goPickDevice()}
-                />
-              </View>
-            )}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: tabSpace + 8 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
+      >
+        <View style={[centered, { paddingHorizontal: padH }]}>
+          {/* ---------- Search listings & enquiries ---------- */}
+          <SearchInput value={query} onChangeText={setQuery} placeholder="Search your listings, enquiries..." style={{ marginTop: 10, height: 46, borderRadius: 14 }} />
 
-            {/* Action cards — sell this phone, repair it, or buy a new one. */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 12, paddingBottom: 6 }}>
-              <ActionCard
-                width={actionW}
-                image={detected ? currentDevice.image : null}
-                Icon={Smartphone}
-                kicker="Sell This Device"
-                title={detected ? deviceTitle(currentDevice) : 'Old device? Get cash'}
-                sub={detected ? `Get up to ₹${roughEstimate(currentDevice).toLocaleString('en-IN')}` : 'Instant quote · Free pickup'}
-                cta="Sell Now"
-                onPress={() => goPickDevice()}
-              />
-              <ActionCard
-                width={actionW}
-                Icon={Wrench}
-                kicker="Repair Your Device"
-                title={detected ? deviceTitle(currentDevice) : 'Screen, battery & more'}
-                sub="Expert repair at your doorstep"
-                cta="Repair"
-                onPress={() => navigation.navigate('RepairServiceBookingShop')}
-              />
-              <ActionCard
-                width={actionW}
-                Icon={ShoppingBag}
-                kicker="Buy a Device"
-                title="Let's find a new device for you"
-                sub="Phones, laptops, tablets & more"
-                cta="Shop"
-                onPress={() => navigation.navigate('Buy')}
-              />
-            </ScrollView>
-
-            {/* Sell for Cash — one tile per category (starts a sale for it). */}
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: padH, marginTop: 16 }}>
-              <Text style={{ fontSize: rf(15), fontWeight: '800', color: TEXT }}>Sell for <Text style={{ color: PRIMARY }}>Cash</Text></Text>
-              <Text numberOfLines={1} style={{ flex: 1, marginLeft: 8, fontSize: rf(11), color: MUTED }}>Pick your device</Text>
-            </View>
-            {cats.length === 0 ? (
-              <View style={{ paddingHorizontal: padH, marginTop: 10 }}>
-                <EmptyState title="No categories yet" description="The admin hasn't published any device categories." />
+          {!query.trim() ? (
+            <>
+              {/* ---------- Banner ---------- */}
+              <View style={{ marginTop: 16, backgroundColor: C.teal, borderRadius: 18, overflow: 'hidden', flexDirection: 'row', minHeight: 152 }}>
+                <View style={{ position: 'absolute', right: -40, top: -50, height: 170, width: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+                <View style={{ position: 'absolute', right: 40, bottom: -70, height: 150, width: 150, borderRadius: 75, backgroundColor: 'rgba(1,172,119,0.22)' }} />
+                <View style={{ flex: 1, paddingVertical: 16, paddingLeft: 16, paddingRight: 4, justifyContent: 'center' }}>
+                  <Text style={{ color: '#FFFFFF', fontSize: rf(19), fontWeight: '800', lineHeight: rf(24) }}>Sell Devices,{'\n'}Parts & More</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: rf(12), marginTop: 6, lineHeight: rf(17) }}>Reach verified buyers{'\n'}and get the best price.</Text>
+                  <Pressable
+                    onPress={() => navigation.navigate('SellListingType')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Start selling"
+                    className="active:opacity-90"
+                    style={{ alignSelf: 'flex-start', marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}
+                  >
+                    <Text style={{ color: C.teal, fontSize: rf(12.5), fontWeight: '800', marginRight: 6 }}>Start Selling</Text>
+                    <ArrowRight size={14} color={C.teal} />
+                  </Pressable>
+                </View>
+                <View style={{ width: Math.min(150, innerW * 0.38), justifyContent: 'center', alignItems: 'center', paddingRight: 6 }}>
+                  <Image resizeMethod="resize" source={{ uri: SELL_IMAGES.MOBILE }} style={{ width: '100%', height: 140 }} resizeMode="contain" accessibilityIgnoresInvertColors />
+                </View>
               </View>
-            ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: padH, paddingTop: 10, columnGap: catGap, rowGap: 12 }}>
-                {cats.map((c) => {
-                  const code = (c.code || '').toUpperCase();
-                  const menuUri = menuImages[categoryMenuKey(c.name)] || menuImages[categoryMenuKey(c.code)] || null;
-                  return (
-                    <CategoryChip
-                      key={c.id}
-                      gap={0}
-                      label={c.name}
-                      code={code}
-                      size={catSize}
-                      uri={menuUri || SELL_IMAGES[code] || imgUri(c)}
-                      photo={!!(menuUri || SELL_IMAGES[code])}
-                      onPress={() => goPickDevice({ categoryId: c.id, categoryCode: code, categoryName: c.name })}
-                    />
-                  );
-                })}
-              </View>
-            )}
 
-            {/* Benefit cards */}
-            <View style={{ flexDirection: 'row', paddingHorizontal: padH, marginTop: 14 }}>
-              {PROMISES.map((t, i) => {
-                const Icon = t.icon;
-                return (
-                  <View key={t.title} style={{ flex: 1, marginLeft: i === 0 ? 0 : 8, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 10, borderWidth: 1, borderColor: BORDER, ...cardShadow }}>
-                    <View style={{ height: 28, width: 28, borderRadius: 14, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                      <Icon size={15} color={t.color} strokeWidth={2.2} />
-                    </View>
-                    <Text numberOfLines={1} style={{ fontSize: rf(12), fontWeight: '800', color: TEXT }}>{t.title}</Text>
-                    <Text numberOfLines={2} style={{ fontSize: rf(9.5), color: MUTED, marginTop: 3, lineHeight: rf(13) }}>{t.sub}</Text>
-                  </View>
-                );
-              })}
-            </View>
+              {/* ---------- Add New Listing (single or bulk, chosen next) ---------- */}
+              <Pressable
+                onPress={() => navigation.navigate('SellListingType')}
+                accessibilityRole="button"
+                accessibilityLabel="Add new listing"
+                className="active:opacity-90"
+                style={{ marginTop: 16, height: 56, borderRadius: 16, backgroundColor: C.teal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <CirclePlus size={24} color={C.teal} fill="#FFFFFF" strokeWidth={2.2} />
+                <Text style={{ color: '#FFFFFF', fontSize: rf(15.5), fontWeight: '800', marginLeft: 10 }}>Add New Listing</Text>
+              </Pressable>
 
-            {/* My sell listings — the latest five; See All opens My Orders → Sell. */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, marginTop: 18, marginBottom: 8 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: rf(15), fontWeight: '800', color: TEXT }}>My Sell Listings</Text>
-                <Text style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>Devices and parts you've listed</Text>
+              {/* ---------- Dashboard ---------- */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: cardGap, rowGap: cardGap, marginTop: 16 }}>
+                <StatCard width={cardW} Icon={Box} iconColor={C.teal} tint="#EDF6F7" title="My Listings" count={count(summary?.active)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'ACTIVE' })} />
+                {/* Buyer Enquiries: buyers' enquiries + price requests on this shop's listings. */}
+                <StatCard width={cardW} Icon={MessageSquareDot} iconColor="#7C5CD6" tint="#F4F0FB" title={'Buyer\nEnquiries'} count={count(summary?.enquiriesOpen == null && summary?.purchaseRequestsOpen == null ? null : (summary?.enquiriesOpen || 0) + (summary?.purchaseRequestsOpen || 0))} onPress={() => navigation.navigate('SellEnquiries', {})} />
+                {/* Quotation Requests: customers (customer app) asking shops to quote on their device. */}
+                <StatCard width={cardW} Icon={MapPin} iconColor="#E08A1E" tint="#FFF5EA" title={'Quotation\nRequests'} count={leadCount} onPress={() => navigation.navigate('OwnerSellRequests')} />
+                <StatCard width={cardW} Icon={Package} iconColor={C.green} tint="#EDF7F0" countColor={C.green} title={'Sold\nItems'} count={count(summary?.sold)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'SOLD' })} />
               </View>
-              {listings.length ? (
-                <Pressable
-                  onPress={() => navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' })}
-                  accessibilityRole="button"
-                  className="active:opacity-70"
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: MINT, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
-                >
-                  <Text style={{ fontSize: rf(12), fontWeight: '800', color: PRIMARY }}>See All</Text>
-                  <ChevronRight size={14} color={PRIMARY} />
-                </Pressable>
+            </>
+          ) : null}
+
+          {error ? <ErrorBox message={error} onRetry={() => { setLoading(true); load(); }} /> : null}
+
+          {query.trim() ? (
+            <View>
+              {searching && !results ? <ActivityIndicator color={C.teal} style={{ marginVertical: 16 }} /> : null}
+              {results ? (
+                <>
+                  <SectionTitle title="Listings" sub={results.listings ? `${results.listings.length} found` : null} />
+                  {results.listingsError ? <ErrorBox message={results.listingsError} /> : null}
+                  {results.listings?.length
+                    ? results.listings.map((p) => <ListingRow key={p.id} p={p} onPress={() => openListing(p)} />)
+                    : results.listings ? <Text style={{ fontSize: rf(12), color: C.muted }}>No listings match your search.</Text> : null}
+                  <SectionTitle title="Enquiries" sub={results.enquiries ? `${results.enquiries.length} found` : null} />
+                  {results.enquiriesNote ? <ErrorBox tone="warning" message={results.enquiriesNote} /> : null}
+                  {results.enquiries?.length
+                    ? results.enquiries.map((e) => <EnquiryRow key={e.id} e={e} onPress={() => navigation.navigate('SellEnquiryDetail', { enquiryId: e.id })} />)
+                    : results.enquiries ? <Text style={{ fontSize: rf(12), color: C.muted }}>No enquiries match your search.</Text> : null}
+                </>
               ) : null}
             </View>
-            <View style={{ paddingHorizontal: padH }}>
-              {listingsLoading ? null : listings.length === 0 ? (
-                <View style={{ alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingVertical: 20, paddingHorizontal: 16 }}>
-                  <View style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}>
-                    <Package size={20} color={ACCENT} />
-                  </View>
-                  <Text style={{ fontSize: rf(13), fontWeight: '800', color: TEXT, marginTop: 8 }}>No listings yet</Text>
-                  <Text style={{ fontSize: rf(11.5), color: MUTED, marginTop: 2, textAlign: 'center' }}>Pick a category above to list your first device.</Text>
+          ) : (
+            <>
+              {/* ---------- Recent listings ---------- */}
+              <SectionTitle title="Recent Listings" sub="Devices and parts you've listed" action={recent.length ? 'See All' : null} onAction={() => navigation.navigate('SellMyListings', { initialStatus: 'ALL' })} />
+              {loading && !recent.length ? (
+                <ActivityIndicator color={C.teal} style={{ marginVertical: 16 }} />
+              ) : recent.length ? (
+                recent.map((p) => <ListingRow key={p.id} p={p} onPress={() => openListing(p)} />)
+              ) : !error ? (
+                <View style={{ alignItems: 'center', backgroundColor: C.field, borderRadius: 16, paddingVertical: 20, paddingHorizontal: 16 }}>
+                  <Package size={22} color={C.teal} />
+                  <Text style={{ fontSize: rf(13), fontWeight: '800', color: C.text, marginTop: 8 }}>No listings yet</Text>
+                  <Text style={{ fontSize: rf(11.5), color: C.muted, marginTop: 2, textAlign: 'center' }}>Tap Add New Listing to list your first device or part.</Text>
                 </View>
-              ) : (
-                listings.slice(0, 5).map((p) => {
-                  const status = String(p.status || 'ACTIVE').toUpperCase();
-                  const live = status === 'ACTIVE';
-                  const sold = status === 'SOLD' || status === 'COMPLETED';
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => navigation.navigate('MarketplaceListingDetails', { productId: p.id, listing: p })}
-                      accessibilityRole="button"
-                      className="active:opacity-90"
-                      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 10, marginBottom: 8, ...cardShadow }}
-                    >
-                      <View style={{ height: 52, width: 52, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 10 }}>
-                        {p.imageUrl ? (
-                          <Image resizeMethod="resize" source={{ uri: p.imageUrl }} style={{ width: 52, height: 52 }} resizeMode="contain" />
-                        ) : (
-                          <Smartphone size={20} color={MUTED} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: TEXT }}>{p.title || 'Listing'}</Text>
-                        <Text numberOfLines={1} style={{ fontSize: rf(11), color: MUTED, marginTop: 2 }}>
-                          {p.descriptionType === 'SPARE_PARTS' ? 'Spare part' : (p.conditionLabel || 'Device')}
-                          {p.createdAt ? ` · ${new Date(p.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                        {p.price != null ? (
-                          <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: PRIMARY }}>₹{Number(p.price).toLocaleString('en-IN')}</Text>
-                        ) : null}
-                        <View style={{ marginTop: 4, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: live ? MINT : sold ? '#EFF4EB' : '#F3F4F6' }}>
-                          <Text style={{ fontSize: rf(10), fontWeight: '800', color: live ? PRIMARY : sold ? '#4A7029' : MUTED }}>
-                            {live ? 'Live' : sold ? 'Sold' : status.charAt(0) + status.slice(1).toLowerCase()}
-                          </Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
+              ) : null}
+            </>
+          )}
+        </View>
+
+        {/* ---------- Offers (admin Sell / Slider banners) ---------- */}
+        {!query.trim() && banners.length ? (
+          <View style={centered}>
+            <View style={{ paddingHorizontal: padH }}>
+              <SectionTitle title="Offers" />
             </View>
+            <ScrollView
+              ref={bannerRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onLayout={(e) => setBannerPageW(Math.round(e.nativeEvent.layout.width))}
+              onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / (pageW || 1)))}
+            >
+              {banners.map((b) => (
+                <View key={b.key} style={{ width: pageW, paddingHorizontal: padH }}>
+                  <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF' }}>
+                    <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW, height: bannerH }} resizeMode="contain" accessibilityLabel="Sell offer" />
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            {banners.length > 1 ? (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+                {banners.map((b, i) => (
+                  <View key={b.key} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? C.teal : C.border }} />
+                ))}
+              </View>
+            ) : null}
           </View>
-        </ScrollView>
-      )}
-    </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }

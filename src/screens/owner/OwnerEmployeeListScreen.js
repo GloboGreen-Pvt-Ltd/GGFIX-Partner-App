@@ -31,7 +31,7 @@ import {
 } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { ticketApi } from '../../api/client';
-import { assignPickupPerson } from '../../api/orders';
+import { assignPickupPerson, assignPurchasePickup } from '../../api/orders';
 import { notify } from '../../components/confirm';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
@@ -128,7 +128,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
   const capStyle = r.isTablet ? { width: Math.min(r.width - 32, r.maxWidth('wide')), alignSelf: 'center' } : null;
   const assignFor = route?.params?.assignFor || null;
   const bookingId = route?.params?.bookingId || null;
-  const isPickupPicker = assignFor === 'pickup' && !!bookingId;
+  // 'sellPickup': a device purchase (Buy → Order Details → Manage Pickup).
+  const isPickupPicker = (assignFor === 'pickup' || assignFor === 'sellPickup') && !!bookingId;
   const [list, setList] = useState([]);
   // The shop's seat allowance, from the shared subscription module:
   // {limit, used, remaining, unlimited, allowed, expired, planName, message}.
@@ -215,7 +216,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
     if (!isPickupPicker || assigning) return;
     setAssigning(tech.id);
     try {
-      await assignPickupPerson(bookingId, {
+      if (assignFor === 'sellPickup') await assignPurchasePickup(bookingId, tech.id);
+      else await assignPickupPerson(bookingId, {
         pickupPersonId: tech.id,
         pickupPersonName: tech.name || null,
         pickupPersonPhone: tech.phone || null,

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, View, Text, TextInput, Pressable, Image, StatusBar } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
@@ -292,7 +293,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
   const [timeTab, setTimeTab] = useState('hour');
 
   // ── Audio recording state ────────────────────────────────────────
-  // `audioUrl` is the hosted media.ggfix.in URL once the recording is uploaded;
+  // `audioUrl` is the hosted cdn.neargfix.com URL once the recording is uploaded;
   // `localUri` is the temporary file before upload (so we can preview it).
   // `isRecording` toggles the record button; `recordingMs` ticks the visible
   // timer while a recording is in progress. `isPlaying` drives the play/pause
@@ -527,7 +528,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       const opts = isVideo
         ? { mediaTypes: 'videos', allowsEditing: false, videoMaxDuration: 15, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium }
         : { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-      const result = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const result = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
       await uploadMediaAsset(result.assets[0], isVideo, target);
     } catch (e) {
@@ -545,7 +546,7 @@ export default function ServicePriceEstimateScreen({ navigation, route }) {
       setPhotoUploading(true);
       const replaceAt = typeof target.index === 'number' ? target.index : null;
       const slot = isVideo ? 'video' : PHOTO_KEYS[Math.min(replaceAt ?? photoUrls.length, PHOTO_KEYS.length - 1)];
-      // 'repair' → media.ggfix.in/Devicefiles/<slot>-….
+      // 'repair' → cdn.neargfix.com/Devicefiles/<slot>-….
       const url = await uploadMedia(asset, 'repair', { slot });
       if (!url) throw new Error('Upload returned no URL');
       if (isVideo) setVideoUrl(url);

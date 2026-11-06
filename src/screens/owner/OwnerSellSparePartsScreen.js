@@ -6,6 +6,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../components/InAppCamera';
 import { notify } from '../../components/confirm';
 import { uploadMedia } from '../../api/masterData';
 import { ResponsiveModal, useResponsive } from '../../components/responsive';
@@ -98,7 +99,7 @@ export default function OwnerSellSparePartsScreen({ navigation, route }) {
     const key = `${g}/${slot}`;
     try {
       const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-      const result = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const result = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {

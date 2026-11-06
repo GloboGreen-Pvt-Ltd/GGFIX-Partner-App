@@ -356,7 +356,10 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
   const capStyle = contentW ? { width: contentW, alignSelf: 'center' } : null;
   const [tab, setTab] = useState(route?.params?.initialTab === 'Buy' ? 'Buy' : 'Sell');
   const [items, setItems] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  // Sell Home's dashboard cards open this list pre-filtered (PENDING / DONE).
+  const [statusFilter, setStatusFilter] = useState(
+    ['PENDING', 'DONE', 'CANCELLED'].includes(route?.params?.initialStatus) ? route.params.initialStatus : 'ALL',
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);

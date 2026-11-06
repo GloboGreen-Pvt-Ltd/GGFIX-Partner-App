@@ -340,11 +340,23 @@ export default function DeviceDetailsScreen({ navigation, route }) {
   // Sell tab (flow OWNER_LIST) reuses this screen: Next hands the picked device
   // to the sell flow instead of the booking's DeviceServices.
   const sellMode = params.flow === 'OWNER_LIST';
+  // Partner Sell module's listing wizard (step 1): same picker, Next hands the
+  // device back through params.onWizardNext; condition is asked on step 2.
+  const wizardMode = params.flow === 'SELL_WIZARD';
   // Selling needs the condition plus colour and RAM / storage (booking keeps
   // them optional). Only the fields actually on screen are required.
   // Colour / RAM / storage are required for a whole-device sale only.
   const needVariant = sellMode && condition !== 'PARTS';
+  // The sell wizard needs the storage variant (RAM and colour stay optional).
+  const needStorage = needVariant || wizardMode;
   const sellDetailsDone = (() => {
+    if (wizardMode) {
+      // A listing needs its storage variant; colour stays optional.
+      if (usesSpecs) return true;
+      if (isCustomModel) return !!storageText.trim();
+      if (variants.length > 0) return !!variantId || !!storageText.trim();
+      return !!storage || !!storageText.trim();
+    }
     if (!sellMode) return true;
     if (!condition) return false;
     if (condition === 'PARTS') return true;
@@ -408,6 +420,18 @@ export default function DeviceDetailsScreen({ navigation, route }) {
         storageLabel: variant ? (variant.storageLabel || undefined) : (storageLabelOf(storage) || storageText.trim() || undefined),
         deviceCategory: specCategory || undefined,
       };
+    }
+    if (wizardMode && typeof params.onWizardNext === 'function') {
+      const specs = variantParams.specs;
+      params.onWizardNext({
+        ...base,
+        ...variantParams,
+        ...(specs ? {
+          ramLabel: specs.ram ? formatSpecValue('ram', specs.ram) : undefined,
+          storageLabel: specs.storageCapacity ? formatSpecValue('storageCapacity', specs.storageCapacity) : undefined,
+        } : {}),
+      });
+      return;
     }
     if (sellMode) {
       // Same `device` payload SelectVariant built for OwnerSellMobile: only
@@ -496,9 +520,9 @@ export default function DeviceDetailsScreen({ navigation, route }) {
             <ArrowLeft size={18} color={INK} strokeWidth={2} />
           </Pressable>
           <View className="flex-1" style={{ paddingHorizontal: 8 }}>
-            <Text className="text-center" style={{ color: INK, fontSize: 17, fontWeight: '800' }} numberOfLines={1}>Device Details</Text>
+            <Text className="text-center" style={{ color: INK, fontSize: 17, fontWeight: '800' }} numberOfLines={1}>{params.title || 'Device Details'}</Text>
             <Text className="text-center" style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>
-              {params.customer?.name ? `Device for ${params.customer.name}` : 'Select the customer’s device'}
+              {params.subtitle || (params.customer?.name ? `Device for ${params.customer.name}` : 'Select the customer’s device')}
             </Text>
           </View>
           <View style={{ width: 36 }} />
@@ -823,7 +847,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                       <Field label="RAM" optional={!needVariant} required={needVariant}>
                         <ManualInput value={ramText} onChangeText={setRamText} placeholder="Enter RAM, e.g. 8 GB" caps />
                       </Field>
-                      <Field label="Storage" optional={!needVariant} required={needVariant}>
+                      <Field label="Storage" optional={!needStorage} required={needStorage}>
                         <ManualInput value={storageText} onChangeText={setStorageText} placeholder="Enter storage, e.g. 128 GB" caps />
                       </Field>
                     </>
@@ -845,7 +869,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                       </Field>
 
                       {variants.length > 0 ? (
-                        <Field label={storageOnly ? 'Storage' : 'RAM & Storage'} optional={!needVariant} required={needVariant}>
+                        <Field label={storageOnly ? 'Storage' : 'RAM & Storage'} optional={!needStorage} required={needStorage}>
                           <FoldGrid
                             valueLabel={pickedVariant?.label || storageText}
                             cols={optCols}
@@ -877,7 +901,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                               }}
                             />
                           </Field>
-                          <Field label="Storage" optional={!needVariant} required={needVariant}>
+                          <Field label="Storage" optional={!needStorage} required={needStorage}>
                             <FoldGrid
                               valueLabel={storageLabelOf(storage) || storageText}
                               cols={optCols}

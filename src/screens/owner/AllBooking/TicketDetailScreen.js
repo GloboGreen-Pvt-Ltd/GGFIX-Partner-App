@@ -7,8 +7,6 @@ import {
   ArrowLeft,
   Smartphone,
   Clock,
-  Share2,
-  QrCode,
   UserPlus,
   RefreshCcw,
   ArrowDown,
@@ -33,7 +31,6 @@ import {
   Pencil,
   Calculator,
   CalendarClock,
-  History as HistoryIcon,
   ListChecks,
   Lock,
   Camera,
@@ -147,25 +144,28 @@ const ACCEPTED_STATUSES = new Set([
 // Re-Estimated moved to the Home screen, next to New Booking and Pickup — it is
 // a way IN to a booking, not something you do from inside one, so it belongs
 // with the other entry points rather than among this screen's per-ticket actions.
-// Bottom-bar actions, 4 per row. Delivered bookings can't be edited,
+// Bottom-bar actions, 5 in one row. Delivered bookings can't be edited,
 // re-estimated, re-scheduled or moved on — they get Re-Service instead.
 const ACTION_TILES = [
   { key: 'edit',       label: 'Edit',     icon: Pencil },
   { key: 'reestimate',   label: 'Re-Est',        icon: Calculator }, // add issues, amount & time
   { key: 'editestimate', label: 'Price Revised', icon: SquarePen },  // remove issues or edit amount
   { key: 'reschedule', label: 'Resched.', icon: CalendarClock },
-  { key: 'history',    label: 'History',  icon: HistoryIcon },
-  { key: 'share',      label: 'Receipt',  icon: Share2 },
-  { key: 'barcode',    label: 'Barcode',  icon: QrCode },
   { key: 'status',     label: 'Status',   icon: ListChecks },
 ];
 // Bottom-bar icon discs: a different brand colour per action (Teal, Bright
 // Blue, Green, Orange, Navy, Red, then deeper teal / blue), white icons.
 const HOME_TILE_TONES = ['#035C6C', '#0788C9', '#609138', '#E08E00', '#1C3053', '#F32C26', '#357D89', '#0571A8'];
+// Section-header + row icons: a brand colour each (HOME_TILE_TONES index), background at 0.8 opacity ("CC" alpha).
+const ICON_TONE = {
+  'SERVICE PROGRESS': 1, CUSTOMER: 0, 'DEVICE PHOTOS': 2, ACCESSORIES: 3, 'MISSING / DAMAGED PARTS': 5,
+  'WHATSAPP CONFIRMATION': 2, WARRANTY: 4, 'PRICE SUMMARY': 3, 'SERVICE INFO': 1, 'RE-ESTIMATED': 7, INVOICE: 0, TECHNICIAN: 4,
+  Name: 0, Mobile: 1, 'Alt. Mobile': 2, Email: 3, Address: 4, 'ID Proof': 7,
+  Complaint: 3, 'Est. Time': 1, Delivery: 2, IMEI: 4, Approval: 0, Security: 5,
+  'Re-Est. On': 1, Revised: 2, Services: 3, Original: 4, 'New Delivery': 7,
+};
+const toneFor = (key) => `${HOME_TILE_TONES[ICON_TONE[key] ?? 0]}CC`;
 const DELIVERED_TILES = [
-  { key: 'history',   label: 'History',    icon: HistoryIcon },
-  { key: 'share',     label: 'Receipt',    icon: Share2 },
-  { key: 'barcode',   label: 'Barcode',    icon: QrCode },
   { key: 'reservice', label: 'Re-Service', icon: RefreshCcw },
 ];
 
@@ -881,7 +881,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       <View className="flex-1 bg-background items-center justify-center">
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <ActivityIndicator size="large" color={BRAND_GREEN_DARK} />
-        <Text className="mt-3 text-[13px] text-text-muted">{autoMode === 'reservice' ? 'Opening re-service…' : 'Opening re-estimate…'}</Text>
+        <Text className="mt-3 text-[12px] text-text-muted">{autoMode === 'reservice' ? 'Opening re-service…' : 'Opening re-estimate…'}</Text>
       </View>
     );
   }
@@ -931,9 +931,11 @@ export default function TicketDetailScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + (menuOpen ? 190 : 48) }}>
         <View style={{ width: contentW, alignSelf: 'center' }}>
+        {/* All sections in one card — section headers divide it. */}
+        <View className="mx-4 bg-card rounded-2xl" style={[cardShadow, { marginTop: 12, paddingBottom: 12 }]}>
         {/* ── Device hero ─────────────────────────────────────── */}
-        <View className="px-4" style={{ marginTop: 12 }}>
-          <View className="bg-card rounded-2xl px-3.5 py-3" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl px-3.5 py-3">
             <View className="flex-row items-start">
               <View
                 className="w-[56px] h-[56px] rounded-xl overflow-hidden items-center justify-center"
@@ -946,9 +948,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                 )}
               </View>
               <View className="ml-3 flex-1" style={{ minWidth: 0 }}>
-                <Text className="text-[15px] font-extrabold text-text">{modelName}</Text>
+                <Text className="text-[14px] font-extrabold text-text">{modelName}</Text>
                 {modelLine ? (
-                  <Text className="text-[12.5px] font-semibold text-text">{modelLine}</Text>
+                  <Text className="text-[12px] font-semibold text-text">{modelLine}</Text>
                 ) : null}
                 {color ? (
                   <Text className="text-[12px] text-text-muted">{color}</Text>
@@ -957,7 +959,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               {/* Right: Tracking ID and Booked on, stacked. */}
               <View className="items-end ml-2" style={{ maxWidth: 130 }}>
                 <Text className="text-[10px] text-text-muted">Tracking ID</Text>
-                <Text className="text-[13px] font-extrabold text-primary text-right">#{trackingId}</Text>
+                <Text className="text-[12px] font-extrabold text-primary text-right">#{trackingId}</Text>
                 {ticket.createdAt ? (
                   <>
                     <Text className="text-[10px] text-text-muted" style={{ marginTop: 6 }}>Booked on</Text>
@@ -984,7 +986,7 @@ export default function TicketDetailScreen({ route, navigation }) {
         {activeRe || ['APPROVED', 'REJECTED'].includes(String(latestRe?.status || '').toUpperCase()) ? (
           <>
             <SectionHeader icon={ListChecks} label="SERVICE PROGRESS" />
-            <View className="px-4">
+            <View>
               <ReEstimateCard
                 rev={activeRe || latestRe}
                 ticket={ticket}
@@ -1003,16 +1005,16 @@ export default function TicketDetailScreen({ route, navigation }) {
         {(customerName || phone || address) ? (
           <>
             <SectionHeader icon={User} label="CUSTOMER" />
-            <View className="px-4">
-              <View className="bg-card rounded-2xl px-4 py-2" style={cardShadow}>
+            <View>
+              <View className="bg-card rounded-2xl px-4 py-2">
                 {customerName ? <DetailRow icon={User} label="Name" value={customerName} /> : null}
                 {phone ? (
                   <View className="flex-row items-center py-1.5">
-                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                      <Phone size={14} color={ACCENT_GREEN} />
+                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Mobile') }}>
+                      <Phone size={14} color="#FFFFFF" />
                     </View>
                     <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Mobile</Text>
-                    <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={1}>{phone}</Text>
+                    <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{phone}</Text>
                     <Pressable
                       onPress={() => contactCustomer('tel')}
                       hitSlop={4}
@@ -1037,11 +1039,11 @@ export default function TicketDetailScreen({ route, navigation }) {
                 ) : null}
                 {phone ? (
                   <View className="flex-row items-center py-1.5">
-                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                      <Phone size={14} color={ACCENT_GREEN} />
+                    <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Alt. Mobile') }}>
+                      <Phone size={14} color="#FFFFFF" />
                     </View>
                     <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Alt. Mobile</Text>
-                    <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={1}>{altPhone || '—'}</Text>
+                    <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{altPhone || '—'}</Text>
                     <Pressable
                       onPress={() => { setAltInput(String(altPhone).replace(/\D/g, '').slice(-10)); setAltOpen(true); }}
                       hitSlop={4}
@@ -1081,17 +1083,17 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <DetailRow icon={Mail} label="Email" value={custInfo.email || 'None'} />
                 <DetailRow icon={MapPin} label="Address" value={address || 'None'} full={!!address} />
                 <View className="flex-row items-center py-1.5">
-                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                    <IdCard size={14} color={ACCENT_GREEN} />
+                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('ID Proof') }}>
+                    <IdCard size={14} color="#FFFFFF" />
                   </View>
                   <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>ID Proof</Text>
                   {custInfo.idProofUrl ? (
                     <Pressable onPress={() => setIdProofOpen(true)} className="flex-row items-center flex-1 active:opacity-70" accessibilityRole="imagebutton" accessibilityLabel="View ID proof">
                       <Image source={{ uri: custInfo.idProofUrl }} style={{ width: 28, height: 28, borderRadius: 6 }} resizeMode="cover" />
-                      <Text className="text-[13px] font-bold ml-2" style={{ color: ACCENT_GREEN }}>View</Text>
+                      <Text className="text-[12px] font-bold ml-2" style={{ color: ACCENT_GREEN }}>View</Text>
                     </Pressable>
                   ) : (
-                    <Text className="text-[13px] text-text font-bold flex-1">None</Text>
+                    <Text className="text-[12px] text-text font-bold flex-1">None</Text>
                   )}
                 </View>
               </View>
@@ -1103,8 +1105,8 @@ export default function TicketDetailScreen({ route, navigation }) {
         {photoUrls.length ? (
           <>
             <SectionHeader icon={Camera} label="DEVICE PHOTOS" />
-            <View className="px-4">
-              <View className="bg-card rounded-2xl p-3" style={cardShadow}>
+            <View>
+              <View className="bg-card rounded-2xl p-3">
                 <View className="flex-row items-center justify-between" style={{ marginBottom: 8 }}>
                   <Text className="text-[12px] text-text-muted">
                     {photoUrls.length} photo{photoUrls.length > 1 ? 's' : ''}
@@ -1141,8 +1143,8 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Accessories received with the device ── */}
         <SectionHeader icon={Headphones} label="ACCESSORIES" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl px-4 py-3">
             {accessoryList.length ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {accessoryList.map((a, i) => (
@@ -1159,14 +1161,14 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Missing / damaged parts flagged at booking (missingPartsJson) ── */}
         <SectionHeader icon={TriangleAlert} label="MISSING / DAMAGED PARTS" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl px-4 py-3">
             {flaggedParts.length ? flaggedParts.map((p, i) => {
               const tone = p.damage ? PART_DAMAGE_TONE : PART_MISSING_TONE;
               return (
                 <View key={p.partId || `${p.partName}-${i}`} style={{ marginTop: i ? 8 : 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#111111' }}>{p.partName || p.name || p.partId || 'Part'}</Text>
+                    <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: '#111111' }}>{p.partName || p.name || p.partId || 'Part'}</Text>
                     <View style={{ marginLeft: 8, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: tone.bg }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: tone.fg }}>{p.damage ? 'Damaged' : 'Missing'}</Text>
                     </View>
@@ -1182,16 +1184,16 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── WhatsApp booking confirmation — status, Resend after a failure ── */}
         <SectionHeader icon={MessageCircle} label="WHATSAPP CONFIRMATION" />
-        <WhatsAppStatusCard ticketId={ticketId} cardShadow={cardShadow} />
+        <WhatsAppStatusCard ticketId={ticketId} cardShadow={null} />
 
         {/* ── Warranty per service — validity runs from the delivery date ── */}
         <SectionHeader icon={ShieldCheck} label="WARRANTY" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl px-4 py-2" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl px-4 py-2">
             {warrantyRows.length ? warrantyRows.map((w, idx) => (
               <View key={`${w.label}-${idx}`} className="flex-row items-center py-2" style={{ borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#E5F3F5' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text className="text-[13px] font-semibold text-text" numberOfLines={2}>{w.label}</Text>
+                  <Text className="text-[12px] font-semibold text-text" numberOfLines={2}>{w.label}</Text>
                   <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>
                     {w.until ? `Valid ${fmtShortDate(deliveredAt)} – ${fmtShortDate(w.until)}` : 'Starts on delivery'}
                   </Text>
@@ -1208,8 +1210,8 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Price summary ───────────────────────────────────── */}
         <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl p-4" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl p-4">
             {lineItems.length === 0 ? (
               <Text className="text-[12px] text-text-muted">No service items recorded.</Text>
             ) : (
@@ -1222,14 +1224,14 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <View className="w-6 h-6 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                     <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{idx + 1}</Text>
                   </View>
-                  <Text className="flex-1 text-text text-[13px] font-semibold" numberOfLines={1}>{item.label}</Text>
-                  <Text className="font-extrabold text-text text-[13px]">₹{Number(item.amount || 0).toLocaleString('en-IN')}</Text>
+                  <Text className="flex-1 text-text text-[12px] font-semibold" numberOfLines={1}>{item.label}</Text>
+                  <Text className="font-extrabold text-text text-[12px]">₹{Number(item.amount || 0).toLocaleString('en-IN')}</Text>
                 </View>
               ))
             )}
             <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-              <Text className="flex-1 font-extrabold text-text text-[13px]">Estimated Total</Text>
-              <Text className="font-extrabold text-[15px]" style={{ color: ACCENT_GREEN }}>
+              <Text className="flex-1 font-extrabold text-text text-[12px]">Estimated Total</Text>
+              <Text className="font-extrabold text-[14px]" style={{ color: ACCENT_GREEN }}>
                 ₹{Number(estimatedTotal || 0).toLocaleString('en-IN')}
               </Text>
             </View>
@@ -1240,15 +1242,15 @@ export default function TicketDetailScreen({ route, navigation }) {
             {payment ? (
               <>
                 <View className="flex-row items-center pt-2">
-                  <Text className="flex-1 text-text text-[13px] font-semibold">{payment.label}</Text>
-                  <Text className="font-extrabold text-[13px]" style={{ color: ACCENT_GREEN }}>
+                  <Text className="flex-1 text-text text-[12px] font-semibold">{payment.label}</Text>
+                  <Text className="font-extrabold text-[12px]" style={{ color: ACCENT_GREEN }}>
                     − ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </Text>
                 </View>
                 <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E5F3F5' }}>
-                  <Text className="flex-1 font-extrabold text-text text-[13px]">Balance Amount</Text>
+                  <Text className="flex-1 font-extrabold text-text text-[12px]">Balance Amount</Text>
                   <Text
-                    className="font-extrabold text-[13px]"
+                    className="font-extrabold text-[12px]"
                     style={{ color: payment.balance > 0 ? '#B45309' : ACCENT_GREEN }}
                   >
                     ₹{Number(payment.balance).toLocaleString('en-IN')}
@@ -1261,15 +1263,15 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Service info ────────────────────────────────────── */}
         <SectionHeader icon={Wrench} label="SERVICE INFO" />
-        <View className="px-4">
-          <View className="bg-card rounded-2xl p-4" style={cardShadow}>
+        <View>
+          <View className="bg-card rounded-2xl p-4">
             {complaintText ? (
               <View className="flex-row items-start py-1.5">
-                <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                  <FileText size={14} color={ACCENT_GREEN} />
+                <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Complaint') }}>
+                  <FileText size={14} color="#FFFFFF" />
                 </View>
                 <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: 6 }}>Complaint</Text>
-                <Text className="flex-1 text-[13px] text-text font-bold leading-5" style={{ marginTop: 4 }} numberOfLines={3}>
+                <Text className="flex-1 text-[12px] text-text font-bold leading-5" style={{ marginTop: 4 }} numberOfLines={3}>
                   {complaintText}
                 </Text>
               </View>
@@ -1279,15 +1281,15 @@ export default function TicketDetailScreen({ route, navigation }) {
             {/* IMEI (mobile phones only) — shows the number, or a "-" with an Add shortcut when missing. */}
             {showImei ? (
             <View className="flex-row items-center py-1.5">
-              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                <ScanLine size={14} color={ACCENT_GREEN} />
+              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('IMEI') }}>
+                <ScanLine size={14} color="#FFFFFF" />
               </View>
               <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>IMEI</Text>
               {ticket.imei ? (
-                <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={1}>{String(ticket.imei)}</Text>
+                <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{String(ticket.imei)}</Text>
               ) : (
                 <View className="flex-1 flex-row items-center justify-between">
-                  <Text className="text-[13px] text-text-muted font-bold">-</Text>
+                  <Text className="text-[12px] text-text-muted font-bold">-</Text>
                   <Pressable
                     onPress={openImeiEntry}
                     className="flex-row items-center rounded-full px-2.5 py-1 active:opacity-80"
@@ -1301,8 +1303,8 @@ export default function TicketDetailScreen({ route, navigation }) {
             </View>
             ) : null}
             <View className="flex-row items-center py-1.5">
-              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                <ShieldCheck size={14} color={ACCENT_GREEN} />
+              <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Approval') }}>
+                <ShieldCheck size={14} color="#FFFFFF" />
               </View>
               <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
               {ticket.customerApproval ? (
@@ -1325,8 +1327,8 @@ export default function TicketDetailScreen({ route, navigation }) {
         {reEstimateEvent || statusKey === 'QUOTED' ? (
           <>
             <SectionHeader icon={Calculator} label="RE-ESTIMATED" />
-            <View className="px-4">
-              <View className="bg-card rounded-2xl p-4" style={cardShadow}>
+            <View>
+              <View className="bg-card rounded-2xl p-4">
                 <DetailRow icon={Clock} label="Re-Est. On" value={fmtInstant(reEstimateEvent?.createdAt) || '-'} />
                 <DetailRow icon={IndianRupee} label="Revised" value={`₹${Number(estimatedTotal || 0).toLocaleString('en-IN')}`} />
                 {lineItems.length ? (
@@ -1337,8 +1339,8 @@ export default function TicketDetailScreen({ route, navigation }) {
                 ) : null}
                 <DetailRow icon={CalendarClock} label="New Delivery" value={fmtInstant(ticket.estimatedDeliveryAt) || '-'} />
                 <View className="flex-row items-center py-1.5">
-                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-                    <ShieldCheck size={14} color={ACCENT_GREEN} />
+                  <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Approval') }}>
+                    <ShieldCheck size={14} color="#FFFFFF" />
                   </View>
                   <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
                   {ticket.customerApproval ? (
@@ -1363,22 +1365,22 @@ export default function TicketDetailScreen({ route, navigation }) {
         {invoice || statusKey === 'READY' ? (
           <>
             <SectionHeader icon={FileText} label="INVOICE" />
-            <View className="px-4">
+            <View>
               {invoice ? (
-                <View style={[cardShadow, { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}>
+                <View style={[{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#357D89', alignItems: 'center', justifyContent: 'center' }}>
                       <FileText size={18} color="#FFFFFF" strokeWidth={2.2} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
                         {invoice.invoiceNo ? `Invoice ${invoice.invoiceNo}` : 'Invoice'}
                       </Text>
                       <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
                         {invoice.generatedAt ? `Generated ${fmtStatusWhen(invoice.generatedAt)}` : 'Generated'}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#035C6C', marginLeft: 8 }} numberOfLines={1}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#035C6C', marginLeft: 8 }} numberOfLines={1}>
                       ₹{Number(invoice.finalPayableAmount ?? invoice.netPayableAmount ?? 0).toLocaleString('en-IN')}
                     </Text>
                   </View>
@@ -1403,7 +1405,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     style={{ marginTop: 10, height: 42, borderRadius: 12, borderWidth: 1.5, borderColor: '#035C6C', flexDirection: 'row' }}
                   >
                     <Eye size={15} color="#035C6C" />
-                    <Text style={{ marginLeft: 6, fontSize: 13.5, fontWeight: '800', color: '#035C6C' }}>View Invoice</Text>
+                    <Text style={{ marginLeft: 6, fontSize: 12.5, fontWeight: '800', color: '#035C6C' }}>View Invoice</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -1411,13 +1413,13 @@ export default function TicketDetailScreen({ route, navigation }) {
                   onPress={() => navigation.navigate('InvoiceGenerator', { ticketId: ticket.id })}
                   accessibilityRole="button"
                   className="active:opacity-90"
-                  style={[cardShadow, { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
+                  style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
                 >
                   <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#357D89', backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' }}>
                     <FileText size={18} color="#357D89" strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>No invoice yet</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>No invoice yet</Text>
                     <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>Ready for delivery — generate the bill</Text>
                   </View>
                   <View style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center' }}>
@@ -1431,18 +1433,18 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Technician — one tappable card; opens Assign / Change Technician. ── */}
         <SectionHeader icon={Users} label="TECHNICIAN" />
-        <View className="px-4">
+        <View>
           <Pressable
             onPress={goToAssign}
             disabled={!canChangeTech}
             accessibilityRole="button"
             accessibilityLabel={hasTechnician ? `Technician ${techName}` : 'Assign technician'}
             className="active:opacity-90"
-            style={[cardShadow, { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
+            style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }]}
           >
             {hasTechnician ? (
               <View className="items-center justify-center" style={{ height: 44, width: 44, borderRadius: 22, backgroundColor: ACCENT_GREEN }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>
                   {String(techName || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
                 </Text>
               </View>
@@ -1452,7 +1454,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               </View>
             )}
             <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
                 {hasTechnician ? techName : 'No technician assigned'}
                 {hasTechnician && techCode ? <Text style={{ color: '#6B7280', fontWeight: '600' }}> · {techCode}</Text> : null}
               </Text>
@@ -1488,10 +1490,11 @@ export default function TicketDetailScreen({ route, navigation }) {
         </View>
 
         </View>
+        </View>
       </ScrollView>
 
       {/* ── Bottom action menu — hidden behind a handle; open it for every
-          booking action, 4 per row. ── */}
+          booking action, 5 in one row. ── */}
       <View
         style={{
           position: 'absolute',
@@ -1525,7 +1528,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           </View>
         </View>
         {menuOpen ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
         {(isDelivered ? DELIVERED_TILES : ACTION_TILES).map((a, i) => {
           const Icon = a.icon;
           return (
@@ -1533,14 +1536,14 @@ export default function TicketDetailScreen({ route, navigation }) {
               key={a.key}
               onPress={() => { setMenuOpen(false); onAction(a.key); }}
               className="items-center active:opacity-70"
-              style={{ width: '25%', paddingVertical: 6 }}
+              style={{ width: '20%', paddingVertical: 6, paddingHorizontal: 2 }}
               accessibilityRole="button"
               accessibilityLabel={a.label}
             >
               <View className="items-center justify-center" style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: HOME_TILE_TONES[i % HOME_TILE_TONES.length] }}>
                 <Icon size={18} color="#FFFFFF" />
               </View>
-              <Text className="text-[11px] font-extrabold text-text text-center" style={{ marginTop: 4 }} numberOfLines={1}>{a.label}</Text>
+              <Text className="text-[11px] font-extrabold text-text text-center" style={{ marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{a.label}</Text>
             </Pressable>
           );
         })}
@@ -1595,13 +1598,13 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center' }}>
                       <MetaIcon size={17} color="#FFFFFF" />
                     </View>
-                    <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
+                    <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
                     <Pressable onPress={() => (reBusy ? null : setReAction(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={20} color="#6B7280" />
                     </Pressable>
                   </View>
-                  <Text style={{ fontSize: 12.5, color: '#6B7280', marginTop: 8 }}>{meta.message}</Text>
-                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#374151', marginTop: 12, marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>{meta.message}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', marginTop: 12, marginBottom: 6 }}>
                     {meta.reasonLabel}{meta.required ? <Text style={{ color: '#F32C26' }}> *</Text> : null}
                   </Text>
                   <TextInput
@@ -1614,14 +1617,14 @@ export default function TicketDetailScreen({ route, navigation }) {
                     editable={!reBusy}
                     textAlignVertical="top"
                     cursorColor={BRAND_GREEN}
-                    style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
+                    style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 12.5, color: '#111111', includeFontPadding: false }}
                   />
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                     <Pressable onPress={() => setReAction(null)} disabled={reBusy} accessibilityRole="button" style={{ flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>Cancel</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>Cancel</Text>
                     </Pressable>
                     <Pressable onPress={submitReAction} disabled={reBusy || !ok} accessibilityRole="button" accessibilityState={{ disabled: reBusy || !ok }} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: meta.tone, alignItems: 'center', justifyContent: 'center', opacity: ok ? 1 : 0.45 }}>
-                      {reBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>{meta.confirm}</Text>}
+                      {reBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>{meta.confirm}</Text>}
                     </Pressable>
                   </View>
                 </View>
@@ -1674,7 +1677,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               >
                 <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 999, backgroundColor: '#E5E7EB', marginBottom: 10 }} />
                 <View className="flex-row items-center justify-between mb-1">
-                  <Text className="text-[13px] font-extrabold text-gray-900">Update Status</Text>
+                  <Text className="text-[12px] font-extrabold text-gray-900">Update Status</Text>
                   <Pressable
                     onPress={() => setStatusOpen(false)}
                     hitSlop={8}
@@ -1695,7 +1698,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   </View>
                   <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
                     <Text style={{ fontSize: 11.5, color: '#6B7280', fontWeight: '600' }}>Current Status</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>{statusMeta.label}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 1 }} numberOfLines={1}>{statusMeta.label}</Text>
                     <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>{fmtStatusWhen(ticket.updatedAt || ticket.createdAt)}</Text>
                   </View>
                 </View>
@@ -1710,7 +1713,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                         style={{ backgroundColor: cancelled ? '#FDEBEA' : '#E5F3F5', borderWidth: 1, borderColor: cancelled ? '#F9C5C3' : '#C7E6EA' }}
                       >
                         {cancelled ? <AlertCircle size={20} color="#C81E1A" /> : <CheckCircle2 size={20} color={BRAND_GREEN_DARK} />}
-                        <Text className="text-[13px] font-extrabold text-text mt-1.5">
+                        <Text className="text-[12px] font-extrabold text-text mt-1.5">
                           {cancelled ? 'This booking was cancelled.' : 'Final stage reached.'}
                         </Text>
                         <Text className="text-[11px] text-text-muted mt-0.5 text-center">
@@ -1774,7 +1777,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   const canApply = !!picked && !busy && selectable(picked) && !blockerFor(picked) && reasonOk;
                   return (
                     <>
-                      <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#1C3053', marginTop: 10, marginBottom: 6 }}>Next Status Options</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#1C3053', marginTop: 10, marginBottom: 6 }}>Next Status Options</Text>
                       <ScrollView style={{ maxHeight: 400, flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator nestedScrollEnabled keyboardShouldPersistTaps="handled">
                         {options.map((key, idx) => {
                           const meta = STATUS_OPTION[key] || { title: STATUS_VARIANT[key]?.label || key, sub: '', Icon: ListChecks, tone: BRAND_GREEN };
@@ -1811,7 +1814,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                                 <OptIcon size={15} color="#FFFFFF" strokeWidth={2.2} />
                               </View>
                               <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{meta.title}</Text>
                                 <Text style={{ fontSize: 11, color: blocked ? '#B45309' : '#6B7280', marginTop: 1 }} numberOfLines={2}>{sub}</Text>
                               </View>
                               {locked ? <Lock size={15} color="#9CA3AF" style={{ marginLeft: 8 }} /> : null}
@@ -1823,7 +1826,7 @@ export default function TicketDetailScreen({ route, navigation }) {
 
                       {isReject ? (
                         <View style={{ marginBottom: 10 }}>
-                          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
                             Reason for rejection<Text style={{ color: '#F32C26' }}> *</Text>
                           </Text>
                           <TextInput
@@ -1835,7 +1838,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                             maxLength={300}
                             textAlignVertical="top"
                             cursorColor={BRAND_GREEN}
-                            style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 13.5, color: '#111111', includeFontPadding: false }}
+                            style={{ minHeight: 60, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, fontSize: 12.5, color: '#111111', includeFontPadding: false }}
                           />
                         </View>
                       ) : null}
@@ -1856,7 +1859,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                         }}
                       >
                         {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
-                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
+                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
                             {!pickedMeta ? 'Select a status'
                               : isCancel ? 'Cancel Booking'
                               : isReject ? (reasonOk ? 'Mark Customer Rejected' : 'Enter the rejection reason')
@@ -1906,16 +1909,16 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <View className="h-11 w-11 rounded-full items-center justify-center mb-2" style={{ backgroundColor: '#E5F3F5' }}>
                     <Phone size={20} color={BRAND_GREEN_DARK} />
                   </View>
-                  <Text className="text-text text-[15px] font-extrabold">Alternate Mobile Number</Text>
+                  <Text className="text-text text-[14px] font-extrabold">Alternate Mobile Number</Text>
                   <Text className="text-text-muted text-[12px] text-center mt-1">
                     Add another number to reach this customer.
                   </Text>
                 </View>
 
                 <View className="flex-row items-center rounded-xl border border-border bg-background px-3 mt-3">
-                  <Text className="text-text-muted text-[13px] font-bold mr-2">+91</Text>
+                  <Text className="text-text-muted text-[12px] font-bold mr-2">+91</Text>
                   <TextInput
-                    className="flex-1 py-3 text-text text-[13px] font-bold"
+                    className="flex-1 py-3 text-text text-[12px] font-bold"
                     placeholder="10-digit mobile number"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="number-pad"
@@ -1932,7 +1935,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     disabled={altSaving}
                     className="flex-1 mr-2 rounded-2xl bg-background border border-border py-3 items-center active:opacity-80"
                   >
-                    <Text className="text-text-muted text-[13px] font-extrabold">Cancel</Text>
+                    <Text className="text-text-muted text-[12px] font-extrabold">Cancel</Text>
                   </Pressable>
                   <Pressable
                     onPress={saveAltPhone}
@@ -1940,7 +1943,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     className="flex-1 rounded-2xl py-3 items-center active:opacity-80"
                     style={{ backgroundColor: BRAND_GREEN }}
                   >
-                    {altSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[13px] font-extrabold">Save</Text>}
+                    {altSaving ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-[12px] font-extrabold">Save</Text>}
                   </Pressable>
                 </View>
               </Pressable>
@@ -1970,7 +1973,9 @@ function formatProgressTime(iso) {
 function SectionHeader({ icon: Icon, label }) {
   return (
     <View className="px-4 pt-5 pb-2 flex-row items-center">
-      <Icon size={14} color={BRAND_GREEN_DARK} />
+      <View className="items-center justify-center" style={{ height: 22, width: 22, borderRadius: 11, backgroundColor: toneFor(label) }}>
+        <Icon size={12} color="#FFFFFF" />
+      </View>
       <Text className="text-text font-extrabold text-[12px] tracking-widest ml-1.5">{label}</Text>
       <View className="flex-1 h-px bg-border ml-2" />
     </View>
@@ -2026,11 +2031,11 @@ function SecurityRow({ ticket, value, onSaved }) {
 function DetailRow({ icon: Icon, label, value, onEdit, full = false }) {
   return (
     <View className={`flex-row ${full ? 'items-start' : 'items-center'} py-1.5`}>
-      <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
-        <Icon size={14} color={ACCENT_GREEN} />
+      <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor(label) }}>
+        <Icon size={14} color="#FFFFFF" />
       </View>
       <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: full ? 6 : 0 }}>{label}</Text>
-      <Text className="text-[13px] text-text font-bold flex-1" numberOfLines={full ? undefined : 2} style={full ? { marginTop: 5, lineHeight: 19 } : undefined}>{value}</Text>
+      <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={full ? undefined : 2} style={full ? { marginTop: 5, lineHeight: 17 } : undefined}>{value}</Text>
       {onEdit ? (
         <TouchableOpacity onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${label}`}
           className="w-7 h-7 rounded-lg items-center justify-center ml-2" style={{ backgroundColor: '#E5F3F5' }}>
@@ -2092,11 +2097,11 @@ function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, 
       style={{ height: 42, borderRadius: 12, paddingHorizontal: 8, backgroundColor: primary ? ACCENT_GREEN : '#FFFFFF', borderWidth: 1.5, borderColor: primary ? ACCENT_GREEN : '#F9C5C3', opacity: busy ? 0.6 : 1 }}
     >
       <Icon size={14} color={primary ? '#FFFFFF' : '#C81E1A'} />
-      <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: '800', color: primary ? '#FFFFFF' : '#C81E1A', flexShrink: 1 }} numberOfLines={1}>{label}</Text>
+      <Text style={{ marginLeft: 6, fontSize: 12, fontWeight: '800', color: primary ? '#FFFFFF' : '#C81E1A', flexShrink: 1 }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
   return (
-    <View className="bg-card rounded-2xl px-4 py-3" style={cardShadow}>
+    <View className="bg-card rounded-2xl px-4 py-3">
       <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '600' }} numberOfLines={1}>
         {inRepair ? (requested || awaiting ? 'Repair Work in Progress' : 'Repair Work in Progress (Resumed)') : 'Re-Estimate'}
         {rev.revisionNo ? ` · Revision ${rev.revisionNo}` : ''}

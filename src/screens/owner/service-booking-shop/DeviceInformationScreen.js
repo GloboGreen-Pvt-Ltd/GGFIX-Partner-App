@@ -33,6 +33,7 @@ import {
   Info,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import { createAudioPlayer } from 'expo-audio';
 import { notify } from '../../../components/confirm';
 import { uploadMedia } from '../../../api/masterData';
@@ -181,7 +182,7 @@ export default function DeviceInformationScreen({ navigation, route }) {
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       };
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
+        ? await launchCamera(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
@@ -192,7 +193,7 @@ export default function DeviceInformationScreen({ navigation, route }) {
         return;
       }
       setUploading(slot.key);
-      // 'repair' routes the file to S3 under media.ggfix.in/Devicefiles/, and the
+      // 'repair' routes the file to S3 under cdn.neargfix.com/Devicefiles/, and the
       // slot becomes the filename stem (front-…, back-…, video-…).
       const url = await uploadMedia(asset, 'repair', { slot: slot.key });
       if (!url) throw new Error('Upload returned no URL');

@@ -45,3 +45,6 @@ modules/*/android/build/
 /nul
 /_nul
 *.zip
+
+# Firebase config (supplied via EAS secret GOOGLE_SERVICES_JSON)
+google-services.json

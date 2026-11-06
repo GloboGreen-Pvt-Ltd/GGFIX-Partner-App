@@ -96,15 +96,15 @@ const SHORTCUT_IMAGES = {
   sell: require('../../../assets/buy.png.png'),
 };
 const SELL_IMAGES: Record<string, string> = {
-  MOBILE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  SMARTPHONE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Phone.png',
-  LAPTOP: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Laptop.png',
-  SMARTWATCH: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  SMARTWATCHES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-smartWatch.png',
-  TABLET: 'https://media.ggfix.in/buy&sell-categories-image/Sell-Tablet.png',
-  AUDIO: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICE: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
-  AUDIO_DEVICES: 'https://media.ggfix.in/buy&sell-categories-image/Sell-AudioDevice.png',
+  MOBILE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  SMARTPHONE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png',
+  LAPTOP: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Laptop.png',
+  SMARTWATCH: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  SMARTWATCHES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-smartWatch.png',
+  TABLET: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Tablet.png',
+  AUDIO: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICE: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
+  AUDIO_DEVICES: 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-AudioDevice.png',
 };
 
 // Marketplace tile tints — light, low-saturation pastels (varied per

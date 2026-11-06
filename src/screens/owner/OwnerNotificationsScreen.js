@@ -53,7 +53,7 @@ const TABS = [
   { key: 'BUY', label: 'Buy', icon: ShoppingCart },
   { key: 'TEAM', label: 'Team', icon: Users },
 ];
-const TYPE_TAB = { pickups: 'PICKUP', enquiry: 'SERVICE', sell: 'SELL', buy: 'BUY', team: 'TEAM' };
+const TYPE_TAB = { pickups: 'PICKUP', enquiry: 'SERVICE', sell: 'SELL', sell_enquiry: 'SELL', buy: 'BUY', purchase: 'BUY', team: 'TEAM' };
 const categoryOf = (n) => {
   const known = TYPE_TAB[String(n?.type || '').toLowerCase()];
   if (known) return known;
@@ -118,6 +118,14 @@ export default function OwnerNotificationsScreen({ navigation }) {
     // pickup request) have no ticketId — pickups go to the pickup list, the
     // rest to Bookings, so the tap still goes somewhere useful.
     const cat = categoryOf(n);
+    // Buyer enquiries / offers on the shop's own listings (marketplace-service).
+    if (String(n?.type || '').toLowerCase() === 'sell_enquiry') { navigation.navigate('SellEnquiries'); return; }
+    // A customer accepted this shop's quote on a sell lead → its purchase order.
+    if (String(n?.type || '').toLowerCase() === 'purchase') {
+      if (n.bookingId) navigation.navigate('BuyOrderDetail', { id: n.bookingId, kind: 'LEAD' });
+      else navigation.navigate('BuyOrders');
+      return;
+    }
     if (cat === 'SELL') { navigation.navigate('OwnerSellRequests'); return; }
     if (cat === 'BUY') { navigation.navigate('MarketplaceOrders', { initialTab: 'Sell' }); return; }
     if (cat === 'TEAM') { navigation.navigate('StaffTasks'); return; }

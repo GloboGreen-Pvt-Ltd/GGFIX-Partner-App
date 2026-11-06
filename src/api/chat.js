@@ -20,6 +20,22 @@ export async function listShopChats() {
   return unwrap(await marketplaceApi.get('/shop/chats'));
 }
 
+// Chat with the customer behind a sell lead (POST /shop/chats/listing/{id});
+// allowed once this shop has quoted on it. Older servers answer 404 / 500
+// "No static resource".
+export async function openShopChatForListing(listingId) {
+  try {
+    return await marketplaceApi.post(`/shop/chats/listing/${listingId}`);
+  } catch (e) {
+    if ((e?.status === 404 || e?.status === 500) && /no handler|no static resource/i.test(`${e?.devMessage || ''}`)) {
+      const err = new Error('Chat from leads needs the latest NearGFix server update. Ask your admin to deploy the marketplace service.');
+      err.code = 'SERVER_UPDATE_REQUIRED';
+      throw err;
+    }
+    throw e;
+  }
+}
+
 export async function getShopChat(threadId) {
   return await marketplaceApi.get(`/shop/chats/${threadId}`);
 }

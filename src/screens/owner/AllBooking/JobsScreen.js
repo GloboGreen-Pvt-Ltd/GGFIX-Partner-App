@@ -21,6 +21,7 @@ import {
   QrCode,
   FileText,
   ReceiptIndianRupee,
+  Receipt,
   Pencil,
   History,
   CalendarClock,
@@ -255,6 +256,8 @@ function formatTime(d) {
 
 // Home screen tool-tile disc colours (DashboardScreen), cycled across the tiles.
 const HOME_TILE_TONES = ['#357D89', '#5E9440', '#3B82F6', '#6B7280'];
+// Job card icon row: one brand colour per icon, background at 0.8 opacity ("CC" alpha).
+const CARD_ICON_TONES = { history: '#035C6CCC', receipt: '#E08E00CC', barcode: '#1C3053CC', call: '#609138CC', copy: '#0788C9CC' };
 // Left menu colours (Jobs + Pickup), from the brand sheet (theme/colors.js `brand`).
 const SCOPE_TONE = {
   ALL: '#035C6C',                // Primary Teal
@@ -804,12 +807,18 @@ export default function JobsScreen({ navigation, route }) {
         // Show the fresh list now; changed rows get their invoice right after.
         setItems(enriched);
         if (stale.length) {
-          await Promise.all(stale.map(async (t) => {
-            const inv = await ticketApi.get(`/tickets/${t.id}/invoice`).catch(() => undefined);
-            if (inv === undefined) return; // failed — not cached, retried next load
-            const ok = inv && inv.finalPayableAmount != null ? inv : null;
-            invCache.set(t.id, { key: invKey(t), inv: ok });
-            if (ok) t._invoice = ok;
+          // Two at a time: firing every invoice at once held all of
+          // ticket-service's DB connections, stalling other screens' calls.
+          let next = 0;
+          await Promise.all([0, 1].map(async () => {
+            while (next < stale.length) {
+              const t = stale[next++];
+              const inv = await ticketApi.get(`/tickets/${t.id}/invoice`).catch(() => undefined);
+              if (inv === undefined) continue; // failed — not cached, retried next load
+              const ok = inv && inv.finalPayableAmount != null ? inv : null;
+              invCache.set(t.id, { key: invKey(t), inv: ok });
+              if (ok) t._invoice = ok;
+            }
           }));
           setItems([...enriched]);
         }
@@ -1141,12 +1150,22 @@ export default function JobsScreen({ navigation, route }) {
     const balRow = payRows.find((x) => x.short === 'Bal') || null;
     const paidStr = payRow && payRow.value !== 'on delivery' ? payRow.value : null;
 
-    const onCardPress = () => goDetailsFor(item);
+    // Receipt / Barcode dropped once delivered AND invoiced (same rule as the action grid).
+    const done = String(item.status || '').toUpperCase() === 'DELIVERED' && hasInvoice(item);
+    const cardIcons = [
+      { key: 'history', label: 'History', icon: History, run: () => goTimelineFor(item) },
+      done ? null : { key: 'receipt', label: 'Receipt', icon: Receipt, run: () => sendBookingConfirmation(item) },
+      done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: () => goBarcodeFor(item) },
+      phone ? { key: 'call', label: `Call ${phone}`, icon: Phone, run: () => callPhone(phone) } : null,
+      phone ? { key: 'copy', label: `Copy mobile number ${phone}`, icon: Copy, run: () => copyPhone(phone) } : null,
+    ].filter(Boolean);
 
-    // Product-card tile: image panel (status tag · call · VIEW), price chip,
-    // balance line, device name, then specs and customer.
+    // Product-card tile: image panel (status tag), price chip, balance line,
+    // device name, customer, then the icon row (VIEW · history · receipt · barcode · call · copy).
     return (
-      <Pressable onPress={onCardPress} className="active:opacity-90" style={tileCard}>
+      <View style={[tileCard, { flexDirection: 'column' }]}>
+        {/* Image left + details right; the icon row runs full width below. */}
+        <View style={tileRow ? { flexDirection: 'row' } : null}>
         <View
           className="items-center justify-center overflow-hidden"
           style={tilePanel}
@@ -1162,14 +1181,6 @@ export default function JobsScreen({ navigation, route }) {
             style={{ top: 0, left: 0, maxWidth: '78%', backgroundColor: tone.fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}
           >
             <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta.label}</Text>
-          </View>
-          {/* VIEW, bottom-right — the whole tile opens Booking Details too. */}
-          <View
-            pointerEvents="none"
-            className="absolute"
-            style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}
-          >
-            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
         </View>
 
@@ -1201,35 +1212,38 @@ export default function JobsScreen({ navigation, route }) {
             <Text className="text-text-muted" style={{ fontSize: 11, marginLeft: 6 }} numberOfLines={1}>{timeStr}</Text>
           </View>
         ) : null}
-        {/* Call (left) + copy (right), on the line after date / time. */}
-        {phone ? (
-          <View className="flex-row items-center justify-between" style={{ marginTop: 4 }}>
-              <>
-                <Pressable
-                  onPress={() => callPhone(phone)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Call ${phone}`}
-                  className="items-center justify-center active:opacity-70"
-                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
-                >
-                  <Phone size={12} color={ACCENT_GREEN} />
-                </Pressable>
-                <Pressable
-                  onPress={() => copyPhone(phone)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Copy mobile number ${phone}`}
-                  className="items-center justify-center active:opacity-70"
-                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
-                >
-                  <Copy size={12} color={ACCENT_GREEN} />
-                </Pressable>
-              </>
-          </View>
-        ) : null}
         </View>
-      </Pressable>
+        </View>
+        {/* VIEW · history · receipt · barcode · call · copy, from the left edge. */}
+        <View className="flex-row items-center" style={{ gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+          <Pressable
+            onPress={() => goDetailsFor(item)}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="View booking details"
+            className="items-center justify-center active:opacity-70"
+            style={{ height: 26, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: ACCENT_GREEN, backgroundColor: '#FFFFFF' }}
+          >
+            <Text style={{ color: ACCENT_GREEN, fontSize: 11, fontWeight: '800' }}>VIEW</Text>
+          </Pressable>
+          {cardIcons.map((a) => {
+            const Icon = a.icon;
+            return (
+              <Pressable
+                key={a.key}
+                onPress={a.run}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+                className="items-center justify-center active:opacity-70"
+                style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: CARD_ICON_TONES[a.key] }}
+              >
+                <Icon size={12} color="#FFFFFF" />
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
     );
   };
 

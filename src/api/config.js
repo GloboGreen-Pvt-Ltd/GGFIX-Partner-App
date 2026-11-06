@@ -4,7 +4,7 @@
 //    the service ports exposed). Call-site paths are already service-relative
 //    (`/auth/login`, `/tickets/123`), so the wire URL is just base + path.
 //
-// 2. Through the TLS EDGE at api.ggfix.in. nginx routes on a per-service prefix
+// 2. Through the TLS EDGE at api.neargfix.com. nginx routes on a per-service prefix
 //    and STRIPS it before proxying:
 //        location /auth/ { proxy_pass http://127.0.0.1:8081/; }
 //    so `/auth/auth/login` reaches the service as `:8081/auth/login`. The Spring
@@ -22,7 +22,7 @@
 // Because a base can now carry a path prefix, client.js must CONCATENATE base and
 // path. `new URL(path, base)` would drop the prefix whenever path starts with "/".
 
-const EDGE_ORIGIN = (process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.ggfix.in').trim();
+const EDGE_ORIGIN = (process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.neargfix.com').trim();
 
 // Set EXPO_PUBLIC_API_HOST for direct host:port dev (this PC on the LAN). Leaving
 // it empty selects the edge.
@@ -99,5 +99,5 @@ export const VISUAL_SEARCH_PATH = '/visual-search/device';
 
 // NearGFix Shop Web (Next.js site). Subscription purchase falls back here on
 // Android when in-app checkout is off (never linked on iOS — App Store rule).
-export const SHOP_WEB_ORIGIN = trimSlash((process.env.EXPO_PUBLIC_SHOP_WEB_ORIGIN || 'https://ggfix.in').trim());
+export const SHOP_WEB_ORIGIN = trimSlash((process.env.EXPO_PUBLIC_SHOP_WEB_ORIGIN || 'https://neargfix.com').trim());
 export const SHOP_WEB_SUBSCRIPTION_URL = `${SHOP_WEB_ORIGIN}/shop-home/settings/subscription`;

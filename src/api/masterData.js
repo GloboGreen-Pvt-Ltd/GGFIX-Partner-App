@@ -45,12 +45,12 @@ function mimeFromName(name) {
 
 // Upload an asset (expo-image-picker asset OR a {uri, name, type} object from
 // expo-av recording) to the media endpoint; returns the hosted URL. The path
-// differs between a direct service origin (/media/upload) and the api.ggfix.in
+// differs between a direct service origin (/media/upload) and the api.neargfix.com
 // edge (/master/media/upload) — MEDIA_UPLOAD_PATH picks the right one.
 //
 // `slot` is the device-file shot name — 'front' | 'back' | 'video'. The backend
 // uses it as the filename stem for device folders, so the bucket reads as
-// media.ggfix.in/Devicefiles/front-3f9c11ab.jpg instead of a picker's IMG_0001.
+// cdn.neargfix.com/Devicefiles/front-3f9c11ab.jpg instead of a picker's IMG_0001.
 // Ignored for every other folder, and safe to omit on older backends.
 export async function uploadMedia(asset, folder = 'sell', { slot } = {}) {
   if (!asset?.uri) return null;

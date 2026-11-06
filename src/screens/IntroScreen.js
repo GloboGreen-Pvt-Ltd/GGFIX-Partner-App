@@ -14,7 +14,7 @@ import { useBottomBarInset } from '../components/rnr';
  * `hasSeenIntro()`) — "Get Started" persists "seen" via the `onDone` prop
  * before moving on to Login.
  */
-const INTRO_IMAGE_URL = 'https://media.ggfix.in/GGFIX-Partner-App/Intro-image.png';
+const INTRO_IMAGE_URL = 'https://cdn.neargfix.com/GGFIX-Partner-App/Intro-image.png';
 ExpoImage.prefetch(INTRO_IMAGE_URL, 'disk').catch(() => {});
 
 // GGFIX brand sheet (see theme/colors.js).

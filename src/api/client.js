@@ -24,7 +24,7 @@ import { safeHttpMessage, safeNetworkMessage } from '../lib/safeError';
 const REQUEST_TIMEOUT_MS = 20000;
 const UPLOAD_TIMEOUT_MS = 60000;
 
-// Bases may carry a routing prefix (https://api.ggfix.in/ticket) as well as a
+// Bases may carry a routing prefix (https://api.neargfix.com/ticket) as well as a
 // bare origin (http://10.0.0.5:8082), so base and path are CONCATENATED. Using
 // `new URL(path, base)` here would resolve an absolute path like `/tickets/1`
 // against the origin and silently drop the `/ticket` prefix nginx routes on.
@@ -65,7 +65,8 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
       signal: controller.signal,
     });
   } catch (e) {
-    const timedOut = e?.name === 'AbortError';
+    // Our timer is the only abort source — a timeout is never "No internet".
+    const timedOut = controller.signal.aborted || e?.name === 'AbortError';
     const baseHint =
       baseUrlOrNull && typeof baseUrlOrNull === 'string' && baseUrlOrNull.includes('localhost')
         ? ' (note: localhost on a phone means the phone itself)'
@@ -193,7 +194,8 @@ async function uploadRequest(baseUrlOrNull, path, { uri, name: _name, type, fiel
       });
     }
   } catch (e) {
-    const timedOut = e?.name === 'AbortError';
+    // Our timer is the only abort source — a timeout is never "No internet".
+    const timedOut = controller.signal.aborted || e?.name === 'AbortError';
     const msg = timedOut
       ? `Upload timed out after ${Math.round(UPLOAD_TIMEOUT_MS / 1000)}s.`
       : (e?.message || 'Network request failed');

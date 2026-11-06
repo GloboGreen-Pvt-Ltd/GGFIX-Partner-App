@@ -7,6 +7,19 @@ import { SELL, SellButton, SellCard, SellFooter, SellIntro, EditingBanner, Check
 // Two short answers (Yes / No) sit side by side; anything longer stacks.
 const isCompact = (opts) => opts.length === 2 && opts.every((o) => String(o).length <= 12);
 
+// Built-in questions when the admin hasn't configured any for the flow.
+export function screeningFallback(flow) {
+  return flow === 'DEAD' ? [
+    { id: 'd1', question: 'What is the current condition of your phone?', helperText: '', options: ['Phone Dead (Not powering on)', 'Unknown Condition (Not sure / partially working)'] },
+    { id: 'd2', question: "Is your phone's display original?", helperText: 'Choose Yes if never changed.', options: ['Yes', 'No'] },
+  ] : [
+    { id: 'w1', question: 'Is your phone working properly?', helperText: 'Check your phone powers on.', options: ['Yes', 'No'] },
+    { id: 'w2', question: 'Is your touchscreen working properly?', helperText: 'Check touch functionality.', options: ['Yes', 'No'] },
+    { id: 'w3', question: "Is your phone's display original?", helperText: 'Choose Yes if never changed.', options: ['Yes', 'No'] },
+    { id: 'w4', question: 'Is your phone have a valid warranty?', helperText: '', options: ['Yes', 'No'] },
+  ];
+}
+
 export default function SellScreeningScreen({ navigation, route }) {
   const params = route.params || {};
   const { device, workingCondition, editSellOrderId, editHints } = params;
@@ -29,15 +42,7 @@ export default function SellScreeningScreen({ navigation, route }) {
     (async () => {
       try {
         const list = await getScreeningQuestions(flow, device?.categoryId);
-        const fallback = flow === 'DEAD' ? [
-          { id: 'd1', question: 'What is the current condition of your phone?', helperText: '', options: ['Phone Dead (Not powering on)', 'Unknown Condition (Not sure / partially working)'] },
-          { id: 'd2', question: "Is your phone's display original?", helperText: 'Choose Yes if never changed.', options: ['Yes', 'No'] },
-        ] : [
-          { id: 'w1', question: 'Is your phone working properly?', helperText: 'Check your phone powers on.', options: ['Yes', 'No'] },
-          { id: 'w2', question: 'Is your touchscreen working properly?', helperText: 'Check touch functionality.', options: ['Yes', 'No'] },
-          { id: 'w3', question: "Is your phone's display original?", helperText: 'Choose Yes if never changed.', options: ['Yes', 'No'] },
-          { id: 'w4', question: 'Is your phone have a valid warranty?', helperText: '', options: ['Yes', 'No'] },
-        ];
+        const fallback = screeningFallback(flow);
         const finalList = list.length ? list : fallback;
         setQuestions(finalList);
 

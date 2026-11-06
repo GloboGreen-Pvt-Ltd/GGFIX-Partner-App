@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, StatusBar, Text, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import { ArrowLeft, Camera, CircleCheck, Circle, Clock, ImagePlus, Wrench, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand, uploadMedia } from '../../../api/masterData';
@@ -158,7 +159,7 @@ export default function ReEstimateScreen({ navigation, route }) {
     const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to add a photo.`); return; }
     const opts = { mediaTypes: 'images', quality: 0.7 };
-    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    const res = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
     if (res.canceled || !res.assets?.[0]) return;
     const asset = res.assets[0];
     if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('Photo too large', 'The limit is 10 MB.'); return; }

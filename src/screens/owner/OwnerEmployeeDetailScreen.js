@@ -20,6 +20,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { ArrowLeft } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../components/InAppCamera';
 import { authApi, ticketApi } from '../../api/client';
 import { uploadMedia } from '../../api/masterData';
 import { selectShopId } from '../../store/authSlice';
@@ -428,7 +429,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
         mediaTypes: ['images'],
       };
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
+        ? await launchCamera(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]?.uri) return;
 

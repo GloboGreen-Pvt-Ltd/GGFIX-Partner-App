@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 const host = process.env.EXPO_PUBLIC_API_HOST || '';
-const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.ggfix.in';
+const edge = process.env.EXPO_PUBLIC_API_ORIGIN || 'https://api.neargfix.com';
 const masterPort = process.env.EXPO_PUBLIC_MASTER_PORT || '8091';
 const masterBase =
   process.env.EXPO_PUBLIC_MASTER_DATA_BASE ||

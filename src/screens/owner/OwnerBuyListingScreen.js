@@ -124,7 +124,7 @@ const SELLERS = [
 function listingToCard(l) {
   return { ...l, _key: `listing:${l.id}`, source: 'listing' };
 }
-function productToCard(p) {
+export function productToCard(p) {
   return {
     _key: `product:${p.id}`,
     source: 'product',

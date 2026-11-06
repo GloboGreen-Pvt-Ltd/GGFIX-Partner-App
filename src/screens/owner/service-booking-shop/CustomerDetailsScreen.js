@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { UserPlus, User, Mail, Phone, ArrowLeft, ChevronRight as ChevronRightIcon, ChevronDown, UploadCloud, MapPin, Search, Check, X, IdCard } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { launchCamera } from '../../../components/InAppCamera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -445,7 +446,7 @@ export default function CustomerDetailsScreen({ navigation, route }) {
     try {
       const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
       const result = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
+        ? await launchCamera(opts)
         : await ImagePicker.launchImageLibraryAsync(opts);
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
