@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -22,7 +22,9 @@ import {
   LayoutGrid,
   Package,
   EllipsisVertical,
+  ShoppingBag,
 } from 'lucide-react-native';
+import { listShopBuyOrders } from '../../api/buyOrders';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { EmptyState, Loader } from '../../components/rnr';
@@ -155,6 +157,19 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
   const shopId = useSelector(selectShopId);
   const userId = useSelector(selectUserId);
   const [listings, setListings] = useState([]);
+  // Customer buy orders: New = waiting for your confirmation; Active = in delivery.
+  const [orderCounts, setOrderCounts] = useState(null);
+  useFocusEffect(useCallback(() => {
+    listShopBuyOrders()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setOrderCounts({
+          fresh: list.filter((o) => o.status === 'PLACED').length,
+          active: list.filter((o) => ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status)).length,
+        });
+      })
+      .catch(() => setOrderCounts(null));
+  }, []));
 
   // useFocusEffect, not useEffect: coming back from the listing flow has to show
   // the device that was just published.
@@ -508,6 +523,26 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
             })}
           </View>
 
+          {/* ── Customer Orders ── */}
+          <Pressable
+            onPress={() => navigation.navigate('SellBuyOrders')}
+            accessibilityRole="button"
+            accessibilityLabel="Customer orders"
+            className="flex-row items-center active:opacity-90"
+            style={{ marginHorizontal: padH, marginTop: 14, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: orderCounts?.fresh ? '#01AC77' : BORDER, backgroundColor: orderCounts?.fresh ? '#E6F7F0' : CARD_BG }}
+          >
+            <View className="items-center justify-center" style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: '#FFFFFF' }}>
+              <ShoppingBag size={19} color="#01AC77" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text className="font-extrabold" style={{ fontSize: 14, color: TEXT_PRIMARY }}>Customer Orders</Text>
+              <Text style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 1 }}>
+                {orderCounts ? `${orderCounts.fresh} new to confirm · ${orderCounts.active} in progress` : 'Confirm orders and assign pickup'}
+              </Text>
+            </View>
+            <ChevronRight size={18} color={ACCENT} />
+          </Pressable>
+
           {/* ── Recent Listings ─────────────────────────────
               Hidden entirely when there is nothing listed: an empty card
               here would push the categories up the screen for a shop that
@@ -540,7 +575,7 @@ export default function OwnerSellHomeScreen({ navigation, route }) {
                   const sold = status === 'SOLD' || status === 'COMPLETED';
                   const cancelled = status === 'CANCELLED' || status === 'CANCELED';
                   const pill = sold
-                    ? { label: 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
+                    ? { label: status === 'SOLD' ? 'Out of stock' : 'Sold', ink: TEXT_PRIMARY, bg: SOFT_MINT }
                     : cancelled
                       ? { label: 'Cancelled', ink: '#B91C1C', bg: '#FEE2E2' }
                       : { label: status ? (status.charAt(0) + status.slice(1).toLowerCase()) : 'Active', ink: PRIMARY, bg: MINT };
