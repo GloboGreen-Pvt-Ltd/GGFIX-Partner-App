@@ -21,6 +21,20 @@ const MAX_PRICE = 10000000;
 const WORKING_LABEL = { WORKING: 'Working', DEAD: 'Dead / for parts', UNVERIFIED: 'Unverified' };
 const ITEM_LABEL = { NEW: 'New', USED: 'Used', REFURBISHED: 'Refurbished' };
 
+// Order fulfilment by buyer type. The server stores only fulfilmentOptions
+// (PICKUP / SHIPPING), so each choice maps onto one of those; the buyer type
+// and a delivery radius have no server field yet and are not saved.
+const FULFIL = {
+  CUSTOMER: [
+    { key: 'HOME', value: 'SHIPPING', title: 'Delivery to Home', sub: 'Your employee delivers · cash on delivery' },
+    { key: 'VISIT', value: 'PICKUP', title: 'Direct Visit to Shop', sub: 'Customer buys at your shop' },
+  ],
+  SHOP: [
+    { key: 'SHOP', value: 'PICKUP', title: 'Direct to Shop', sub: 'Buyer shop collects from you' },
+    { key: 'COURIER', value: 'SHIPPING', title: 'Shipping by Courier', sub: 'Ship to the buyer shop' },
+  ],
+};
+
 export default function SellStepPriceScreen({ navigation }) {
   const { draft, ready } = useSellDraft();
   const pr = draft.pricing;
@@ -34,6 +48,11 @@ export default function SellStepPriceScreen({ navigation }) {
   const [submitError, setSubmitError] = useState(null);
   const [similar, setSimilar] = useState(null); // { min, max, n }
   const lock = useRef(false);
+  const [audience, setAudience] = useState('CUSTOMER');
+  // Nothing preselected for a new listing; an edited listing shows what it has.
+  const [picked, setPicked] = useState(() => (draft.editingId ? pr.fulfilment.slice() : []));
+  // Edit: the draft loads asynchronously — show the listing's saved options once it is ready.
+  useEffect(() => { if (ready && draft.editingId) setPicked(pr.fulfilment.slice()); }, [ready, draft.editingId]);
 
   // A unit with its own IMEI is one physical device.
   const maxQty = p.imei ? 1 : 9999;
@@ -68,7 +87,7 @@ export default function SellStepPriceScreen({ navigation }) {
       else if (price > MAX_PRICE) e.price = 'That price looks too high';
     }
     if (!(Number(pr.quantity) >= 1)) e.quantity = 'Quantity must be at least 1';
-    if (!pr.fulfilment.length) e.fulfilment = 'Choose at least one option';
+    if (!picked.length) e.fulfilment = 'Choose at least one option';
     // Photos can change after the Photos step (Edit → Back), so check again here.
     const media = sellDraftStore.get().media;
     const need = minPhotos(draft.listingType);
@@ -82,7 +101,9 @@ export default function SellStepPriceScreen({ navigation }) {
   };
 
   const toggleFulfilment = (v) => {
-    set({ fulfilment: pr.fulfilment.includes(v) ? pr.fulfilment.filter((x) => x !== v) : [...pr.fulfilment, v] });
+    const next = picked.includes(v) ? picked.filter((x) => x !== v) : [...picked, v];
+    setPicked(next);
+    set({ fulfilment: next });
     setErrors((x) => ({ ...x, fulfilment: null }));
   };
 
@@ -136,7 +157,7 @@ export default function SellStepPriceScreen({ navigation }) {
       subtitle="Step 4 of 4 • Set price & publish"
       step={4}
       onBack={() => navigation.goBack()}
-      footer={<PrimaryButton title={publishTitle} icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} />}
+      footer={picked.length ? <PrimaryButton title={publishTitle} icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
     >
       <TextField
         label="Selling Price"
@@ -167,9 +188,28 @@ export default function SellStepPriceScreen({ navigation }) {
         {errors.quantity ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.quantity}</Text> : null}
       </View>
 
-      <Section title="Fulfilment Options" sub="How buyers get the item" style={{ marginTop: 18 }}>
-        <ChoiceCard title="Pickup (Free)" sub="Buyer can pick up from your shop" selected={pr.fulfilment.includes('PICKUP')} onPress={() => toggleFulfilment('PICKUP')} style={{ marginTop: 0 }} />
-        <ChoiceCard title="Shipping" sub="Ship to buyer via partnered courier" selected={pr.fulfilment.includes('SHIPPING')} onPress={() => toggleFulfilment('SHIPPING')} />
+      <Section title="Order Fulfillment" sub="Who buys and how they get the item" style={{ marginTop: 18 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          {[['CUSTOMER', 'Customer'], ['SHOP', 'Shop']].map(([k, label]) => {
+            const on = audience === k;
+            return (
+              <Pressable key={k} onPress={() => setAudience(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                style={{ flex: 1, height: 34, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: on ? C.green : C.border, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
+                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: on ? C.green : C.muted }}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {FULFIL[audience].map((f) => (
+          <ChoiceCard key={f.key} title={f.title} sub={f.sub} selected={picked.includes(f.value)} onPress={() => toggleFulfilment(f.value)} style={{ marginTop: 0, marginBottom: 8 }} />
+        ))}
+        {audience === 'CUSTOMER' && picked.includes('SHIPPING') ? (
+          <View style={{ backgroundColor: C.amberBg, borderRadius: 10, padding: 10 }}>
+            <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.text }}>Delivery radius</Text>
+            <Text style={{ fontSize: rf(11), color: C.amber, marginTop: 2 }}>Not saved yet — the server has no delivery-radius field. Customers anywhere can choose home delivery.</Text>
+          </View>
+        ) : null}
+        {!picked.length ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 4 }}>Select at least one option to publish.</Text> : null}
         {errors.fulfilment ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.fulfilment}</Text> : null}
       </Section>
 

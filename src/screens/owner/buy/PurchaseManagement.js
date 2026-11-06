@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, Text, View } from 'react-native';
 import { CalendarDays, Check, ChevronRight, CircleCheck, Cpu, MessageCircle, Phone, Smartphone, Store, Truck, UserPlus, XCircle } from 'lucide-react-native';
 import { listingConditionLabel } from '../../../api/nearbyListings';
-import { setPurchaseFulfilment } from '../../../api/orders';
+import { getShopPurchase, setPurchaseFulfilment } from '../../../api/orders';
 import { showToast } from '../../../components/Toast';
 import { rf } from '../../../utils/responsive';
 import { C, ErrorBox, PrimaryButton, Section, SellScreen, Thumb, money } from '../sell/kit';
@@ -78,10 +78,15 @@ function MethodCard({ Icon, title, sub, selected, dim, busy, onPress }) {
 export default function PurchaseManagement({ navigation, lead: l, mine, leadRef, error, onReload, refreshing, onRefresh, onCall, onChat, chatBusy }) {
   const q = mine.quotation;
   const id = mine.purchaseOrderId || mine.sellOrderId;
-  const status = String(mine.orderStatus || '').toUpperCase();
+  // The purchase holds the live collection method; the quote note only has the
+  // one chosen when quoting (stale after a change here).
+  const [purchase, setPurchase] = useState(null);
+  const loadPurchase = useCallback(() => (id ? getShopPurchase(id).then(setPurchase).catch(() => {}) : Promise.resolve()), [id]);
+  useEffect(() => { loadPurchase(); }, [loadPurchase, mine]);
+  const status = String(purchase?.status || mine.orderStatus || '').toUpperCase();
   const cancelled = status === 'CANCELLED';
   const done = cancelled ? 1 : (STAGE[status] || 1);
-  const method = fulfilmentOf(q.note);
+  const method = purchase?.fulfilment === 'SHOP_VISIT' ? 'SHOP_VISIT' : purchase?.fulfilment ? 'PICKUP' : fulfilmentOf(q.note);
   const changeable = CHANGEABLE.includes(status);
   const [saving, setSaving] = useState(null);
   const lock = useRef(false);
@@ -95,8 +100,8 @@ export default function PurchaseManagement({ navigation, lead: l, mine, leadRef,
       return;
     }
     // The page for where the purchase stands: Assign Pickup → Tracking → Inspection → Final Price → Payment → Completed.
-    const name = purchaseRoute(status);
-    navigation.navigate(name, stepParams(name, id, leadRef));
+    const name = purchaseRoute(status, purchase || undefined);
+    navigation.navigate(name, stepParams(name, id, leadRef, purchase || undefined));
   };
 
   const choose = async (next) => {
@@ -113,7 +118,7 @@ export default function PurchaseManagement({ navigation, lead: l, mine, leadRef,
     setSaving(next);
     try {
       await setPurchaseFulfilment(id, next);
-      await onReload();
+      await Promise.all([onReload(), loadPurchase()]);
       showToast({ type: 'success', title: next === 'SHOP_VISIT' ? 'Shop visit selected' : 'Pickup selected', message: 'The customer has been notified.' });
     } catch (e) {
       showToast({ type: e?.code === 'SERVER_UPDATE_REQUIRED' ? 'warning' : 'error', title: 'Could not change', message: e?.message });

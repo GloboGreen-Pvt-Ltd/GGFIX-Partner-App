@@ -582,6 +582,9 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                   : buys[String(it.id)] ? purchaseHero(buys[String(it.id)]).title
                     : QUOTE_TAG[String(quotes[String(it.id)]?.quotationStatus || '').toUpperCase()] || 'For Customer'}
                 onPress={() => openItem(it)}
+                navigation={it.sellerType === 'CUSTOMER' ? navigation : undefined}
+                quoteStatus={quotes[String(it.id)]?.quotationStatus}
+                purchase={buys[String(it.id)]}
               />
             ))}
             {!loading && !feed.length ? (
