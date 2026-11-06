@@ -615,7 +615,7 @@ export function ServiceStatusSheet({
           <View className="rounded-3xl p-4" style={{ backgroundColor: '#FFFFFF' }}>
             <Text className="text-[15px] font-extrabold text-gray-900">{status?.label}</Text>
             <Text className="text-[11.5px] text-gray-500 mt-1">
-              {status?.key === 'CANCELLED' ? 'Cancelled bookings can't be moved to another status afterwards. ' : ''}Tell the customer why.
+              {status?.key === 'CANCELLED' ? 'Cancelled bookings can’t be moved to another status afterwards. ' : ''}Tell the customer why.
             </Text>
             <TextInput
               value={reason}
