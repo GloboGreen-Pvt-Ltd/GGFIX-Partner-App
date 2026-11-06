@@ -404,6 +404,8 @@ export function ServiceStatusSheet({
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(new Set());
   const [loadingSteps, setLoadingSteps] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [reason, setReason] = useState('');
 
   const type = SERVICE_STATUS_TYPES.find((t) => t.key === typeKey) || SERVICE_STATUS_TYPES[0];
   const options = nextOptionsFor(type, completed);
@@ -478,14 +480,23 @@ export function ServiceStatusSheet({
       onGenerateInvoice?.(booking);
       return;
     }
-    const ask = CONFIRM_BEFORE[status.key];
+    // Exits need a reason, typed in the popup; it is saved as the event's note.
+    if (EXIT_KEYS.includes(status.key) && !reasonOpen) {
+      setReason('');
+      setReasonOpen(true);
+      return;
+    }
+    const note = EXIT_KEYS.includes(status.key) ? reason.trim() : '';
+    if (EXIT_KEYS.includes(status.key) && note.length < 3) return;
+    const ask = EXIT_KEYS.includes(status.key) ? null : CONFIRM_BEFORE[status.key];
     if (ask && !(await confirm(ask))) return;
+    setReasonOpen(false);
     setSaving(true);
     try {
       await ticketApi.post(`/tickets/${booking.id}/progress-events`, {
         // actor=OWNER marks this as a deliberate shop-side action, which is
         // what separates it from the actor=SHOP rows the backend auto-emits.
-        body: { statusKey: status.key, actor: 'OWNER' },
+        body: { statusKey: status.key, actor: 'OWNER', ...(note ? { note } : {}) },
       });
       notify('Status updated', `"${status.label}" recorded.`, { preset: 'done' });
       onUpdated?.();
@@ -599,6 +610,39 @@ export function ServiceStatusSheet({
           </>
         )}
       </ScrollView>
+      <SafeModal visible={reasonOpen} transparent animationType="fade" onRequestClose={() => setReasonOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 }}>
+          <View className="rounded-3xl p-4" style={{ backgroundColor: '#FFFFFF' }}>
+            <Text className="text-[15px] font-extrabold text-gray-900">{status?.label}</Text>
+            <Text className="text-[11.5px] text-gray-500 mt-1">
+              {status?.key === 'CANCELLED' ? 'Cancelled bookings can't be moved to another status afterwards. ' : ''}Tell the customer why.
+            </Text>
+            <TextInput
+              value={reason}
+              onChangeText={setReason}
+              placeholder="Reason (required)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              maxLength={300}
+              autoFocus
+              style={{ minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 14, padding: 10, marginTop: 12, fontSize: 13, color: '#111111' }}
+            />
+            <View className="flex-row mt-4" style={{ gap: 10 }}>
+              <Pressable onPress={() => setReasonOpen(false)} className="flex-1 rounded-2xl items-center py-3 active:opacity-80" style={{ borderWidth: 1, borderColor: '#E5E7EB' }}>
+                <Text className="text-[13px] font-extrabold text-gray-700">Back</Text>
+              </Pressable>
+              <Pressable
+                onPress={submit}
+                disabled={reason.trim().length < 3 || saving}
+                className="flex-1 rounded-2xl items-center py-3 active:opacity-90"
+                style={{ backgroundColor: status?.key === 'CANCELLED' ? '#DC2626' : BRAND_GREEN_DARK, opacity: reason.trim().length < 3 || saving ? 0.45 : 1 }}
+              >
+                {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text className="text-white text-[13px] font-extrabold">Confirm</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </SafeModal>
     </SheetShell>
   );
 }
