@@ -419,7 +419,6 @@ export default function OwnerBuyHomeScreen({ navigation }) {
           <>
             <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
             <View style={{ width: 6 }} />
-            <HeaderIconButton icon={ShoppingCart} label="Cart" onPress={() => navigation.navigate('OwnerCart')} badge={cartCount} badgeColor="#F59E0B" badgeText={INK} />
           </>
         )}
       >

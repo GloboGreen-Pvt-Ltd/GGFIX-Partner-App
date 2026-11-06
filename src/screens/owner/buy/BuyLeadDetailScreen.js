@@ -140,7 +140,8 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
   const edited = sentOpen && (Number(amount) !== Number(q.quotationPrice)
     || fulfil !== (/visit the shop/i.test(q.note || '') ? 'SHOP_VISIT' : 'PICKUP'));
 
-  const submit = async () => {
+  // which: 'quote' (price button) | 'fulfil' (fulfilment button) — same API, own spinner.
+  const submit = async (which = 'quote') => {
     const v = Number(amount);
     if (!(v > 0)) {
       setError({ message: 'Enter your buying price' });
@@ -149,7 +150,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
     }
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
+    setBusy(which);
     setError(null);
     try {
       const res = await submitLeadQuote({ listingId: l.id, quotationPrice: v, fulfilment: fulfil });
@@ -313,12 +314,7 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
                     <Text style={{ fontSize: rf(13), fontWeight: '800', color: st.done || now ? C.text : C.muted }}>{st.label}</Text>
                     {st.sub ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 1 }}>{st.sub}</Text> : null}
                   </View>
-                  {now ? (
-                    <>
-                      <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.teal }}>Next</Text>
-                      <ChevronRight size={16} color={C.teal} />
-                    </>
-                  ) : st.done ? <Text style={{ fontSize: rf(11), fontWeight: '700', color: C.green }}>Done</Text> : null}
+                  {st.done ? <Text style={{ fontSize: rf(11), fontWeight: '700', color: C.green }}>Done</Text> : null}
                 </Pressable>
               );
             })}
@@ -348,8 +344,19 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
         editable={canSubmit}
         style={{ marginTop: accepted ? 8 : 18 }}
       />
+      {!accepted ? (
+        <PrimaryButton
+          title={sentOpen ? 'Update Quotation' : 'Submit Quotation'}
+          icon={Send}
+          small
+          onPress={() => submit('quote')}
+          loading={busy === 'quote'}
+          disabled={!canSubmit || !!busy || (sentOpen && !edited)}
+          style={{ marginTop: 10 }}
+        />
+      ) : null}
 
-      <Section title="Fulfillment">
+      <Section title="Order Fulfillment">
         {picked || (q && !canSubmit) ? (
           // Chosen: just the selected method as text.
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -375,11 +382,11 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
       ) : (
         <>
           <PrimaryButton
-            title={sentOpen ? 'Update Quotation' : 'Submit Quotation'}
+            title="Submit Fulfillment"
             icon={Send}
-            onPress={submit}
-            loading={busy}
-            disabled={!canSubmit || busy || (sentOpen && !edited)}
+            onPress={() => submit('fulfil')}
+            loading={busy === 'fulfil'}
+            disabled={!canSubmit || !!busy || (sentOpen && !edited) || !picked}
             style={{ marginTop: 16 }}
           />
           {sentOpen ? (

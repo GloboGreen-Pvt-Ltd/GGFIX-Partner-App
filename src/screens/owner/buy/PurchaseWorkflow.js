@@ -162,9 +162,23 @@ export default function PurchaseWorkflow({ o, busy, onAction, onOpenPhoto }) {
           {visit && received ? <Text style={{ fontSize: rf(12), color: C.green, fontWeight: '700', marginTop: 8 }}>Received {dateTime(pk.receivedAt)}</Text> : null}
           {can('ASSIGN') || can('SCHEDULE') || can('RECEIVE') || tracking ? (
             <View style={{ gap: 8, marginTop: 12 }}>
-              {tracking ? <PrimaryButton title="Track Pickup" icon={Truck} variant="outline" onPress={() => onAction('track')} /> : null}
-              {can('ASSIGN') ? <PrimaryButton title={pk.personName ? 'Reassign Employee' : 'Assign Employee'} icon={UserPlus} variant={pk.personName ? 'outline' : 'primary'} onPress={() => onAction('assign')} /> : null}
-              {can('SCHEDULE') ? <PrimaryButton title="Reschedule" icon={CalendarClock} variant="outline" onPress={() => onAction('schedule')} /> : null}
+              {tracking || can('ASSIGN') || can('SCHEDULE') ? (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {[
+                    tracking && { key: 'track', Icon: Truck, label: 'Track' },
+                    can('ASSIGN') && { key: 'assign', Icon: UserPlus, label: pk.personName ? 'Reassign' : 'Assign' },
+                    can('SCHEDULE') && { key: 'schedule', Icon: CalendarClock, label: 'Reschedule' },
+                  ].filter(Boolean).map(({ key, Icon, label }) => (
+                    <Pressable key={key} onPress={() => onAction(key)} accessibilityRole="button" accessibilityLabel={label} className="active:opacity-80"
+                      style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF' }}>
+                      <View style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={16} color={C.green} />
+                      </View>
+                      <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.text, marginTop: 4 }}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
               {can('RECEIVE') ? (visit
                 ? <PrimaryButton title="Mark Device Received" icon={PackageCheck} loading={busy === 'receive'} onPress={() => onAction('receive')} />
                 : <PrimaryButton title="Verify Shop Handover" icon={PackageCheck} onPress={() => onAction('handover')} />) : null}
