@@ -283,6 +283,9 @@ const CANCEL_OPTION = { key: 'CANCELLED', label: 'Repair Cancelled' };
 // Nothing follows these two.
 const TERMINAL_KEYS = ['DELIVERED', 'CANCELLED'];
 
+// Recordable whenever the booking is open (see ServiceStatusSheet blockedBy).
+const EXIT_KEYS = ['CANCELLED', 'CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED'];
+
 // The next stage's options plus the cancel escape hatch, given what the
 // booking's timeline already carries. Returns [] when the booking is finished.
 function nextOptionsFor(type, completed) {
@@ -410,7 +413,9 @@ export function ServiceStatusSheet({
   const finished = options.length === 0;
   // One step at a time: the next stage is offered, but it can't be saved until
   // the Service History step before it is recorded.
-  const blockedBy = status ? stepBlockedBy(completed, status.key) : null;
+  // Ways out of the repair (cancel, customer said no, couldn't be fixed) can be
+  // recorded at any point — they don't wait for a re-estimate or repair step.
+  const blockedBy = status && !EXIT_KEYS.includes(status.key) ? stepBlockedBy(completed, status.key) : null;
 
   // What the booking has already been through decides what it can do next, so
   // the sheet reads the timeline on every open. Re-reading each time is what
