@@ -201,10 +201,12 @@ export default function OwnerSellHubScreen({ navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
   // Customer buy orders: Orders = new ones to confirm; Assign Pickup = confirmed home deliveries without an employee.
   const [orderCounts, setOrderCounts] = useState(null);
+  const [buyOrders, setBuyOrders] = useState([]);
   useFocusEffect(useCallback(() => {
     listShopBuyOrders()
       .then((rows) => {
         const list = Array.isArray(rows) ? rows : [];
+        setBuyOrders(list);
         setOrderCounts({
           fresh: list.filter((o) => o.status === 'PLACED').length,
           assign: list.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && ['CONFIRMED', 'DELIVERY_FAILED'].includes(o.status)).length,
@@ -296,7 +298,15 @@ export default function OwnerSellHubScreen({ navigation }) {
     return () => clearInterval(id);
   }, [banners.length, pageW]);
 
-  const openListing = (p) => navigation.navigate('MarketplaceListingDetails', { productId: p.id, listing: p });
+  // A listing a customer has ordered opens that order; any other listing opens
+  // My Listings on its status tab (where it is edited, priced or deactivated).
+  const OPEN = ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'];
+  const openListing = (p) => {
+    const order = buyOrders.find((o) => o.productId === p.id && OPEN.includes(o.status));
+    if (order) { navigation.navigate('SellBuyOrderDetail', { id: order.id }); return; }
+    const st = String(p.status || p._status || 'ACTIVE').toUpperCase();
+    navigation.navigate('SellMyListings', { initialStatus: ['ACTIVE', 'DRAFT', 'INACTIVE', 'SOLD'].includes(st) ? st : 'ALL' });
+  };
 
   const count = (v) => (loading && !summary ? null : v ?? null);
 
