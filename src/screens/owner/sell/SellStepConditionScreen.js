@@ -75,13 +75,33 @@ const DESC_LIMIT = { DETAILED: 500, SHORT: 150 };
 const DESC_MIN = { DETAILED: 20, SHORT: 10 };
 
 // Accepts 12 Oct 2025, 12/10/2025, 2025-10-12 → ISO date, or null.
+// Typed digits → "DD/MM/YYYY" (slashes added as you type).
+function maskDate(text) {
+  const d = String(text || '').replace(/\D/g, '').slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4, 8)].filter(Boolean).join('/');
+}
+// Stored ISO "YYYY-MM-DD" shown back as "DD/MM/YYYY".
+function showDate(v) {
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || '');
+}
+const addMonths = (n) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
+
 function parseDate(text) {
   const s = String(text || '').trim();
   if (!s) return null;
   let d = null;
   const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) d = new Date(`${s}T00:00:00`);
-  else if (dmy) d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+  else if (dmy) {
+    d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    // Reject roll-overs like 31/02 → 03/03.
+    if (d.getDate() !== Number(dmy[1]) || d.getMonth() !== Number(dmy[2]) - 1) return null;
+  }
   else d = new Date(s);
   return !Number.isNaN(d.getTime()) ? d : null;
 }
@@ -383,13 +403,24 @@ export default function SellStepConditionScreen({ navigation }) {
           <TextField
             label="Valid Till"
             required
-            value={c.warrantyValidTill}
-            onChangeText={(t) => { set({ warrantyValidTill: t }); setErrors((e) => ({ ...e, warranty: null })); }}
+            value={showDate(c.warrantyValidTill)}
+            onChangeText={(t) => { set({ warrantyValidTill: maskDate(t) }); setErrors((e) => ({ ...e, warranty: null })); }}
             placeholder="DD/MM/YYYY"
-            maxLength={12}
-            keyboardType="numbers-and-punctuation"
+            maxLength={10}
+            keyboardType="number-pad"
             error={errors.warranty}
           />
+        ) : null}
+        {c.warrantyType !== 'NONE' ? (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {[[3, '3 months'], [6, '6 months'], [12, '1 year']].map(([n, label]) => (
+              <Pressable key={n} onPress={() => { set({ warrantyValidTill: addMonths(n) }); setErrors((e) => ({ ...e, warranty: null })); }}
+                accessibilityRole="button" accessibilityLabel={`Warranty ${label} from today`}
+                style={{ paddingHorizontal: 12, height: 30, borderRadius: 999, borderWidth: 1, borderColor: C.border, justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
+                <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.teal }}>+{label}</Text>
+              </Pressable>
+            ))}
+          </View>
         ) : null}
       </Section>
 
