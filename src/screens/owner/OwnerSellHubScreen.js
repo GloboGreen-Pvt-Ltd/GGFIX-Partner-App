@@ -416,16 +416,6 @@ export default function OwnerSellHubScreen({ navigation }) {
         </View>
 
       </ScrollView>
-            {banners.length > 1 ? (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
-                {banners.map((b, i) => (
-                  <View key={b.key} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? C.teal : C.border }} />
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-      </ScrollView>
     </SafeAreaView>
   );
 }
