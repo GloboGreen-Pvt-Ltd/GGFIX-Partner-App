@@ -357,11 +357,37 @@ export default function OwnerSellHubScreen({ navigation }) {
                   ) : null}
                 </View>
               ) : (
-              <View style={{ marginTop: 8, backgroundColor: '#035C6C', borderRadius: 18, padding: 16, overflow: 'hidden' }}>
-                <View style={{ position: 'absolute', right: -40, top: -50, height: 170, width: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)' }} />
-                <Text style={{ color: '#FFFFFF', fontSize: rf(22), fontWeight: '800', lineHeight: rf(27) }}>Buy & Sell{'\n'}with NearGFix</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: rf(11.5), marginTop: 6 }}>List Devices, Manage Orders & Deliver to Customers</Text>
-              </View>
+              // Built-in Sell banner, same style as the admin Buy banner (used until a "Sell" banner is added in admin).
+              <Pressable onPress={() => navigation.navigate('SellListingType')} accessibilityRole="button" accessibilityLabel="Start selling"
+                style={{ marginTop: 8, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F4FAF9', borderWidth: 1, borderColor: C.border, padding: 14, flexDirection: 'row' }}>
+                <View style={{ position: 'absolute', right: -30, top: -40, height: 180, width: 180, borderRadius: 90, backgroundColor: 'rgba(3,92,108,0.06)' }} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ height: 22, width: 22, borderRadius: 11, backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#FFFFFF', fontSize: rf(11), fontWeight: '800' }}>N</Text>
+                    </View>
+                    <Text style={{ marginLeft: 6, fontSize: rf(11), fontWeight: '800', color: C.text }}>NearGFix <Text style={{ fontWeight: '400', color: C.muted }}>Partner</Text></Text>
+                  </View>
+                  <Text style={{ fontSize: rf(20), lineHeight: rf(23), fontWeight: '800', color: C.text, marginTop: 6 }}>Sell Your Devices</Text>
+                  <Text style={{ fontSize: rf(20), lineHeight: rf(23), fontWeight: '800', color: '#035C6C' }}>Faster</Text>
+                  <Text numberOfLines={1} style={{ fontSize: rf(10.5), color: C.text, marginTop: 4 }}>Fixed Price • Nearby Buyers • Home Delivery</Text>
+                  <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', marginTop: 8, height: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#035C6C' }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' }}>Start Selling</Text>
+                    <ArrowRight size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+                    {[['Fixed', 'Price'], ['Verified', 'Buyers'], ['Quick', 'Orders']].map(([a, b]) => (
+                      <View key={a} style={{ backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: C.border }}>
+                        <Text style={{ fontSize: rf(9.5), fontWeight: '800', color: '#035C6C' }}>{a}</Text>
+                        <Text style={{ fontSize: rf(9.5), color: C.text }}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ width: '34%', alignItems: 'center', justifyContent: 'center' }}>
+                  <Image resizeMethod="resize" source={{ uri: SELL_IMAGES.MOBILE }} style={{ width: '100%', height: 130 }} resizeMode="contain" accessibilityIgnoresInvertColors />
+                </View>
+              </Pressable>
               )}
 
               {/* ---------- 2 x 2 actions ---------- */}
