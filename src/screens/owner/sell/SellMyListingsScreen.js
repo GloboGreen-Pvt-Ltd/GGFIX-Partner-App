@@ -163,7 +163,8 @@ const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit,
   const status = p._status;
   const canSell = canTransition(status, 'SOLD');
   const canPublish = status === 'DRAFT' && canTransition(status, 'ACTIVE');
-  const qtyLine = [`Qty: ${p.quantity ?? 0}`, p.soldQuantity > 0 ? `Sold ${p.soldQuantity}` : null].filter(Boolean).join(' · ');
+  const stock = Math.max(0, Number(p.quantity ?? 0) - Number(p.soldQuantity ?? 0));
+  const qtyLine = [`Stock: ${stock}`, p.soldQuantity > 0 ? `Sold ${p.soldQuantity}` : null].filter(Boolean).join(' · ');
   return (
     // The card body, the ⋮ menu and the action buttons are sibling pressables:
     // a button inside a button is invalid on web and confuses screen readers.

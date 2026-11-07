@@ -220,6 +220,7 @@ export default function SellStepConditionScreen({ navigation }) {
       title="Condition & Description"
       subtitle="Step 2 of 4 • Item condition & info"
       step={2}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >

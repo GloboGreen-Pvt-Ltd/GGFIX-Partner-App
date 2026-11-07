@@ -48,6 +48,8 @@ export default function SellStepPriceScreen({ navigation }) {
   const [submitError, setSubmitError] = useState(null);
   const [similar, setSimilar] = useState(null); // { min, max, n }
   const lock = useRef(false);
+  // Fixed-price marketplace: no offers / negotiation.
+  useEffect(() => { if (ready && pr.negotiable) set({ negotiable: false }); }, [ready, pr.negotiable]);
   // Buyer type first (nothing preselected), then that type's options only.
   const [audience, setAudience] = useState(() => pr.buyerType || null);
   const [picked, setPicked] = useState(() => (pr.fulfilmentKeys || []).slice()); // option keys (HOME / VISIT / SHOP / COURIER)
@@ -171,11 +173,12 @@ export default function SellStepPriceScreen({ navigation }) {
       title={draft.editingId ? 'Price & Save' : 'Price & Publish'}
       subtitle="Step 4 of 4 • Set price & publish"
       step={4}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
-      footer={fulfilmentValid ? <PrimaryButton title={publishTitle} icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
+      footer={fulfilmentValid ? <PrimaryButton title={publishTitle} variant="green" icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
     >
       <TextField
-        label="Selling Price"
+        label="Selling Price (Fixed)"
         required
         prefix="₹"
         value={pr.price}
@@ -195,10 +198,9 @@ export default function SellStepPriceScreen({ navigation }) {
         </View>
       ) : null}
 
-      <ToggleRow label="Negotiable" sub="Buyers can send you price offers" value={pr.negotiable} onChange={(v) => set({ negotiable: v })} />
 
       <View style={{ marginTop: 16 }}>
-        <FieldLabel label="Quantity" required hint={p.imei ? '(1 for a device with IMEI)' : null} />
+        <FieldLabel label="Stock Quantity" required hint={p.imei ? '(1 for a device with IMEI)' : null} />
         <QtyStepper value={pr.quantity} onChange={(v) => { set({ quantity: v }); setErrors((x) => ({ ...x, quantity: null })); }} min={1} max={maxQty} />
         {errors.quantity ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.quantity}</Text> : null}
       </View>

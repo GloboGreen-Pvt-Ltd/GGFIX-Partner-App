@@ -245,7 +245,8 @@ function PartAccessoryDetails({ navigation }) {
     <SellScreen
       title={deviceTitle}
       subtitle="Step 1 of 4 • Product info"
-      step={1}
+      step={2}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >
