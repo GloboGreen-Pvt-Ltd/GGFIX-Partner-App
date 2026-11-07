@@ -97,6 +97,15 @@ const ART = {
   touch: () => (<G><Front /><Circle cx={32} cy={30} r={4} {...line} stroke={ACCENT} /><Circle cx={32} cy={30} r={8} {...line} stroke={ACCENT} strokeDasharray="2 3" /><Badge x={41} y={46} /></G>),
   backPanel: () => (<G><Back /><Path d="M24 30 l6 5 l-2 6 l8 5 M30 35 l7 -4" {...line} stroke={ACCENT} /><Badge x={39} y={18} /></G>),
   generic: () => (<G><Front /><Badge x={32} y={32} /></G>),
+  // Physical-condition states (screen / body): clean → spots → scratches → cracks → dents.
+  condClean: () => (<G><Front /><Path d="M25 31 l5 5 l9 -10" {...line} stroke={'#01AC77'} strokeWidth={3} /></G>),
+  spotsMinor: () => (<G><Front /><Circle cx={28} cy={24} r={2.2} fill={'#E5484D'} /><Circle cx={37} cy={36} r={1.6} fill={'#E5484D'} /></G>),
+  spotsMajor: () => (<G><Front /><Circle cx={26} cy={20} r={3} fill={'#E5484D'} /><Circle cx={37} cy={24} r={2.4} fill={'#E5484D'} /><Circle cx={29} cy={33} r={3.4} fill={'#E5484D'} /><Circle cx={38} cy={40} r={2.2} fill={'#E5484D'} /><Circle cx={25} cy={44} r={1.8} fill={'#E5484D'} /></G>),
+  scratchMinor: () => (<G><Front /><Path d="M25 22 l8 -4 M30 38 l9 -3" {...line} stroke={'#E5484D'} /></G>),
+  scratchMajor: () => (<G><Front /><Path d="M23 20 l16 -6 M24 30 l15 -5 M25 41 l14 -6 M27 47 l10 -3" {...line} stroke={'#E5484D'} /></G>),
+  cracked: () => (<G><Front /><Path d="M32 14 l-4 10 l7 6 l-6 9 l5 8 M35 30 l6 -3" {...line} stroke={'#E5484D'} /></G>),
+  dented: () => (<G><Back /><Path d="M18 26 q5 4 0 8" {...line} stroke={'#E5484D'} /><Path d="M46 38 q-5 4 0 8" {...line} stroke={'#E5484D'} /></G>),
+  broken: () => (<G><Front /><Path d="M22 14 l20 36 M42 14 l-20 36" {...line} stroke={'#E5484D'} /></G>),
   // Accessories
   box: () => (
     <G>
@@ -139,6 +148,21 @@ const ART = {
 };
 
 /** Which drawing fits an issue / accessory name (master data uses free text). */
+// Picture for one physical-condition option ("No Spot", "Minor Spot", "Major Scratches"…).
+export function conditionArtFor(label) {
+  const n = String(label || '').toLowerCase();
+  const has = (...w) => w.some((x) => n.includes(x));
+  const heavy = has('major', 'heavy', 'many', 'multiple', 'big', 'large', 'deep', 'severe', 'more');
+  if (has('no ', 'none', 'flawless', 'perfect', 'good', 'excellent', 'like new', 'clean', 'without')) return 'condClean';
+  if (has('broken', 'not working', 'dead', 'shatter')) return 'broken';
+  if (has('crack')) return 'cracked';
+  if (has('dent', 'bend', 'bent')) return 'dented';
+  if (has('scratch')) return heavy ? 'scratchMajor' : 'scratchMinor';
+  if (has('spot', 'dot', 'patch', 'line', 'shade', 'discolor', 'burn')) return heavy ? 'spotsMajor' : 'spotsMinor';
+  if (has('minor', 'light', 'small', 'few')) return 'scratchMinor';
+  return 'generic';
+}
+
 export function artFor(name) {
   const n = String(name || '').toLowerCase();
   const has = (...w) => w.some((x) => n.includes(x));

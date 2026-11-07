@@ -7,7 +7,7 @@ import { screeningFallback } from '../../shared/sell/SellScreeningScreen';
 import { rf } from '../../../utils/responsive';
 import { C, CONTENT_MAX, FieldLabel, PickerModal, PrimaryButton, Section, Segmented, SelectField, SellScreen, TextField, reportErrors } from './kit';
 import { LISTING_TYPES, useSellDraft, sellDraftStore } from './draft';
-import ConditionArt, { artFor } from './conditionArt';
+import ConditionArt, { artFor, conditionArtFor } from './conditionArt';
 
 // Page 4 (step 2 of 4) — working state, description, defects, missing parts,
 // accessories in the box and warranty.
@@ -310,13 +310,17 @@ export default function SellStepConditionScreen({ navigation }) {
           {groups.map((g) => (
             <View key={g.id} style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, marginBottom: 8 }}>{g.name}</Text>
-              <Segmented
-                columns={cols}
-                lines={3}
-                options={g.opts.map((o) => ({ value: optKey(g, o), label: o.label }))}
-                value={(() => { const p = pickFor(g); const o = p && g.opts.find((x) => x.id === p.optionId || x.label === p.optionLabel); return o ? optKey(g, o) : null; })()}
-                onChange={(v) => { const o = g.opts.find((x) => optKey(g, x) === v); if (o) setPick(g, o); setErrors((x) => ({ ...x, physical: null })); }}
-              />
+              {/* Picture tile per option (No Spot, Minor Spot, Scratches…). */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
+                {g.opts.map((o) => {
+                  const p = pickFor(g);
+                  const on = !!p && (p.optionId === o.id || p.optionLabel === o.label);
+                  return (
+                    <ArtCard key={optKey(g, o)} label={o.label} kind={conditionArtFor(o.label)} width={cardW} on={on}
+                      onPress={() => { setPick(g, o); setErrors((x) => ({ ...x, physical: null })); }} />
+                  );
+                })}
+              </View>
             </View>
           ))}
           {errors.physical ? <Text style={{ fontSize: rf(11), color: C.red }}>{errors.physical}</Text> : null}
