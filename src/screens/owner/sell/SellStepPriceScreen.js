@@ -214,36 +214,45 @@ export default function SellStepPriceScreen({ navigation }) {
       </View>
 
       <Section title="Order Fulfillment" sub="Who buys and how they get the item" style={{ marginTop: 18 }}>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          {[['CUSTOMER', 'Customer'], ['SHOP', 'Shop']].map(([k, label]) => {
-            const on = audiences.includes(k);
-            return (
-              <Pressable key={k} onPress={() => chooseAudience(k)} accessibilityRole="checkbox" accessibilityState={{ selected: on }}
-                style={{ flex: 1, height: 34, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: on ? C.green : C.border, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
-                <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: on ? C.green : C.muted }}>{label}</Text>
+        {/* Each buyer type is its own card: tap it and its options open right below. */}
+        {[['CUSTOMER', 'Customer', 'Sell to customers in the NearGFix app'], ['SHOP', 'Shop', 'Sell to other shops']].map(([k, label, sub]) => {
+          const on = audiences.includes(k);
+          return (
+            <View key={k} style={{ borderWidth: 1, borderColor: on ? C.green : C.border, borderRadius: 14, marginBottom: 10, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+              <Pressable onPress={() => chooseAudience(k)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
+                <View style={{ height: 22, width: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? C.green : C.border, backgroundColor: on ? C.green : '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                  {on ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={{ fontSize: rf(14), fontWeight: '800', color: C.text }}>{label}</Text>
+                  <Text style={{ fontSize: rf(11), color: C.muted }}>{sub}</Text>
+                </View>
               </Pressable>
-            );
-          })}
-        </View>
-        {audiences.length ? audiences.map((a) => (
-          <View key={a}>
-            {audiences.length > 1 ? <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.text, marginTop: 4, marginBottom: 6 }}>{a === 'CUSTOMER' ? 'Customer' : 'Shop'}</Text> : null}
-            {FULFIL[a].map((f) => (
-              <ChoiceCard key={f.key} title={f.title} sub={f.sub} selected={picked.includes(f.key)} onPress={() => toggleFulfilment(f.key)} style={{ marginTop: 0, marginBottom: 8 }} />
-            ))}
-          </View>
-        )) : <Text style={{ fontSize: rf(11), color: C.muted }}>Choose Customer, Shop or both to see delivery options.</Text>}
-        {audiences.includes('CUSTOMER') && picked.includes('HOME') ? (
-          <TextField
-            label="Delivery radius (KM)"
-            required
-            value={pr.deliveryRadiusKm || ''}
-            onChangeText={(t) => { set({ deliveryRadiusKm: t.replace(/[^0-9]/g, '').slice(0, 3) }); setErrors((x) => ({ ...x, fulfilment: null })); }}
-            placeholder="e.g. 10"
-            keyboardType="number-pad"
-            maxLength={3}
-          />
-        ) : null}
+              {on ? (
+                <View style={{ paddingHorizontal: 10, paddingTop: 8 }}>
+                  {FULFIL[k].map((f) => (
+                    <View key={f.key}>
+                      <ChoiceCard title={f.title} sub={f.sub} selected={picked.includes(f.key)} onPress={() => toggleFulfilment(f.key)} style={{ marginTop: 0, marginBottom: 8 }} />
+                      {f.key === 'HOME' && picked.includes('HOME') ? (
+                        <TextField
+                          label="Delivery radius (KM)"
+                          required
+                          value={pr.deliveryRadiusKm || ''}
+                          onChangeText={(t) => { set({ deliveryRadiusKm: t.replace(/[^0-9]/g, '').slice(0, 3) }); setErrors((x) => ({ ...x, fulfilment: null })); }}
+                          placeholder="e.g. 10"
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          style={{ marginTop: 0, marginBottom: 10 }}
+                        />
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
         {audience && !picked.length ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 4 }}>Select at least one option to publish.</Text> : null}
         {errors.fulfilment ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.fulfilment}</Text> : null}
       </Section>
