@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { confirm, notify } from '../../components/confirm';
 import ImageViewerModal from '../../components/ImageViewerModal';
+import { listShopBuyOrders } from '../../api/buyOrders';
 import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { getModelsByBrand } from '../../api/masterData';
@@ -117,6 +118,16 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
   const r = useResponsive();
   const capStyle = r.isTablet ? { width: Math.min(r.width - 32, 760), alignSelf: 'center' } : null;
   const productId = route?.params?.productId || route?.params?.id;
+  // Fixed-price flow: a customer's order on this listing is handled in Order Details,
+  // not by manually cancelling / completing the listing here.
+  const [openOrder, setOpenOrder] = useState(null);
+  useEffect(() => {
+    if (!productId) return;
+    listShopBuyOrders()
+      .then((rows) => setOpenOrder((Array.isArray(rows) ? rows : []).find((o) => o.productId === productId
+        && ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status)) || null))
+      .catch(() => {});
+  }, [productId]);
   const [item, setItem] = useState(route?.params?.listing || null);
   const [loading, setLoading] = useState(!route?.params?.listing);
   const [acting, setActing] = useState(false);
@@ -405,8 +416,8 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {/* Action buttons — only while the listing is still live. */}
-      {isLive ? (
+      {/* Only action here: open the customer's order (confirm / assign / hand over happen there). */}
+      {openOrder ? (
         <View
           style={{
             position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -414,34 +425,14 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
             backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line,
           }}
         >
-          <View className="flex-row" style={[{ gap: 10 }, capStyle]}>
-            <TouchableOpacity
-              onPress={askCancel}
-              disabled={acting}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              style={{ flex: 1, minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.redTint, borderWidth: 1.5, borderColor: C.red, opacity: acting ? 0.6 : 1 }}
-            >
-              <View className="flex-row items-center" style={{ maxWidth: '100%', paddingHorizontal: 8 }}>
-                <Ionicons name="close-circle-outline" size={17} color={C.red} />
-                <Text className="font-extrabold" style={{ flexShrink: 1, marginLeft: 6, fontSize: 13, color: C.red }} numberOfLines={1}>Selling Cancel</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={askComplete}
-              disabled={acting}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              style={{ flex: 1, minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, opacity: acting ? 0.6 : 1 }}
-            >
-              {acting ? <ActivityIndicator color="#FFFFFF" /> : (
-                <View className="flex-row items-center" style={{ maxWidth: '100%', paddingHorizontal: 8 }}>
-                  <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" />
-                  <Text className="font-extrabold" style={{ flexShrink: 1, marginLeft: 6, fontSize: 13, color: '#FFFFFF' }} numberOfLines={1}>Selling Completed</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SellBuyOrderDetail', { id: openOrder.id })}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            style={[{ minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.green }, capStyle]}
+          >
+            <Text className="font-extrabold" style={{ fontSize: 14, color: '#FFFFFF' }}>View Customer Order · {openOrder.orderNumber}</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 

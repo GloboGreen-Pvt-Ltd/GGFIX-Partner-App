@@ -14,6 +14,7 @@ import {
   canTransition, deleteListing, listMyListings, setListingStatus, updateListingPrice,
 } from '../../../api/sellListings';
 import { rf } from '../../../utils/responsive';
+import { listShopBuyOrders } from '../../../api/buyOrders';
 import { draftFromProduct, draftTitle, hasUnsavedProgress, sellDraftStore } from './draft';
 import {
   C, CONTENT_MAX, Card, ChoiceCard, EmptyBox, ErrorBox, PrimaryButton, QtyStepper, SearchInput, Segmented, SellScreen, StatusPill, TabPills,
@@ -159,7 +160,7 @@ const BulkGroupCard = memo(function BulkGroupCard({ group, open, onToggle }) {
   );
 });
 
-const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit, onMarkSold, onPublish }) {
+const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit, onMarkSold, onPublish, order, onOrder }) {
   const status = p._status;
   const canSell = canTransition(status, 'SOLD');
   const canPublish = status === 'DRAFT' && canTransition(status, 'ACTIVE');
@@ -170,7 +171,7 @@ const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit,
     // a button inside a button is invalid on web and confuses screen readers.
     <Card style={{ marginBottom: 10 }}>
       <Pressable
-        onPress={() => onOpen(p)}
+        onPress={() => (order ? onOrder(order) : onOpen(p))}
         accessibilityRole="button"
         accessibilityLabel={p.title || 'Listing'}
         className="active:opacity-90"
@@ -200,7 +201,9 @@ const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit,
       </Pressable>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
         <CardButton icon={Pencil} label="Edit" onPress={() => onEdit(p)} disabled={status === 'SOLD' || busy} />
-        {canSell ? <CardButton icon={Check} tone="green" label="Mark Sold" onPress={() => onMarkSold(p)} disabled={busy} /> : null}
+        {/* A customer order sells it through Orders; Mark Sold only for sales made outside the app. */}
+        {order ? <CardButton icon={ShoppingBag} tone="green" label="View Order" onPress={() => onOrder(order)} disabled={busy} />
+          : canSell ? <CardButton icon={Check} tone="green" label="Mark Sold" onPress={() => onMarkSold(p)} disabled={busy} /> : null}
         {!canSell && canPublish ? <CardButton icon={Rocket} tone="green" label="Publish" onPress={() => onPublish(p)} disabled={busy} /> : null}
       </View>
     </Card>
@@ -357,6 +360,17 @@ export default function SellMyListingsScreen({ navigation, route }) {
       }
     }
   }, [tab, q, ctx]);
+
+  // Open customer buy orders by listing id.
+  const [openOrders, setOpenOrders] = useState({});
+  const openOrder = useCallback((o) => navigation.navigate('SellBuyOrderDetail', { id: o.id }), [navigation]);
+  useFocusEffect(useCallback(() => {
+    listShopBuyOrders()
+      .then((rows) => setOpenOrders(Object.fromEntries((Array.isArray(rows) ? rows : [])
+        .filter((o) => ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status))
+        .map((o) => [String(o.productId), o]))))
+      .catch(() => {});
+  }, []));
 
   useFocusEffect(useCallback(() => {
     load(loadedKey.current === `${tab}|${q}` ? 'silent' : 'reset');
@@ -602,6 +616,8 @@ export default function SellMyListingsScreen({ navigation, route }) {
       onEdit={edit}
       onMarkSold={askSold}
       onPublish={publish}
+      order={openOrders[String(p.id)]}
+      onOrder={openOrder}
     />
   );
   const renderItem = ({ item }) => (item.kind === 'group' ? (
