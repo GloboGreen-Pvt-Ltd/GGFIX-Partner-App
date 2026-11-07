@@ -320,12 +320,38 @@ export default function OwnerSellHubScreen({ navigation }) {
         <View style={[centered, { paddingHorizontal: padH }]}>
           {!query.trim() ? (
             <>
-              {/* ---------- Banner ---------- */}
+              {/* ---------- Banner: admin Sell / Slider banners from the database ---------- */}
+              {banners.length ? (
+                <View style={{ marginTop: 8 }}>
+                  <ScrollView
+                    ref={bannerRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onLayout={(e) => setBannerPageW(Math.round(e.nativeEvent.layout.width))}
+                    onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / (pageW || 1)))}
+                  >
+                    {banners.map((b) => (
+                      <View key={b.key} style={{ width: pageW }}>
+                        <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF' }}>
+                          <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: pageW - 2, height: Math.round((pageW - 2) / bannerRatio) }} resizeMode="contain" accessibilityLabel="Sell banner" />
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  {banners.length > 1 ? (
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8 }}>
+                      {banners.map((b, i) => <View key={b.key} style={{ height: 6, width: i === bannerIndex ? 18 : 6, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === bannerIndex ? C.green : C.border }} />)}
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
               <View style={{ marginTop: 8, backgroundColor: '#035C6C', borderRadius: 18, padding: 16, overflow: 'hidden' }}>
                 <View style={{ position: 'absolute', right: -40, top: -50, height: 170, width: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)' }} />
                 <Text style={{ color: '#FFFFFF', fontSize: rf(22), fontWeight: '800', lineHeight: rf(27) }}>Buy & Sell{'\n'}with NearGFix</Text>
                 <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: rf(11.5), marginTop: 6 }}>List Devices, Manage Orders & Deliver to Customers</Text>
               </View>
+              )}
 
               {/* ---------- 2 x 2 actions ---------- */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10, marginTop: 12 }}>
@@ -389,28 +415,7 @@ export default function OwnerSellHubScreen({ navigation }) {
           )}
         </View>
 
-        {/* ---------- Offers (admin Sell / Slider banners) ---------- */}
-        {!query.trim() && banners.length ? (
-          <View style={centered}>
-            <View style={{ paddingHorizontal: padH }}>
-              <SectionTitle title="Offers" />
-            </View>
-            <ScrollView
-              ref={bannerRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onLayout={(e) => setBannerPageW(Math.round(e.nativeEvent.layout.width))}
-              onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / (pageW || 1)))}
-            >
-              {banners.map((b) => (
-                <View key={b.key} style={{ width: pageW, paddingHorizontal: padH }}>
-                  <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF' }}>
-                    <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW, height: bannerH }} resizeMode="contain" accessibilityLabel="Sell offer" />
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+      </ScrollView>
             {banners.length > 1 ? (
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
                 {banners.map((b, i) => (
