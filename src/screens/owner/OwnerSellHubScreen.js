@@ -259,7 +259,8 @@ export default function OwnerSellHubScreen({ navigation }) {
         const bySort = (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
         const title = (b) => String(b.title || '').trim().toLowerCase();
         setBanners(
-          [...active.filter((b) => title(b) === 'sell').sort(bySort), ...active.filter((b) => title(b).startsWith('slider')).sort(bySort)]
+          // Sell banners only (admin banners titled Sell / Selling…).
+          active.filter((b) => title(b).startsWith('sell')).sort(bySort)
             .map((b) => ({ key: String(b.id), uri: imgUri(b) }))
             .filter((b) => b.uri),
         );
