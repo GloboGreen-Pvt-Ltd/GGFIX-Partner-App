@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowRight, Bell, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package,
+  ArrowRight, Bell, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package, ShoppingBag, Store, Truck, LayoutList,
 } from 'lucide-react-native';
+import { listShopBuyOrders } from '../../api/buyOrders';
+import { selectSession } from '../../store/authSlice';
 import { selectShopId, selectUserId } from '../../store/authSlice';
 import { getBanners } from '../../api/masterData';
 import { getSellSummary, listMyListings, listEnquiries } from '../../api/sellListings';
@@ -197,6 +199,21 @@ export default function OwnerSellHubScreen({ navigation }) {
     }
   }, [ctx]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Customer buy orders: Orders = new ones to confirm; Assign Pickup = confirmed home deliveries without an employee.
+  const [orderCounts, setOrderCounts] = useState(null);
+  useFocusEffect(useCallback(() => {
+    listShopBuyOrders()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setOrderCounts({
+          fresh: list.filter((o) => o.status === 'PLACED').length,
+          assign: list.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && ['CONFIRMED', 'DELIVERY_FAILED'].includes(o.status)).length,
+        });
+      })
+      .catch(() => setOrderCounts(null));
+  }, []));
+  const session = useSelector(selectSession);
+  const shopName = session?.shopName || session?.shops?.find?.((x) => x.isActive)?.name || 'My Shop';
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -285,11 +302,14 @@ export default function OwnerSellHubScreen({ navigation }) {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ---------- Header: title · notifications ---------- */}
-      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 8, paddingBottom: 2 }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(17), color: C.text }}>Sell on NearGFix</Text>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(11), color: C.muted, marginTop: 1 }}>Devices, spare parts & accessories</Text>
+      {/* ---------- Header: logo · NearGFix Partner · shop · notifications ---------- */}
+      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 8, paddingBottom: 4 }]}>
+        <View style={{ height: 38, width: 38, borderRadius: 10, backgroundColor: '#01AC77', alignItems: 'center', justifyContent: 'center' }}>
+          <Store size={20} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(16), color: C.text }}>NearGFix Partner</Text>
+          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(11.5), color: C.muted, marginTop: 1 }}>{shopName}</Text>
         </View>
         <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
       </View>
@@ -302,54 +322,32 @@ export default function OwnerSellHubScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
       >
         <View style={[centered, { paddingHorizontal: padH }]}>
-          {/* ---------- Search listings & enquiries ---------- */}
-          <SearchInput value={query} onChangeText={setQuery} placeholder="Search your listings, enquiries..." style={{ marginTop: 8, height: 40, borderRadius: 12 }} />
-
           {!query.trim() ? (
             <>
               {/* ---------- Banner ---------- */}
-              <View style={{ marginTop: 10, backgroundColor: C.teal, borderRadius: 16, overflow: 'hidden', flexDirection: 'row', minHeight: 84 }}>
+              <View style={{ marginTop: 8, backgroundColor: '#035C6C', borderRadius: 18, padding: 16, overflow: 'hidden' }}>
                 <View style={{ position: 'absolute', right: -40, top: -50, height: 170, width: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.07)' }} />
-                <View style={{ position: 'absolute', right: 40, bottom: -70, height: 150, width: 150, borderRadius: 75, backgroundColor: 'rgba(1,172,119,0.22)' }} />
-                <View style={{ flex: 1, paddingVertical: 10, paddingLeft: 14, paddingRight: 4, justifyContent: 'center' }}>
-                  <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: rf(15), fontWeight: '800' }}>Sell Devices, Parts & More</Text>
-                  <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.88)', fontSize: rf(11), marginTop: 2 }}>Reach verified buyers, best price.</Text>
-                  <Pressable
-                    onPress={() => navigation.navigate('SellListingType')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Start selling"
-                    className="active:opacity-90"
-                    style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}
-                  >
-                    <Text style={{ color: C.teal, fontSize: rf(12.5), fontWeight: '800', marginRight: 6 }}>Start Selling</Text>
-                    <ArrowRight size={14} color={C.teal} />
-                  </Pressable>
-                </View>
-                <View style={{ width: Math.min(96, innerW * 0.26), justifyContent: 'center', alignItems: 'center', paddingRight: 6 }}>
-                  <Image resizeMethod="resize" source={{ uri: SELL_IMAGES.MOBILE }} style={{ width: '100%', height: 76 }} resizeMode="contain" accessibilityIgnoresInvertColors />
-                </View>
+                <Text style={{ color: '#FFFFFF', fontSize: rf(22), fontWeight: '800', lineHeight: rf(27) }}>Buy & Sell{'\n'}with NearGFix</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: rf(11.5), marginTop: 6 }}>List Devices, Manage Orders & Deliver to Customers</Text>
               </View>
 
-              {/* ---------- Add New Listing (single or bulk, chosen next) ---------- */}
-              <Pressable
-                onPress={() => navigation.navigate('SellListingType')}
-                accessibilityRole="button"
-                accessibilityLabel="Add new listing"
-                className="active:opacity-90"
-                style={{ marginTop: 10, height: 44, borderRadius: 12, backgroundColor: C.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <CirclePlus size={20} color={C.green} fill="#FFFFFF" strokeWidth={2.2} />
-                <Text style={{ color: '#FFFFFF', fontSize: rf(14), fontWeight: '800', marginLeft: 8 }}>Add New Listing</Text>
-              </Pressable>
-
-              {/* ---------- Dashboard ---------- */}
-              <View style={{ flexDirection: 'row', columnGap: cardGap, marginTop: 10 }}>
-                <StatCard width={cardW} Icon={Box} iconColor={C.teal} tint="#EDF6F7" title="My Listings" count={count(summary?.active)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'ACTIVE' })} />
-                {/* Buyer Enquiries: buyers' enquiries + price requests on this shop's listings. */}
-                <StatCard width={cardW} Icon={MessageSquareDot} iconColor="#7C5CD6" tint="#F4F0FB" title="Buyer Enquiries" count={count(summary?.enquiriesOpen == null && summary?.purchaseRequestsOpen == null ? null : (summary?.enquiriesOpen || 0) + (summary?.purchaseRequestsOpen || 0))} onPress={() => navigation.navigate('SellEnquiries', {})} />
-                {/* Quotation Requests: customers (customer app) asking shops to quote on their device. */}
-                <StatCard width={cardW} Icon={MapPin} iconColor="#E08A1E" tint="#FFF5EA" title="Quotation Requests" count={leadCount} onPress={() => navigation.navigate('OwnerSellRequests')} />
-                <StatCard width={cardW} Icon={Package} iconColor={C.green} tint="#EDF7F0" countColor={C.green} title="Sold Items" count={count(summary?.sold)} onPress={() => navigation.navigate('SellMyListings', { initialStatus: 'SOLD' })} />
+              {/* ---------- 2 x 2 actions ---------- */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10, marginTop: 12 }}>
+                {[
+                  { key: 'add', title: 'Add Listing', Icon: CirclePlus, tint: '#E6F7F0', fg: '#01AC77', onPress: () => navigation.navigate('SellListingType') },
+                  { key: 'mine', title: 'My Listings', Icon: LayoutList, tint: '#EDF6F7', fg: C.teal, count: count(summary?.active), onPress: () => navigation.navigate('SellMyListings', { initialStatus: 'ACTIVE' }) },
+                  { key: 'orders', title: 'Orders', Icon: ShoppingBag, tint: '#FFF5EA', fg: '#E08A1E', count: orderCounts?.fresh ?? null, countColor: '#EF4444', onPress: () => navigation.navigate('SellBuyOrders') },
+                  { key: 'assign', title: 'Assign Pickup', Icon: Truck, tint: '#EDF7F0', fg: '#01AC77', count: orderCounts?.assign ?? null, onPress: () => navigation.navigate('SellBuyOrders') },
+                ].map((t) => (
+                  <Pressable key={t.key} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.count != null ? `${t.title}, ${t.count}` : t.title} className="active:opacity-85"
+                    style={{ width: tileW, height: 104, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ height: 40, width: 40, borderRadius: 12, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
+                      <t.Icon size={21} color={t.fg} />
+                    </View>
+                    <Text style={{ fontSize: rf(13), fontWeight: '800', color: C.text, marginTop: 6 }}>{t.title}</Text>
+                    {t.count != null ? <Text style={{ fontSize: rf(13), fontWeight: '800', color: t.countColor || t.fg, marginTop: 1 }}>{t.count}</Text> : null}
+                  </Pressable>
+                ))}
               </View>
             </>
           ) : null}
