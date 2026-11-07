@@ -1,5 +1,6 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { BackHandler, Pressable, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { CircleCheck, Eye, House, LayoutList } from 'lucide-react-native';
 import { rf } from '../../../utils/responsive';
 import { C, Card, PrimaryButton, SellScreen, StatusPill, Thumb, listingImage, listingSub, money } from './kit';
@@ -19,8 +20,16 @@ export default function SellListingSuccessScreen({ navigation, route }) {
   const shortId = listing?.id ? String(listing.id).replace(/-/g, '').slice(0, 10).toUpperCase() : null;
   const status = listing?._status || 'ACTIVE';
 
+  const goSellHome = () => navigation.popTo('OwnerTabs', { screen: 'Sell' });
+  // Android back button does the same.
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { navigation.popTo('OwnerTabs', { screen: 'Sell' }); return true; });
+    return () => sub.remove();
+  }, [navigation]));
+
   return (
-    <SellScreen title="Listing" onBack={() => navigation.goBack()}>
+    // Back (header and button) always lands on the Sell tab home, not the wizard or another tab.
+    <SellScreen title="Listing" onBack={goSellHome}>
       <View style={{ alignItems: 'center', marginTop: 12 }}>
         <View style={{ height: 60, width: 60, borderRadius: 30, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
           <CircleCheck size={34} color={C.green} />
@@ -54,7 +63,7 @@ export default function SellListingSuccessScreen({ navigation, route }) {
         {[
           { label: 'My Listings', Icon: LayoutList, onPress: () => navigation.replace('SellMyListings', { initialStatus: status === 'DRAFT' ? 'DRAFT' : 'ACTIVE' }) },
           { label: 'View Listing', Icon: Eye, disabled: !listing?.id, onPress: () => navigation.navigate('MarketplaceListingDetails', { productId: listing.id, listing }) },
-          { label: 'Back to Sell Home', Icon: House, onPress: () => navigation.popTo('OwnerTabs', { screen: 'Sell' }) },
+          { label: 'Back to Sell Home', Icon: House, onPress: goSellHome },
         ].map(({ label, Icon, onPress, disabled }) => (
           <Pressable key={label} onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
             className="active:opacity-80"
@@ -62,7 +71,7 @@ export default function SellListingSuccessScreen({ navigation, route }) {
             <View style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center' }}>
               <Icon size={19} color={C.green} />
             </View>
-            <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.text, marginTop: 6 }}>{label}</Text>
+            <Text numberOfLines={2} style={{ fontSize: rf(11.5), fontWeight: '800', color: C.text, marginTop: 6, textAlign: 'center', paddingHorizontal: 4 }}>{label}</Text>
           </Pressable>
         ))}
       </View>
