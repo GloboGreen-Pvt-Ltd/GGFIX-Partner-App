@@ -642,7 +642,8 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SellImages" component={SellImagesScreen} options={{ title: 'Sell Device Images' }} />
       <Stack.Screen name="OwnerSellGadgetPrice" component={OwnerSellGadgetPriceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellListed" component={OwnerSellListedScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="MarketplaceOrders" component={MarketplaceOrdersScreen} options={{ headerShown: false }} />
+      {/* Old Buy/Sell "My Orders" replaced by the fixed-price Customer Orders screen. */}
+      <Stack.Screen name="MarketplaceOrders" component={SellBuyOrdersScreen} options={{ headerShown: false }} />
       <Stack.Screen name="MarketplaceListingDetails" component={MarketplaceListingDetailsScreen} options={{ headerShown: false }} />
       {/* Partner Sell module: single listing wizard (Sell Home → type → details → condition → photos → price → success). */}
       <Stack.Screen name="SellListingType" component={SellListingTypeScreen} options={{ headerShown: false }} />
