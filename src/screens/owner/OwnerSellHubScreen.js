@@ -15,7 +15,7 @@ import { getBanners } from '../../api/masterData';
 import { getSellSummary, listMyListings, listEnquiries } from '../../api/sellListings';
 import { fetchNearbyListings, getListingOrigin } from '../../api/nearbyListings';
 import { getUnreadCount } from '../../api/notifications';
-import { HeaderIconButton, HEADER_FONT } from '../../components/PageHeader';
+import PageHeader, { HeaderIconButton, HEADER_FONT } from '../../components/PageHeader';
 import { rf } from '../../utils/responsive';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
 import { C, ErrorBox, SearchInput, StatusPill, Thumb, listingImage, listingSub, money } from './sell/kit';
@@ -301,18 +301,14 @@ export default function OwnerSellHubScreen({ navigation }) {
   const count = (v) => (loading && !summary ? null : v ?? null);
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ---------- Header: logo · NearGFix Partner · shop · notifications ---------- */}
-      <View style={[centered, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: padH, paddingTop: 8, paddingBottom: 4 }]}>
-        <View style={{ height: 38, width: 38, borderRadius: 10, backgroundColor: '#01AC77', alignItems: 'center', justifyContent: 'center' }}>
-          <Store size={20} color="#FFFFFF" />
-        </View>
-        <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.title, fontSize: rf(16), color: C.text }}>NearGFix Partner</Text>
-          <Text numberOfLines={1} style={{ fontFamily: HEADER_FONT.subtitle, fontSize: rf(11.5), color: C.muted, marginTop: 1 }}>{shopName}</Text>
-        </View>
-        <HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />
-      </View>
+    <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* ---------- Header: same as Buy home (title · subtitle · bell) ---------- */}
+      <PageHeader
+        title="Sell"
+        subtitle={shopName}
+        sideWidth={90}
+        right={<HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />}
+      />
 
       <ScrollView
         style={{ flex: 1 }}
