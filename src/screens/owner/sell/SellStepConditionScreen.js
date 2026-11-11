@@ -7,7 +7,7 @@ import { screeningFallback } from '../../shared/sell/SellScreeningScreen';
 import { rf } from '../../../utils/responsive';
 import { C, CONTENT_MAX, FieldLabel, PickerModal, PrimaryButton, Section, Segmented, SelectField, SellScreen, TextField, reportErrors } from './kit';
 import { LISTING_TYPES, useSellDraft, sellDraftStore } from './draft';
-import ConditionArt, { artFor } from './conditionArt';
+import ConditionArt, { artFor, conditionArtFor } from './conditionArt';
 
 // Page 4 (step 2 of 4) — working state, description, defects, missing parts,
 // accessories in the box and warranty.
@@ -75,13 +75,33 @@ const DESC_LIMIT = { DETAILED: 500, SHORT: 150 };
 const DESC_MIN = { DETAILED: 20, SHORT: 10 };
 
 // Accepts 12 Oct 2025, 12/10/2025, 2025-10-12 → ISO date, or null.
+// Typed digits → "DD/MM/YYYY" (slashes added as you type).
+function maskDate(text) {
+  const d = String(text || '').replace(/\D/g, '').slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4, 8)].filter(Boolean).join('/');
+}
+// Stored ISO "YYYY-MM-DD" shown back as "DD/MM/YYYY".
+function showDate(v) {
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || '');
+}
+const addMonths = (n) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
+
 function parseDate(text) {
   const s = String(text || '').trim();
   if (!s) return null;
   let d = null;
   const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) d = new Date(`${s}T00:00:00`);
-  else if (dmy) d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+  else if (dmy) {
+    d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    // Reject roll-overs like 31/02 → 03/03.
+    if (d.getDate() !== Number(dmy[1]) || d.getMonth() !== Number(dmy[2]) - 1) return null;
+  }
   else d = new Date(s);
   return !Number.isNaN(d.getTime()) ? d : null;
 }
@@ -162,7 +182,9 @@ export default function SellStepConditionScreen({ navigation }) {
   const toggleIn = (key, value) => set({ [key]: c[key].includes(value) ? c[key].filter((x) => x !== value) : [...c[key], value] });
   const limit = DESC_LIMIT[c.descriptionMode] || 500;
   const needsWorking = !isAccessory;
-  const showDefects = isDevice && issues.length > 0;
+  // Dead / Unverified: only the description — no device check, physical condition or problems.
+  const deadFlow = c.working === 'DEAD' || c.working === 'UNVERIFIED';
+  const showDefects = isDevice && !deadFlow && issues.length > 0;
   const family = familyOf(product);
   const isMobile = family === 'mobile';
   const ACCESSORIES = ACCESSORY_SETS[family];
@@ -185,8 +207,8 @@ export default function SellStepConditionScreen({ navigation }) {
     if (isDevice && c.working === 'DEAD' && showDefects && !c.issues.length && !c.missingParts.trim()) {
       e.issues = 'Tell buyers what is not working';
     }
-    if (isDevice && questions.some((q) => !answerFor(q))) e.screening = 'Answer every device check question';
-    if (isDevice && groups.some((g) => !pickFor(g))) e.physical = 'Pick the condition for every part';
+    if (isDevice && !deadFlow && questions.some((q) => !answerFor(q))) e.screening = 'Answer every device check question';
+    if (isDevice && !deadFlow && groups.some((g) => !pickFor(g))) e.physical = 'Pick the condition for every part';
     if (c.warrantyType !== 'NONE') {
       const d = parseDate(c.warrantyValidTill);
       if (!d) e.warranty = 'Enter the warranty end date, e.g. 12/10/2026';
@@ -201,8 +223,9 @@ export default function SellStepConditionScreen({ navigation }) {
     // Keep only answers for the questions shown (the flow may have switched).
     if (isDevice) {
       set({
-        screeningAnswers: questions.filter((q) => answerFor(q)).map((q) => ({ questionId: q.id, answer: answerFor(q), question: q.question })),
-        conditions: groups.map((g) => pickFor(g)).filter(Boolean),
+        screeningAnswers: deadFlow ? [] : questions.filter((q) => answerFor(q)).map((q) => ({ questionId: q.id, answer: answerFor(q), question: q.question })),
+        conditions: deadFlow ? [] : groups.map((g) => pickFor(g)).filter(Boolean),
+        ...(deadFlow ? { issues: [], missingParts: '' } : null),
       });
     }
     if (c.warrantyType !== 'NONE') {
@@ -220,6 +243,7 @@ export default function SellStepConditionScreen({ navigation }) {
       title="Condition & Description"
       subtitle="Step 2 of 4 • Item condition & info"
       step={2}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >
@@ -285,7 +309,7 @@ export default function SellStepConditionScreen({ navigation }) {
       </View>
       ) : null}
 
-      {isDevice && questions.length ? (
+      {isDevice && !deadFlow && questions.length ? (
         <Section title="Quick Device Check" sub="Answer each question about the device's current condition">
           {questions.map((q, i) => (
             <View key={q.id} style={{ marginBottom: 12 }}>
@@ -304,18 +328,22 @@ export default function SellStepConditionScreen({ navigation }) {
         </Section>
       ) : null}
 
-      {isDevice && groups.length ? (
+      {isDevice && !deadFlow && groups.length ? (
         <Section title="Physical Condition" sub="Pick the option that best matches each part of the device">
           {groups.map((g) => (
             <View key={g.id} style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, marginBottom: 8 }}>{g.name}</Text>
-              <Segmented
-                columns={cols}
-                lines={3}
-                options={g.opts.map((o) => ({ value: optKey(g, o), label: o.label }))}
-                value={(() => { const p = pickFor(g); const o = p && g.opts.find((x) => x.id === p.optionId || x.label === p.optionLabel); return o ? optKey(g, o) : null; })()}
-                onChange={(v) => { const o = g.opts.find((x) => optKey(g, x) === v); if (o) setPick(g, o); setErrors((x) => ({ ...x, physical: null })); }}
-              />
+              {/* Picture tile per option (No Spot, Minor Spot, Scratches…). */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
+                {g.opts.map((o) => {
+                  const p = pickFor(g);
+                  const on = !!p && (p.optionId === o.id || p.optionLabel === o.label);
+                  return (
+                    <ArtCard key={optKey(g, o)} label={o.label} kind={conditionArtFor(o.label)} width={cardW} on={on}
+                      onPress={() => { setPick(g, o); setErrors((x) => ({ ...x, physical: null })); }} />
+                  );
+                })}
+              </View>
             </View>
           ))}
           {errors.physical ? <Text style={{ fontSize: rf(11), color: C.red }}>{errors.physical}</Text> : null}
@@ -378,13 +406,24 @@ export default function SellStepConditionScreen({ navigation }) {
           <TextField
             label="Valid Till"
             required
-            value={c.warrantyValidTill}
-            onChangeText={(t) => { set({ warrantyValidTill: t }); setErrors((e) => ({ ...e, warranty: null })); }}
+            value={showDate(c.warrantyValidTill)}
+            onChangeText={(t) => { set({ warrantyValidTill: maskDate(t) }); setErrors((e) => ({ ...e, warranty: null })); }}
             placeholder="DD/MM/YYYY"
-            maxLength={12}
-            keyboardType="numbers-and-punctuation"
+            maxLength={10}
+            keyboardType="number-pad"
             error={errors.warranty}
           />
+        ) : null}
+        {c.warrantyType !== 'NONE' ? (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {[[3, '3 months'], [6, '6 months'], [12, '1 year']].map(([n, label]) => (
+              <Pressable key={n} onPress={() => { set({ warrantyValidTill: addMonths(n) }); setErrors((e) => ({ ...e, warranty: null })); }}
+                accessibilityRole="button" accessibilityLabel={`Warranty ${label} from today`}
+                style={{ paddingHorizontal: 12, height: 30, borderRadius: 999, borderWidth: 1, borderColor: C.border, justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
+                <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.teal }}>+{label}</Text>
+              </Pressable>
+            ))}
+          </View>
         ) : null}
       </Section>
 

@@ -20,7 +20,11 @@ import { RefreshCcw, X } from 'lucide-react-native';
 const FALLBACK = Symbol('fallback');
 let host = null;
 
+// Every "Take Photo" now opens the phone's own camera app (same as Staff / Customer apps).
+const USE_SYSTEM_CAMERA = true;
+
 export async function launchCamera(opts = {}) {
+  if (USE_SYSTEM_CAMERA) return ImagePicker.launchCameraAsync(opts);
   const types = [].concat(opts.mediaTypes || 'images');
   const wantsVideo = types.some((t) => /video/i.test(String(t)));
   if (Platform.OS === 'web' || wantsVideo || !host) return ImagePicker.launchCameraAsync(opts);

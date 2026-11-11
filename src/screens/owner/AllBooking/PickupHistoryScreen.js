@@ -76,7 +76,7 @@ const ACTOR_LABEL = {
   SYSTEM: 'System',
 };
 
-const labelFor = (status) => EVENT_LABEL[String(status || '').toUpperCase()]
+export const labelFor = (status) => EVENT_LABEL[String(status || '').toUpperCase()]
   || String(status || 'Update').replace(/_/g, ' ');
 
 function fmtWhen(iso) {
@@ -121,7 +121,7 @@ function SectionHeader({ icon: Icon, label }) {
 // One event. The connector is drawn per-row rather than as one absolute rail
 // behind the list: rows are variable height (a note wraps to two lines) and an
 // absolute rail would need a measured container to know where to stop.
-function EventRow({ event, first, last }) {
+export function EventRow({ event, first, last }) {
   const actor = event.actor ? (ACTOR_LABEL[String(event.actor).toUpperCase()] || event.actor) : null;
   return (
     <View className="flex-row">

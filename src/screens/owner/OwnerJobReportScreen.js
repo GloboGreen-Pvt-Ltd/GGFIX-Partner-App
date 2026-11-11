@@ -616,9 +616,6 @@ function ReportTile({ ticket, row, phase, technician, onPress, onHistory }) {
         <View style={[styles.statusTag, { backgroundColor: color }]}>
           <Text style={styles.statusTagText} numberOfLines={1}>{pill.label}</Text>
         </View>
-        <View pointerEvents="none" style={[styles.viewBtn, row ? styles.viewBtnRow : styles.viewBtnCol]}>
-          <Text style={[styles.viewBtnText, { fontSize: row ? 11 : 12 }]}>VIEW</Text>
-        </View>
       </View>
 
       <View style={row ? styles.tileTextRow : styles.tileTextCol}>

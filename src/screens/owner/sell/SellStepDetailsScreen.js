@@ -21,9 +21,9 @@ const ITEM_CONDITIONS = [
 ];
 const PART_TYPES = ['Display / Screen', 'Battery', 'Back Panel / Housing', 'Camera', 'Charging Port / Board', 'Speaker / Mic', 'Motherboard', 'Buttons / Flex Cable', 'Other'];
 const PART_QUALITY = [
-  { value: 'ORIGINAL', label: 'Original' },
-  { value: 'OEM', label: 'OEM' },
-  { value: 'COMPATIBLE', label: 'Compatible' },
+  { value: 'ORIGINAL', label: 'Original Parts' },
+  { value: 'OEM', label: 'Second Quality Parts' },
+  { value: 'COMPATIBLE', label: 'Normal Quality Parts' },
 ];
 const ACCESSORY_TYPES = ['Charger / Adapter', 'Cable', 'Case / Cover', 'Screen Guard / Tempered Glass', 'Earphones / Headphones', 'Power Bank', 'Smartwatch Strap', 'Other'];
 
@@ -43,9 +43,9 @@ export default function SellStepDetailsScreen({ navigation }) {
   if (!ready) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center' }}><ActivityIndicator color={C.teal} /></View>;
   }
-  return draft.listingType === LISTING_TYPES.DEVICE
-    ? <DeviceStep navigation={navigation} draft={draft} />
-    : <PartAccessoryDetails navigation={navigation} />;
+  if (draft.listingType === LISTING_TYPES.DEVICE) return <DeviceStep navigation={navigation} draft={draft} />;
+  if (draft.listingType === LISTING_TYPES.SPARE_PART) return <PartStep navigation={navigation} draft={draft} />;
+  return <PartAccessoryDetails navigation={navigation} />;
 }
 
 const onlyUuid = (v) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')) ? v : null);
@@ -81,6 +81,79 @@ function DeviceStep({ navigation, draft }) {
     },
   }));
   return <DeviceDetailsScreen navigation={navigation} route={{ key: 'SellStepDetails-device', name: 'SellStepDetails', params }} />;
+}
+
+// Spare parts: the same inline Device Details picker (part mode — no variant),
+// with part type / name above and quality / condition below.
+function PartStep({ navigation, draft }) {
+  const p = draft.product;
+  const [params] = useState(() => ({
+    flow: 'SELL_WIZARD',
+    partMode: true,
+    title: draft.editingId ? 'Edit Product Details' : 'Add Spare Part Details',
+    subtitle: 'Step 1 of 4 • Product info',
+    categoryId: p.categoryId || undefined,
+    editMode: !!p.modelId,
+    brandId: p.brandId || undefined,
+    modelId: p.modelId || undefined,
+    modelNumber: p.modelNumber || undefined,
+    renderTop: () => <PartTopFields />,
+    renderBottom: () => <PartBottomFields />,
+    onWizardNext: (d) => {
+      sellDraftStore.patch('product', {
+        categoryId: onlyUuid(d.categoryId), categoryCode: d.categoryCode || null, categoryName: d.categoryName || null,
+        brandId: onlyUuid(d.brandId), brandName: d.brandName || null,
+        seriesId: onlyUuid(d.seriesId), seriesName: d.seriesName || null,
+        modelId: onlyUuid(d.modelId), modelName: d.modelName || null,
+        modelNumber: d.modelNumber || null, modelImageUrl: d.modelImageUrl || null,
+        color: null, ramOptionId: null, ramLabel: null, storageOptionId: null, storageLabel: null,
+      });
+      const cur = sellDraftStore.get().product;
+      const e = {};
+      if (!cur.partType) e.partType = 'Select the part type';
+      if (!String(cur.partName || '').trim()) e.partName = 'Enter the part name';
+      if (!String(cur.compatibleModels || '').trim()) e.compatibleModels = 'Enter the description';
+      if (!cur.partQuality) e.partQuality = 'Select part quality';
+      if (!cur.itemCondition) e.itemCondition = 'Select the condition type';
+      if (!reportErrors(e)) return;
+      // Spare parts skip Condition & Description: Details → Photos → Price → Publish.
+      navigation.navigate('SellStepPhotos');
+    },
+  }));
+  return <DeviceDetailsScreen navigation={navigation} route={{ key: 'SellStepDetails-part', name: 'SellStepDetails', params }} />;
+}
+
+function PartTopFields() {
+  const { draft } = useSellDraft();
+  const p = draft.product;
+  const set = (values) => sellDraftStore.patch('product', values);
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ marginBottom: 6 }}>
+      <SelectField label="Part Type" required value={p.partType} placeholder="Select part type" onPress={() => setOpen(true)} />
+      <TextField label="Part Name" required value={p.partName} onChangeText={(t) => set({ partName: t })} placeholder="e.g. OLED Display with Frame" maxLength={80} />
+      <PickerModal visible={open} title="Part Type" options={fixed(PART_TYPES)} selectedId={p.partType} onSelect={(o) => { setOpen(false); set({ partType: o.label }); }} onClose={() => setOpen(false)} />
+    </View>
+  );
+}
+
+function PartBottomFields() {
+  const { draft } = useSellDraft();
+  const p = draft.product;
+  const set = (values) => sellDraftStore.patch('product', values);
+  return (
+    <View style={{ marginBottom: 10 }}>
+      <TextField label="Description" required value={p.compatibleModels} onChangeText={(t) => set({ compatibleModels: t })} placeholder="Describe the part" maxLength={160} />
+      <View style={{ marginTop: 14 }}>
+        <FieldLabel label="Part Quality" required />
+        <Segmented options={PART_QUALITY} value={p.partQuality} onChange={(v) => set({ partQuality: v })} />
+      </View>
+      <View style={{ marginTop: 14 }}>
+        <FieldLabel label="Condition Type" required />
+        <Segmented options={ITEM_CONDITIONS} value={p.itemCondition} onChange={(v) => set({ itemCondition: v })} />
+      </View>
+    </View>
+  );
 }
 
 function PartAccessoryDetails({ navigation }) {
@@ -220,6 +293,7 @@ function PartAccessoryDetails({ navigation }) {
     if (isPart) {
       if (!p.partType) e.partType = 'Select the part type';
       if (!p.partName.trim()) e.partName = 'Enter the part name';
+      if (!String(p.compatibleModels || '').trim()) e.compatibleModels = 'Enter the description';
       if (!p.brandId) e.brand = 'Select a brand';
       if (!p.modelId) e.model = 'Select the model it fits';
       if (!p.partQuality) e.partQuality = 'Select part quality';
@@ -236,7 +310,8 @@ function PartAccessoryDetails({ navigation }) {
   const next = () => {
     if (!validate()) return;
     if (imei !== p.imei) set({ imei });
-    navigation.navigate('SellStepCondition');
+    // Spare parts skip Condition & Description: Details → Photos → Price → Publish.
+    navigation.navigate(isPart ? 'SellStepPhotos' : 'SellStepCondition');
   };
 
   const deviceTitle = draft.editingId ? 'Edit Product Details' : isPart ? 'Add Spare Part Details' : isAccessory ? 'Add Accessory Details' : 'Add Product Details';
@@ -245,7 +320,8 @@ function PartAccessoryDetails({ navigation }) {
     <SellScreen
       title={deviceTitle}
       subtitle="Step 1 of 4 • Product info"
-      step={1}
+      step={2}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >
@@ -315,7 +391,7 @@ function PartAccessoryDetails({ navigation }) {
 
       {isPart ? (
         <>
-          <TextField label="Also Fits" hint="(Optional)" value={p.compatibleModels} onChangeText={(t) => set({ compatibleModels: t })} placeholder="Other compatible models, comma separated" maxLength={160} />
+          <TextField label="Description" required value={p.compatibleModels} onChangeText={(t) => set({ compatibleModels: t })} placeholder="Describe the part" maxLength={160} />
           <View style={{ marginTop: 14 }}>
             <FieldLabel label="Part Quality" required />
             <Segmented options={PART_QUALITY} value={p.partQuality} onChange={(v) => { set({ partQuality: v }); setErrors((e) => ({ ...e, partQuality: null })); }} />

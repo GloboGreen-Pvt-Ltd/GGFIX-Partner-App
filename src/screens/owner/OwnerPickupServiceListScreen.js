@@ -132,10 +132,6 @@ function PickupRow({ item, onPress }) {
         </View>
       ) : null}
 
-      <View className="flex-row items-center justify-end mt-1">
-        <Text className="text-[10px] text-primary font-bold mr-1">View details</Text>
-        <ChevronRight size={14} color="#035C6C" />
-      </View>
     </Pressable>
   );
 }

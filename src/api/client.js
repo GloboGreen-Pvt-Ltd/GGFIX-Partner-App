@@ -39,6 +39,28 @@ function joinUrl(base, path) {
   return `${base}${p.startsWith('/') ? p : `/${p}`}`;
 }
 
+// One /auth/me check at a time (then quiet for 30 s), so a burst of 401s from a
+// dashboard's parallel calls makes a single probe.
+let sessionProbe = null;
+function verifySessionAfter401(token) {
+  if (sessionProbe) return sessionProbe;
+  sessionProbe = (async () => {
+    try {
+      const r = await fetch(`${String(AUTH_BASE).replace(/\/$/, '')}/auth/me`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+      console.log('[AUTH] a service rejected the session token; /auth/me ->', r.status, r.ok ? '(token valid: that service is misconfigured)' : '(token rejected)');
+      if ((r.status === 401 || r.status === 500) && (await getToken()) === token) {
+        await clearSession();
+        notifyAuthExpired();
+      }
+    } catch (_) {
+      // offline: keep the session
+    } finally {
+      setTimeout(() => { sessionProbe = null; }, 30000);
+    }
+  })();
+  return sessionProbe;
+}
+
 async function request(baseUrlOrNull, method, path, { query, body, headers, skipAuthExpiry } = {}) {
   const base = resolveBase(baseUrlOrNull);
   const url = new URL(joinUrl(base, path));
@@ -102,6 +124,11 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
     if (res.status === 401 && token && !skipAuthExpiry && isAuthService) {
       await clearSession();
       notifyAuthExpired();
+    } else if (res.status === 401 && token && !skipAuthExpiry) {
+      // Ask the auth service whether the token is still good (it answers 500,
+      // not 401, for a bad / expired token): only when it also rejects it is the
+      // session dead; if it accepts it, the other service's JWT secret is out of step.
+      verifySessionAfter401(token);
     }
     const rawMessage = (json && (json.message || json.error)) || text || `HTTP ${res.status}`;
     const message = res.status === 401 && token && isAuthService

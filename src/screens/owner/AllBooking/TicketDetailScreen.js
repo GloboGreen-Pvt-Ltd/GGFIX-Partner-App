@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, PanResponder, Linking } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, PanResponder, Linking, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,6 +23,7 @@ import {
   FileText,
   Calendar,
   Wrench,
+  Share2,
   ChevronRight,
   ChevronUp,
   ChevronDown as ChevronDownIcon,
@@ -32,6 +33,7 @@ import {
   Calculator,
   CalendarClock,
   ListChecks,
+  QrCode,
   Lock,
   Camera,
   Eye,
@@ -59,11 +61,22 @@ import { ticketApi } from '../../../api/client';
 import { getModelsByBrand } from '../../../api/masterData';
 // The receipt lives in its own module so the Bookings list can share the same
 // one from its actions sheet.
-import { priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
+import { groupServiceCharges, priceItemsFromTicket, paymentFromTicket } from './ReceiptCard';
+import QrLabelSheet from './QrLabelSheet';
 // Share Image sheet — same component the Bookings list uses, so the
 // experience (and the receipt it renders) is identical everywhere.
 import { RescheduleSheet, ShareReceiptSheet } from './BookingActionSheets';
 import ImageViewerModal from '../../../components/ImageViewerModal';
+import { ServiceMilestoneTracker, buildMilestones } from '../../common/serviceMilestones';
+import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
+
+// Technician uploads: ticket.technicianPhotosJson + issue-note and solution-pack images.
+const listOfRows = (v) => (Array.isArray(v) ? v : (v?.content ?? []));
+const parseJsonList = (raw) => {
+  if (Array.isArray(raw)) return raw;
+  try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+};
+const photoUrlOf = (x) => (typeof x === 'string' ? x : x?.url || x?.uri || x?.imageUrl || null);
 import WhatsAppIcon from '../../../components/WhatsAppIcon';
 import WhatsAppStatusCard from './WhatsAppStatusCard';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
@@ -72,6 +85,8 @@ import ImeiVerifyModal from '../../../components/ImeiVerifyModal';
 import { lockTypesFor, resolveSpecCategory, specDisplayParts, specsFromRecord } from '../../../utils/deviceSpecs';
 import DeviceSecurityLockSheet from '../service-booking-shop/DeviceSecurityLockSheet';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
+import SlideToComplete from '../../../components/SlideToComplete';
+import CompletedTickModal from '../../../components/CompletedTickModal';
 
 // Swiggy / Zomato green palette — same as the rest of the booking flow.
 const BRAND_GREEN = '#035C6C';
@@ -148,9 +163,11 @@ const ACCEPTED_STATUSES = new Set([
 // re-estimated, re-scheduled or moved on — they get Re-Service instead.
 const ACTION_TILES = [
   { key: 'edit',       label: 'Edit',     icon: Pencil },
-  { key: 'reestimate',   label: 'Re-Est',        icon: Calculator }, // add issues, amount & time
+  { key: 'reestimate',   label: 'Re-Estimate',   icon: Calculator }, // add issues, amount & time
   { key: 'editestimate', label: 'Price Revised', icon: SquarePen },  // remove issues or edit amount
-  { key: 'reschedule', label: 'Resched.', icon: CalendarClock },
+  { key: 'reschedule', label: 'Reschedule', icon: CalendarClock },
+  { key: 'barcode',    label: 'QR',       icon: QrCode },
+  { key: 'share',      label: 'Receipt',  icon: Share2 },  // share the receipt image
   { key: 'status',     label: 'Status',   icon: ListChecks },
 ];
 // Bottom-bar icon discs: a different brand colour per action (Teal, Bright
@@ -262,6 +279,7 @@ export default function TicketDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [qrTicketId, setQrTicketId] = useState(null); // Print QR Label popup
 
   /**
    * Arriving from the Re-Estimated list with `autoEdit` opens the edit wizard
@@ -388,9 +406,30 @@ export default function TicketDetailScreen({ route, navigation }) {
   const [reReason, setReReason] = useState('');
   const [reBusy, setReBusy] = useState(false);
   const [rePhotos, setRePhotos] = useState(null); // { images, index } for the viewer
+  // Images the technician uploaded via issue notes / solution packs.
+  const [techUploadUrls, setTechUploadUrls] = useState([]);
+  useEffect(() => {
+    if (!ticketId) return undefined;
+    let active = true;
+    Promise.all([
+      ticketApi.get(`/tickets/${ticketId}/notes`).catch(() => []),
+      ticketApi.get(`/tickets/${ticketId}/solution-packs`).catch(() => []),
+    ]).then(([notes, packs]) => {
+      if (!active) return;
+      // { url, at } so photos can be split before / after a re-estimate request.
+      const ts = (x) => { const t = Date.parse(x?.createdAt || ''); return Number.isNaN(t) ? 0 : t; };
+      const fromNotes = listOfRows(notes).flatMap((n) => (n?.imageUrls || []).map((u) => ({ url: photoUrlOf(u), at: ts(n) })));
+      const fromPacks = listOfRows(packs).flatMap((p) => parseJsonList(p?.filesJson)
+        .filter((f) => (f?.type || 'image') === 'image').map((f) => ({ url: photoUrlOf(f), at: ts(p) })));
+      setTechUploadUrls([...fromNotes, ...fromPacks].filter((x) => x.url));
+    });
+    return () => { active = false; };
+  }, [ticketId]);
   // Alternate customer mobile — read from the customer row, added/edited here.
   const [altPhone, setAltPhone] = useState('');
   const [altOpen, setAltOpen] = useState(false);
+  // Customer card: Name + Mobile always; Show expands the filled-in extras.
+  const [custExpanded, setCustExpanded] = useState(false);
   const [altInput, setAltInput] = useState('');
   const [altSaving, setAltSaving] = useState(false);
   const ticketPhone = ticket?.customerPhone || '';
@@ -468,10 +507,39 @@ export default function TicketDetailScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { refreshProgress(); }, [refreshProgress]));
   refreshProgressRef.current = refreshProgress;
 
+  // Quality Check Completed → Ready for Delivery is recorded server-side
+  // (ticket-service). Poll quietly while open so a step the Employee App
+  // records shows up here (Service History + status) without a manual refresh.
+  const pollDetail = useCallback(async () => {
+    if (!ticketId) return;
+    try { const data = await ticketApi.get(`/tickets/${ticketId}`); if (data) setTicket(data); } catch { /* keep */ }
+    refreshProgress();
+  }, [ticketId, refreshProgress]);
+  useFocusPolling(pollDetail, 60000);
+  // Slide to Delivered (invoice card) → PATCH DELIVERED, then the tick popup.
+  const [deliveredPopup, setDeliveredPopup] = useState(false);
+  const markDelivered = useCallback(async () => {
+    if (!ticketId) return;
+    try {
+      await ticketApi.patch(`/tickets/${ticketId}/status`, { query: { status: 'DELIVERED' } });
+      setDeliveredPopup(true);
+      pollDetail();
+    } catch (e) {
+      notify('Delivery not confirmed', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
+    }
+  }, [ticketId, pollDetail]);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const onPullRefresh = useCallback(async () => {
+    setPullRefreshing(true);
+    try { await pollDetail(); } finally { setPullRefreshing(false); }
+  }, [pollDetail]);
+
   // Bottom-bar "Update Status" — same PATCH /tickets/{id}/status the technician
   // Update Status screen uses, exposed here as a light-themed bottom sheet. It
   // advances one lifecycle stage at a time, and only once the Service History
   // step before that stage is recorded (ADVANCE_STEP + stepBlockedBy).
+  // After a popup action completes, return to the Jobs list.
+  const backToJobs = () => (navigation.canGoBack() ? navigation.goBack() : navigation.popTo('OwnerTabs'));
   const applyStatus = useCallback(async (nextStatus, reason) => {
     if (!ticketId) return;
     setStatusBusy(nextStatus);
@@ -480,8 +548,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       setStatusOpen(false);
       const label = STATUS_VARIANT[nextStatus]?.label || nextStatus;
       notify('Status updated', `Booking moved to "${label}".`, { preset: 'done' });
-      load();
-      refreshProgress();
+      backToJobs();
     } catch (e) {
       notify('Update failed', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
     } finally {
@@ -514,8 +581,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       });
       setStatusOpen(false);
       notify(`${STATUS_OPTION[optKey]?.title || 'Status'} recorded`, 'Saved on the Service History.', { preset: 'done' });
-      load();
-      refreshProgress();
+      backToJobs();
     } catch (e) {
       notify('Could not save', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
     } finally {
@@ -604,14 +670,14 @@ export default function TicketDetailScreen({ route, navigation }) {
     const { mode, rev } = reAction;
     const reason = reReason.trim();
     if (mode === 'DISMISS' && reason.length < 3) {
-      notify('Reason needed', 'Enter why the request is dismissed (at least 3 characters).');
+      notify('Reason needed', 'Enter why the customer rejected (at least 3 characters).');
       return;
     }
     setReBusy(true);
     try {
       if (mode === 'DISMISS') {
         await ticketApi.post(`/tickets/${ticketId}/re-estimate-requests/${rev.id}/dismiss`, { body: { reason } });
-        notify('Request dismissed', 'The technician can carry on with the repair.', { preset: 'done' });
+        notify('Customer Rejected', 'The technician can carry on with the current estimate.', { preset: 'done' });
       } else {
         await ticketApi.post(`/tickets/${ticketId}/re-estimates/${rev.id}/decision`, {
           body: { decision: mode, reason: reason || null },
@@ -620,6 +686,7 @@ export default function TicketDetailScreen({ route, navigation }) {
           mode === 'APPROVED' ? 'The revised estimate is now on the booking.' : 'The original estimate is kept.', { preset: 'done' });
       }
       setReAction(null);
+      backToJobs();
     } catch (e) {
       const code = e?.payload?.code;
       if (e?.status === 409 || code === 'INVALID_TRANSITION') {
@@ -708,11 +775,35 @@ export default function TicketDetailScreen({ route, navigation }) {
   const phone = ticket.customerPhone || '';
   const address = ticket.customerAddress || custInfo.address || '';
 
+  // Once an invoice exists, Price Summary shows the billed figures (the
+  // booking estimate can be ₹0 when the price was only set at invoicing).
   const lineItems = priceItemsFromTicket(ticket);
   const estimatedTotal = ticket.estimatedPrice != null
     ? ticket.estimatedPrice
     : lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-  const payment = paymentFromTicket(ticket, estimatedTotal);
+  // The booked issues, each with its own service charge folded in (a/b lines).
+  const summaryItems = groupServiceCharges(lineItems);
+  // Service History: finished milestones (same tracker as the History screen).
+  const historyMilestones = buildMilestones(recordedEvents).filter((m) => m.state === 'done');
+  // Technician photos in two groups: Issue Verified & Updated, then (only
+  // after a re-estimate request) Additional Issue Verified & Updated.
+  const reqAt = recordedEvents
+    .filter((e) => String(e?.status || '').toUpperCase() === 'TECHNICIAN_REESTIMATE_REQUESTED')
+    .map((e) => Date.parse(e?.createdAt || '') || 0).filter(Boolean).sort((a, b) => a - b)[0] || 0;
+  const uniq = (l) => l.filter((u, i, a) => u && a.indexOf(u) === i);
+  const techPhotoUrls = uniq([
+    ...parseJsonList(ticket.technicianPhotosJson).map(photoUrlOf),
+    ...techUploadUrls.filter((x) => !reqAt || x.at < reqAt).map((x) => x.url),
+  ]);
+  const additionalPhotoUrls = reqAt
+    ? uniq(techUploadUrls.filter((x) => x.at >= reqAt).map((x) => x.url)).filter((u) => !techPhotoUrls.includes(u))
+    : [];
+  const photoGroups = [
+    { key: 'issue', label: 'Issue Verified & Updated', urls: techPhotoUrls },
+    { key: 'additional', label: 'Additional Issue Verified & Updated', urls: additionalPhotoUrls },
+  ].filter((g) => g.urls.length);
+  const summaryTotal = invoice ? Number(invoice.finalPayableAmount ?? invoice.netPayableAmount ?? 0) : estimatedTotal;
+  const payment = paymentFromTicket(ticket, summaryTotal);
   // Accessories handed over at booking ("Charger, Back cover").
   const accessoryList = String(ticket.accessories || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
   // Parts flagged at booking: [{ partId, partName, missing, damage, detail }].
@@ -753,7 +844,12 @@ export default function TicketDetailScreen({ route, navigation }) {
   const StatusIcon = statusKey === 'CANCELLED' ? AlertCircle : CheckCircle2;
   const statusIdx = LIFECYCLE_ORDER.indexOf(statusKey);
   const hasTechnician = !!ticket.assignedTechnicianId;
-  const techAccepted = hasTechnician && ACCEPTED_STATUSES.has(statusKey);
+  // The current technician's own Accept (cleared on re-assign); status only
+  // as a fallback for a server that doesn't send technicianAcceptedAt.
+  // Actions grid: 4 per row on narrow phones, 5 on wider screens.
+  const actionCols = winW < 380 ? 4 : 5;
+  const techAccepted = hasTechnician && (ticket.technicianAcceptedAt !== undefined
+    ? !!ticket.technicianAcceptedAt : ACCEPTED_STATUSES.has(statusKey));
   const techName = technician?.name || ticket.assignedTechnicianName || (hasTechnician ? 'Assigned Technician' : null);
   const techCode = technician?.code
     || (technician?.id ? String(technician.id).slice(0, 8).toUpperCase() : null);
@@ -867,7 +963,7 @@ export default function TicketDetailScreen({ route, navigation }) {
       }
       case 'history': navigation.navigate('BookingTimeline', { ticketId: ticket.id }); break;
       case 'share':   setShareOpen(true); break;
-      case 'barcode': navigation.navigate('BarcodePrint', { ticketId: ticket.id, mode: 'barcode' }); break;
+      case 'barcode': setQrTicketId(ticket.id); break;
       default: break;
     }
   };
@@ -929,7 +1025,8 @@ export default function TicketDetailScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + (menuOpen ? 190 : 48) }}>
+      <CompletedTickModal visible={deliveredPopup} title="Completed" message={`${ticket.trackingId ? '#' + ticket.trackingId + ' ' : ''}delivered to the customer.`} onClose={() => setDeliveredPopup(false)} />
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} contentContainerStyle={{ paddingTop: 0, paddingBottom: insets.bottom + (menuOpen ? 190 : 48) }}>
         <View style={{ width: contentW, alignSelf: 'center' }}>
         {/* All sections in one card — section headers divide it. */}
         <View className="mx-4 bg-card rounded-2xl" style={[cardShadow, { marginTop: 12, paddingBottom: 12 }]}>
@@ -1004,7 +1101,22 @@ export default function TicketDetailScreen({ route, navigation }) {
         {/* ── Customer ────────────────────────────────────────── */}
         {(customerName || phone || address) ? (
           <>
-            <SectionHeader icon={User} label="CUSTOMER" />
+            <SectionHeader
+              icon={User}
+              label="CUSTOMER"
+              right={altPhone || custInfo.email || address || custInfo.idProofUrl ? (
+                <Pressable
+                  onPress={() => setCustExpanded((v) => !v)}
+                  hitSlop={6}
+                  className="flex-row items-center ml-2 active:opacity-70"
+                  accessibilityRole="button"
+                  accessibilityLabel={custExpanded ? 'Hide customer details' : 'Show customer details'}
+                >
+                  <Text className="text-[12px] font-extrabold mr-1" style={{ color: ACCENT_GREEN }}>{custExpanded ? 'Hide' : 'Show'}</Text>
+                  {custExpanded ? <ChevronUp size={14} color={ACCENT_GREEN} /> : <ChevronDownIcon size={14} color={ACCENT_GREEN} />}
+                </Pressable>
+              ) : null}
+            />
             <View>
               <View className="bg-card rounded-2xl px-4 py-2">
                 {customerName ? <DetailRow icon={User} label="Name" value={customerName} /> : null}
@@ -1037,7 +1149,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     </Pressable>
                   </View>
                 ) : null}
-                {phone ? (
+                {custExpanded && altPhone ? (
                   <View className="flex-row items-center py-1.5">
                     <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Alt. Mobile') }}>
                       <Phone size={14} color="#FFFFFF" />
@@ -1080,8 +1192,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                     ) : null}
                   </View>
                 ) : null}
-                <DetailRow icon={Mail} label="Email" value={custInfo.email || 'None'} />
-                <DetailRow icon={MapPin} label="Address" value={address || 'None'} full={!!address} />
+                {custExpanded && custInfo.email ? <DetailRow icon={Mail} label="Email" value={custInfo.email} /> : null}
+                {custExpanded && address ? <DetailRow icon={MapPin} label="Address" value={address} full /> : null}
+                {custExpanded && custInfo.idProofUrl ? (
                 <View className="flex-row items-center py-1.5">
                   <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('ID Proof') }}>
                     <IdCard size={14} color="#FFFFFF" />
@@ -1092,10 +1205,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                       <Image source={{ uri: custInfo.idProofUrl }} style={{ width: 28, height: 28, borderRadius: 6 }} resizeMode="cover" />
                       <Text className="text-[12px] font-bold ml-2" style={{ color: ACCENT_GREEN }}>View</Text>
                     </Pressable>
-                  ) : (
-                    <Text className="text-[12px] text-text font-bold flex-1">None</Text>
-                  )}
+                  ) : null}
                 </View>
+                ) : null}
               </View>
             </View>
           </>
@@ -1142,10 +1254,10 @@ export default function TicketDetailScreen({ route, navigation }) {
         ) : null}
 
         {/* ── Accessories received with the device ── */}
+        {accessoryList.length ? (<>
         <SectionHeader icon={Headphones} label="ACCESSORIES" />
         <View>
           <View className="bg-card rounded-2xl px-4 py-3">
-            {accessoryList.length ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {accessoryList.map((a, i) => (
                   <View key={`${a}-${i}`} style={{ maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E5F3F5' }}>
@@ -1153,17 +1265,16 @@ export default function TicketDetailScreen({ route, navigation }) {
                   </View>
                 ))}
               </View>
-            ) : (
-              <Text className="text-[12px] text-text-muted">No accessories received with the device.</Text>
-            )}
           </View>
         </View>
+        </>) : null}
 
         {/* ── Missing / damaged parts flagged at booking (missingPartsJson) ── */}
+        {flaggedParts.length ? (<>
         <SectionHeader icon={TriangleAlert} label="MISSING / DAMAGED PARTS" />
         <View>
           <View className="bg-card rounded-2xl px-4 py-3">
-            {flaggedParts.length ? flaggedParts.map((p, i) => {
+            {flaggedParts.map((p, i) => {
               const tone = p.damage ? PART_DAMAGE_TONE : PART_MISSING_TONE;
               return (
                 <View key={p.partId || `${p.partName}-${i}`} style={{ marginTop: i ? 8 : 0 }}>
@@ -1176,21 +1287,17 @@ export default function TicketDetailScreen({ route, navigation }) {
                   {p.detail ? <Text className="text-[12px] text-text-muted" style={{ marginTop: 2 }}>{p.detail}</Text> : null}
                 </View>
               );
-            }) : (
-              <Text className="text-[12px] text-text-muted">No missing or damaged parts reported.</Text>
-            )}
+            })}
           </View>
         </View>
-
-        {/* ── WhatsApp booking confirmation — status, Resend after a failure ── */}
-        <SectionHeader icon={MessageCircle} label="WHATSAPP CONFIRMATION" />
-        <WhatsAppStatusCard ticketId={ticketId} cardShadow={null} />
+        </>) : null}
 
         {/* ── Warranty per service — validity runs from the delivery date ── */}
+        {warrantyRows.length ? (<>
         <SectionHeader icon={ShieldCheck} label="WARRANTY" />
         <View>
           <View className="bg-card rounded-2xl px-4 py-2">
-            {warrantyRows.length ? warrantyRows.map((w, idx) => (
+            {warrantyRows.map((w, idx) => (
               <View key={`${w.label}-${idx}`} className="flex-row items-center py-2" style={{ borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#E5F3F5' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text className="text-[12px] font-semibold text-text" numberOfLines={2}>{w.label}</Text>
@@ -1202,20 +1309,19 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_GREEN_DARK }} numberOfLines={1}>{w.text}</Text>
                 </View>
               </View>
-            )) : (
-              <Text className="text-[12px] text-text-muted" style={{ paddingVertical: 6 }}>No warranty recorded for these services.</Text>
-            )}
+            ))}
           </View>
         </View>
+        </>) : null}
 
         {/* ── Price summary ───────────────────────────────────── */}
         <SectionHeader icon={IndianRupee} label="PRICE SUMMARY" />
         <View>
           <View className="bg-card rounded-2xl p-4">
-            {lineItems.length === 0 ? (
+            {summaryItems.length === 0 ? (
               <Text className="text-[12px] text-text-muted">No service items recorded.</Text>
             ) : (
-              lineItems.map((item, idx) => (
+              summaryItems.map((item, idx) => (
                 <View
                   key={item.id || idx}
                   className="flex-row items-center py-2"
@@ -1224,15 +1330,30 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <View className="w-6 h-6 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: '#E5F3F5' }}>
                     <Text className="text-[11px] font-extrabold" style={{ color: BRAND_GREEN_DARK }}>{idx + 1}</Text>
                   </View>
-                  <Text className="flex-1 text-text text-[12px] font-semibold" numberOfLines={1}>{item.label}</Text>
-                  <Text className="font-extrabold text-text text-[12px]">₹{Number(item.amount || 0).toLocaleString('en-IN')}</Text>
+                  {item.charge != null ? (
+                    <View style={{ flex: 1 }}>
+                      <View className="flex-row items-center">
+                        <Text className="flex-1 text-text text-[12px] font-semibold" numberOfLines={1}>a. {item.label}</Text>
+                        <Text className="font-extrabold text-text text-[12px]">₹{Number(item.amount || 0).toLocaleString('en-IN')}</Text>
+                      </View>
+                      <View className="flex-row items-center" style={{ marginTop: 4 }}>
+                        <Text className="flex-1 text-text-muted text-[12px] font-semibold" numberOfLines={1}>b. Service Charge</Text>
+                        <Text className="font-extrabold text-text text-[12px]">₹{Number(item.charge || 0).toLocaleString('en-IN')}</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <Text className="flex-1 text-text text-[12px] font-semibold" numberOfLines={1}>{item.label}</Text>
+                      <Text className="font-extrabold text-text text-[12px]">{Number(item.amount) < 0 ? '− ' : ''}₹{Math.abs(Number(item.amount || 0)).toLocaleString('en-IN')}</Text>
+                    </>
+                  )}
                 </View>
               ))
             )}
             <View className="flex-row items-center mt-1 pt-2.5" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-              <Text className="flex-1 font-extrabold text-text text-[12px]">Estimated Total</Text>
+              <Text className="flex-1 font-extrabold text-text text-[12px]">{invoice ? 'Invoice Total' : 'Estimated Total'}</Text>
               <Text className="font-extrabold text-[14px]" style={{ color: ACCENT_GREEN }}>
-                ₹{Number(estimatedTotal || 0).toLocaleString('en-IN')}
+                ₹{Number(summaryTotal || 0).toLocaleString('en-IN')}
               </Text>
             </View>
 
@@ -1288,6 +1409,9 @@ export default function TicketDetailScreen({ route, navigation }) {
               {ticket.imei ? (
                 <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{String(ticket.imei)}</Text>
               ) : (
+                isDelivered ? (
+                  <Text className="text-[12px] text-text-muted font-bold flex-1" numberOfLines={1}>Not provided by customer</Text>
+                ) : (
                 <View className="flex-1 flex-row items-center justify-between">
                   <Text className="text-[12px] text-text-muted font-bold">-</Text>
                   <Pressable
@@ -1299,6 +1423,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <Text className="text-[11px] font-extrabold ml-1" style={{ color: BRAND_GREEN_DARK }}>Add</Text>
                   </Pressable>
                 </View>
+                )
               )}
             </View>
             ) : null}
@@ -1319,9 +1444,21 @@ export default function TicketDetailScreen({ route, navigation }) {
                 </View>
               )}
             </View>
-            <SecurityRow ticket={ticket} value={securityText} onSaved={load} />
+            <SecurityRow ticket={ticket} value={securityText} onSaved={load} locked={isDelivered} />
           </View>
         </View>
+
+        {/* ── Service History — finished milestones from the booking's event log ── */}
+        {historyMilestones.length ? (
+          <>
+            <SectionHeader icon={ListChecks} label="SERVICE HISTORY" />
+            <View>
+              <View className="bg-card rounded-2xl px-3 py-3">
+                <ServiceMilestoneTracker milestones={historyMilestones} hidePhotos />
+              </View>
+            </View>
+          </>
+        ) : null}
 
         {/* ── Re-Estimated — only once the booking has been re-estimated ── */}
         {reEstimateEvent || statusKey === 'QUOTED' ? (
@@ -1332,7 +1469,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <DetailRow icon={Clock} label="Re-Est. On" value={fmtInstant(reEstimateEvent?.createdAt) || '-'} />
                 <DetailRow icon={IndianRupee} label="Revised" value={`₹${Number(estimatedTotal || 0).toLocaleString('en-IN')}`} />
                 {lineItems.length ? (
-                  <DetailRow icon={Wrench} label="Services" value={lineItems.map((i) => i.label).filter(Boolean).join(', ')} />
+                  <DetailRow icon={Wrench} label="Services" value={summaryItems.map((i) => i.label).filter(Boolean).join(', ')} />
                 ) : null}
                 {ticket.originalEstimatedDeliveryAt ? (
                   <DetailRow icon={Calendar} label="Original" value={fmtInstant(ticket.originalEstimatedDeliveryAt) || '-'} />
@@ -1407,6 +1544,16 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <Eye size={15} color="#035C6C" />
                     <Text style={{ marginLeft: 6, fontSize: 12.5, fontWeight: '800', color: '#035C6C' }}>View Invoice</Text>
                   </Pressable>
+                  {['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'].includes(statusKey) ? (
+                    <View style={{ marginTop: 10 }}>
+                      <SlideToComplete
+                        label="Slide to Delivered to Customer"
+                        doneLabel="Delivered to Customer"
+                        completed={statusKey === 'DELIVERED'}
+                        onComplete={markDelivered}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               ) : (
                 <Pressable
@@ -1489,12 +1636,95 @@ export default function TicketDetailScreen({ route, navigation }) {
           </Pressable>
         </View>
 
+        {/* ── Technician uploaded photos — tap one to open full-screen ── */}
+        {photoGroups.length ? (
+          <>
+            <SectionHeader icon={Camera} label="TECHNICIAN UPLOADED PHOTOS" />
+            <View>
+              <View className="bg-card rounded-2xl p-3">
+                {photoGroups.map((g, gi) => (
+                <View key={g.key} style={{ marginTop: gi ? 12 : 0 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#374151', marginBottom: 6 }}>{g.label}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {g.urls.map((uri, i) => (
+                    <Pressable
+                      key={`${uri}-${i}`}
+                      onPress={() => setRePhotos({ images: g.urls, index: i })}
+                      className="rounded-xl overflow-hidden active:opacity-80"
+                      style={{ width: 64, height: 64, backgroundColor: '#E5F3F5' }}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={`Technician photo ${i + 1}`}
+                    >
+                      <Image source={{ uri }} style={{ width: 64, height: 64 }} resizeMode="cover" />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                </View>
+                ))}
+              </View>
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Actions — the old bottom-bar tiles, now a section (not after delivery) ── */}
+        {!isDelivered ? (
+          <>
+            <SectionHeader icon={ListChecks} label="ACTIONS" />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 8, paddingHorizontal: 4 }}>
+              {ACTION_TILES.filter((t) => t.key !== 'status').map((a, i) => {
+                const Icon = a.icon;
+                return (
+                  <View key={a.key} style={{ width: actionCols === 4 ? '25%' : '20%', alignItems: 'center', marginBottom: 4 }}>
+                  <Pressable
+                    onPress={() => onAction(a.key)}
+                    hitSlop={4}
+                    style={{ width: '100%', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={a.label}
+                  >
+                    <View style={{ height: 42, width: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: HOME_TILE_TONES[i % HOME_TILE_TONES.length] }}>
+                      <Icon size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={{ width: '100%', marginTop: 5, fontSize: 10.5, lineHeight: 13, fontWeight: '800', color: '#111111', textAlign: 'center' }} numberOfLines={2}>{a.label}</Text>
+                  </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Re-Service — delivered bookings, right after Technician ── */}
+        {isDelivered ? (
+          <>
+            <SectionHeader icon={RefreshCcw} label="RE-SERVICE" />
+            <Pressable
+              onPress={() => onAction('reservice')}
+              accessibilityRole="button"
+              className="active:opacity-90"
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center' }}>
+                <RefreshCcw size={18} color="#035C6C" strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>Device back for service?</Text>
+                <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>Reopen this booking for a re-service</Text>
+              </View>
+              <View style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#FFFFFF' }}>Re-Service</Text>
+              </View>
+            </Pressable>
+          </>
+        ) : null}
+
         </View>
         </View>
       </ScrollView>
 
       {/* ── Bottom action menu — hidden behind a handle; open it for every
-          booking action, 5 in one row. ── */}
+          booking action, 5 in one row. Delivered: hidden — Re-Service is a section now. ── */}
+      {true ? null : (
       <View
         style={{
           position: 'absolute',
@@ -1536,20 +1766,21 @@ export default function TicketDetailScreen({ route, navigation }) {
               key={a.key}
               onPress={() => { setMenuOpen(false); onAction(a.key); }}
               className="items-center active:opacity-70"
-              style={{ width: '20%', paddingVertical: 6, paddingHorizontal: 2 }}
+              style={{ width: `${Math.min(20, 100 / (isDelivered ? DELIVERED_TILES : ACTION_TILES).length)}%`, paddingVertical: 6, paddingHorizontal: 2 }}
               accessibilityRole="button"
               accessibilityLabel={a.label}
             >
               <View className="items-center justify-center" style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: HOME_TILE_TONES[i % HOME_TILE_TONES.length] }}>
-                <Icon size={18} color="#FFFFFF" />
+                <Icon size={14} color="#FFFFFF" />
               </View>
-              <Text className="text-[11px] font-extrabold text-text text-center" style={{ marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{a.label}</Text>
+              <Text className="text-[9px] font-extrabold text-text text-center" style={{ marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{a.label}</Text>
             </Pressable>
           );
         })}
         </View>
         ) : null}
       </View>
+      )}
 
       <ImageViewerModal
         visible={photoIndex != null}
@@ -1586,9 +1817,9 @@ export default function TicketDetailScreen({ route, navigation }) {
                 ? { title: 'Customer Rejected?', Icon: ThumbsDown, tone: '#E08E00', confirm: 'Customer Rejected',
                   message: `Record that the customer rejected the re-estimate. The original estimate${rev.originalEstimatedPrice != null ? ` of ${inr(rev.originalEstimatedPrice)}` : ''} is kept and the repair continues without the additional work.`,
                   reasonLabel: 'Rejection reason (optional)' }
-                : { title: 'Dismiss Request?', Icon: Ban, tone: '#F32C26', confirm: 'Dismiss Request',
-                  message: 'Decline the technician\'s re-estimate request without re-estimating. The technician carries on with the current estimate.',
-                  reasonLabel: 'Reason', required: true };
+                : { title: 'Customer Rejected?', Icon: ThumbsDown, tone: '#F32C26', confirm: 'Reject',
+                  message: 'Record that the customer rejected the technician\'s additional work. The technician carries on with the current estimate.',
+                  reasonLabel: 'Rejection reason', required: true };
             const ok = !meta.required || reReason.trim().length >= 3;
             const MetaIcon = meta.Icon;
             return (
@@ -1610,7 +1841,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <TextInput
                     value={reReason}
                     onChangeText={setReReason}
-                    placeholder={mode === 'DISMISS' ? 'e.g. Extra work not needed — covered by the current repair' : 'Add a note'}
+                    placeholder={mode === 'DISMISS' ? 'e.g. Customer does not want the extra work' : 'Add a note'}
                     placeholderTextColor="#9CA3AF"
                     multiline
                     maxLength={300}
@@ -1636,6 +1867,7 @@ export default function TicketDetailScreen({ route, navigation }) {
 
       <RescheduleSheet visible={rescheduleOpen} booking={ticket} onClose={() => setRescheduleOpen(false)} onUpdated={load} />
 
+      <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
       {/* ── Share Image sheet — same component JobsScreen uses,
           so the experience is identical wherever it is reached from. ── */}
       <ShareReceiptSheet
@@ -1970,7 +2202,7 @@ function formatProgressTime(iso) {
   return `${date} · ${time}`;
 }
 
-function SectionHeader({ icon: Icon, label }) {
+function SectionHeader({ icon: Icon, label, right }) {
   return (
     <View className="px-4 pt-5 pb-2 flex-row items-center">
       <View className="items-center justify-center" style={{ height: 22, width: 22, borderRadius: 11, backgroundColor: toneFor(label) }}>
@@ -1978,6 +2210,7 @@ function SectionHeader({ icon: Icon, label }) {
       </View>
       <Text className="text-text font-extrabold text-[12px] tracking-widest ml-1.5">{label}</Text>
       <View className="flex-1 h-px bg-border ml-2" />
+      {right}
     </View>
   );
 }
@@ -1985,7 +2218,7 @@ function SectionHeader({ icon: Icon, label }) {
 // Icon + label + value row used in the redesigned section cards.
 // Security row with an edit button that opens the lock sheet as a popup and
 // saves straight to the booking — no separate screen.
-function SecurityRow({ ticket, value, onSaved }) {
+function SecurityRow({ ticket, value, onSaved, locked = false }) {
   const [sheet, setSheet] = useState(null);
   const [saving, setSaving] = useState(false);
   const lockTypes = lockTypesFor(resolveSpecCategory(ticket?.deviceCategory, ticket?.categoryCode, ticket?.categoryName));
@@ -2013,7 +2246,7 @@ function SecurityRow({ ticket, value, onSaved }) {
   return (
     <>
       <DetailRow icon={Lock} label="Security" value={saving ? 'Saving…' : value}
-        onEdit={options.length > 1 && !saving ? () => setSheet({ type: savedType === 'NONE' ? options[1] : savedType, value: ticket?.deviceSecurityValue || '' }) : undefined} />
+        onEdit={!locked && options.length > 1 && !saving ? () => setSheet({ type: savedType === 'NONE' ? options[1] : savedType, value: ticket?.deviceSecurityValue || '' }) : undefined} />
       <DeviceSecurityLockSheet
         visible={!!sheet}
         types={options}
@@ -2084,8 +2317,24 @@ function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, 
   const title = requested ? 'Technician Re-Estimate Requested'
     : awaiting ? 'Service Re-Estimated – Awaiting Customer Approval'
       : approved ? 'Re-Estimate Approved by Customer' : 'Re-Estimate Rejected by Customer';
-  const raw = requested ? rev.requestImages : rev.revisionImages;
-  const photos = (Array.isArray(raw) ? raw : []).filter((u) => typeof u === 'string' && u.trim());
+  // Technician's request photos stay listed after the shop re-estimates,
+  // followed by any photos added with the revision.
+  const clean = (a) => [...new Set((Array.isArray(a) ? a : []).filter((u) => typeof u === 'string' && u.trim()))];
+  const techPhotos = clean(rev.requestImages);
+  const shopPhotos = clean(rev.revisionImages).filter((u) => !techPhotos.includes(u));
+  const photos = [...techPhotos, ...shopPhotos];
+  const strip = (label, list, offset) => (list.length ? (
+    <>
+      <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '700', marginTop: 8 }}>{label} ({list.length})</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 6 }}>
+        {list.map((uri, i) => (
+          <Pressable key={`${uri}-${i}`} onPress={() => onPhotos?.(photos, offset + i)} className="rounded-xl overflow-hidden active:opacity-80" style={{ width: 56, height: 56, backgroundColor: '#E5F3F5' }} accessibilityRole="imagebutton" accessibilityLabel={`${label} ${i + 1}`}>
+            <Image source={{ uri }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+          </Pressable>
+        ))}
+      </ScrollView>
+    </>
+  ) : null);
   const items = Array.isArray(rev.items) ? rev.items : [];
   const via = String(rev.decidedVia || '').toUpperCase() === 'CUSTOMER_APP' ? 'Customer App' : rev.decidedVia ? 'Shop' : null;
   const btn = (label, onPress, primary, Icon) => (
@@ -2103,7 +2352,7 @@ function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, 
   return (
     <View className="bg-card rounded-2xl px-4 py-3">
       <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '600' }} numberOfLines={1}>
-        {inRepair ? (requested || awaiting ? 'Repair Work in Progress' : 'Repair Work in Progress (Resumed)') : 'Re-Estimate'}
+        {inRepair ? 'Repair Work in Progress' : 'Re-Estimate'}
         {rev.revisionNo ? ` · Revision ${rev.revisionNo}` : ''}
       </Text>
       <View style={{ alignSelf: 'flex-start', maxWidth: '100%', marginTop: 4, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: tone.bg }}>
@@ -2124,7 +2373,7 @@ function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, 
             <DetailRow icon={IndianRupee} label="Original" value={inrOrNull(rev.originalEstimatedPrice) || '—'} />
             <DetailRow icon={Plus} label="Additional" value={inrOrNull(rev.additionalAmount) ? `+ ${inrOrNull(rev.additionalAmount)}` : '—'} />
             <DetailRow icon={Calculator} label="Revised" value={inrOrNull(rev.revisedTotal) || '—'} />
-            {items.length ? <DetailRow icon={Wrench} label="Services" value={items.map((i) => i?.label).filter(Boolean).join(', ') || '—'} full /> : null}
+            {items.length ? <DetailRow icon={Wrench} label="Services" value={groupServiceCharges(items).map((i) => i?.label).filter(Boolean).join(', ') || '—'} full /> : null}
             {rev.revisionReason ? <DetailRow icon={FileText} label="Reason" value={rev.revisionReason} full /> : null}
             <DetailRow icon={Clock} label={awaiting ? 'Sent On' : 'Decided On'} value={fmtInstant(awaiting ? rev.submittedAt : rev.decidedAt) || '—'} />
             {!awaiting && (rev.decidedByName || via) ? (
@@ -2134,18 +2383,11 @@ function ReEstimateCard({ rev, ticket, inRepair, busy, onReEstimate, onDismiss, 
           </>
         )}
       </View>
-      {photos.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 6 }}>
-          {photos.map((uri, i) => (
-            <Pressable key={`${uri}-${i}`} onPress={() => onPhotos?.(photos, i)} className="rounded-xl overflow-hidden active:opacity-80" style={{ width: 56, height: 56, backgroundColor: '#E5F3F5' }} accessibilityRole="imagebutton" accessibilityLabel={`Re-estimate photo ${i + 1}`}>
-              <Image source={{ uri }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
+      {strip('Technician Photos', techPhotos, 0)}
+      {strip('Shop Photos', shopPhotos, techPhotos.length)}
       {requested ? (
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-          {btn('Dismiss', onDismiss, false, Ban)}
+          {btn('Customer Rejected', onDismiss, false, ThumbsDown)}
           {btn('Re-Estimate', onReEstimate, true, Calculator)}
         </View>
       ) : awaiting ? (
@@ -2186,7 +2428,7 @@ function fmtInstant(iso) {
 // Maps a ticket loaded from /tickets/{id} into the params shape the
 // owner service-booking flow screens expect. `editMode` + `editTicketId`
 // tell the final ServiceBookingDevicesList to PUT instead of POST.
-function buildEditParams(ticket, { lineItems, estimatedTotal }) {
+export function buildEditParams(ticket, { lineItems, estimatedTotal }) {
   const services = (lineItems || []).map((it) => ({
     serviceId: it.serviceId || it.id || null,
     serviceCode: it.serviceCode || it.code || null,

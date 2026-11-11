@@ -85,7 +85,7 @@ const SUB_META = {
   APPROVED:             { label: 'Parts Pending',    tone: RC.orange, Icon: Package },
   QUOTED:               { label: 'Approval Pending', tone: RC.blue,   Icon: UserCheck },
   READY:                { label: 'Processed',        tone: RC.green,  Icon: CircleCheck },
-  DELIVERED_PROCESSING: { label: 'Dispatched', tone: RC.blue,   Icon: Truck },
+  DELIVERED_PROCESSING: { label: 'Out for Delivery', tone: RC.blue,   Icon: Truck },
   DELIVERED:            { label: 'Delivered',        tone: RC.navy,   Icon: PackageCheck },
 };
 
@@ -191,7 +191,7 @@ const STATUS_TAG = {
   READY:                { label: 'Ready for Delivery',   color: RC.teal },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    color: '#B45309' },
   INVOICE_READY:        { label: 'Invoice Ready',        color: '#B45309' },
-  DELIVERED_PROCESSING: { label: 'Dispatched', color: '#B45309' },
+  DELIVERED_PROCESSING: { label: 'Out for Delivery', color: '#B45309' },
   DELIVERED:            { label: 'Delivered',            color: RC.teal },
   CANCELLED:            { label: 'Cancelled',            color: '#B91C1C' },
   RETURNED:             { label: 'Returned',             color: '#B91C1C' },

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { RefreshControl, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ticketApi } from '../../../api/client';
 
@@ -7,6 +7,12 @@ export default function TechnicianTicketDetailScreen({ route, navigation }) {
   const { ticketId } = route.params || {};
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -41,7 +47,7 @@ export default function TechnicianTicketDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} style={styles.scroll} contentContainerStyle={styles.content}>
         <Text style={styles.tracking}>{ticket.trackingId}</Text>
         <Text style={styles.status}>{ticket.status}</Text>
         <Text style={styles.field}>{ticket.issueDescription || '—'}</Text>

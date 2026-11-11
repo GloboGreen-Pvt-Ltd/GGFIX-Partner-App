@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { launchCamera } from '../../../components/InAppCamera';
-import { ArrowLeft, ArrowRight, Camera, ChevronLeft, ChevronRight, ImagePlus, Images, Play, RefreshCw, Star, Trash2, Video, X } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Camera, ChevronLeft, ChevronRight, ImagePlus, Plus, Images, Play, RefreshCw, Star, Trash2, Video, X } from 'lucide-react-native';
 import { uploadMedia } from '../../../api/masterData';
 import { notify } from '../../../components/confirm';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
@@ -53,7 +52,7 @@ export default function SellStepPhotosScreen({ navigation }) {
   const min = minPhotos(draft.listingType);
   const remaining = MAX_PHOTOS - photos.length;
   const { width } = useWindowDimensions();
-  const cols = 3;
+  const cols = 2;
   const tile = Math.floor((Math.min(width, CONTENT_MAX) - 32 - 10 * (cols - 1)) / cols);
 
   const [sheet, setSheet] = useState(null); // 'photo' | 'video'
@@ -81,7 +80,7 @@ export default function SellStepPhotosScreen({ navigation }) {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { notify('Permission needed', 'Allow camera access to take listing photos.'); return; }
-        const res = await launchCamera({ mediaTypes: 'images', quality: 0.7 });
+        const res = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.7 });
         if (!res.canceled && res.assets?.length) addAssets(res.assets);
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -128,7 +127,7 @@ export default function SellStepPhotosScreen({ navigation }) {
       const perm = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== 'granted') { notify('Permission needed', 'Allow access to add a video.'); return; }
       const opts = { mediaTypes: 'videos', videoMaxDuration: VIDEO_MAX_SEC, quality: 0.5 };
-      const res = source === 'camera' ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const res = source === 'camera' ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       const a = res.assets?.[0];
       if (res.canceled || !a) return;
       const secs = a.duration ? Math.round(a.duration / 1000) : null;
@@ -178,11 +177,11 @@ export default function SellStepPhotosScreen({ navigation }) {
 
   return (
     <SellScreen
-      title="Upload Photos & Media"
-      subtitle="Step 3 of 4 • Add images & video"
+      title={`Add Photos (${min} – ${MAX_PHOTOS})`}
       step={3}
+      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
-      footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready || uploading} loading={uploading} />}
+      footer={<PrimaryButton title="Next" variant="green" iconRight={ArrowRight} onPress={next} disabled={!ready || uploading} loading={uploading} />}
     >
       <View style={{ marginTop: 10 }}>
         <FieldLabel label="Photos" required hint={`(Min. ${min}, Max. ${MAX_PHOTOS})`} right={<Text style={{ fontSize: rf(11), color: done.length >= min ? C.green : C.muted, fontWeight: '700' }}>{done.length}/{MAX_PHOTOS}</Text>} />
@@ -227,10 +226,10 @@ export default function SellStepPhotosScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel="Add photo"
               className="active:opacity-80"
-              style={{ width: tile, height: tile, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.teal, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: tile, height: tile, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.green, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
             >
-              <ImagePlus size={22} color={C.teal} />
-              <Text style={{ fontSize: rf(11), color: C.teal, fontWeight: '800', marginTop: 4 }}>Add Photo</Text>
+              <Plus size={30} color={C.green} />
+              <Text style={{ fontSize: rf(12.5), color: C.green, fontWeight: '800', marginTop: 4 }}>Add More</Text>
             </Pressable>
           ) : null}
         </View>

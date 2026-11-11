@@ -107,8 +107,9 @@ export default function DeviceDetailsScreen({ navigation, route }) {
     title: condTab ? rf(13) : rf(12),
     sub: condTab ? rf(11) : rf(10),
   };
-  const catCols = winW >= 600 ? 6 : 4; // Category grid: 4 per row on phones, 6 on tablets
-  const catImg = winW >= 600 ? 48 : 44; // tile art size
+  // Category grid: 4 per row on phones, 6 on tablets.
+  const catCols = winW >= 600 ? 6 : 4;
+  const catImg = winW >= 600 ? 84 : 64; // tile art height (fills the tile width)
   const brandCols = winW >= 600 ? 8 : 4;  // Brand grid: 4 per row on phones
   const modelCols = winW >= 600 ? 5 : 3;  // Model grid: 3 per row on phones
   const optCols = winW >= 900 ? 6 : winW >= 600 ? 5 : 3; // Colour / storage / spec tiles
@@ -343,6 +344,8 @@ export default function DeviceDetailsScreen({ navigation, route }) {
   // Partner Sell module's listing wizard (step 1): same picker, Next hands the
   // device back through params.onWizardNext; condition is asked on step 2.
   const wizardMode = params.flow === 'SELL_WIZARD';
+  // Spare-part listing: device picker only (no variant), plus the part's own fields.
+  const partMode = wizardMode && !!params.partMode;
   // Selling needs the condition plus colour and RAM / storage (booking keeps
   // them optional). Only the fields actually on screen are required.
   // Colour / RAM / storage are required for a whole-device sale only.
@@ -350,6 +353,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
   // The sell wizard needs the storage variant (RAM and colour stay optional).
   const needStorage = needVariant || wizardMode;
   const sellDetailsDone = (() => {
+    if (partMode) return true;
     if (wizardMode) {
       // A listing needs its storage variant; colour stays optional.
       if (usesSpecs) return true;
@@ -541,6 +545,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
           <View style={{ width: '100%', maxWidth: 760 }}>
             {/* Category — a grid of tiles right on the screen (admin Category
                 Menu art). Tapping one selects it; the picked tile gets a ✓. */}
+            {params.renderTop ? params.renderTop() : null}
             <Field label="Category">
               {category && !catListOpen ? (
                 <PickedCard
@@ -564,7 +569,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                           accessibilityLabel={c.name}
                           className="items-center justify-center active:opacity-80"
                           style={{
-                            minHeight: 96, paddingHorizontal: 6, paddingVertical: 10, borderRadius: 14,
+                            paddingHorizontal: 4, paddingTop: 4, paddingBottom: 5, borderRadius: 14,
                             borderWidth: on ? 1.5 : 1, borderColor: on ? ACCENT : BORDER, backgroundColor: on ? MINT : '#FFFFFF',
                           }}
                         >
@@ -577,12 +582,15 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                             </View>
                           ) : null}
                           {img ? (
-                            <DeviceImage url={img} style={{ width: catImg, height: catImg }} contentFit="contain" />
+                            /* Category art, full tile width, never cropped. */
+                            <View style={{ width: '100%', height: catImg, overflow: 'hidden', borderRadius: 10 }}>
+                              <DeviceImage url={img} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+                            </View>
                           ) : (
-                            <Smartphone size={28} color={INK} strokeWidth={1.75} />
+                            <View className="items-center justify-center" style={{ height: catImg }}><Smartphone size={34} color={INK} strokeWidth={1.75} /></View>
                           )}
                           <Text
-                            style={{ marginTop: 8, fontSize: 12, lineHeight: 15, fontWeight: on ? '700' : '500', color: INK, textAlign: 'center' }}
+                            style={{ marginTop: 3, fontSize: 11.5, lineHeight: 14, fontWeight: on ? '800' : '600', color: INK, textAlign: 'center' }}
                             numberOfLines={2}
                             adjustsFontSizeToFit
                             minimumFontScale={0.8}
@@ -828,7 +836,7 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                   ) : null}
 
                   {/* Spare Parts: no colour / RAM / storage / spec fields. */}
-                  {sellMode && condition === 'PARTS' ? null : usesSpecs ? (
+                  {(sellMode && condition === 'PARTS') || partMode ? null : usesSpecs ? (
                     <SpecFields
                       key={`${catId}|${model.id || model.name}`}
                       category={category}
@@ -921,6 +929,8 @@ export default function DeviceDetailsScreen({ navigation, route }) {
                 </>
               )
             ) : null}
+
+            {params.renderBottom ? params.renderBottom() : null}
 
             {/* ── Select Device summary ─────────────────────────────────── */}
             {crumbs.length ? (

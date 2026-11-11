@@ -47,6 +47,7 @@ import OwnerBuyListingScreen from '../screens/owner/OwnerBuyListingScreen';
 import OwnerCartScreen from '../screens/owner/OwnerCartScreen';
 import OwnerNotificationsScreen from '../screens/owner/OwnerNotificationsScreen';
 import OwnerSearchScreen from '../screens/owner/OwnerSearchScreen';
+import OwnerCustomersScreen from '../screens/owner/OwnerCustomersScreen';
 import ScanSearchScreen from '../screens/owner/ScanSearchScreen';
 import ProductScanScreen from '../screens/owner/ProductScanScreen';
 import OwnerBuyHomeScreen from '../screens/owner/OwnerBuyHomeScreen';
@@ -59,7 +60,6 @@ import TechnicianAssignScreen from '../screens/owner/AllBooking/TechnicianAssign
 import BookingSummaryScreen from '../screens/owner/AllBooking/BookingSummaryScreen';
 import BookingTimelineScreen from '../screens/owner/AllBooking/BookingTimelineScreen';
 import PickupHistoryScreen from '../screens/owner/AllBooking/PickupHistoryScreen';
-import BarcodePrintScreen from '../screens/owner/AllBooking/BarcodePrintScreen';
 import DeliveryInvoiceScreen from '../screens/owner/AllBooking/DeliveryInvoiceScreen';
 import InvoiceGeneratorScreen from '../screens/owner/AllBooking/InvoiceGeneratorScreen';
 import DeliveryInvoiceReportScreen from '../screens/owner/AllBooking/DeliveryInvoiceReportScreen';
@@ -98,6 +98,7 @@ import SellMyListingsScreen from '../screens/owner/sell/SellMyListingsScreen';
 import SellBuyOrdersScreen from '../screens/owner/sell/SellBuyOrdersScreen';
 import SellBuyOrderDetailScreen from '../screens/owner/sell/SellBuyOrderDetailScreen';
 import SellBuyAssignScreen from '../screens/owner/sell/SellBuyAssignScreen';
+import SellBuyAssignListScreen from '../screens/owner/sell/SellBuyAssignListScreen';
 import SellEnquiriesScreen from '../screens/owner/sell/SellEnquiriesScreen';
 import SellEnquiryDetailScreen from '../screens/owner/sell/SellEnquiryDetailScreen';
 import BulkTypeScreen from '../screens/owner/sell/bulk/BulkTypeScreen';
@@ -108,6 +109,14 @@ import BulkPhotosScreen from '../screens/owner/sell/bulk/BulkPhotosScreen';
 import BulkPricingScreen from '../screens/owner/sell/bulk/BulkPricingScreen';
 import BulkReviewScreen from '../screens/owner/sell/bulk/BulkReviewScreen';
 import BulkStatusScreen from '../screens/owner/sell/bulk/BulkStatusScreen';
+import BulkListingScreen from '../screens/owner/sell/bulk/BulkListingScreen';
+import BulkExcelTemplateScreen from '../screens/owner/sell/bulk/BulkExcelTemplateScreen';
+import BulkExcelUploadScreen from '../screens/owner/sell/bulk/BulkExcelUploadScreen';
+import BulkExcelReviewScreen from '../screens/owner/sell/bulk/BulkExcelReviewScreen';
+import BulkFlowPhotosScreen from '../screens/owner/sell/bulk/BulkFlowPhotosScreen';
+import BulkFlowPricingScreen from '../screens/owner/sell/bulk/BulkFlowPricingScreen';
+import BulkCreatingScreen from '../screens/owner/sell/bulk/BulkCreatingScreen';
+import BulkFlowDoneScreen from '../screens/owner/sell/bulk/BulkFlowDoneScreen';
 // Buy module (customer sell leads, browse grid, quotations, purchase orders)
 import BuyBrowseScreen from '../screens/owner/buy/BuyBrowseScreen';
 import BuyLeadsScreen from '../screens/owner/buy/BuyLeadsScreen';
@@ -591,7 +600,6 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="TechnicianAssign" component={TechnicianAssignScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BookingSummary" component={BookingSummaryScreen} options={{ title: 'Booking Successful' }} />
       <Stack.Screen name="BookingTimeline" component={BookingTimelineScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="BarcodePrint" component={BarcodePrintScreen} options={{ headerShown: false }} />
       <Stack.Screen name="DeliveryInvoice" component={DeliveryInvoiceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="InvoiceGenerator" component={InvoiceGeneratorScreen} options={{ headerShown: false }} />
       <Stack.Screen name="DeliveryInvoiceReport" component={DeliveryInvoiceReportScreen} options={{ headerShown: false }} />
@@ -614,6 +622,7 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerCart" component={OwnerCartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerNotifications" component={OwnerNotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSearch" component={OwnerSearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerCustomers" component={OwnerCustomersScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ScanSearch" component={ScanSearchScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ProductScan" component={ProductScanScreen} options={{ headerShown: false }} />
       {/* Buy listing (search / category results) and the previous Sell home,
@@ -642,7 +651,8 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SellImages" component={SellImagesScreen} options={{ title: 'Sell Device Images' }} />
       <Stack.Screen name="OwnerSellGadgetPrice" component={OwnerSellGadgetPriceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellListed" component={OwnerSellListedScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="MarketplaceOrders" component={MarketplaceOrdersScreen} options={{ headerShown: false }} />
+      {/* Old Buy/Sell "My Orders" replaced by the fixed-price Customer Orders screen. */}
+      <Stack.Screen name="MarketplaceOrders" component={SellBuyOrdersScreen} options={{ headerShown: false }} />
       <Stack.Screen name="MarketplaceListingDetails" component={MarketplaceListingDetailsScreen} options={{ headerShown: false }} />
       {/* Partner Sell module: single listing wizard (Sell Home → type → details → condition → photos → price → success). */}
       <Stack.Screen name="SellListingType" component={SellListingTypeScreen} options={{ headerShown: false }} />
@@ -655,10 +665,20 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="SellBuyOrders" component={SellBuyOrdersScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellBuyOrderDetail" component={SellBuyOrderDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellBuyAssign" component={SellBuyAssignScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SellBuyAssignList" component={SellBuyAssignListScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellEnquiries" component={SellEnquiriesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SellEnquiryDetail" component={SellEnquiryDetailScreen} options={{ headerShown: false }} />
       {/* Bulk listing: type → template → items → photos → pricing → review → status. */}
-      <Stack.Screen name="BulkListingType" component={BulkTypeScreen} options={{ headerShown: false }} />
+      {/* Bulk Listing (Excel): Same Model / Multiple Models. The older batch pages stay registered for drafts started there. */}
+      <Stack.Screen name="BulkListingType" component={BulkListingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkTypeLegacy" component={BulkTypeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkExcelTemplate" component={BulkExcelTemplateScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkExcelUpload" component={BulkExcelUploadScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkExcelReview" component={BulkExcelReviewScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkFlowPhotos" component={BulkFlowPhotosScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkFlowPricing" component={BulkFlowPricingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BulkCreating" component={BulkCreatingScreen} options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="BulkFlowDone" component={BulkFlowDoneScreen} options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="BulkTemplate" component={BulkTemplateScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BulkItems" component={BulkItemsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BulkDetails" component={BulkDetailsScreen} options={{ headerShown: false }} />

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
+import { RefreshControl, ActivityIndicator, Pressable, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check, RefreshCw, Search, Smartphone, UserX, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
@@ -46,6 +46,12 @@ export default function TechnicianAssignScreen({ navigation, route }) {
   const [picked, setPicked] = useState(null);
   const [saving, setSaving] = useState(false);
   const sendingRef = useRef(false);
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,7 +118,7 @@ export default function TechnicianAssignScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}>
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}>
         <View style={col}>
           {/* Job + who has it now */}
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, padding: 12 }}>

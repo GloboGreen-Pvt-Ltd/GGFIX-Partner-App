@@ -33,6 +33,7 @@ import { useResponsive } from '../../../theme/responsive';
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
 import { notify } from '../../../components/confirm';
+import RepairDeliveryCard from './RepairDeliveryCard';
 
 // GGFIX palette — same values used across the rest of the booking flow.
 const ACCENT = '#035C6C';       // GGFIX green
@@ -589,6 +590,8 @@ export default function BookingTimelineScreen({ route }) {
             ) : null}
           </View>
         </View>
+        {/* Return delivery after the repair (QC passed + invoiced): schedule, assign, track. */}
+        <RepairDeliveryCard ticketId={ticketId} />
       </ScrollView>
     </View>
   );

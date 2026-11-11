@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
+import { RefreshControl,
   ActivityIndicator,
   FlatList,
   Pressable,
@@ -186,6 +186,12 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, []));
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -528,7 +534,7 @@ export default function OwnerLedgerStatementScreen({ navigation, route }) {
 
       {/* ── period chips ─────────────────────────────────────────────── */}
       <View className="bg-card" style={{ borderBottomWidth: 1, borderBottomColor: C.hairline }}>
-        <ScrollView
+        <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: S.gutter, paddingVertical: S.sm, gap: S.xs }}

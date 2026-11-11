@@ -42,7 +42,7 @@ const SERVICE_GROUP_ORDER = [G_ACCEPTED, G_PROCESS, G_PENDING, G_RETURN, G_COMPL
 // repaired path and the return path go out for delivery and raise an invoice.
 // They therefore appear as a row under BOTH branches, and `rowCompletedIn` below
 // only lights the copy that belongs to the ending the booking actually took —
-// otherwise a plain repaired job would show a green "Dispatched" sitting
+// otherwise a plain repaired job would show a green "Out for Delivery" sitting
 // under Return Device.
 const SHARED_TAIL = new Set(['DELIVERED_PROCESSING', 'INVOICE_GENERATED']);
 
@@ -163,11 +163,11 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   { value: 'IN_REPAIR',                                     label: 'Repair Work in Progress',               phase: SERVICE, group: G_PROCESS },
   { value: 'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',  label: 'Technician Issue Verified & Updated',   phase: SERVICE, group: G_PROCESS },
   { value: 'TECHNICIAN_REESTIMATE_REQUESTED',               label: 'Technician Re-Estimate Requested',      phase: SERVICE, group: G_PROCESS, optional: true },
-  { value: 'RE_ESTIMATED_CONFIRMED',                        label: 'Service Re-Estimated – Awaiting Customer Approval', phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'RE_ESTIMATED_CONFIRMED',                        label: 'Service Re-Estimated', phase: SERVICE, group: G_PROCESS, optional: true },
   { value: 'RE_ESTIMATE_APPROVED',                          label: 'Re-Estimate Approved by Customer',      phase: SERVICE, group: G_PROCESS, optional: true },
   { value: 'CUSTOMER_APPROVED',                             label: 'Customer Approved',                     phase: SERVICE, group: G_PROCESS, optional: true },
   { value: 'RE_ESTIMATE_REJECTED',                          label: 'Re-Estimate Rejected by Customer',      phase: SERVICE, group: G_PROCESS, optional: true },
-  { value: 'REPAIR_WORK_RESUMED',                           label: 'Repair Work in Progress (Resumed)',     phase: SERVICE, group: G_PROCESS, optional: true },
+  { value: 'REPAIR_WORK_RESUMED',                           label: 'Repair Work in Progress',     phase: SERVICE, group: G_PROCESS, optional: true },
   // ── Stage 3 (left branch): Working Pending ────────────────────────────────
   // The repaired ending. QUALITY_CHECK_COMPLETED is kept even though it is not
   // called out in the stage spec — the backend emits it, and dropping the row
@@ -190,7 +190,7 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   // Invoice Generated.
   { value: 'READY',                                         label: 'Ready for Delivery',                    phase: SERVICE, group: G_PENDING },
   { value: 'INVOICE_GENERATED',                             label: 'Invoice Generated',                     phase: SERVICE, group: G_PENDING },
-  { value: 'DELIVERED_PROCESSING',                          label: 'Dispatched',                      phase: SERVICE, group: G_PENDING },
+  { value: 'DELIVERED_PROCESSING',                          label: 'Out for Delivery',                      phase: SERVICE, group: G_PENDING },
   // ── Stage 4 (right branch): Return Device ─────────────────────────────────
   // The unrepaired ending, rendered in red. The last two rows repeat the shared
   // handover tail above — same status codes, own rowId so React keys and the
@@ -199,7 +199,7 @@ export const SHOP_BOOKING_STATUS_OPTIONS = [
   { value: 'REPAIR_NOT_COMPLETED',                          label: 'Repair Not Completed',                  phase: SERVICE, group: G_RETURN },
   { value: 'RETURN_DELIVERY',                               label: 'Return Delivery',                       phase: SERVICE, group: G_RETURN },
   { value: 'INVOICE_GENERATED',     rowId: 'RETURN:INVOICE_GENERATED',    label: 'Invoice Generated',        phase: SERVICE, group: G_RETURN },
-  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Dispatched',         phase: SERVICE, group: G_RETURN },
+  { value: 'DELIVERED_PROCESSING',  rowId: 'RETURN:DELIVERED_PROCESSING', label: 'Out for Delivery',         phase: SERVICE, group: G_RETURN },
   // ── Stage 5: Completed ────────────────────────────────────────────────────
   { value: 'DELIVERED',                                     label: 'Delivered to Customer',                 phase: SERVICE, group: G_COMPLETED },
   { value: 'CANCELLED',                                     label: 'Repair Cancelled',                      phase: SERVICE, group: G_COMPLETED },
@@ -614,7 +614,7 @@ function computeRowCompletion(allEvents, phaseFilter) {
   // Which of the two endings the booking actually took. The shared handover
   // tail (Dispatched, Invoice Generated) has a row under BOTH branches,
   // so it must only light up on the side that applies — otherwise a plain
-  // repaired job shows a green "Dispatched" sitting under Return Device.
+  // repaired job shows a green "Out for Delivery" sitting under Return Device.
   const returnPathActive = RETURN_TRIGGERS.some((k) => !!eventByStatus[k]);
   // Done = this row's own event exists. Nothing else ticks a row: a later step
   // never marks the ones above it (see MUST_FOLLOW for how order is kept).

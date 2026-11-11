@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
+import { RefreshControl,
   ActivityIndicator,
   Image,
   Pressable,
@@ -393,6 +393,12 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
       ].some((v) => String(v || '').toLowerCase().includes(q)))
     : byStatus;
 
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -614,7 +620,7 @@ export default function MarketplaceOrdersScreen({ navigation, route }) {
         </View>
       ) : visible.length === 0 ? (
         tab === 'Buy' && !q && statusFilter === 'ALL' ? (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: rs(32) }}>
+          <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: rs(32) }}>
             <View style={capStyle}>
               {/* Buy empty state */}
               <View className="items-center" style={{ paddingHorizontal: 32, paddingTop: 24 }}>

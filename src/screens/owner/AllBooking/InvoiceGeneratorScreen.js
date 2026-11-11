@@ -534,7 +534,8 @@ export default function InvoiceGeneratorScreen({ route, navigation }) {
         ? `Invoice #${resp.invoiceNo} saved with ₹${fmt(credit)} credit, but the server did NOT record it in the Cash Book. Add it to ${ticket?.customerName || 'the customer'}'s account by hand, or report this.`
         : `Invoice #${resp.invoiceNo} saved with ₹${fmt(credit)} credit, but it could NOT be added to the Cash Book — this booking has no valid mobile number.`;
       notify('Invoice Generated', detail, { preset: posted || credit <= 0 ? 'done' : 'error' });
-      navigation.replace('DeliveryInvoiceReport', { ticketId, invoiceId: resp.id });
+      // Back to Booking Details — the next step (Delivered to Customer) is the slide there.
+      navigation.goBack();
     } catch (e) {
       notify('Generate failed', e?.message || 'Could not generate invoice');
     } finally {

@@ -42,6 +42,8 @@ import {
   Loader,
 } from '../../../components/rnr';
 import { ticketApi } from '../../../api/client';
+import { useSelector } from 'react-redux';
+import { selectShopId } from '../../../store/authSlice';
 import { notify } from '../../../components/confirm';
 import SafeModal from '../../../components/SafeModal';
 import { confirmShopRepairBooking, listShopRepairBookings } from '../../../api/orders';
@@ -63,6 +65,7 @@ import {
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, primeModelCategory, resolveRecordCategory } from '../../../utils/imeiPolicy';
 import { estimatedTotalOf, paymentFromTicket } from './ReceiptCard';
+import QrLabelSheet from './QrLabelSheet';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#035C6C';
@@ -76,13 +79,13 @@ const STATUS_VARIANT = {
   CREATED:              { label: 'Service Accepted',     tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
   IN_DIAGNOSIS:         { label: 'In Diagnosis',         tone: 'purple' },
-  IN_REPAIR:            { label: 'In Service Process',   tone: 'purple' },
+  IN_REPAIR:            { label: 'Repair Work in Progress', tone: 'purple' },
   QUOTED:               { label: 'Re-Estimated',         tone: 'amber' },
   APPROVED:             { label: 'Customer Approved',    tone: 'blue' },
   READY:                { label: 'Ready for Delivery',   tone: 'green' },
   INVOICE_GENERATED:    { label: 'Invoice Generated',    tone: 'amber' },
   INVOICE_READY:        { label: 'Invoice Ready',        tone: 'amber' },
-  DELIVERED_PROCESSING: { label: 'Dispatched', tone: 'amber' },
+  DELIVERED_PROCESSING: { label: 'Out for Delivery', tone: 'amber' },
   DELIVERED:            { label: 'Delivered',            tone: 'green' },
   CANCELLED:            { label: 'Cancelled',            tone: 'red' },
   RETURNED:             { label: 'Returned',             tone: 'red' },
@@ -139,6 +142,25 @@ function pickupMatchesQuery(b, q) {
     .some((v) => String(v).toLowerCase().includes(needle));
 }
 
+// Free-text match for ticket rows (client-side, over the whole loaded book):
+// tracking ID (a child GTS-058-A also finds its parent GTS-058), customer,
+// mobile, device / model, IMEI, technician. Spaces / case / "#" ignored.
+function ticketMatchesQuery(t, q) {
+  const norm = (v) => String(v || '').toLowerCase().replace(/[\s#]+/g, '');
+  const needle = norm(q);
+  if (!needle) return true;
+  const parent = needle.match(/^([a-z0-9]ts-\d{3,})-[a-z]{1,2}$/)?.[1];
+  const phoneDigits = needle.replace(/\D/g, '');
+  const fields = [
+    t.trackingId, t.ticketNumber, t.customerName, t.customer?.name,
+    t.deviceDisplayName, t._modelName, t.modelName, t.brandName, t.imei,
+    t.assignedTechnicianName, t.technicianName, t.repairServicesSummary,
+  ];
+  if (fields.some((v) => v && (norm(v).includes(needle) || (parent && norm(v).includes(parent))))) return true;
+  const phones = [t.customerPhone, t.customer?.phone, t.alternatePhone].map((p) => String(p || '').replace(/\D/g, ''));
+  return phoneDigits.length >= 3 && phoneDigits === needle.replace(/[+-]/g, '') && phones.some((p) => p.includes(phoneDigits));
+}
+
 // Client-side date-range filter (createdAt vs the chosen chip).
 function inDateRange(d, filter) {
   if (!filter || !d) return true;
@@ -182,11 +204,11 @@ function payRowsFor(item) {
     const credit = Number(inv.creditAmount) || 0;
     return [
       { label: 'Bill', short: 'Bill', value: inr(inv.finalPayableAmount), fg: '#035C6C', bg: '#E5F3F5' },
-      { label: 'Paid', short: 'Paid', value: inr(paid), fg: '#15803D', bg: '#DCFCE7' },
+      paid > 0 ? { label: 'Paid', short: 'Paid', value: inr(paid), fg: '#15803D', bg: '#DCFCE7' } : null,
       credit > 0
         ? { label: 'Balance', short: 'Bal', value: inr(credit), fg: '#B45309', bg: '#FFEDD5' }
         : { label: 'Balance', short: 'Bal', value: 'Settled', fg: '#15803D', bg: '#DCFCE7' },
-    ];
+    ].filter(Boolean);
   }
   const estimateNum = Number(estimatedTotalOf(item)) || 0;
   const billTotal = Number(item.finalPrice ?? estimateNum) || 0;
@@ -198,7 +220,7 @@ function payRowsFor(item) {
     { label: 'Estimate', short: 'Est', value: inr(estimateNum), fg: '#035C6C', bg: '#E5F3F5' },
     deliveredPaid || pay?.label === 'Full Payment'
       ? { label: 'Full Paid', short: 'Paid', value: inr(deliveredPaid ? billTotal : pay.amount), fg: '#15803D', bg: '#DCFCE7' }
-      : pay
+      : pay && Number(pay.amount) > 0
         ? { label: 'Advance', short: 'Adv', value: inr(pay.amount), fg: '#8A6A00', bg: '#FFF8E1' }
         : { label: 'Payment', short: 'Pay', value: 'on delivery', fg: '#6B7280', bg: '#F3F4F6' },
     balanceNum > 0
@@ -212,6 +234,23 @@ function payRowsFor(item) {
   ].filter(Boolean);
 }
 
+// Card line: "Bal ₹x · Adv-Paid ₹y", or "Bal ₹0 · Full-Paid ₹y" once fully paid.
+function payFigures(item) {
+  const inv = item._invoice;
+  if (inv) {
+    const adv = Number(inv.advancePaid) || 0;
+    const paid = adv + (Number(inv.amountPaid) || 0);
+    const bal = Number(inv.creditAmount) || 0;
+    return { bal, adv, paid, full: bal <= 0 && paid > 0 };
+  }
+  const billTotal = Number(item.finalPrice ?? estimatedTotalOf(item)) || 0;
+  const pay = paymentFromTicket(item, billTotal);
+  if (String(item.status || '').toUpperCase() === 'DELIVERED') return { bal: 0, adv: 0, paid: billTotal, full: true };
+  const full = pay?.label === 'Full Payment';
+  const amt = Number(pay?.amount) || 0;
+  return { bal: pay ? Number(pay.balance) || 0 : billTotal, adv: full ? 0 : amt, paid: amt, full };
+}
+
 // The booking card's right-side amount: invoice total once raised, else the estimate.
 const deviceAmount = (item) => Number(item._invoice?.finalPayableAmount ?? item.finalPrice ?? estimatedTotalOf(item)) || 0;
 // Ticket statuses past "Invoice Generated" — the only rows worth an invoice fetch.
@@ -222,7 +261,16 @@ const inrAmount = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
 function PayChips({ item, style }) {
   return (
     <View className="flex-row flex-wrap" style={[{ gap: 3 }, style]}>
-      {payRowsFor(item).map((r) => (
+      {(() => {
+        // Always Est · Bal · Paid as numbers (no "Settled" / "on delivery" text).
+        const f = payFigures(item);
+        const est = Number(item._invoice?.finalPayableAmount ?? estimatedTotalOf(item)) || 0;
+        return [
+          { label: 'Est', short: item._invoice ? 'Bill' : 'Est', value: inrAmount(est), fg: '#035C6C', bg: '#E5F3F5' },
+          { label: 'Bal', short: 'Bal', value: inrAmount(f.bal), fg: f.bal > 0 ? '#B45309' : '#15803D', bg: f.bal > 0 ? '#FFEDD5' : '#DCFCE7' },
+          { label: 'Paid', short: 'Paid', value: inrAmount(f.paid), fg: '#15803D', bg: '#DCFCE7' },
+        ];
+      })().map((r) => (
         <View key={r.label} style={{ paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 5, backgroundColor: r.bg }}>
           <Text className="text-[9px] font-extrabold" style={{ color: r.fg }} numberOfLines={1}>
             {r.short} {r.value}
@@ -246,6 +294,29 @@ function formatDate(d) {
   if (isNaN(date.getTime())) return null;
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+// Card's latest-status line. A technician's open re-estimate outranks the
+// lifecycle status, since that is what the shop has to act on next.
+// Badge meta from the backend status, except a booking whose current
+// technician has not accepted yet reads Technician Assigned — never
+// Service Accepted (technicianAcceptedAt is cleared on every re-assign).
+const PRE_ACCEPT = ['CREATED', 'ASSIGNED', 'IN_DIAGNOSIS', 'IN_REPAIR', 'QUOTED', 'APPROVED'];
+function ticketStatusMeta(t) {
+  const st = String(t?.status || '').toUpperCase();
+  if (t?.assignedTechnicianId && t?.technicianAcceptedAt === null && PRE_ACCEPT.includes(st)) {
+    return { label: 'Technician Assigned', tone: 'blue' };
+  }
+  return STATUS_VARIANT[st] || { label: t?.status || 'Pending', tone: 'amber' };
+}
+
+function latestStatus(item, statusMeta) {
+  const re = String(item?.activeReEstimate?.status || item?.reEstimateStatus || '').toUpperCase();
+  if (re === 'REQUESTED') return { label: 'Technician Re-Estimate Requested', color: '#B45309' };
+  if (re === 'AWAITING_APPROVAL') return { label: 'Re-Estimated – Awaiting Customer Approval', color: '#B45309' };
+  const step = item?.latestStepLabel || item?.lastEventLabel || item?.latestEvent?.label;
+  const tone = TONE_STYLE[statusMeta?.tone] || TONE_STYLE.amber;
+  return { label: step || statusMeta?.label || 'Pending', color: tone.fg };
+}
+
 function formatTime(d) {
   if (!d) return null;
   const date = new Date(d);
@@ -273,7 +344,15 @@ const SCOPE_TONE = {
   PICKUP_ACCEPTED: '#0788C9',
 };
 
+// Last loaded ticket list, kept across mounts: the screen paints it at once
+// and revalidates in the background (no full-screen loader on return).
+let jobsCache = null;
+let jobsCacheShop = null;
+
 export default function JobsScreen({ navigation, route }) {
+  // Cache belongs to one shop: a shop switch / re-login starts empty.
+  const shopId = useSelector(selectShopId);
+  if (jobsCacheShop !== shopId) { jobsCache = null; jobsCacheShop = shopId; }
   // The tab bar floats over the page; keep the last items clear of it.
   const insets = useSafeAreaInsets();
   // Full-screen stack page now (no bottom tab bar): just clear the home indicator.
@@ -285,9 +364,9 @@ export default function JobsScreen({ navigation, route }) {
   const [query, setQuery] = useState('');
   // Search bar is hidden until the header's Search icon opens it.
   const [searchOpen, setSearchOpen] = useState(false);
-  const [items, setItems] = useState([]);       // tickets (ticket-service)
+  const [items, setItems] = useState(() => jobsCache || []);       // tickets (ticket-service)
   const [pickups, setPickups] = useState([]);   // pickup repair-bookings (order-service)
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!jobsCache);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   // Which tile set this instance shows. `menu: 'PICKUP'` (Home → Quick Actions →
@@ -391,6 +470,7 @@ export default function JobsScreen({ navigation, route }) {
   // actions sheet first (Assign Technician / Share Receipt / Barcode / View
   // Details), but the card now carries those same actions as a button row, so
   // the sheet was an extra tap in front of the one destination people wanted.
+  const [qrTicketId, setQrTicketId] = useState(null); // Print QR Label popup
   const [actionBooking, setActionBooking] = useState(null);   // sheet target
   const [techPickerOpen, setTechPickerOpen] = useState(false); // sheet 1
   const [shareOpen, setShareOpen] = useState(false);           // sheet 2
@@ -630,8 +710,8 @@ export default function JobsScreen({ navigation, route }) {
   const goBarcodeFor = useCallback((b) => {
     if (!b?.id) return;
     closeSheets();
-    navigation.navigate('BarcodePrint', { ticketId: b.id, mode: 'barcode' });
-  }, [closeSheets, navigation]);
+    setQrTicketId(b.id);
+  }, [closeSheets]);
 
   // "Details" opens the Booking Details screen.
   const goDetailsFor = useCallback((b) => {
@@ -726,12 +806,17 @@ export default function JobsScreen({ navigation, route }) {
 
   // Latest load wins: an older, slower search response must not overwrite it.
   const loadSeqRef = useRef(0);
+  const inFlightRef = useRef(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
+      // A background refresh never stacks on a request already in flight.
+      if (isRefresh === 'silent' && inFlightRef.current) return;
+      inFlightRef.current = true;
       const seq = ++loadSeqRef.current;
       const isLatest = () => seq === loadSeqRef.current;
-      if (isRefresh) setRefreshing(true);
+      // 'silent' = background poll: no spinner, the list just updates.
+      if (isRefresh === 'silent') { /* no indicator */ } else if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
@@ -742,10 +827,11 @@ export default function JobsScreen({ navigation, route }) {
         // A child ticket number (GTS-058-A) searches by its parent (GTS-058),
         // so every device of that bulk booking comes back and groups into the
         // one parent card instead of a lone child card.
-        const rawQ = (queryRef.current || '').trim();
-        const childQ = rawQ.replace(/^#/, '').match(/^([A-Z0-9]TS-\d{3,})-[A-Z]{1,2}$/i);
+        // Search is client-side now (ticketMatchesQuery): the whole book loads
+        // once and typing filters it instantly, instead of a server ?q= that
+        // missed device / model matches and reloaded on every pause.
         const data = await ticketApi.get('/tickets', {
-          query: { page: 0, size: 500, q: (childQ ? childQ[1].toUpperCase() : rawQ) || undefined },
+          query: { page: 0, size: 500 },
         });
         const content = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
         // Enrich each ticket with the model's catalog image and proper name —
@@ -811,6 +897,7 @@ export default function JobsScreen({ navigation, route }) {
         // Show the fresh list now; changed rows get their invoice right after.
         if (!isLatest()) return;
         setItems(enriched);
+        jobsCache = enriched;
         if (stale.length) {
           // Two at a time: firing every invoice at once held all of
           // ticket-service's DB connections, stalling other screens' calls.
@@ -827,9 +914,14 @@ export default function JobsScreen({ navigation, route }) {
           }));
           if (isLatest()) setItems([...enriched]);
         }
+        // Open technician re-estimate requests for in-repair rows (the list has
+        // no re-estimate field). Two at a time, like invoices above.
+        // Pending re-estimates come on each row from the server (activeReEstimate);
+        // no per-job requests here (they exhausted ticket-service's DB pool).
       } catch (e) {
         if (isLatest()) setError(e.message || 'Failed to load jobs');
       } finally {
+        if (isLatest()) inFlightRef.current = false;
         setLoading(false);
         setRefreshing(false);
       }
@@ -856,21 +948,31 @@ export default function JobsScreen({ navigation, route }) {
   // failure here is deliberately silent: it must not blank the ticket list.
   const loadPickups = useCallback(async () => {
     try {
-      setPickups(pickupsOnly(await listShopRepairBookings()));
+      const list = pickupsOnly(await listShopRepairBookings());
+      // Catalogue models for the pickups' brands, so each card shows its device image.
+      const L = lookupsRef.current;
+      const brandIds = Array.from(new Set((list || []).map((p) => p.brandId).filter(Boolean))).filter((b) => !L.brands.has(b));
+      await Promise.all(brandIds.map(async (bId) => {
+        try {
+          const models = await getModelsByBrand(bId);
+          (models || []).forEach((m) => { L.modelById[m.id] = m; });
+          L.brands.add(bId);
+        } catch (_) { /* card falls back to the customer's photo */ }
+      }));
+      setPickups(list);
     } catch (_) { /* leave the previous pickup snapshot in place */ }
   }, []);
 
   // Reload on focus (e.g. returning from a detail screen), and — separately —
   // debounce the search so typing doesn't fire a request per keystroke.
-  useFocusEffect(useCallback(() => { load(); loadPickups(); }, [load, loadPickups]));
+  // With a list already on screen, refocus revalidates silently (no loader).
+  useFocusEffect(useCallback(() => { load(jobsCache ? 'silent' : false); loadPickups(); }, [load, loadPickups]));
   // loadPickups is already silent; polling surfaces new customer pickups live.
   useFocusPolling(loadPickups);
-  const didSearchMount = useRef(false);
-  useEffect(() => {
-    if (!didSearchMount.current) { didSearchMount.current = true; return; }
-    const t = setTimeout(() => load(), 400);
-    return () => clearTimeout(t);
-  }, [query, load]);
+  // Statuses moved by the Employee App (e.g. Quality Check → Ready for
+  // Delivery) show up in the tabs / Delivery Ready without a manual refresh.
+  const pollTickets = useCallback(() => load('silent'), [load]);
+  useFocusPolling(pollTickets, 90000);
 
   // Live chip counts, one per scope, off the full loaded sets so a chip's badge
   // never depends on which chip happens to be selected.
@@ -889,7 +991,7 @@ export default function JobsScreen({ navigation, route }) {
     const source = isPickupScope ? pickups : items;
     const filtered = source.filter((r) => {
       if (!scopeMatches(scope, r)) return false;
-      if (isPickupScope && !pickupMatchesQuery(r, query)) return false;
+      if (isPickupScope ? !pickupMatchesQuery(r, query) : !ticketMatchesQuery(r, query)) return false;
       if (dateFilter && !inDateRange(rowDate(r), dateFilter)) return false;
       return true;
     });
@@ -967,23 +1069,26 @@ export default function JobsScreen({ navigation, route }) {
     // Same tile as a booking: left panel (status tag · call · VIEW) with the
     // pickup truck, right: ref · Pickup By, services, customer, address, date / time.
     return (
-      <Pressable onPress={() => setPickupMenuFor(item)} className="active:opacity-90" style={tileCard}>
-        <View className="items-center justify-center overflow-hidden" style={{ ...tilePanel, backgroundColor: '#E5F3F5' }}>
-          <Truck size={tileRow ? 34 : 44} color="#035C6C" />
+      <View style={[tileCard, { flexDirection: 'column' }]}>
+      <Pressable onPress={() => goPickupDetailsFor(item)} className="active:opacity-90" style={tileRow ? { flexDirection: 'row' } : null}>
+        <View className="items-center justify-center overflow-hidden" style={tilePanel}>
+          {(() => {
+            // Device image: catalogue model image, else the customer's front photo.
+            const m = item.modelId ? lookupsRef.current.modelById[item.modelId] : null;
+            const img = m?.imageUrl || (m?.imageBase64 ? `data:image/png;base64,${m.imageBase64}` : null) || item.frontImageUrl || null;
+            return img
+              ? <Image source={{ uri: img }} style={{ width: '76%', height: '76%' }} resizeMode="contain" />
+              : <Smartphone size={tileRow ? 34 : 44} color="#035C6C" />;
+          })()}
           <View className="absolute" style={{ top: 0, left: 0, maxWidth: '86%', backgroundColor: tone.fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
             <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta.label}</Text>
-          </View>
-          <View pointerEvents="none" className="absolute" style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}>
-            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
         </View>
 
         <View style={tileText}>
         <View className="flex-row items-center" style={{ marginTop: 8 }}>
-          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }} numberOfLines={1}>#{ref}</Text>
-          <Text style={{ marginLeft: 6, fontSize: 11, fontWeight: '800', color: item.pickupPersonName ? '#15803D' : '#9CA3AF' }} numberOfLines={1}>
-            {item.pickupPersonName || 'Not assigned'}
-          </Text>
+          {/* Full booking number (pickup person moved to the bottom row). */}
+          <Text style={{ flex: 1, fontSize: 11, fontWeight: '800', color: ACCENT_GREEN }} numberOfLines={2}>#{ref}</Text>
         </View>
         <Text className="text-text" style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16 }} numberOfLines={2}>{services || 'Repair Pickup'}</Text>
         <Text className="text-text-muted" style={{ marginTop: 2, fontSize: 12 }} numberOfLines={1}>{item.customerName || '-'}</Text>
@@ -1008,7 +1113,7 @@ export default function JobsScreen({ navigation, route }) {
                   className="items-center justify-center active:opacity-70"
                   style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
                 >
-                  <Phone size={12} color={ACCENT_GREEN} />
+                  <Phone size={14} color={ACCENT_GREEN} />
                 </Pressable>
                 <Pressable
                   onPress={() => copyPhone(phone)}
@@ -1018,13 +1123,23 @@ export default function JobsScreen({ navigation, route }) {
                   className="items-center justify-center active:opacity-70"
                   style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
                 >
-                  <Copy size={12} color={ACCENT_GREEN} />
+                  <Copy size={14} color={ACCENT_GREEN} />
                 </Pressable>
               </>
           </View>
         ) : null}
         </View>
       </Pressable>
+      {/* Row 2: pickup status, full width from the left (same as Jobs cards). */}
+      <Pressable onPress={() => goPickupDetailsFor(item)} style={{ borderTopWidth: 1, borderTopColor: '#F1F1F1', paddingHorizontal: 12, paddingVertical: 3 }}>
+        <View className="flex-row items-center">
+          <Text style={{ flex: 1, fontSize: 10, fontWeight: '600', color: tone.fg }} numberOfLines={1}>{statusMeta.label}</Text>
+          <Text style={{ marginLeft: 8, fontSize: 10, fontWeight: '600', color: item.pickupPersonName ? '#15803D' : '#9CA3AF' }} numberOfLines={1}>
+            {item.pickupPersonName || 'Not assigned'}
+          </Text>
+        </View>
+      </Pressable>
+      </View>
     );
   };
 
@@ -1058,7 +1173,7 @@ export default function JobsScreen({ navigation, route }) {
     ...(tileRow ? { flexDirection: 'row' } : null),
   };
   const tilePanel = tileRow
-    ? { width: 116, minHeight: 116, alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: '#E5E7EB' }
+    ? { width: 111, minHeight: 116, alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: '#E5E7EB' }
     : { aspectRatio: 1, backgroundColor: '#FFFFFF' };
   const tileText = tileRow
     ? { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingBottom: 8 }
@@ -1069,17 +1184,7 @@ export default function JobsScreen({ navigation, route }) {
 
   // VIEW · history · receipt · barcode · call · copy — shared by single and bulk cards.
   const cardIconRow = (onView, cardIcons) => (
-    <View className="flex-row items-center" style={{ gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-      <Pressable
-        onPress={onView}
-        hitSlop={4}
-        accessibilityRole="button"
-        accessibilityLabel="View booking details"
-        className="items-center justify-center active:opacity-70"
-        style={{ height: 26, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: ACCENT_GREEN, backgroundColor: '#FFFFFF' }}
-      >
-        <Text style={{ color: ACCENT_GREEN, fontSize: 11, fontWeight: '800' }}>VIEW</Text>
-      </Pressable>
+    <View className="flex-row items-center justify-between" style={{ gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
       {cardIcons.map((a) => {
         const Icon = a.icon;
         return (
@@ -1092,7 +1197,7 @@ export default function JobsScreen({ navigation, route }) {
             className="items-center justify-center active:opacity-70"
             style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: CARD_ICON_TONES[a.key] }}
           >
-            <Icon size={12} color="#FFFFFF" />
+            <Icon size={14} color="#FFFFFF" />
           </Pressable>
         );
       })}
@@ -1105,7 +1210,6 @@ export default function JobsScreen({ navigation, route }) {
     const done = String(item.status || '').toUpperCase() === 'DELIVERED' && hasInvoice(item);
     return [
       { key: 'history', label: 'History', icon: History, run: () => goTimelineFor(item) },
-      done ? null : { key: 'receipt', label: 'Receipt', icon: Receipt, run: () => openShareFor(item) },
       done ? null : { key: 'barcode', label: 'Barcode', icon: QrCode, run: () => goBarcodeFor(item) },
       phone ? { key: 'call', label: `Call ${phone}`, icon: Phone, run: () => callPhone(phone) } : null,
       phone ? { key: 'copy', label: `Copy mobile number ${phone}`, icon: Copy, run: () => copyPhone(phone) } : null,
@@ -1122,7 +1226,8 @@ export default function JobsScreen({ navigation, route }) {
     // Same tile as a single booking: image panel (BULK tag · VIEW), booking
     // number · total, one line per device (ticket + status), customer, date / time.
     return (
-      <Pressable onPress={() => setDevicePickerFor(group)} className="active:opacity-90" style={tileCard}>
+      <View style={[tileCard, { flexDirection: 'column' }]}>
+      <Pressable onPress={() => setDevicePickerFor(group)} className="active:opacity-90" style={tileRow ? { flexDirection: 'row' } : null}>
         <View className="items-center justify-center overflow-hidden" style={tilePanel}>
           {image ? (
             <Image source={{ uri: image }} style={{ width: '76%', height: '76%' }} resizeMode="contain" />
@@ -1131,9 +1236,6 @@ export default function JobsScreen({ navigation, route }) {
           )}
           <View className="absolute" style={{ top: 0, left: 0, maxWidth: '86%', backgroundColor: ACCENT_GREEN, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
             <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>Bulk · {bulkCountLabel(group.devices)}</Text>
-          </View>
-          <View pointerEvents="none" className="absolute" style={{ ...viewBtn, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: ACCENT_GREEN, borderRadius: 10 }}>
-            <Text style={{ color: ACCENT_GREEN, fontSize: tileRow ? 11 : 12, fontWeight: '800' }}>VIEW</Text>
           </View>
         </View>
 
@@ -1147,17 +1249,6 @@ export default function JobsScreen({ navigation, route }) {
             </Text>
           </View>
         </View>
-        {/* One line per device: its ticket number (left) and status (right). */}
-        {group.devices.map((d) => {
-          const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
-          const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
-          return (
-            <View key={d.id} className="flex-row items-center" style={{ marginTop: 4 }}>
-              <Text style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{d.trackingId}</Text>
-              <Text style={{ marginLeft: 4, fontSize: 9.5, fontWeight: '800', color: tone.fg }} numberOfLines={1}>{meta.label}</Text>
-            </View>
-          );
-        })}
         {/* Assignment progress across the booking's device tickets. */}
         {(() => {
           const n = group.devices.length;
@@ -1177,6 +1268,20 @@ export default function JobsScreen({ navigation, route }) {
         ) : null}
         </View>
       </Pressable>
+      {/* Bottom rows, full width like single cards: each device's ticket + latest status. */}
+      <Pressable onPress={() => setDevicePickerFor(group)} style={{ borderTopWidth: 1, borderTopColor: '#F1F1F1', paddingHorizontal: 12, paddingVertical: 3 }}>
+        {group.devices.map((d) => {
+          const meta = ticketStatusMeta(d);
+          const st = latestStatus(d, meta);
+          return (
+            <View key={d.id} className="flex-row items-center" style={{ paddingVertical: 1 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#111111' }} numberOfLines={1}>{d.trackingId}</Text>
+              <Text style={{ flex: 1, marginLeft: 8, fontSize: 10, fontWeight: '600', color: st.color }} numberOfLines={1}>{st.label}</Text>
+            </View>
+          );
+        })}
+      </Pressable>
+      </View>
     );
   };
 
@@ -1186,7 +1291,7 @@ export default function JobsScreen({ navigation, route }) {
     const deviceName = item._modelName || item.deviceDisplayName || item.deviceModelName || item.modelName || 'Device';
     const deviceImage = item._modelImage || item.deviceImageUrl || null;
     const trackingId = item.trackingId || (item.id ? item.id.slice(0, 8).toUpperCase() : '-');
-    const statusMeta = STATUS_VARIANT[String(item.status || '').toUpperCase()] || { label: item.status || 'Pending', tone: 'amber' };
+    const statusMeta = ticketStatusMeta(item);
     const customerName = item.customerName || item.customerFullName || item.customer?.name || '-';
     const phone = item.customerPhone || item.customer?.phone || '';
     const tone = TONE_STYLE[statusMeta.tone] || TONE_STYLE.amber;
@@ -1195,10 +1300,6 @@ export default function JobsScreen({ navigation, route }) {
     const amountStr = `₹${deviceAmount(item).toLocaleString('en-IN')}`;
     // Price block, from the same rows as the old chips: [Est | Bill], [Adv | Full
     // Paid | Paid | Pay on delivery], [Bal] (no Bal row for a ₹0 estimate).
-    const payRows = payRowsFor(item);
-    const payRow = payRows[1] || null;
-    const balRow = payRows.find((x) => x.short === 'Bal') || null;
-    const paidStr = payRow && payRow.value !== 'on delivery' ? payRow.value : null;
 
     const cardIcons = iconsFor(item);
 
@@ -1213,9 +1314,9 @@ export default function JobsScreen({ navigation, route }) {
           style={tilePanel}
         >
           {deviceImage ? (
-            <Image source={{ uri: deviceImage }} style={{ width: '76%', height: '76%' }} resizeMode="contain" />
+            <Image source={{ uri: deviceImage }} style={{ width: '74%', height: '74%' }} resizeMode="contain" />
           ) : (
-            <Smartphone size={40} color={ACCENT_GREEN} />
+            <Smartphone size={38} color={ACCENT_GREEN} />
           )}
           {/* Status tag, top-left corner. */}
           <View
@@ -1234,17 +1335,18 @@ export default function JobsScreen({ navigation, route }) {
             <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{amountStr}</Text>
           </View>
         </View>
-        {balRow || paidStr ? (
-          <View className="flex-row items-center" style={{ marginTop: 5 }}>
-            {balRow ? (
-              <Text style={{ fontSize: 11.5, fontWeight: '800', color: balRow.fg }} numberOfLines={1}>Bal {balRow.value}</Text>
-            ) : null}
-            <View style={{ flex: 1 }} />
-            {paidStr ? (
-              <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#15803D' }} numberOfLines={1}>Paid {paidStr}</Text>
-            ) : null}
-          </View>
-        ) : null}
+        {(() => {
+          const f = payFigures(item);
+          const t = (label, n, color) => (
+            <Text style={{ fontSize: 9.5, fontWeight: '800', color }} numberOfLines={1}>{label} {inrAmount(n)}</Text>
+          );
+          return (
+            <View className="flex-row items-center justify-between" style={{ marginTop: 5, gap: 4 }}>
+              {t('Bal', f.bal, f.bal > 0 ? '#B45309' : '#15803D')}
+              {f.full ? t('Full-Paid', f.paid, '#15803D') : f.paid > 0 ? t('Adv-Paid', f.paid, '#8A6A00') : t('Paid', 0, '#15803D')}
+            </View>
+          );
+        })()}
         <Text className="text-text" style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16 }} numberOfLines={2}>{deviceName}</Text>
         <Text className="text-text-muted" style={{ marginTop: 2, fontSize: 12 }} numberOfLines={1}>{customerName}</Text>
         {/* Date left, time right. */}
@@ -1256,8 +1358,26 @@ export default function JobsScreen({ navigation, route }) {
         ) : null}
         </View>
         </Pressable>
+        {/* Row 2: latest status, full width from the left edge (pending re-estimate first). */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F1F1', paddingHorizontal: 12, paddingVertical: 3 }}>
+          <Text style={{ flex: 1, fontSize: 10, fontWeight: '600', color: latestStatus(item, statusMeta).color }} numberOfLines={1}>
+            {latestStatus(item, statusMeta).label}
+          </Text>
+          {/* Call + copy the customer's number, right side of the status row. */}
+          {phone ? (
+            <>
+              <Pressable onPress={() => callPhone(phone)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Call ${phone}`}
+                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Phone size={12} color={ACCENT_GREEN} />
+              </Pressable>
+              <Pressable onPress={() => copyPhone(phone)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Copy mobile number ${phone}`}
+                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
+                <Copy size={12} color={ACCENT_GREEN} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
         {/* VIEW · history · receipt · barcode · call · copy, from the left edge. */}
-        {cardIconRow(() => goDetailsFor(item), cardIcons)}
       </View>
     );
   };
@@ -1347,19 +1467,16 @@ export default function JobsScreen({ navigation, route }) {
                 className="active:opacity-80"
                 style={{
                   marginVertical: 4, borderRadius: 14, backgroundColor: '#FFFFFF',
-                  // Soft coloured drop shadow under each menu tile.
-                  shadowColor: tone, shadowOpacity: active ? 0.12 : 0.06, shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 2 }, elevation: active ? 2 : 1,
                 }}
               >
                 {/* White at the top fading to a light tint of the tile's colour. */}
                 <LinearGradient
-                  colors={['#FFFFFF', `${tone}${active ? '24' : '10'}`]} // lighter tint (~14% active, ~6% idle)
+                  colors={['#FFFFFF', '#FFFFFF']} // plain white tile
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={{
                     alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                    borderWidth: active ? 1.5 : 1, borderColor: active ? tone : `${tone}22`,
+                    borderWidth: active ? 1.5 : 1, borderColor: active ? '#035C6C' : '#E5E7EB',
                   }}
                 >
                 <View>
@@ -1374,7 +1491,7 @@ export default function JobsScreen({ navigation, route }) {
                   </View>
                 </View>
                 <Text
-                  style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: active ? '800' : '700', color: tone, textAlign: 'center' }}
+                  style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: active ? '800' : '700', color: '#111111', textAlign: 'center' }}
                   numberOfLines={2}
                   adjustsFontSizeToFit
                   minimumFontScale={0.85}
@@ -1549,6 +1666,7 @@ export default function JobsScreen({ navigation, route }) {
       </SafeModal>
 
       {/* ── Technician list sheet (from the card's "Assign" button) ────── */}
+      <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
       <TechnicianPickerSheet
         visible={techPickerOpen}
         booking={actionBooking}
@@ -1619,7 +1737,7 @@ export default function JobsScreen({ navigation, route }) {
           Tap a device to open its booking details
         </Text>
         {(devicePickerFor?.devices || []).map((d) => {
-          const meta = STATUS_VARIANT[String(d.status || '').toUpperCase()] || { label: d.status || 'Pending', tone: 'amber' };
+          const meta = ticketStatusMeta(d);
           const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;
           const image = d._modelImage || d.deviceImageUrl || null;
           return (
@@ -1656,11 +1774,6 @@ export default function JobsScreen({ navigation, route }) {
                 </Text>
               </View>
             </Pressable>
-            {/* Popup closes first so History / Barcode screens aren't hidden behind it. */}
-            {cardIconRow(
-              () => { setDevicePickerFor(null); goDetailsFor(d); },
-              iconsFor(d).map((a) => ({ ...a, run: () => { setDevicePickerFor(null); a.run(); } })),
-            )}
             </View>
           );
         })}

@@ -4,8 +4,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import {
-  Check, ChevronDown, ChevronUp, CircleCheck, EllipsisVertical, Eye, IndianRupee, Package, Pencil, Plus, Power, PowerOff, Rocket, Search, ShoppingBag, SlidersHorizontal, Trash2, X,
+  Check, ChevronDown, ChevronUp, CircleCheck, CirclePause, EllipsisVertical, Eye, FilePen, IndianRupee, LayoutGrid, Package, Pencil, Plus, Power, PowerOff, Rocket, Search, ShoppingBag, SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react-native';
+import { RC, ReportHeader, StatusRail, reportStyles, useReportGeometry } from '../../../components/report/ReportRail';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { confirm, notify } from '../../../components/confirm';
 import { showToast } from '../../../components/Toast';
@@ -14,9 +15,10 @@ import {
   canTransition, deleteListing, listMyListings, setListingStatus, updateListingPrice,
 } from '../../../api/sellListings';
 import { rf } from '../../../utils/responsive';
+import { listShopBuyOrders } from '../../../api/buyOrders';
 import { draftFromProduct, draftTitle, hasUnsavedProgress, sellDraftStore } from './draft';
 import {
-  C, CONTENT_MAX, Card, ChoiceCard, EmptyBox, ErrorBox, PrimaryButton, QtyStepper, SearchInput, Segmented, SellScreen, StatusPill, TabPills,
+  C, CONTENT_MAX, Card, ChoiceCard, EmptyBox, ErrorBox, PrimaryButton, QtyStepper, SearchInput, Segmented, StatusPill,
   TextField, Thumb, cleanAmount, listingImage, listingSub, money,
 } from './kit';
 
@@ -27,12 +29,13 @@ import {
 const PAGE_SIZE = 20;
 const MAX_RELOAD_PAGES = 5; // a focus reload refetches up to 100 rows (server cap)
 
+// Left status rail (Jobs style); All is the default.
 const TABS = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'DRAFT', label: 'Draft' },
-  { value: 'SOLD', label: 'Sold' },
-  { value: 'INACTIVE', label: 'Inactive' },
-  { value: 'ALL', label: 'All' },
+  { value: 'ALL', label: 'All', tone: RC.teal, Icon: LayoutGrid },
+  { value: 'ACTIVE', label: 'Active', tone: RC.green, Icon: CircleCheck },
+  { value: 'DRAFT', label: 'Draft', tone: RC.orange, Icon: FilePen },
+  { value: 'SOLD', label: 'Sold', tone: RC.blue, Icon: Tag },
+  { value: 'INACTIVE', label: 'Inactive', tone: RC.gray, Icon: CirclePause },
 ];
 const TAB_VALUES = TABS.map((t) => t.value);
 
@@ -159,17 +162,18 @@ const BulkGroupCard = memo(function BulkGroupCard({ group, open, onToggle }) {
   );
 });
 
-const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit, onMarkSold, onPublish }) {
+const ListingCard = memo(function ListingCard({ p, busy, locked, onOpen, onMenu, onEdit, onMarkSold, onPublish, order, onOrder }) {
   const status = p._status;
   const canSell = canTransition(status, 'SOLD');
   const canPublish = status === 'DRAFT' && canTransition(status, 'ACTIVE');
-  const qtyLine = [`Qty: ${p.quantity ?? 0}`, p.soldQuantity > 0 ? `Sold ${p.soldQuantity}` : null].filter(Boolean).join(' · ');
+  const stock = Math.max(0, Number(p.quantity ?? 0) - Number(p.soldQuantity ?? 0));
+  const qtyLine = [`Stock: ${stock}`, p.soldQuantity > 0 ? `Sold ${p.soldQuantity}` : null].filter(Boolean).join(' · ');
   return (
     // The card body, the ⋮ menu and the action buttons are sibling pressables:
     // a button inside a button is invalid on web and confuses screen readers.
     <Card style={{ marginBottom: 10 }}>
       <Pressable
-        onPress={() => onOpen(p)}
+        onPress={() => (order ? onOrder(order) : onOpen(p))}
         accessibilityRole="button"
         accessibilityLabel={p.title || 'Listing'}
         className="active:opacity-90"
@@ -198,8 +202,10 @@ const ListingCard = memo(function ListingCard({ p, busy, onOpen, onMenu, onEdit,
         {busy ? <ActivityIndicator size="small" color={C.teal} /> : <EllipsisVertical size={18} color={C.muted} />}
       </Pressable>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
-        <CardButton icon={Pencil} label="Edit" onPress={() => onEdit(p)} disabled={status === 'SOLD' || busy} />
-        {canSell ? <CardButton icon={Check} tone="green" label="Mark Sold" onPress={() => onMarkSold(p)} disabled={busy} /> : null}
+        {locked ? null : <CardButton icon={Pencil} label="Edit" onPress={() => onEdit(p)} disabled={status === 'SOLD' || busy} />}
+        {/* A customer order sells it through Orders; Mark Sold only for sales made outside the app. */}
+        {order ? <CardButton icon={ShoppingBag} tone="green" label="View Order" onPress={() => onOrder(order)} disabled={busy} />
+          : canSell ? <CardButton icon={Check} tone="green" label="Mark Sold" onPress={() => onMarkSold(p)} disabled={busy} /> : null}
         {!canSell && canPublish ? <CardButton icon={Rocket} tone="green" label="Publish" onPress={() => onPublish(p)} disabled={busy} /> : null}
       </View>
     </Card>
@@ -282,8 +288,8 @@ export default function SellMyListingsScreen({ navigation, route }) {
   const initialStatus = route?.params?.initialStatus;
   const initialQ = route?.params?.q;
 
-  const [tab, setTab] = useState(TAB_VALUES.includes(initialStatus) ? initialStatus : 'ACTIVE');
-  const [qInput, setQInput] = useState(typeof initialQ === 'string' ? initialQ : '');
+  const { isSmall, railW, bottomPad } = useReportGeometry();
+  const [tab, setTab] = useState(TAB_VALUES.includes(initialStatus) ? initialStatus : 'ALL');  const [qInput, setQInput] = useState(typeof initialQ === 'string' ? initialQ : '');
   const [q, setQ] = useState(typeof initialQ === 'string' ? initialQ.trim() : '');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [sort, setSort] = useState('NEWEST');
@@ -356,6 +362,21 @@ export default function SellMyListingsScreen({ navigation, route }) {
       }
     }
   }, [tab, q, ctx]);
+
+  // Open customer buy orders by listing id.
+  const [openOrders, setOpenOrders] = useState({});
+  const [lockedIds, setLockedIds] = useState({}); // listings with an accepted (confirmed) order: no editing
+  const openOrder = useCallback((o) => navigation.navigate('SellBuyOrderDetail', { id: o.id }), [navigation]);
+  useFocusEffect(useCallback(() => {
+    listShopBuyOrders()
+      .then((rows) => {
+        const open = (Array.isArray(rows) ? rows : [])
+          .filter((o) => ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status));
+        setOpenOrders(Object.fromEntries(open.map((o) => [String(o.productId), o])));
+        setLockedIds(Object.fromEntries(open.filter((o) => o.status !== 'PLACED').map((o) => [String(o.productId), true])));
+      })
+      .catch(() => {});
+  }, []));
 
   useFocusEffect(useCallback(() => {
     load(loadedKey.current === `${tab}|${q}` ? 'silent' : 'reset');
@@ -437,7 +458,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
   }, [navigation]);
 
   const edit = useCallback(async (p) => {
-    if (p._status === 'SOLD') return;
+    if (p._status === 'SOLD' || lockedIds[String(p.id)]) return;
     // Let the stored draft finish loading first, so it can't overwrite this one.
     const current = await sellDraftStore.load();
     if (hasUnsavedProgress(current)) {
@@ -451,7 +472,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
     }
     sellDraftStore.set(draftFromProduct(p));
     navigation.navigate('SellStepDetails');
-  }, [navigation]);
+  }, [navigation, lockedIds]);
 
   const askSold = useCallback((p) => {
     if (!canTransition(p._status, 'SOLD') || busyRef.current.has(String(p.id))) return;
@@ -553,14 +574,15 @@ export default function SellMyListingsScreen({ navigation, route }) {
 
   const menuItems = (p) => {
     const s = p._status;
-    const items = [
-      { key: 'view', label: 'View listing', icon: Eye, run: () => pick(() => view(p)) },
-      {
+    const locked = !!lockedIds[String(p.id)];
+    const items = [{ key: 'view', label: 'View listing', icon: Eye, run: () => pick(() => view(p)) }];
+    if (!locked) {
+      items.push({
         key: 'edit', label: 'Edit listing', icon: Pencil, disabled: s === 'SOLD',
         sub: s === 'SOLD' ? "Sold listings can't be edited" : null, run: () => pick(() => edit(p)),
-      },
-    ];
-    if (s !== 'SOLD') items.push({ key: 'price', label: 'Update price', icon: IndianRupee, run: () => pick(() => openPrice(p)) });
+      });
+    }
+    if (s !== 'SOLD' && !locked) items.push({ key: 'price', label: 'Update price', icon: IndianRupee, run: () => pick(() => openPrice(p)) });
     if (canTransition(s, 'SOLD')) items.push({ key: 'sold', label: 'Mark as sold', icon: CircleCheck, run: () => pick(() => askSold(p)) });
     if (canTransition(s, 'ACTIVE')) {
       items.push(s === 'DRAFT'
@@ -589,8 +611,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
   const priceShown = useLastValue(priceFor);
   const soldShown = useLastValue(soldFor);
 
-  const tabs = TABS.map((t) => ({ ...t, count: counts ? counts[t.value] : undefined }));
-
+  const railItems = TABS.map((t) => ({ ...t, key: t.value, count: counts ? counts[t.value] : undefined }));
   const card = (p) => (
     <ListingCard
       key={String(p.id)}
@@ -601,6 +622,9 @@ export default function SellMyListingsScreen({ navigation, route }) {
       onEdit={edit}
       onMarkSold={askSold}
       onPublish={publish}
+      order={openOrders[String(p.id)]}
+      locked={!!lockedIds[String(p.id)]}
+      onOrder={openOrder}
     />
   );
   const renderItem = ({ item }) => (item.kind === 'group' ? (
@@ -634,38 +658,13 @@ export default function SellMyListingsScreen({ navigation, route }) {
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label;
 
   return (
-    <SellScreen
-      title="My Listings"
-      subtitle="Manage your device & part listings"
-      onBack={() => navigation.goBack()}
-      scroll={false}
-      rightWidth={76}
-      right={(
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable
-          onPress={() => navigation.navigate('SellBuyOrders')}
-          accessibilityRole="button"
-          accessibilityLabel="Customer orders"
-          hitSlop={6}
-          className="active:opacity-70"
-          style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <ShoppingBag size={17} color={C.teal} />
-        </Pressable>
-        <Pressable
-          onPress={addNew}
-          accessibilityRole="button"
-          accessibilityLabel="Add new listing"
-          hitSlop={6}
-          className="active:opacity-70"
-          style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: C.teal, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Plus size={18} color="#FFFFFF" />
-        </Pressable>
-        </View>
-      )}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+    <View style={reportStyles.screen}>
+      <ReportHeader
+        title="MY LISTINGS"
+        subtitle={counts?.ALL != null ? `${counts.ALL} Listings` : 'Manage your listings'}
+        onBack={() => navigation.goBack()}
+      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' }}>
         <SearchInput value={qInput} onChangeText={setQInput} placeholder="Search in my listings" style={{ flex: 1 }} />
         <Pressable
           onPress={() => setFilterOpen(true)}
@@ -682,8 +681,9 @@ export default function SellMyListingsScreen({ navigation, route }) {
         </Pressable>
       </View>
 
-      <TabPills tabs={tabs} value={tab} onChange={setTab} style={{ flexGrow: 0, marginTop: 12 }} />
-
+      <View style={reportStyles.body}>
+      <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+      <View style={{ flex: 1, paddingHorizontal: 10 }}>
       {filtersOn ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
           <Text numberOfLines={1} style={{ flex: 1, fontSize: rf(11.5), color: C.muted }}>
@@ -704,7 +704,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
           renderItem={renderItem}
           extraData={[busy, openGroups]}
           style={{ flex: 1, marginTop: 10 }}
-          contentContainerStyle={{ flexGrow: 1, paddingTop: 2, paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{ flexGrow: 1, paddingTop: 2, paddingBottom: bottomPad + 8 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
@@ -718,6 +718,8 @@ export default function SellMyListingsScreen({ navigation, route }) {
           ListFooterComponent={footer}
         />
       )}
+      </View>
+      </View>
 
       {/* ⋮ actions */}
       <Sheet visible={!!menuFor} title="Listing actions" onClose={() => setMenuFor(null)} onDismiss={runPending}>
@@ -789,6 +791,6 @@ export default function SellMyListingsScreen({ navigation, route }) {
           <PrimaryButton title="Show Results" onPress={() => setFilterOpen(false)} style={{ flex: 1 }} />
         </View>
       </Sheet>
-    </SellScreen>
+    </View>
   );
 }

@@ -190,7 +190,7 @@ export function MonthBar({ label, sub, onPrev, onNext, prevDisabled = false, nex
  * Jobs-style tile shell: left panel (image/avatar node, coloured status tag,
  * optional VIEW chip), right text column (children). `row` = phone layout.
  */
-export function ReportTile({ row = true, panel, tag, tagColor = RC.teal, showView = true, onPress, accessibilityLabel, children }) {
+export function ReportTile({ row = true, panel, tag, tagColor = RC.teal, showView = false, onPress, accessibilityLabel, children }) {
   const Wrap = onPress ? TouchableOpacity : View;
   return (
     <Wrap

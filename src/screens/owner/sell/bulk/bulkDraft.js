@@ -411,7 +411,7 @@ export function toBulkItem(row, draft) {
     listingType: row.listingType,
     itemCondition: row.itemCondition,
     title: rowTitle(row),
-    description: [String(draft.details?.description || '').trim(), rowDescription(row), ...detailsLines(draft.details)].filter(Boolean).join('\n'),
+    description: [String(draft.details?.description || '').trim(), rowDescription(row), ...detailsLines({ ...draft.details, warrantyMonths: row.warrantyMonths ?? draft.details?.warrantyMonths })].filter(Boolean).join('\n'),
     price: finalPrice(row, pr),
     negotiable: !!pr.negotiable,
     quantity: Number(row.quantity) || 1,
@@ -433,8 +433,13 @@ export function toBulkItem(row, draft) {
       bulk: { batchType: draft.batchType, rowIndex },
       // Same keys as a single listing (sell/draft.js toListingFields).
       accessories: draft.details?.accessories || [],
-      warranty: draft.details?.warrantyMonths > 0 ? 'SHOP' : 'NONE',
-      warrantyMonths: draft.details?.warrantyMonths || 0,
+      // Per-item warranty from an Excel sheet, else the batch warranty.
+      warranty: (row.warrantyMonths ?? draft.details?.warrantyMonths) > 0 ? 'SHOP' : 'NONE',
+      warrantyMonths: row.warrantyMonths ?? draft.details?.warrantyMonths ?? 0,
+      // Buyer category + fulfilment choice (same keys as a single listing, sell/draft.js).
+      ...(pr.buyerType ? { sellFulfilment: { buyerType: pr.buyerType, options: pr.fulfilmentKeys || [], deliveryRadiusKm: Number(pr.deliveryRadiusKm) || null } } : {}),
+      // Same Model: the IMEI / serial number of each unit in this listing.
+      ...((row.imeis || []).length ? { unitImeis: row.imeis.slice() } : {}),
       listing: {
         category: { id: t.categoryId, code: t.categoryCode, name: t.categoryName },
         brandName: row.brandName || null,

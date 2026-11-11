@@ -36,7 +36,7 @@ const canAssign = (t) => t?.isAvailable !== false;
  *
  * items: [{ ticket, device }] — the created tickets with their device record.
  */
-export default function TechnicianAssignPanel({ items = [] }) {
+export default function TechnicianAssignPanel({ items = [], direct = false, assignedTo = null, assignedMap = null, onAssigned, onClose }) {
   const bulk = items.length > 1;
   const [mode, setMode] = useState(bulk ? 'all' : 'each');
   const [techs, setTechs] = useState([]);
@@ -44,7 +44,7 @@ export default function TechnicianAssignPanel({ items = [] }) {
   const [loadError, setLoadError] = useState(null);
   const [allTech, setAllTech] = useState(null);             // Assign All pick
   const [picks, setPicks] = useState({});                   // ticketId → tech (Individually / single)
-  const [assigned, setAssigned] = useState({});              // ticketId → tech the backend confirmed
+  const [assigned, setAssigned] = useState(() => assignedMap || {});              // ticketId → tech the backend confirmed
   const [failed, setFailed] = useState({});                  // ticketId → error message
   const [busy, setBusy] = useState(false);
   const [pickerFor, setPickerFor] = useState(null);          // 'all' | ticketId | null
@@ -55,7 +55,10 @@ export default function TechnicianAssignPanel({ items = [] }) {
     try {
       const data = await ticketApi.get('/technicians');
       const rows = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
-      setTechs(rows);
+      // Assign Technician lists technicians only — Staff / Pickup Person rows are hidden
+      // (falls back to everyone if no row is tagged Technician).
+      const onlyTech = rows.filter((t) => !t.roleLabel || /technician/i.test(t.roleLabel));
+      setTechs(onlyTech.length ? onlyTech : rows);
     } catch (e) {
       setTechs([]);
       setLoadError(e?.message || 'Could not load technicians.');
@@ -103,6 +106,8 @@ export default function TechnicianAssignPanel({ items = [] }) {
         bad[ticket.id] = e?.message || 'Assignment failed';
       }
     }
+    const doneNow = items.filter(({ ticket }) => assigned[ticket.id] || ok[ticket.id]).length;
+    if (doneNow === items.length && !Object.keys(bad).length) onAssigned?.(Object.values(ok)[0], { ...assigned, ...ok });
     setAssigned((cur) => ({ ...cur, ...ok }));
     setFailed((cur) => {
       const next = { ...cur };
@@ -112,7 +117,30 @@ export default function TechnicianAssignPanel({ items = [] }) {
     setBusy(false);
   };
 
+  // direct: the Thank You popup — one tap assigns every unassigned device to
+  // that technician, then the popup closes.
+  const assignDirect = async (t) => {
+    if (busy || !canAssign(t)) return;
+    const list = items.filter(({ ticket }) => !assigned[ticket.id]);
+    setBusy(true);
+    const ok = {};
+    const bad = {};
+    for (const { ticket } of list) {
+      try {
+        await ticketApi.patch(`/tickets/${ticket.id}`, { body: { assignedTechnicianId: t.id } });
+        ok[ticket.id] = t;
+      } catch (e) {
+        bad[ticket.id] = e?.message || 'Assignment failed';
+      }
+    }
+    setAssigned((cur) => ({ ...cur, ...ok }));
+    setFailed(bad);
+    setBusy(false);
+    if (!Object.keys(bad).length) onAssigned?.(t, { ...assigned, ...ok });
+  };
+
   const pickTech = (t) => {
+    if (direct) { assignDirect(t); return; }
     if (!canAssign(t)) return;
     if (pickerFor === 'all') setAllTech(t);
     else if (pickerFor) setPicks((p) => ({ ...p, [pickerFor]: t }));
@@ -125,7 +153,55 @@ export default function TechnicianAssignPanel({ items = [] }) {
     return `${items.length} Device${items.length === 1 ? '' : 's'} · ${doneCount} Assigned${left ? ` · ${left} Unassigned` : ''}`;
   }, [items.length, doneCount]);
 
+  const pickerBody = (
+    <>
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: 10 }} />
+        <View className="flex-row items-center" style={{ marginBottom: 8 }}>
+          <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: INK }}>Select Technician</Text>
+          <Pressable onPress={() => (direct ? onClose?.() : setPickerFor(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} color={MUTED} />
+          </Pressable>
+        </View>
+        <ScrollView style={{ maxHeight: 420 }}>
+          {techs.map((t) => {
+            const ok = canAssign(t);
+            const sel = direct ? (assignedTo?.id === t.id || Object.values(assigned).some((a) => a?.id === t.id)) : (pickerFor === 'all' ? allTech : picks[pickerFor])?.id === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => pickTech(t)}
+                disabled={!ok}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: sel, disabled: !ok }}
+                className="flex-row items-center active:opacity-80"
+                style={{ minHeight: 52, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6, borderRadius: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? ACCENT : LINE, backgroundColor: sel ? MINT : '#FFFFFF', opacity: ok ? 1 : 0.5 }}
+              >
+                <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT }}>
+                  <User size={15} color={ACCENT} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
+                  <Text style={{ fontSize: 13.5, fontWeight: '700', color: INK }} numberOfLines={1}>{techName(t)}</Text>
+                  <Text style={{ fontSize: 11.5, color: MUTED }} numberOfLines={1}>
+                    {t.roleLabel || 'Technician'}
+                    {t.isAvailable === false ? <Text style={{ color: RED, fontWeight: '700' }}> · Unavailable</Text>
+                      : t.isAvailable === true ? <Text style={{ color: GREEN, fontWeight: '700' }}> · Available</Text> : null}
+                  </Text>
+                </View>
+                {sel ? <Check size={16} color={ACCENT} strokeWidth={3} /> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        {direct && busy ? <ActivityIndicator color={ACCENT} style={{ marginBottom: 8 }} /> : null}
+        {direct && failedCount ? <Text style={{ color: RED, fontSize: 12, marginBottom: 8 }}>{Object.values(failed)[0]}</Text> : null}
+        {direct && loading ? <ActivityIndicator color={ACCENT} /> : null}
+    </>
+  );
+
   if (!items.length) return null;
+  // Inside the Thank You popup (onClose given) the picker replaces the panel in
+  // place — a second Modal stacked on the popup didn't show on Android.
+  if (direct || (onClose && pickerFor)) return <View style={{ padding: 14 }}>{pickerBody}</View>;
 
   return (
     <View style={{ marginHorizontal: 14, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF', padding: 12 }}>
@@ -149,7 +225,7 @@ export default function TechnicianAssignPanel({ items = [] }) {
             return (
               <Pressable
                 key={m.key}
-                onPress={() => setMode(m.key)}
+                onPress={() => { setMode(m.key); if (m.key === 'later') onClose?.(); }}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
                 className="flex-1 items-center active:opacity-80"
@@ -255,44 +331,8 @@ export default function TechnicianAssignPanel({ items = [] }) {
       ) : null}
 
       {/* Technician list (real shop technicians). */}
-      <ResponsiveModal visible={!!pickerFor} onClose={() => setPickerFor(null)} maxWidth={480}>
-        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: LINE, marginBottom: 10 }} />
-        <View className="flex-row items-center" style={{ marginBottom: 8 }}>
-          <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: INK }}>Select Technician</Text>
-          <Pressable onPress={() => setPickerFor(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={20} color={MUTED} />
-          </Pressable>
-        </View>
-        <ScrollView style={{ maxHeight: 420 }}>
-          {techs.map((t) => {
-            const ok = canAssign(t);
-            const sel = (pickerFor === 'all' ? allTech : picks[pickerFor])?.id === t.id;
-            return (
-              <Pressable
-                key={t.id}
-                onPress={() => pickTech(t)}
-                disabled={!ok}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: sel, disabled: !ok }}
-                className="flex-row items-center active:opacity-80"
-                style={{ minHeight: 52, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6, borderRadius: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? ACCENT : LINE, backgroundColor: sel ? MINT : '#FFFFFF', opacity: ok ? 1 : 0.5 }}
-              >
-                <View className="items-center justify-center" style={{ height: 32, width: 32, borderRadius: 16, backgroundColor: MINT }}>
-                  <User size={15} color={ACCENT} strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-                  <Text style={{ fontSize: 13.5, fontWeight: '700', color: INK }} numberOfLines={1}>{techName(t)}</Text>
-                  <Text style={{ fontSize: 11.5, color: MUTED }} numberOfLines={1}>
-                    {t.roleLabel || 'Technician'}
-                    {t.isAvailable === false ? <Text style={{ color: RED, fontWeight: '700' }}> · Unavailable</Text>
-                      : t.isAvailable === true ? <Text style={{ color: GREEN, fontWeight: '700' }}> · Available</Text> : null}
-                  </Text>
-                </View>
-                {sel ? <Check size={16} color={ACCENT} strokeWidth={3} /> : null}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      <ResponsiveModal visible={!!pickerFor && !onClose} onClose={() => setPickerFor(null)} maxWidth={480}>
+        {pickerBody}
       </ResponsiveModal>
     </View>
   );

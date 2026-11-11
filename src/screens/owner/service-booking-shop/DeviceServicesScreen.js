@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   Wrench,
   BatteryMedium,
@@ -58,6 +58,7 @@ import { rs } from '../../../utils/responsive';
 // hook reads the live window during render.
 import { useResponsive } from '../../../theme/responsive';
 import { ResponsiveModal } from '../../../components/responsive';
+import RepairIssuesPicker, { SERVICE_CHARGE_CODE } from './RepairIssuesPicker';
 
 // GGFIX palette (kept as the same named constants used throughout this file,
 // values aligned to the app's Primary/Dark/Bright green + mint system so the
@@ -145,6 +146,11 @@ let nextOtherId = 1;
 
 export default function DeviceServicesScreen({ navigation, route }) {
   const params = route?.params || {};
+  // Edit Issue (from Edit Booking): the shared picker — search, price + service
+  // charge + warranty per issue, notes — seeded with the booking's issues.
+  const editIssues = !!params.editIssues;
+  const [pickerList, setPickerList] = useState([]);
+  const pickerIssues = pickerList.filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE);
   const insets = useSafeAreaInsets();
   const [services, setServices] = useState([]);
   const [mainCats, setMainCats] = useState([]);
@@ -354,6 +360,12 @@ export default function DeviceServicesScreen({ navigation, route }) {
   }, [pickedIds, rows, customIssues]);
 
   const onContinue = () => {
+    if (editIssues) {
+      if (!pickerIssues.length) return;
+      Keyboard.dismiss();
+      navigation.navigate('ServicePriceEstimate', { ...params, services: pickerList });
+      return;
+    }
     const byId = {}; (services || []).forEach((s) => { byId[s.id] = s; });
     // The group a service is listed under, shown above it in Bill Details.
     const catByService = {};
@@ -382,6 +394,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
     }));
     const all = [...selected, ...customSelected];
     if (all.length === 0) return;
+    Keyboard.dismiss();
     navigation.navigate('ServicePriceEstimate', { ...params, services: all });
   };
 
@@ -406,7 +419,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
     );
   }
 
-  const totalSelected = pickedIds.size + customIssues.length;
+  const totalSelected = editIssues ? pickerIssues.length : pickedIds.size + customIssues.length;
 
   // Select Issue tile order: these groups first, the rest after in API order.
   // "Mainboard IC / Sub-Board IC" sits right after Battery & Charging.
@@ -477,6 +490,14 @@ export default function DeviceServicesScreen({ navigation, route }) {
         {/* ── Select Issue — one tile per repair group (the device category's
             groups from /repair-services/grouped). A tile opens that group's
             issues in a sheet; ✓ marks a group with picks. ─────────────── */}
+        {editIssues ? (
+          <View className="px-4" style={{ paddingTop: 16 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 10 }}>
+              Select Issue<Text style={{ color: '#DC2626' }}> *</Text>
+            </Text>
+            <RepairIssuesPicker categoryId={params.categoryId} initialServices={params.prefillServices || []} onChange={setPickerList} isTablet={r.isTablet} withNotes chargePerService />
+          </View>
+        ) : (
         <View className="px-4" style={{ paddingTop: 16 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: INK, marginBottom: 10 }}>
             Select Issue<Text style={{ color: '#DC2626' }}> *</Text>
@@ -541,6 +562,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
             </View>
           ) : null}
         </View>
+        )}
       </KeyboardAwareScrollView>
 
       {/* ── Sticky bottom summary — ONE bar, always mounted ───────────────
@@ -589,7 +611,7 @@ export default function DeviceServicesScreen({ navigation, route }) {
                 className="font-medium"
                 style={{ fontSize: 13, color: totalSelected > 0 ? '#FFFFFF' : ICON_TINT }}
               >
-                {totalSelected > 0 ? `Estimated ₹${formatINR(cartTotal)}` : 'Add a service to continue'}
+                {totalSelected > 0 ? `Estimated ₹${formatINR(editIssues ? pickerList.reduce((t, x) => t + (Number(x.price) || 0), 0) : cartTotal)}` : 'Add a service to continue'}
               </Text>
             </View>
             <View className="flex-row items-center">

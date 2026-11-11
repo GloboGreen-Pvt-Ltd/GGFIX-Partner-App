@@ -855,7 +855,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         ) : null}
 
         {/* ── WhatsApp booking confirmation (new bookings only) ───────── */}
-        {deviceCount > 0 && !params.editMode ? (
+        {false && deviceCount > 0 && !params.editMode ? (
           <View style={[{ paddingHorizontal: rs(16), paddingTop: rs(12) }, colStyle]}>
             <Pressable
               onPress={() => setWhatsappOptIn((v) => !v)}

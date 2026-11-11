@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StatusBar, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, RefreshControl, Pressable, StatusBar, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import { launchCamera } from '../../../components/InAppCamera';
-import { ArrowLeft, Camera, CircleCheck, Circle, Clock, ImagePlus, Wrench, X } from 'lucide-react-native';
+import { ArrowLeft, Camera, CircleCheck, Circle, Clock, ImagePlus, Mic, Square, Trash2, Wrench, X } from 'lucide-react-native';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import VoiceNotePlayer from '../../../components/VoiceNotePlayer';
 import { ticketApi } from '../../../api/client';
 import { getModelsByBrand, uploadMedia } from '../../../api/masterData';
 import { confirm, notify } from '../../../components/confirm';
 import ImageViewerModal from '../../../components/ImageViewerModal';
 import { useResponsive } from '../../../theme/responsive';
 import RepairIssuesPicker, { SERVICE_CHARGE_CODE } from '../service-booking-shop/RepairIssuesPicker';
-import { estimatedTotalOf, priceItemsFromTicket } from './ReceiptCard';
+import { chargeIssueOf, groupServiceCharges, estimatedTotalOf, priceItemsFromTicket } from './ReceiptCard';
 import { ticketStatusLabel } from './TicketDetailScreen';
 
 const ACCENT = '#035C6C';
@@ -66,6 +68,7 @@ export default function ReEstimateScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [added, setAdded] = useState([]);           // from RepairIssuesPicker
+  const [pickedIds, setPickedIds] = useState(null); // every serviceId still selected (null = not loaded)
   const [reason, setReason] = useState('');          // free Notes
   const [photos, setPhotos] = useState([]);         // uploaded URLs
   const [uploading, setUploading] = useState(false);
@@ -73,15 +76,54 @@ export default function ReEstimateScreen({ navigation, route }) {
   const [approvedNow, setApprovedNow] = useState(false);
   const [saving, setSaving] = useState(false);
   const sendingRef = useRef(false);
+  // Optional audio note (same recorder + upload as Service Price Estimate);
+  // saved on submit as a ticket note carrying the audio URL.
+  const [audioUrl, setAudioUrl] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recLiveRef = useRef(false);
+  useEffect(() => () => { if (recLiveRef.current) { try { recorder.stop(); } catch (_) {} } }, [recorder]);
+  const startRec = async () => {
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) { notify('Microphone needed', 'Allow microphone access to record an audio note.'); return; }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      recLiveRef.current = true;
+      setRecording(true);
+    } catch (e) { notify('Could not start recording', e?.message || 'Please try again.'); }
+  };
+  const stopRec = async () => {
+    setRecording(false);
+    if (!recLiveRef.current) return;
+    recLiveRef.current = false;
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) return;
+      setAudioBusy(true);
+      const ext = (uri.split('.').pop() || 'm4a').toLowerCase();
+      const url = await uploadMedia({ uri, name: `re-estimate-${Date.now()}.${ext}`, type: `audio/${ext === 'mp3' ? 'mpeg' : ext}` }, 'complaint-audio');
+      if (!url) throw new Error('Upload returned no URL');
+      setAudioUrl(url);
+    } catch (e) { notify('Upload failed', e?.message || 'Could not upload recording.'); }
+    finally { setAudioBusy(false); }
+  };
   // The "what's missing" line shows only after Submit is tapped, not on arrival.
   const [tried, setTried] = useState(false);
   // The technician request being answered (REQUESTED revision), when any.
   const [request, setRequest] = useState(null);
   const [requestLost, setRequestLost] = useState(false);
   const [viewer, setViewer] = useState(null);
+  // Technician's request photos — kept even when the request is no longer open.
+  const [techPhotos, setTechPhotos] = useState([]);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent: pull-to-refresh keeps the form on screen (no full loader).
+  const load = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setLoadError(null);
     try {
       const t = await ticketApi.get(`/tickets/${ticketId}`);
@@ -99,6 +141,11 @@ export default function ReEstimateScreen({ navigation, route }) {
         const open = req && String(req.status || 'REQUESTED').toUpperCase() === 'REQUESTED';
         setRequest(open ? req : null);
         setRequestLost(!open);
+      }
+      {
+        const pick = (r) => (Array.isArray(r?.requestImages) ? r.requestImages : []).filter((u) => typeof u === 'string' && u.trim());
+        const cand = [t?.activeReEstimate, requestParam, t?.latestReEstimate].find((r) => pick(r).length);
+        setTechPhotos(cand ? pick(cand) : []);
       }
       setTicket(t);
       if (t.brandId && t.modelId) {
@@ -129,14 +176,35 @@ export default function ReEstimateScreen({ navigation, route }) {
       note: String(request.reason || '').trim(),
     }];
   }, [request]);
-  const requestPhotos = (Array.isArray(request?.requestImages) ? request.requestImages : []).filter((u) => typeof u === 'string' && u.trim());
+  const requestPhotos = (Array.isArray(request?.requestImages) && request.requestImages.length ? request.requestImages : techPhotos)
+    .filter((u) => typeof u === 'string' && u.trim());
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(true); } finally { setPullRefreshing(false); } };
 
   const original = useMemo(() => priceItemsFromTicket(ticket), [ticket]);
   const originalTotal = ticket ? estimatedTotalOf(ticket, original) : 0;
+  const originalSeed = useMemo(() => original.filter((i) => i.id || i.serviceId).map((i) => ({
+    serviceId: i.id || i.serviceId, serviceCode: i.code || null, serviceName: i.label || i.serviceName,
+    price: Number(i.amount ?? i.price) || 0, warranty: i.warranty || null,
+  })).concat(original.filter((i) => chargeIssueOf(i.label || i.serviceName)).map((i) => ({
+    // Original "Service Charge – <issue>" lines: the picker folds them into
+    // that issue's Service Charge box.
+    serviceId: null, serviceCode: SERVICE_CHARGE_CODE, serviceName: i.label || i.serviceName,
+    price: Number(i.amount ?? i.price) || 0,
+  }))), [original]);
+  const originalNames = useMemo(() => originalSeed.filter((o) => o.serviceId).map((o) => String(o.serviceName || '').toLowerCase()), [originalSeed]);
   const originalIds = useMemo(() => original.map((i) => i.id || i.serviceId).filter(Boolean), [original]);
   const extra = added.reduce((s, x) => s + (Number(x.price) || 0), 0);
   const unpriced = added.filter((x) => !x.priceSet);
-  const revisedTotal = Number(originalTotal || 0) + extra;
+  // Original issues the user removed (X) in Selected Services: sent as
+  // removedItemIds (server identity = id, else code, else label) and taken
+  // off the revised total. Restored by the server if the customer rejects.
+  const removedOriginals = useMemo(() => (pickedIds == null ? [] : originalSeed.filter((o) => o.serviceId && !pickedIds.includes(o.serviceId))), [pickedIds, originalSeed]);
+  const removedNames = removedOriginals.map((o) => String(o.serviceName || '').toLowerCase());
+  // Issue prices + their own service-charge lines (the server drops both).
+  const removedAmount = removedOriginals.reduce((s2, x) => s2 + (Number(x.price) || 0), 0)
+    + original.filter((i) => removedNames.includes(String(chargeIssueOf(i.label || i.serviceName) || '').toLowerCase()))
+      .reduce((s2, i) => s2 + (Number(i.amount ?? i.price) || 0), 0);
+  const revisedTotal = Math.max(0, Number(originalTotal || 0) + extra - removedAmount);
 
   const now = useMemo(() => new Date(), []);
   const currentDelivery = ticket?.estimatedDeliveryAt ? new Date(ticket.estimatedDeliveryAt) : null;
@@ -148,10 +216,14 @@ export default function ReEstimateScreen({ navigation, route }) {
   const reasonText = [
     ...added.map((x) => (x.note ? `${x.serviceName}: ${x.note}` : '')),
     reason.trim(),
-  ].filter(Boolean).join('\n') || `Additional work: ${added.filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE).map((x) => x.serviceName).join(', ')}`;
-  const canSubmit = added.length > 0 && unpriced.length === 0 && !uploading && !saving;
-  const hint = !added.length ? 'Add at least one additional issue.'
+  ].filter(Boolean).join('\n') || (added.length
+    ? `Additional work: ${added.filter((x) => x.serviceCode !== SERVICE_CHARGE_CODE).map((x) => x.serviceName).join(', ')}`
+    : `Removed: ${removedOriginals.map((o) => o.serviceName).join(', ')}`);
+  // A re-estimate may only remove original issues (no new ones).
+  const canSubmit = (added.length > 0 || removedOriginals.length > 0) && unpriced.length === 0 && approvedNow && !uploading && !saving && !recording && !audioBusy;
+  const hint = !added.length && !removedOriginals.length ? 'Add or remove at least one repair issue.'
     : unpriced.length ? `Enter a price for ${unpriced[0].serviceName}.`
+    : !approvedNow ? 'Tick Customer Re-Estimate Approval to submit.'
     : uploading ? 'Uploading photo…' : '';
 
   const addPhoto = async (fromCamera) => {
@@ -197,8 +269,19 @@ export default function ReEstimateScreen({ navigation, route }) {
           customerApproved: approvedNow,
           // Links + converts the technician's request (REQUESTED → AWAITING_APPROVAL).
           ...(request?.id ? { requestId: request.id } : {}),
+          // A removed issue takes its own "Service Charge – <issue>" line with it
+          // (charge lines are identified by label on the server).
+          ...(removedOriginals.length ? { removedItemIds: removedOriginals.flatMap((o) => [String(o.serviceId), ...original
+            .filter((i) => chargeIssueOf(i.label || i.serviceName)?.toLowerCase() === String(o.serviceName || '').toLowerCase())
+            .map((i) => String(i.label || i.serviceName).trim().toLowerCase())]) } : {}),
         },
       });
+      if (audioUrl) {
+        // Best effort: the re-estimate is saved even if the note fails.
+        await ticketApi.post(`/tickets/${ticketId}/notes`, {
+          body: { note: 'Re-estimate audio note', audioUrl, isInternal: false },
+        }).catch(() => notify('Audio note not saved', 'The re-estimate was saved.', { preset: 'error' }));
+      }
       notify('Re-estimate submitted', approvedNow ? 'Revised estimate approved by the customer.' : 'Waiting for customer approval.', { preset: 'done' });
       navigation.goBack();
     } catch (e) {
@@ -258,7 +341,7 @@ export default function ReEstimateScreen({ navigation, route }) {
         ) : null}
       </View>
 
-      <KeyboardAwareScrollView bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}>
+      <KeyboardAwareScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={[ACCENT]} tintColor={ACCENT} />} bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24 }}>
         <View style={col}>
           {/* Technician's request being answered */}
           {request ? (
@@ -271,10 +354,12 @@ export default function ReEstimateScreen({ navigation, route }) {
                 <ReqRow label="Reason" value={request.reason || '—'} />
                 <ReqRow label="Proposed" value={request.proposedAmount != null && request.proposedAmount !== '' ? inr(request.proposedAmount) : 'Not Given'} />
                 {request.technicianNotes ? <ReqRow label="Notes" value={request.technicianNotes} /> : null}
+                <Text style={{ marginTop: 8, fontSize: 11.5, fontWeight: '800', color: '#6B7280' }}>Supporting Photos ({requestPhotos.length})</Text>
+                {!requestPhotos.length ? <Text style={{ marginTop: 2, fontSize: 11.5, color: '#9CA3AF' }}>No photos attached by the technician.</Text> : null}
                 {requestPhotos.length ? (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                     {requestPhotos.map((u, i) => (
-                      <Pressable key={`${u}-${i}`} onPress={() => setViewer(i)} accessibilityRole="imagebutton" accessibilityLabel={`Request photo ${i + 1}`} style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', backgroundColor: PAGE }}>
+                      <Pressable key={`${u}-${i}`} onPress={() => setViewer(i)} accessibilityRole="imagebutton" accessibilityLabel={`Request photo ${i + 1}`} style={{ width: 72, height: 72, borderRadius: 10, overflow: 'hidden', backgroundColor: PAGE }}>
                         <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       </Pressable>
                     ))}
@@ -292,22 +377,59 @@ export default function ReEstimateScreen({ navigation, route }) {
           {/* Original estimate — read-only */}
           <Title text="Original Estimated Cost" hint="(read-only)" />
           <Card>
-            {original.length ? original.map((i, n) => (
+            {/* An issue with its own service charge: a. issue · b. Service Charge. */}
+            {original.length ? groupServiceCharges(original).map((i, n) => (i.charge != null ? (
+              <View key={`${i.id || i.label}-${n}`} style={{ paddingVertical: 5 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: INK }} numberOfLines={1}>{n + 1}. {i.label || i.serviceName || 'Service'}</Text>
+                <View style={{ flexDirection: 'row', paddingLeft: 16, marginTop: 3 }}>
+                  <Text style={{ flex: 1, fontSize: 12.5, color: INK }} numberOfLines={1}>a. {i.label || i.serviceName || 'Service'}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: INK }}>{inr(i.amount ?? i.price)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', paddingLeft: 16, marginTop: 3 }}>
+                  <Text style={{ flex: 1, fontSize: 12.5, color: MUTED }}>b. Service Charge</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: INK }}>{inr(i.charge)}</Text>
+                </View>
+              </View>
+            ) : (
               <View key={`${i.id || i.label}-${n}`} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5 }}>
-                <Text style={{ flex: 1, fontSize: 13, color: INK }} numberOfLines={1}>{i.label || i.serviceName || 'Service'}</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: INK }} numberOfLines={1}>{n + 1}. {i.label || i.serviceName || 'Service'}</Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: INK }}>{inr(i.amount ?? i.price)}</Text>
               </View>
-            )) : <Text style={{ fontSize: 12.5, color: MUTED }}>No services recorded.</Text>}
+            ))) : <Text style={{ fontSize: 12.5, color: MUTED }}>No services recorded.</Text>}
             <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: LINE, marginTop: 6, paddingTop: 8 }}>
               <Text style={{ flex: 1, fontSize: 13, fontWeight: '800', color: INK }}>Original Estimated Cost</Text>
               <Text style={{ fontSize: 14, fontWeight: '800', color: ACCENT }}>{inr(originalTotal)}</Text>
             </View>
           </Card>
 
-          {/* Additional issues (new only) */}
-          <Title text="Additional Issues" required />
+          {/* Audio note (optional) — before the issues */}
+          <Title text="Audio Note" hint="(Optional)" />
           <Card>
-            <RepairIssuesPicker key={request?.id || 'new'} categoryId={categoryId} initialServices={requestSeed} onChange={setAdded} isTablet={r.isTablet} excludeIds={originalIds} withNotes chargePerService />
+            {audioUrl ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}><VoiceNotePlayer url={audioUrl} compact /></View>
+                <Pressable onPress={() => setAudioUrl('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Delete audio note" style={{ marginLeft: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: '#FDECEC', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash2 size={17} color={RED} />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row' }}><MediaBtn
+                icon={audioBusy ? <ActivityIndicator size="small" color={ACCENT} /> : recording ? <Square size={16} color={RED} /> : <Mic size={17} color={ACCENT} />}
+                label={audioBusy ? 'Uploading…' : recording ? 'Stop Recording' : 'Record Audio Note'}
+                disabled={audioBusy}
+                onPress={recording ? stopRec : startRec}
+              /></View>
+            )}
+          </Card>
+
+          {/* Repair issues (new only; original issues stay above) */}
+          <Title text="Repair Issue" required />
+          <Card>
+            {/* Original issues are listed in Selected Services too (with their prices);
+                only the new ones are sent as the re-estimate. */}
+            <RepairIssuesPicker key={`${request?.id || 'new'}-${ticket?.id || ''}`} categoryId={categoryId} initialServices={[...originalSeed, ...requestSeed]} onChange={(list) => { setPickedIds(list.map((x) => x.serviceId).filter(Boolean)); setAdded(list.filter((x) => (x.serviceId ? !originalIds.includes(x.serviceId)
+              // an original issue's own charge line is not new
+              : !(x.serviceCode === SERVICE_CHARGE_CODE && originalNames.includes(String(chargeIssueOf(x.serviceName) || '').toLowerCase()))))); }} isTablet={r.isTablet} withNotes chargePerService />
           </Card>
 
           {/* Supporting photos */}
@@ -330,6 +452,17 @@ export default function ReEstimateScreen({ navigation, route }) {
                 ))}
               </View>
             ) : null}
+            {/* Technician's uploaded photos — always listed, never hidden. */}
+            <Text style={{ marginTop: 12, fontSize: 11.5, fontWeight: '800', color: '#6B7280' }}>Technician Uploaded Photos ({requestPhotos.length})</Text>
+            {requestPhotos.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {requestPhotos.map((u, i) => (
+                  <Pressable key={`tech-${u}-${i}`} onPress={() => setViewer(i)} accessibilityRole="imagebutton" accessibilityLabel={`Technician photo ${i + 1}`} style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', backgroundColor: PAGE }}>
+                    <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  </Pressable>
+                ))}
+              </View>
+            ) : <Text style={{ marginTop: 2, fontSize: 11.5, color: '#9CA3AF' }}>No photos uploaded by the technician.</Text>}
           </Card>
 
           {/* Extra repair time → proposed delivery */}
@@ -364,12 +497,13 @@ export default function ReEstimateScreen({ navigation, route }) {
           <Card>
             <SumRow label="Original Estimated Cost" value={inr(originalTotal)} />
             <SumRow label="Additional Amount" value={added.length ? (unpriced.length ? 'Not Estimated' : `+ ${inr(extra)}`) : '—'} color={AMBER} />
+            {removedOriginals.length ? <SumRow label={`Removed (${removedOriginals.map((o) => o.serviceName).join(', ')})`} value={`− ${inr(removedAmount)}`} color={RED} /> : null}
             <View style={{ height: 1, backgroundColor: LINE, marginVertical: 6 }} />
             <SumRow label="Revised Total" value={inr(revisedTotal)} bold />
           </Card>
 
           {/* Customer approval */}
-          <Title text="Customer Re-Estimate Approval" />
+          <Title text="Customer Re-Estimate Approval" required />
           <Pressable
             onPress={() => setApprovedNow((v) => !v)}
             accessibilityRole="checkbox"
@@ -383,7 +517,7 @@ export default function ReEstimateScreen({ navigation, route }) {
               <Text style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>
                 {approvedNow
                   ? `The customer approved ${added.length || 'the'} additional issue${added.length === 1 ? '' : 's'}, the revised total ${inr(revisedTotal)}${proposedDelivery ? ` and delivery by ${fmtDateTime(proposedDelivery)}` : ''}.`
-                  : 'Leave unticked to send it for approval — the additional work waits until the customer approves.'}
+                  : 'Required — confirm the customer approved the re-estimate.'}
               </Text>
             </View>
           </Pressable>
