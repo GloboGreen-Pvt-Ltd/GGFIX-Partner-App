@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
+import { RefreshControl,
   View,
   Text,
   StyleSheet,
@@ -277,6 +277,12 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
   }, [navigation]);
   const onBack = navigation?.canGoBack?.() ? () => navigation.goBack() : null;
 
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
+
   const load = useCallback(async () => {
     if (!shopId) { setLoading(false); return; }
     try {
@@ -427,7 +433,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
     <View style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScreenHeader title="Pickup Service" onBack={onBack} topInset={insets.top} />
-      <ScrollView
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"

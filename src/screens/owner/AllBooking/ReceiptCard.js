@@ -58,6 +58,31 @@ export function priceItemsFromTicket(ticket) {
   return ticket.services?.map?.((s) => ({ id: s.id, label: s.serviceName, amount: s.price })) || [];
 }
 
+// "Service Charge – <issue>" lines folded onto their issue:
+// [{ ...issueItem, charge: number | null }]. A charge line whose issue isn't
+// on the list stays a row of its own.
+const CHARGE_RE = /^service charge\s*[–-]\s*(.+)$/i;
+export const chargeIssueOf = (label) => (String(label || '').match(CHARGE_RE) || [])[1]?.trim() || null;
+export function groupServiceCharges(items) {
+  const list = Array.isArray(items) ? items : [];
+  const out = [];
+  const byLabel = {};
+  list.forEach((it) => {
+    if (chargeIssueOf(it?.label || it?.serviceName)) return;
+    const g = { ...it, charge: null };
+    out.push(g);
+    byLabel[String(it?.label || it?.serviceName || '').trim().toLowerCase()] = g;
+  });
+  list.forEach((it) => {
+    const issue = chargeIssueOf(it?.label || it?.serviceName);
+    if (!issue) return;
+    const g = byLabel[issue.toLowerCase()];
+    if (g) g.charge = (Number(g.charge) || 0) + (Number(it.amount ?? it.price) || 0);
+    else out.push({ ...it, charge: null });
+  });
+  return out;
+}
+
 // An issue's typed note shown with it: "Display Replacement (cracked glass)".
 export const withNote = (name, note) => (name && String(note || '').trim() ? `${name} (${String(note).trim()})` : name);
 // Saved tickets keep those notes as "<issue>: <note>" lines of issueDescription.
@@ -175,7 +200,7 @@ const RECEIPT_STATUS_LABEL = {
   READY: 'Ready for Delivery',
   INVOICE_GENERATED: 'Invoice Generated',
   INVOICE_READY: 'Invoice Ready',
-  DELIVERED_PROCESSING: 'Dispatched',
+  DELIVERED_PROCESSING: 'Out for Delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
   RETURNED: 'Returned',

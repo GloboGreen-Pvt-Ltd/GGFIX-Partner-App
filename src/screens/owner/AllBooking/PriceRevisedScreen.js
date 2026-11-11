@@ -6,7 +6,7 @@ import { ArrowLeft, CircleCheck, Circle, RotateCcw, Smartphone, XCircle } from '
 import { ticketApi } from '../../../api/client';
 import { confirm, notify } from '../../../components/confirm';
 import { useResponsive } from '../../../theme/responsive';
-import { estimatedTotalOf, priceItemsFromTicket } from './ReceiptCard';
+import { chargeIssueOf, estimatedTotalOf, priceItemsFromTicket } from './ReceiptCard';
 
 const ACCENT = '#035C6C';
 const MINT = '#E5F3F5';
@@ -29,7 +29,7 @@ const amountOf = (m) => Number(m?.amount ?? m?.price ?? 0) || 0;
 const identityOf = (m) => {
   for (const k of ['id', 'serviceId', 'code', 'serviceCode', 'label', 'serviceName']) {
     const v = m?.[k];
-    if (v != null && String(v).trim() && String(v).toUpperCase() !== 'OTHER') return String(v).trim().toLowerCase();
+    if (v != null && String(v).trim() && !['OTHER', 'SERVICE_CHARGE'].includes(String(v).toUpperCase())) return String(v).trim().toLowerCase();
   }
   return '';
 };
@@ -97,6 +97,17 @@ export default function PriceRevisedScreen({ navigation, route }) {
     const next = isCancelled ? 0 : blank || !valid ? old : Number(raw);
     return { m, i, old, raw, valid, next, isCancelled, changed: isCancelled || (!blank && valid && Number(raw) !== old) };
   });
+  // Each issue's own "Service Charge – <issue>" row is edited on the issue's
+  // card (price + service charge); the rows still go to the server separately.
+  const lbl = (x) => String(x.m.label || x.m.serviceName || '').trim();
+  const chargeFor = {};
+  const attached = new Set();
+  rows.forEach((x) => {
+    const iss = chargeIssueOf(lbl(x));
+    if (!iss) return;
+    const t = rows.find((y) => !chargeIssueOf(lbl(y)) && lbl(y).toLowerCase() === iss.toLowerCase());
+    if (t && !chargeFor[t.i]) { chargeFor[t.i] = x; attached.add(x.i); }
+  });
   const changes = rows.filter((x) => x.changed);
   const delta = rows.reduce((s, x) => s + (x.isCancelled ? -x.old : (x.valid ? x.next - x.old : 0)), 0);
   const proposed = Math.max(0, currentTotal + delta);
@@ -107,18 +118,21 @@ export default function PriceRevisedScreen({ navigation, route }) {
   const allCancelled = rows.length > 0 && rows.every((x) => x.isCancelled);
   const notesOk = reason !== 'Other' || notes.trim().length >= 3;
 
-  const canSubmit = changes.length > 0 && !invalid.length && !allCancelled && !!reason && notesOk && !saving;
+  // Customer approval is mandatory for every price revision.
+  const canSubmit = changes.length > 0 && !invalid.length && !allCancelled && !!reason && notesOk && approvedNow && !saving;
   const hint = !changes.length ? 'Change a price or cancel a service.'
     : invalid.length ? `Enter a new price for ${invalid[0].m.label || 'the service'}.`
     : allCancelled ? 'At least one service must stay on the booking.'
     : !reason ? 'Select the reason for the revision.'
-    : !notesOk ? 'Add a note for "Other".' : '';
+    : !notesOk ? 'Add a note for "Other".'
+    : !approvedNow ? 'Tick Customer Approval to submit.' : '';
 
   const toggleCancel = async (i, label) => {
-    if (cancelled[i]) { setCancelled((c) => { const n = { ...c }; delete n[i]; return n; }); return; }
+    const both = chargeFor[i] ? [i, chargeFor[i].i] : [i]; // an issue and its service charge go together
+    if (cancelled[i]) { setCancelled((c) => { const n = { ...c }; both.forEach((k) => delete n[k]); return n; }); return; }
     const ok = await confirm({ title: 'Cancel this service?', message: `${label} will be removed from the estimate. Its price stays in the history.`, confirmText: 'Cancel Service', destructive: true });
     if (!ok) return;
-    setCancelled((c) => ({ ...c, [i]: true }));
+    setCancelled((c) => { const n = { ...c }; both.forEach((k) => { n[k] = true; }); return n; });
     if (!reason) setReason('Service Cancelled');
   };
 
@@ -138,7 +152,7 @@ export default function PriceRevisedScreen({ navigation, route }) {
           })),
           reason,
           notes: notes.trim() || null,
-          customerApproved: needsApproval ? approvedNow : null,
+          customerApproved: approvedNow,
         },
       });
       notify('Price revised', needsApproval && !approvedNow ? 'Saved — waiting for customer approval.' : 'Booking estimate updated.', { preset: 'done' });
@@ -218,9 +232,58 @@ export default function PriceRevisedScreen({ navigation, route }) {
           <Title text="Existing Services" />
           {rows.length === 0 ? (
             <Card><Text style={{ fontSize: 12.5, color: MUTED }}>This booking has no services to revise. Use Re-Est to add one.</Text></Card>
-          ) : rows.map((x) => {
-            const diff = x.isCancelled ? -x.old : (x.valid ? x.next - x.old : 0);
+          ) : rows.filter((x) => !attached.has(x.i)).map((x) => {
+            const ch = chargeFor[x.i] || null;
+            const diffOf = (y) => (y.isCancelled ? -y.old : (y.valid ? y.next - y.old : 0));
+            const diff = diffOf(x) + (ch ? diffOf(ch) : 0);
             const label = x.m.label || x.m.serviceName || 'Service';
+            const priceBox = (y, ph) => (
+              <View style={{ flexDirection: 'row', alignItems: 'center', height: 40, marginTop: 2, borderRadius: 10, borderWidth: 1, borderColor: y.valid ? LINE : '#FECACA', paddingHorizontal: 10, backgroundColor: '#FFFFFF' }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: MUTED, marginRight: 4 }}>₹</Text>
+                <TextInput
+                  value={y.raw}
+                  onChangeText={(v) => setPrices((p) => ({ ...p, [y.i]: v.replace(/[^0-9.]/g, '') }))}
+                  keyboardType="numeric"
+                  placeholder={ph}
+                  placeholderTextColor={SUBTLE}
+                  cursorColor={ACCENT}
+                  style={{ flex: 1, paddingVertical: 0, fontSize: 14, fontWeight: '800', color: INK }}
+                />
+              </View>
+            );
+            if (ch && !x.isCancelled) {
+              // Issue + its service charge: old "price + service = total" on the
+              // right, then the new price and service charge, then the difference.
+              return (
+                <View key={`${identityOf(x.m)}-${x.i}`} style={{ marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: x.changed || ch.changed ? MINT_LINE : LINE, backgroundColor: '#FFFFFF', padding: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '800', color: INK }} numberOfLines={2}>{label}</Text>
+                    <Pressable onPress={() => toggleCancel(x.i, label)} hitSlop={6} accessibilityRole="button" className="flex-row items-center active:opacity-70" style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFFFFF' }}>
+                      <XCircle size={13} color={RED} />
+                      <Text style={{ marginLeft: 4, fontSize: 11.5, fontWeight: '800', color: RED }}>Cancel Service</Text>
+                    </Pressable>
+                  </View>
+                  <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                    <Text style={{ flex: 1, fontSize: 11.5, color: MUTED }}>Old (Price + Service Charge)</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: INK }}>{inr(x.old)} + {inr(ch.old)} = {inr(x.old + ch.old)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 10, gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, color: MUTED }}>New Price</Text>
+                      {priceBox(x, 'Price')}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, color: MUTED }}>New Service Charge</Text>
+                      {priceBox(ch, 'Service')}
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                    <Text style={{ flex: 1, fontSize: 11.5, color: MUTED }}>New Total {inr(x.next + ch.next)}</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '800', color: diff < 0 ? GREEN : diff > 0 ? AMBER : MUTED }}>{signed(diff)}</Text>
+                  </View>
+                </View>
+              );
+            }
             return (
               <View key={`${identityOf(x.m)}-${x.i}`} style={{ marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: x.isCancelled ? '#FECACA' : x.changed ? MINT_LINE : LINE, backgroundColor: x.isCancelled ? '#FEF2F2' : '#FFFFFF', padding: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -234,7 +297,7 @@ export default function PriceRevisedScreen({ navigation, route }) {
                   </Pressable>
                 </View>
                 {x.isCancelled ? (
-                  <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: RED }}>Cancelled · − {inr(x.old)}</Text>
+                  <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: RED }}>Cancelled · − {inr(x.old + (ch ? ch.old : 0))}</Text>
                 ) : (
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 10 }}>
                     <View style={{ flex: 1 }}>
@@ -292,14 +355,14 @@ export default function PriceRevisedScreen({ navigation, route }) {
           </Card>
 
           {/* Approval */}
-          <Title text="Customer Approval" />
-          {needsApproval ? (
+          <Title text="Customer Approval" required />
+          {true ? (
             <Pressable onPress={() => setApprovedNow((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: approvedNow }} className="flex-row items-center active:opacity-80" style={{ borderRadius: 14, borderWidth: 1, borderColor: approvedNow ? MINT_LINE : LINE, backgroundColor: approvedNow ? MINT : '#FFFFFF', padding: 12 }}>
               {approvedNow ? <CircleCheck size={20} color={ACCENT} strokeWidth={2} /> : <Circle size={20} color="#D1D5DB" strokeWidth={2} />}
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: INK }}>Customer approved at the counter</Text>
                 <Text style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>
-                  {approvedNow ? `Customer approved ${inr(currentTotal)} → ${inr(proposed)}.` : `${increase ? 'A higher price' : 'A cancelled service'} needs fresh approval — leave unticked to wait for the customer.`}
+                  {approvedNow ? `Customer approved ${inr(currentTotal)} → ${inr(proposed)}.` : 'Required — confirm the customer approved the revised price.'}
                 </Text>
               </View>
             </Pressable>

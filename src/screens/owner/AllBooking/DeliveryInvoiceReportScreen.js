@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
+import { RefreshControl,
   Alert,
   Platform,
   ActivityIndicator,
@@ -124,6 +124,12 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const [delivering, setDelivering] = useState(false);
   const [openRows, setOpenRows] = useState({});       // expanded repair-item rows
   const showImei = useImeiApplies(ticket); // mobile phones only
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -592,7 +598,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
         className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 14, paddingBottom: 20, width: '100%', maxWidth: r.maxWidth('list'), alignSelf: 'center' }}
@@ -794,7 +800,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
               Preview PDF
             </Text>
           </TouchableOpacity>
-          {canConfirmDelivery ? (
+          {false && canConfirmDelivery ? ( // delivery is the slide on Booking Details now
             <TouchableOpacity
               onPress={handleConfirmDelivery}
               disabled={delivering}
@@ -828,7 +834,7 @@ const C = {
 
 const STATUS_LABEL = {
   DELIVERED: 'Delivered',
-  DELIVERED_PROCESSING: 'Dispatched',
+  DELIVERED_PROCESSING: 'Out for Delivery',
   INVOICE_GENERATED: 'Invoice Ready',
   INVOICE_READY: 'Invoice Ready',
   READY: 'Ready for Delivery',

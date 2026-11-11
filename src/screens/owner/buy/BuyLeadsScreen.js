@@ -57,6 +57,17 @@ function ActionIcon({ Icon, label, text, onPress, disabled }) {
   );
 }
 
+// Track: the purchase for this lead (or the one the accepted quote created).
+export async function openPickupTracking(navigation, l, purchase) {
+  try {
+    const id = purchase?.id || (await getMyLeadQuote(l.id))?.purchaseOrderId;
+    if (!id) { showToast({ type: 'info', title: 'No pickup yet', message: 'Tracking starts once the purchase is created.' }); return; }
+    navigation.navigate('BuyPickupTracking', { id, order: purchase || undefined, leadRef: purchase?.orderNumber || '' });
+  } catch (e) {
+    showToast({ type: 'error', title: 'Could not open tracking', message: e?.message });
+  }
+}
+
 // Lead row. With `navigation`, the right side carries View · Quotation · Pickup ·
 // Track. Pickup and Track unlock only once the server reports the quote
 // ACCEPTED (or a purchase exists for the lead).
@@ -66,15 +77,7 @@ export function LeadCard({ l, onPress, tag, navigation, quoteStatus, purchase })
   const customer = l?.sellerType === 'CUSTOMER' || !l?.sellerType;
   const accepted = !!purchase || String(quoteStatus || '').toUpperCase() === 'ACCEPTED';
   const view = () => (navigation ? navigation.navigate('BuyLeadDetail', { lead: l, mode: 'detail' }) : onPress?.());
-  const track = async () => {
-    try {
-      const id = purchase?.id || (await getMyLeadQuote(l.id))?.purchaseOrderId;
-      if (!id) { showToast({ type: 'info', title: 'No pickup yet', message: 'Tracking starts once the purchase is created.' }); return; }
-      navigation.navigate('BuyPickupTracking', { id, order: purchase || undefined, leadRef: purchase?.orderNumber || '' });
-    } catch (e) {
-      showToast({ type: 'error', title: 'Could not open tracking', message: e?.message });
-    }
-  };
+  const track = () => openPickupTracking(navigation, l, purchase);
   return (
     <Pressable onPress={onPress || view} accessibilityRole="button" accessibilityLabel={l.productName || 'Device'} className="active:opacity-90" style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>

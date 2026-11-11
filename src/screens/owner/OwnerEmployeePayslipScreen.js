@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import {
+import { RefreshControl,
   View,
   Text,
   StyleSheet,
@@ -220,6 +220,12 @@ export default function OwnerEmployeePayslipScreen({ route }) {
   const month = routeMonth ?? new Date().getMonth() + 1;
   const year = routeYear ?? new Date().getFullYear();
 
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
+
   const load = useCallback(async () => {
     if (!employee?.id) return;
     setLoading(true);
@@ -364,7 +370,7 @@ export default function OwnerEmployeePayslipScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, capStyle]}>
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} contentContainerStyle={[styles.content, capStyle]}>
         {loading ? (
           <ActivityIndicator size="large" color="#035C6C" style={{ marginVertical: rs(28) }} />
         ) : (

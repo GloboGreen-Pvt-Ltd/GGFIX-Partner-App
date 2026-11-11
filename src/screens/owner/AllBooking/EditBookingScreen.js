@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StatusBar, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StatusBar, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
-import { launchCamera } from '../../../components/InAppCamera';
 import {
   ArrowLeft, Camera, ChevronDown, IdCard, ImagePlus, Lock, Mail, MapPin, Mic, Pencil, Phone, ScanLine, Smartphone, User, Video, X,
 } from 'lucide-react-native';
@@ -12,10 +11,10 @@ import { getModelsByBrand, uploadMedia } from '../../../api/masterData';
 import { confirm, notify } from '../../../components/confirm';
 import ImageViewerModal from '../../../components/ImageViewerModal';
 import { imeiApplies, resolveRecordCategory } from '../../../utils/imeiPolicy';
-import { ticketStatusLabel } from './TicketDetailScreen';
+import { buildEditParams, ticketStatusLabel } from './TicketDetailScreen';
 import { lockTypesFor, resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { useResponsive } from '../../../theme/responsive';
-import { priceItemsFromTicket } from './ReceiptCard';
+import { groupServiceCharges, priceItemsFromTicket } from './ReceiptCard';
 import MissingPartsChecklist, { flaggedMissingParts, seedMissingParts } from '../service-booking-shop/MissingPartsChecklist';
 import DeviceSecurityLockSheet from '../service-booking-shop/DeviceSecurityLockSheet';
 import { consumeValidated, discardTempImage, isVerifiableCategory } from '../scanner/devicePhotoCheck';
@@ -95,6 +94,7 @@ export default function EditBookingScreen({ navigation, route }) {
   const [mediaOpen, setMediaOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(!!route?.params?.openSecurity);
+  const [payOpen, setPayOpen] = useState(false);
   const [lockSheet, setLockSheet] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -127,6 +127,9 @@ export default function EditBookingScreen({ navigation, route }) {
         video: asObj.video || '',
         missingParts: seedMissingParts(parseJson(t.missingPartsJson, [])),
         lockType: t.deviceSecurityType || 'NONE',
+        // Payment taken at booking: '' (not paid) · ADVANCE · FULL, and its amount.
+        payType: Number(t.paymentAmount) > 0 && t.paymentType ? t.paymentType : '',
+        payAmount: Number(t.paymentAmount) > 0 && t.paymentType ? String(Number(t.paymentAmount)) : '',
         lockValue: t.deviceSecurityValue || '',
         device: null, // set only when the model is changed through the picker
       };
@@ -182,7 +185,8 @@ export default function EditBookingScreen({ navigation, route }) {
   // MissingPartsChecklist reports a toggle / remark change.
   const set = (k, v) => setForm((f) => ({ ...f, [k]: typeof v === 'function' ? v(f[k]) : v }));
   // The booking's issues (read-only here — Re-Est / Price Revised change them).
-  const issueItems = useMemo(() => priceItemsFromTicket(ticket).filter((x) => itemLabel(x)), [ticket]);
+  // Issues with their own service charge folded in (a. issue / b. Service Charge).
+  const issueItems = useMemo(() => groupServiceCharges(priceItemsFromTicket(ticket)).filter((x) => itemLabel(x)), [ticket]);
   const issueLabels = useMemo(() => issueItems.map(itemLabel), [issueItems]);
   const specCategory = resolveSpecCategory(form?.device?.deviceCategory, form?.device?.categoryCode || category.code, form?.device?.categoryName || category.name)
     || (form?.device ? null : recCategory);
@@ -237,6 +241,14 @@ export default function EditBookingScreen({ navigation, route }) {
       body.deviceSecurityValue = form.lockType === 'NONE' ? null : form.lockValue;
       labels.push('Device security'); // never the value
     }
+    // Payment: send only a complete choice (a mode with an amount > 0, or cleared).
+    const payNum = Number(form.payAmount) || 0;
+    const payValid = !form.payType || payNum > 0;
+    if (payValid && (form.payType !== o.payType || (form.payType && payNum !== (Number(o.payAmount) || 0)))) {
+      body.paymentType = form.payType || null;
+      body.paymentAmount = form.payType ? payNum : null;
+      labels.push(form.payType === 'FULL' ? 'Full payment' : form.payType ? 'Advance payment' : 'Payment removed');
+    }
     return { body, labels };
   }, [form, showImei, issueLabels]);
   const dirty = diff.labels.length > 0;
@@ -260,6 +272,37 @@ export default function EditBookingScreen({ navigation, route }) {
   const canSave = dirty && !saving && !uploading && !idUploading && !imeiError && !phoneError && !nameError && !altError && !emailError;
 
   // ── Save: PATCH only the changed fields, then one history row ────────
+  // Edit Issue → Devices & Repair (ServicePriceEstimate: search, price + service charge, notes) prefilled
+  // with this booking's issues, as an edit of this booking (same params as
+  // Booking Details' wizard entry).
+  const openIssueEditor = async () => {
+    if (!ticket) return;
+    let categoryId = null;
+    let categoryName = null;
+    try {
+      const m = ((await getModelsByBrand(ticket.brandId)) || []).find((x) => x.id === ticket.modelId);
+      categoryId = m?.categoryId || null;
+      categoryName = m?.categoryName || null;
+    } catch (_) { /* unfiltered issue list is still OK */ }
+    const lineItems = priceItemsFromTicket(ticket);
+    const estimatedTotal = ticket.estimatedPrice != null ? ticket.estimatedPrice
+      : lineItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    navigation.navigate('RepairServiceBookingShop', {
+      screen: 'DeviceServices',
+      params: {
+        ...buildEditParams(ticket, { lineItems, estimatedTotal }),
+        categoryId,
+        categoryName,
+        flow: 'BOOKING',
+        editIssues: true,
+        initial: { name: ticket.customerName || '', phone: ticket.customerPhone || '', address: ticket.customerAddress || '' },
+        existing: ticket.customerId
+          ? { id: ticket.customerId, name: ticket.customerName, phone: ticket.customerPhone, address: ticket.customerAddress, source: 'shop' }
+          : null,
+      },
+    });
+  };
+
   const save = async () => {
     if (!canSave) {
       if (!dirty) notify('No changes', 'Nothing has been changed.');
@@ -303,7 +346,7 @@ export default function EditBookingScreen({ navigation, route }) {
         return JSON.stringify(x && typeof x === 'object' && !Object.keys(x).length ? null : x);
       };
       const norm = (k, v) => (/Json$/.test(k) ? normJson(v) : String(v ?? ''));
-      const missed = ['customerName', 'customerPhone', 'customerAddress', 'issueDescription', 'imei', 'deviceSecurityType', 'missingPartsJson', 'devicePhotosJson', 'modelId']
+      const missed = ['paymentType', 'customerName', 'customerPhone', 'customerAddress', 'issueDescription', 'imei', 'deviceSecurityType', 'missingPartsJson', 'devicePhotosJson', 'modelId']
         .filter((k) => diff.body[k] !== undefined && res && k in res && norm(k, res[k]) !== norm(k, diff.body[k]));
       if (missed.length) {
         notify('Not fully saved', 'The server did not accept some changes yet. Please update the app server and try again.', { preset: 'error' });
@@ -356,7 +399,7 @@ export default function EditBookingScreen({ navigation, route }) {
     const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to upload the ID proof.`); return; }
     const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-    const res = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
     const asset = res.canceled ? null : res.assets?.[0];
     if (!asset) return;
     if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('File too large', 'The ID proof must be 10 MB or smaller.'); return; }
@@ -390,11 +433,11 @@ export default function EditBookingScreen({ navigation, route }) {
     if (form.photos.length >= PHOTO_KEYS.length) return;
     // Category unknown or not checkable (e.g. watch, audio): plain camera /
     // gallery, same as the booking flow.
-    if (!photoVerifiable) {
+    if (true) {
       const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'photo'} access to add a device photo.`); return; }
       const opts = { mediaTypes: 'images', allowsEditing: false, quality: 0.7 };
-      const res = fromCamera ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (res.canceled || !res.assets?.[0]) return;
       await uploadPhoto(res.assets[0]);
       return;
@@ -416,10 +459,16 @@ export default function EditBookingScreen({ navigation, route }) {
       },
     });
   };
-  const addVideo = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') { notify('Permission needed', 'Allow video access to add a device video.'); return; }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'videos', videoMaxDuration: 15 });
+  const addVideo = () => Alert.alert('Add Video', 'Record with the phone camera or pick from gallery.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Gallery', onPress: () => pickVideo(false) },
+    { text: 'Camera', onPress: () => pickVideo(true) },
+  ]);
+  const pickVideo = async (fromCamera) => {
+    const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { notify('Permission needed', `Allow ${fromCamera ? 'camera' : 'video'} access to add a device video.`); return; }
+    const vopts = { mediaTypes: 'videos', videoMaxDuration: 15, quality: 0.7 };
+    const res = fromCamera ? await ImagePicker.launchCameraAsync(vopts) : await ImagePicker.launchImageLibraryAsync(vopts);
     if (res.canceled || !res.assets?.[0]) return;
     const asset = res.assets[0];
     if (asset.fileSize && asset.fileSize > MAX_BYTES) { notify('Video too large', 'The limit is 10 MB.'); return; }
@@ -565,18 +614,33 @@ export default function EditBookingScreen({ navigation, route }) {
           {/* Issues — every issue on the booking, each with its own notes box. */}
           {issueItems.length ? (
             <>
-              <SectionTitle title="Issues" hint={`(${issueItems.length})`} />
+              {/* Edit Issue → Price Revised (edit / remove the booked issues and their prices). */}
+              <SectionTitle title="Issues" hint={`(${issueItems.length})`} action="Edit Issue" onAction={openIssueEditor} />
               <Card>
                 {issueItems.map((x, idx) => {
                   const l = itemLabel(x);
                   const amt = Number(x?.amount ?? x?.price);
+                  const hasNote = !!String(originalRef.current?.issueNotes?.[l] || '').trim();
                   return (
                     <View key={`${l}-${idx}`} style={{ marginTop: idx ? 12 : 0 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: hasNote ? 6 : 0 }}>
                         <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '700', color: INK }} numberOfLines={2}>{idx + 1}. {l}</Text>
-                        {Number.isFinite(amt) ? <Text style={{ marginLeft: 8, fontSize: 13, fontWeight: '800', color: ACCENT }}>₹{amt.toLocaleString('en-IN')}</Text> : null}
+                        {x.charge == null && Number.isFinite(amt) ? <Text style={{ marginLeft: 8, fontSize: 13, fontWeight: '800', color: ACCENT }}>₹{amt.toLocaleString('en-IN')}</Text> : null}
                       </View>
-                      <TextInput
+                      {x.charge != null ? (
+                        <View style={{ paddingLeft: 16, marginBottom: hasNote ? 6 : 0 }}>
+                          <View style={{ flexDirection: 'row', marginTop: 2 }}>
+                            <Text style={{ flex: 1, fontSize: 13, color: INK }}>a. {l}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT }}>₹{(Number.isFinite(amt) ? amt : 0).toLocaleString('en-IN')}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', marginTop: 4 }}>
+                            <Text style={{ flex: 1, fontSize: 13, color: MUTED }}>b. Service Charge</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: ACCENT }}>₹{Number(x.charge || 0).toLocaleString('en-IN')}</Text>
+                          </View>
+                        </View>
+                      ) : null}
+                      {/* Notes box only when this issue already has a saved note. */}
+                      {hasNote ? <TextInput
                         value={form.issueNotes?.[l] || ''}
                         onChangeText={(v) => set('issueNotes', { ...(form.issueNotes || {}), [l]: v })}
                         placeholder="Additional notes (optional)"
@@ -584,7 +648,7 @@ export default function EditBookingScreen({ navigation, route }) {
                         maxLength={200}
                         cursorColor={ACCENT}
                         style={{ height: 42, paddingHorizontal: 12, fontSize: 13.5, color: INK, includeFontPadding: false, borderWidth: 1, borderColor: LINE, borderRadius: 10 }}
-                      />
+                      /> : null}
                     </View>
                   );
                 })}
@@ -654,6 +718,48 @@ export default function EditBookingScreen({ navigation, route }) {
                 <View style={{ height: 1, backgroundColor: LINE }} />
               </>
             ) : null}
+            {(() => {
+              const PAY = [['', 'Not Paid'], ['ADVANCE', 'Advance Payment'], ['FULL', 'Full Payment']];
+              const amt = Number(form.payAmount) || 0;
+              const summary = form.payType && amt > 0 ? `${form.payType === 'FULL' ? 'Full' : 'Advance'} ₹${amt.toLocaleString('en-IN')}` : 'Not Paid';
+              return (
+                <>
+                  <FoldRow title="Advance Payment" right={summary} rightColor={form.payType && amt > 0 ? ACCENT : MUTED} open={payOpen} onPress={() => setPayOpen((v) => !v)} />
+                  {payOpen ? (
+                    <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: INK, marginBottom: 6 }}>Payment Method</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                        {PAY.map(([v, label]) => {
+                          const on = form.payType === v;
+                          return (
+                            <Pressable key={label} onPress={() => setForm((f) => ({ ...f, payType: v, payAmount: v ? f.payAmount : '' }))} accessibilityRole="radio" accessibilityState={{ selected: on }}
+                              className="active:opacity-80"
+                              style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? ACCENT : LINE, backgroundColor: on ? MINT : '#FFFFFF' }}>
+                              <Text style={{ fontSize: 12.5, fontWeight: '800', color: on ? ACCENT : MUTED }}>{label}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      {form.payType ? (
+                        <>
+                          <Field
+                            icon={<Text style={{ fontSize: 15, fontWeight: '800', color: INK }}>₹</Text>}
+                            value={form.payAmount}
+                            onChangeText={(v) => set('payAmount', v.replace(/[^0-9]/g, '').slice(0, 7))}
+                            placeholder={form.payType === 'FULL' ? 'Full amount collected' : 'Advance amount collected'}
+                            keyboardType="number-pad"
+                            error={!amt}
+                            last
+                          />
+                          {!amt ? <Text style={{ fontSize: 11, color: RED, marginTop: 4 }}>Enter the amount collected</Text> : null}
+                        </>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  {lockOptions.length > 1 ? <View style={{ height: 1, backgroundColor: LINE }} /> : null}
+                </>
+              );
+            })()}
             {lockOptions.length > 1 ? (
               <>
                 <FoldRow title="Device Security" right={lockSaved ? `${LOCK_LABEL[form.lockType]} — Saved` : 'None'} rightColor={lockSaved ? ACCENT : MUTED} open={lockOpen} onPress={() => setLockOpen((v) => !v)} icon={<Lock size={15} color={INK} />} />
@@ -779,7 +885,11 @@ function FoldRow({ title, right, rightColor, open, onPress, icon }) {
       {icon ? <View style={{ marginRight: 8 }}>{icon}</View> : null}
       <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '700', color: INK }} numberOfLines={1}>{title}</Text>
       <Text style={{ fontSize: 12, fontWeight: '700', color: rightColor, marginRight: 6 }} numberOfLines={1}>{right}</Text>
-      <ChevronDown size={18} color={INK} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+      {/* Edit button (Done while open) instead of the down arrow. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: MINT }}>
+        {open ? null : <Pencil size={12} color={ACCENT} />}
+        <Text style={{ marginLeft: open ? 0 : 4, fontSize: 12, fontWeight: '800', color: ACCENT }}>{open ? 'Done' : 'Edit'}</Text>
+      </View>
     </Pressable>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
+import { RefreshControl,
   View,
   Text,
   StyleSheet,
@@ -115,6 +115,12 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
   const [viewAsList, setViewAsList] = useState(false);
   const scrollRef = useRef(null);
   const rowY = useRef({});
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await loadDay(selectedDate); } catch {} finally { setPullRefreshing(false); } };
 
   const loadDay = useCallback(async (dateStr) => {
     if (!employee?.id) return;
@@ -276,7 +282,7 @@ export default function OwnerEmployeeShiftDetailsScreen({ route, navigation }) {
       </View>
 
       {/* Schedule timeline */}
-      <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={[styles.scheduleContent, capStyle]}>
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} ref={scrollRef} style={styles.flex} contentContainerStyle={[styles.scheduleContent, capStyle]}>
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle} numberOfLines={1}>Schedule</Text>
           <TouchableOpacity

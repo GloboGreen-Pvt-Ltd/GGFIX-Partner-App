@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import * as Print from 'expo-print';
 import { Download, Share2 } from 'lucide-react-native';
 import { useResponsive } from '../../../theme/responsive';
@@ -72,6 +72,12 @@ export default function SubscriptionReceiptScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
 
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
+
   const load = useCallback(async () => {
     setError(null);
     setRc(null);
@@ -124,7 +130,7 @@ export default function SubscriptionReceiptScreen({ navigation, route }) {
       ) : error ? (
         <ErrorState title="Receipt unavailable" message={error} onRetry={load} />
       ) : (
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 + r.insets.bottom }}>
+        <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 + r.insets.bottom }}>
           <View style={cap}>
             <Card>
               <Text style={{ fontSize: 16, fontWeight: '800', color: C.teal }}>{invoice?.title || rc.documentTitle || DEFAULT_TITLE}</Text>

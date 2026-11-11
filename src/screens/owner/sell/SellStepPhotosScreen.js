@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { launchCamera } from '../../../components/InAppCamera';
 import { ArrowLeft, ArrowRight, Camera, ChevronLeft, ChevronRight, ImagePlus, Plus, Images, Play, RefreshCw, Star, Trash2, Video, X } from 'lucide-react-native';
 import { uploadMedia } from '../../../api/masterData';
 import { notify } from '../../../components/confirm';
@@ -81,7 +80,7 @@ export default function SellStepPhotosScreen({ navigation }) {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { notify('Permission needed', 'Allow camera access to take listing photos.'); return; }
-        const res = await launchCamera({ mediaTypes: 'images', quality: 0.7 });
+        const res = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.7 });
         if (!res.canceled && res.assets?.length) addAssets(res.assets);
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -128,7 +127,7 @@ export default function SellStepPhotosScreen({ navigation }) {
       const perm = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== 'granted') { notify('Permission needed', 'Allow access to add a video.'); return; }
       const opts = { mediaTypes: 'videos', videoMaxDuration: VIDEO_MAX_SEC, quality: 0.5 };
-      const res = source === 'camera' ? await launchCamera(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const res = source === 'camera' ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       const a = res.assets?.[0];
       if (res.canceled || !a) return;
       const secs = a.duration ? Math.round(a.duration / 1000) : null;

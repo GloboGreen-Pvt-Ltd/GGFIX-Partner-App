@@ -1,20 +1,45 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StatusBar, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ShoppingBag, Store, Truck } from 'lucide-react-native';
-import { BUY_ORDER_STATUS, BUY_ORDER_TABS, listShopBuyOrders, shopBuyOrderAction } from '../../../api/buyOrders';
+import { Archive, CircleCheck, CircleX, LayoutGrid, ShoppingBag, Truck } from 'lucide-react-native';
+import { listShopBuyOrders, shopBuyOrderAction } from '../../../api/buyOrders';
 import { showToast } from '../../../components/Toast';
-import { C, Card, EmptyBox, ErrorBox, PrimaryButton, SellScreen, StatusPill, Thumb, money } from './kit';
+import { RC, ReportHeader, ReportHeaderButton, StatusRail, reportStyles, useReportGeometry } from '../../../components/report/ReportRail';
+import { C, EmptyBox, ErrorBox, SearchInput } from './kit';
+import BuyOrderCard from './BuyOrderCard';
 
-// Incoming fixed-price customer orders for this shop, grouped New / In progress /
-// Completed / Closed with live counts from the server.
-export default function SellBuyOrdersScreen({ navigation }) {
+// Fixed-price customer orders for this shop, with the Jobs-style left status rail:
+// All · Completed · Delivery · Closed · Cancelled (live counts from the list).
+export const ORDER_SECTIONS = [
+  { key: 'ALL', label: 'All', tone: RC.teal, Icon: LayoutGrid, statuses: null },
+  { key: 'COMPLETED', label: 'Completed', tone: RC.green, Icon: CircleCheck, statuses: ['DELIVERED', 'COMPLETED'] },
+  { key: 'DELIVERY', label: 'Delivery', tone: RC.blue, Icon: Truck, statuses: ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'] },
+  { key: 'CLOSED', label: 'Closed', tone: RC.navy, Icon: Archive, statuses: ['RETURNED', 'REJECTED'] },
+  { key: 'CANCELLED', label: 'Cancelled', tone: RC.red, Icon: CircleX, statuses: ['CANCELLED'] },
+];
+
+const matches = (o, q) => !q || [o.orderNumber, o.productTitle, o.customerName, o.customerPhone, o.assignedStaffName]
+  .some((v) => String(v || '').toLowerCase().includes(q));
+
+export default function SellBuyOrdersScreen({ navigation, route }) {
+  const { isSmall, railW, bottomPad } = useReportGeometry();
+  const initial = route?.params?.initialSection;
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState('NEW');
+  const [tab, setTab] = useState(ORDER_SECTIONS.some((t) => t.key === initial) ? initial : 'ALL');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState(null);
   const lock = useRef(false);
+
+  const load = useCallback(async () => {
+    setError('');
+    try { setOrders(await listShopBuyOrders()); }
+    catch (e) { setError(e?.message || 'Could not load orders'); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // Confirm straight from the list; home-delivery orders go on to Assign Pickup.
   const confirmOrder = async (o) => {
@@ -34,79 +59,61 @@ export default function SellBuyOrdersScreen({ navigation }) {
     }
   };
 
-  const load = useCallback(async () => {
-    setError('');
-    try { setOrders(await listShopBuyOrders()); }
-    catch (e) { setError(e?.message || 'Could not load orders'); }
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const counts = useMemo(() => {
-    const m = {};
-    BUY_ORDER_TABS.forEach((t) => { m[t.key] = (orders || []).filter((o) => t.statuses.includes(o.status)).length; });
-    return m;
-  }, [orders]);
-  const shown = (orders || []).filter((o) => BUY_ORDER_TABS.find((t) => t.key === tab).statuses.includes(o.status));
+  const q = query.trim().toLowerCase();
+  const searched = useMemo(() => (orders || []).filter((o) => matches(o, q)), [orders, q]);
+  const railItems = useMemo(() => ORDER_SECTIONS.map((t) => ({
+    ...t, count: t.statuses ? searched.filter((o) => t.statuses.includes(o.status)).length : searched.length,
+  })), [searched]);
+  const section = ORDER_SECTIONS.find((t) => t.key === tab) || ORDER_SECTIONS[0];
+  const shown = section.statuses ? searched.filter((o) => section.statuses.includes(o.status)) : searched;
 
   const refresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+  const toggleSearch = () => { if (searchOpen) setQuery(''); setSearchOpen(!searchOpen); };
 
   return (
-    <SellScreen
-      title="Customer Orders"
-      subtitle="Fixed-price buy orders"
-      onBack={() => navigation.goBack()}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-    >
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 12, marginBottom: 12 }}>
-        {BUY_ORDER_TABS.map((t) => {
-          const on = t.key === tab;
-          return (
-            <Pressable key={t.key} onPress={() => setTab(t.key)}
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: on ? C.teal : C.field }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : C.text }}>{t.label} ({counts[t.key] || 0})</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {orders === null && !error ? <ActivityIndicator color={C.teal} style={{ marginTop: 40 }} /> : null}
-      {error ? <ErrorBox message={error} onRetry={load} /> : null}
-      {orders && !error && shown.length === 0 ? (
-        <EmptyBox icon={ShoppingBag} title="No orders here" sub="Customer orders for your listings appear here." />
+    <View style={reportStyles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <ReportHeader
+        title="ORDERS"
+        subtitle={`${(orders || []).length} Orders`}
+        onBack={() => navigation.goBack()}
+        searchOpen={searchOpen}
+        onToggleSearch={toggleSearch}
+        right={<ReportHeaderButton Icon={Truck} label="Assign Pickup" onPress={() => navigation.navigate('SellBuyAssignList')} />}
+      />
+      {searchOpen ? (
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' }}>
+          <SearchInput value={query} onChangeText={setQuery} placeholder="Search order, product, customer" />
+        </View>
       ) : null}
 
-      {shown.map((o) => {
-        const meta = BUY_ORDER_STATUS[o.status] || {};
-        const home = o.fulfilmentType === 'HOME_DELIVERY';
-        return (
-          <Card key={o.id} style={{ marginBottom: 10 }} onPress={() => navigation.navigate('SellBuyOrderDetail', { id: o.id })}>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Thumb uri={o.productImage} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: C.muted }}>{o.orderNumber}</Text>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }} numberOfLines={1}>{o.productTitle || 'Product'}</Text>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: C.teal, marginTop: 2 }}>
-                  {money(o.totalAmount)}{o.quantity > 1 ? `  ·  Qty ${o.quantity}` : ''}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  {home ? <Truck size={14} color={C.muted} /> : <Store size={14} color={C.muted} />}
-                  <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>{home ? 'Home Delivery' : 'Visit Shop'}</Text>
-                  <StatusPill status={o.status} label={meta.label} />
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 8 }}>
-                  {o.status === 'PLACED' ? (
-                    <PrimaryButton small variant="green" title="Confirm" loading={busyId === o.id} disabled={!!busyId} onPress={() => confirmOrder(o)} />
-                  ) : home && ['CONFIRMED', 'DELIVERY_FAILED'].includes(o.status) ? (
-                    <PrimaryButton small variant="green" title="Assign" onPress={() => navigation.navigate('SellBuyAssign', { order: o })} />
-                  ) : null}
-                  <PrimaryButton small variant="outline" title="View" onPress={() => navigation.navigate('SellBuyOrderDetail', { id: o.id })} />
-                </View>
-              </View>
-            </View>
-          </Card>
-        );
-      })}
-    </SellScreen>
+      <View style={reportStyles.body}>
+        <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={error ? [] : shown}
+            keyExtractor={(o) => String(o.id)}
+            renderItem={({ item }) => (
+              <BuyOrderCard
+                o={item}
+                busy={busyId === item.id}
+                disabled={!!busyId}
+                onConfirm={confirmOrder}
+                onAssign={(o) => navigation.navigate('SellBuyAssign', { order: o })}
+                onView={(o) => navigation.navigate('SellBuyOrderDetail', { id: o.id })}
+              />
+            )}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={RC.teal} colors={[RC.teal]} />}
+            contentContainerStyle={{ ...reportStyles.listPad, paddingBottom: bottomPad }}
+            ListEmptyComponent={
+              orders === null && !error ? <ActivityIndicator color={C.teal} style={{ marginTop: 40 }} />
+                : error ? <ErrorBox message={error} onRetry={load} />
+                  : <EmptyBox icon={ShoppingBag} title={q ? 'No matching orders' : `No ${section.label.toLowerCase()} orders`} sub="Customer orders for your listings appear here." />
+            }
+          />
+        </View>
+      </View>
+    </View>
   );
 }

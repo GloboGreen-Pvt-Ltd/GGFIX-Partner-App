@@ -311,13 +311,12 @@ export default function OwnerSellHubScreen({ navigation }) {
   }, [banners.length, pageW]);
 
   // A listing a customer has ordered opens that order; any other listing opens
-  // My Listings on its status tab (where it is edited, priced or deactivated).
+  // its listing details screen (same as My Listings → View).
   const OPEN = ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'];
   const openListing = (p) => {
     const order = buyOrders.find((o) => o.productId === p.id && OPEN.includes(o.status));
     if (order) { navigation.navigate('SellBuyOrderDetail', { id: order.id }); return; }
-    const st = String(p.status || p._status || 'ACTIVE').toUpperCase();
-    navigation.navigate('SellMyListings', { initialStatus: ['ACTIVE', 'DRAFT', 'INACTIVE', 'SOLD'].includes(st) ? st : 'ALL' });
+    navigation.navigate('MarketplaceListingDetails', { productId: p.id, listing: p });
   };
 
   const count = (v) => (loading && !summary ? null : v ?? null);
@@ -390,9 +389,9 @@ export default function OwnerSellHubScreen({ navigation }) {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10, marginTop: 12 }}>
                 {[
                   { key: 'add', title: 'Add Listing', sub: 'List your device for sale', Icon: CirclePlus, bg: '#ECF8F3', ring: '#D3F0E3', fg: '#01AC77', onPress: () => navigation.navigate('SellListingType') },
-                  { key: 'mine', title: 'My Listings', sub: 'View & manage your listings', Icon: LayoutList, bg: '#EEF3FD', ring: '#DCE6FB', fg: '#2F6FE0', count: count(summary?.active), badge: '#2F6FE0', onPress: () => navigation.navigate('SellMyListings', { initialStatus: 'ACTIVE' }) },
+                  { key: 'mine', title: 'My Listings', sub: 'View & manage your listings', Icon: LayoutList, bg: '#EEF3FD', ring: '#DCE6FB', fg: '#2F6FE0', count: count(summary?.active), badge: '#2F6FE0', onPress: () => navigation.navigate('SellMyListings', { initialStatus: 'ALL' }) },
                   { key: 'orders', title: 'Orders', sub: 'View your orders', Icon: ShoppingBag, bg: '#FFF2EC', ring: '#FFE1D3', fg: '#F2622E', count: orderCounts?.fresh ?? null, badge: '#EF4444', onPress: () => navigation.navigate('SellBuyOrders') },
-                  { key: 'assign', title: 'Assign Pickup', sub: 'Schedule pickup for orders', Icon: Truck, bg: '#F2F0FD', ring: '#E2DDFA', fg: '#5B47D6', count: orderCounts?.assign ?? null, badge: '#01AC77', onPress: () => navigation.navigate('SellBuyOrders') },
+                  { key: 'assign', title: 'Assign Pickup', sub: 'Schedule pickup for orders', Icon: Truck, bg: '#F2F0FD', ring: '#E2DDFA', fg: '#5B47D6', count: orderCounts?.assign ?? null, badge: '#01AC77', onPress: () => navigation.navigate('SellBuyAssignList') },
                 ].map((t) => (
                   <Pressable key={t.key} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.count != null ? `${t.title}, ${t.count}` : t.title} className="active:opacity-85"
                     style={{ width: tileW, minHeight: 124, borderRadius: 18, borderWidth: 1, borderColor: t.ring, backgroundColor: t.bg, padding: 12 }}>

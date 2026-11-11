@@ -68,6 +68,7 @@ export function buildMilestones(rawEvents, extras = []) {
   events.forEach((e) => { (byKey[up(e.status)] = byKey[up(e.status)] || []).push(e); });
   Object.values(byKey).forEach((list) => list.sort((a, b) => at(a) - at(b)));
   const has = (k) => !!byKey[k];
+  const revisions = groupReEstimates(rawEvents);
 
   const pickup = PICKUP_KEYS.some(has);
   const returnPath = RETURN_TRIGGERS.some(has);
@@ -75,6 +76,11 @@ export function buildMilestones(rawEvents, extras = []) {
   // description and voice note). A re-estimate then puts the price back to the
   // customer as a separate row, closed by their verdict.
   const reEstimated = has('RE_ESTIMATED_CONFIRMED');
+  // Accepted counts only if it came after the latest re-assignment (the
+  // server re-stamps the accept row when the new technician accepts).
+  const lastOf = (k) => { const l = byKey[k]; return l ? at(l[l.length - 1]) : 0; };
+  const acceptedAfterReassign = has('TECHNICIAN_ACCEPTED_SERVICE')
+    && lastOf('TECHNICIAN_ACCEPTED_SERVICE') >= lastOf('REASSIGNED_TO_TECHNICIAN');
   // The customer's decision on the latest re-estimate (RE_ESTIMATE_* from the
   // re-estimate workflow; CUSTOMER_* on older bookings and for compatibility).
   // CUSTOMER_REJECTED stays "customer declined the repair" → return path.
@@ -93,30 +99,24 @@ export function buildMilestones(rawEvents, extras = []) {
       doneKeys: ['BOOKING_CREATED_BY_SHOP', 'SERVICE_ACCEPTED', ...PICKUP_STARTS] },
     pickup ? { key: 'COLLECTED', label: 'Device Received at Shop', activeLabel: 'Pickup in progress',
       keys: PICKUP_KEYS.filter((k) => !PICKUP_STARTS.includes(k)), doneKeys: ['RECEIVED_AT_SHOP'] } : null,
+    // Booking Confirmed → Technician Assigned → (Technician Reassigned, only
+    // when it happened) → Technician Accepted. A re-assign after an accept
+    // puts Accepted back to waiting until the new technician accepts.
     { key: 'ASSIGNED', label: 'Technician Assigned', activeLabel: 'Assigning a technician',
-      keys: ['ASSIGNED_TO_TECHNICIAN', 'AWAITING_TECHNICIAN_ACCEPTANCE', 'REASSIGNED_TO_TECHNICIAN', 'TECHNICIAN_ACCEPTED_SERVICE'],
-      doneKeys: ['TECHNICIAN_ACCEPTED_SERVICE'] },
+      keys: ['ASSIGNED_TO_TECHNICIAN'], doneKeys: ['ASSIGNED_TO_TECHNICIAN', 'TECHNICIAN_ACCEPTED_SERVICE'] },
+    has('REASSIGNED_TO_TECHNICIAN') ? { key: 'REASSIGNED', label: 'Technician Reassigned', activeLabel: 'Technician reassigned',
+      keys: ['REASSIGNED_TO_TECHNICIAN'], doneKeys: ['REASSIGNED_TO_TECHNICIAN'] } : null,
+    { key: 'ACCEPTED', label: 'Technician Accepted', activeLabel: 'Waiting for technician acceptance',
+      keys: ['AWAITING_TECHNICIAN_ACCEPTANCE', 'TECHNICIAN_ACCEPTED_SERVICE'],
+      doneKeys: acceptedAfterReassign ? ['TECHNICIAN_ACCEPTED_SERVICE'] : [] },
     returnPath ? null : inRepair,
     { key: 'DIAGNOSED', label: 'Technician Issue Verified & Updated', activeLabel: 'Technician verifying the issue',
       keys: ['TECHNICIAN_WORK_STARTED', 'TECHNICIAN_UPLOADED_DEVICE_IMAGES', 'ISSUE_IDENTIFIED',
         'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',
         ...(reEstimated ? [] : ['WAITING_FOR_CUSTOMER_APPROVAL', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'])],
+      exclude: revisions.claimed,
       doneKeys: ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'] },
-    // Re-estimate rows — only once they happened, never as "upcoming" steps.
-    has('TECHNICIAN_REESTIMATE_REQUESTED') ? { key: 'RE_REQUESTED', label: 'Technician Re-Estimate Requested',
-      activeLabel: 'Technician requested a re-estimate',
-      keys: ['TECHNICIAN_REESTIMATE_REQUESTED'], doneKeys: ['TECHNICIAN_REESTIMATE_REQUESTED'] } : null,
-    reEstimated ? { key: 'RE_ESTIMATED', label: 'Service Re-Estimated – Awaiting Customer Approval',
-      activeLabel: 'Re-estimating the service',
-      keys: ['RE_ESTIMATED_CONFIRMED', 'WAITING_FOR_CUSTOMER_APPROVAL'], doneKeys: ['RE_ESTIMATED_CONFIRMED'] } : null,
-    // Only the customer's verdict is written under it ("Customer approved the
-    // re-estimated service") — not the submitted / waiting steps before it.
-    reEstimated ? { key: 'APPROVAL', label: decisionLabel, activeLabel: 'Awaiting customer approval',
-      keys: ['RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'],
-      doneKeys: ['RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'],
-      verdictOnly: true } : null,
-    has('REPAIR_WORK_RESUMED') ? { key: 'RESUMED', label: 'Repair Work in Progress (Resumed)',
-      activeLabel: 'Repair resuming', keys: ['REPAIR_WORK_RESUMED'], doneKeys: ['REPAIR_WORK_RESUMED'] } : null,
+    ...revisionDefs(revisions),
     ...(returnPath ? [
       { key: 'RETURN', label: 'Return Unrepaired', activeLabel: 'Returning unrepaired', danger: true,
         keys: ['CUSTOMER_REJECTED', 'IN_REPAIR', 'PARTS_REQUIRED', 'REPAIR_NOT_COMPLETED', 'RETURN_DELIVERY'],
@@ -136,15 +136,21 @@ export function buildMilestones(rawEvents, extras = []) {
       // Ready only counts once the quality check is on the booking as well.
       { key: 'READY', label: 'Ready for Delivery', activeLabel: 'Getting ready for delivery',
         keys: ['READY'], doneKeys: ['READY'], requires: ['QUALITY_CHECK_COMPLETED'] },
+      { key: 'INVOICE_GENERATED', label: 'Invoice Generated', activeLabel: 'Invoice pending',
+        keys: ['INVOICE_GENERATED', 'INVOICE_READY'], doneKeys: ['INVOICE_GENERATED', 'INVOICE_READY'] },
+      { key: 'DELIVERED_PROCESSING', label: 'Out for Delivery', activeLabel: 'Out for delivery',
+        keys: ['DELIVERED_PROCESSING'], doneKeys: ['DELIVERED_PROCESSING'] },
     ]),
     { key: 'DELIVERED', label: returnPath ? 'Returned to Customer' : 'Delivered',
       activeLabel: has('DELIVERED_PROCESSING') ? 'Out for delivery' : 'Ready for handover',
-      keys: ['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'], doneKeys: ['DELIVERED'] },
+      keys: returnPath ? ['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'] : ['DELIVERED'], doneKeys: ['DELIVERED'] },
   ].filter(Boolean);
 
   let milestones = defs.map((d) => {
-    const own = d.keys.flatMap((k) => byKey[k] || []).sort((a, b) => at(a) - at(b));
-    let doneEvent = d.doneKeys.map((k) => byKey[k]?.[0]).filter(Boolean).sort((a, b) => at(a) - at(b))[0] || null;
+    const own = (d.own || d.keys.flatMap((k) => byKey[k] || []))
+      .filter((e) => !d.exclude || !d.exclude.has(e)).sort((a, b) => at(a) - at(b));
+    let doneEvent = d.own ? (d.done || null)
+      : d.doneKeys.map((k) => byKey[k]?.[0]).filter(Boolean).sort((a, b) => at(a) - at(b))[0] || null;
     if (doneEvent && d.requires) {
       const needed = d.requires.map((k) => byKey[k]?.[0]);
       // Complete only with every required event; done at whichever came last.
@@ -171,6 +177,7 @@ export function buildMilestones(rawEvents, extras = []) {
   milestones = milestones.map((m, i) => {
     let state = 'upcoming';
     if (m.doneEvent) state = 'done';
+    else if (i < lastDoneNow && m.autoDone) return { ...m, state: 'done', doneEvent: m.autoDone };
     else if (i < lastDoneNow) state = cancelEvent && m.events.length ? 'stopped' : 'missed';
     else if (!closed && i === lastDoneNow + 1) state = 'current';
     return { ...m, state };
@@ -276,7 +283,75 @@ function PhotoStrip({ urls, onOpen }) {
   );
 }
 
-function MilestoneRow({ m, isLast, nextReached, extra }) {
+// Re-estimate row shows only the issue names: drops the "₹a + ₹b = ₹c" sum,
+// service-charge lines, the reason and the awaiting / approved tail.
+// Re-estimate revisions, oldest first, each kept as its own rows. A revision
+// starts at a technician request, or at a re-estimate when the previous one
+// already had a price. Verdicts/resume after a revision's price belong to it.
+const VERDICT_CODES = ['RE_ESTIMATE_APPROVED', 'RE_ESTIMATE_REJECTED', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'];
+export function groupReEstimates(rawEvents) {
+  const list = (Array.isArray(rawEvents) ? rawEvents : []).filter((e) => e?.status)
+    .slice().sort((a, b) => at(a) - at(b));
+  const revs = [];
+  const claimed = new Set();
+  let cur = null;
+  list.forEach((e) => {
+    const k = up(e.status);
+    if (k === 'TECHNICIAN_REESTIMATE_REQUESTED') {
+      if (!cur || cur.estimated) { cur = { request: e }; revs.push(cur); } else if (!cur.request) cur.request = e;
+      claimed.add(e);
+    } else if (k === 'RE_ESTIMATED_CONFIRMED') {
+      if (!cur || cur.estimated) { cur = {}; revs.push(cur); }
+      cur.estimated = e; cur.waiting = []; claimed.add(e);
+    } else if (cur?.estimated && k === 'WAITING_FOR_CUSTOMER_APPROVAL') {
+      cur.waiting.push(e); claimed.add(e);
+    } else if (cur?.estimated && !cur.verdict && VERDICT_CODES.includes(k)) {
+      cur.verdict = e; claimed.add(e);
+    } else if (cur?.verdict && !cur.resumed && k === 'REPAIR_WORK_RESUMED') {
+      cur.resumed = e; claimed.add(e);
+    }
+  });
+  revs.claimed = claimed;
+  return revs;
+}
+
+function revisionDefs(revs) {
+  const multi = revs.length > 1;
+  return revs.flatMap((r, i) => {
+    const n = i + 1;
+    const tag = multi ? ` (Revision ${n})` : '';
+    const vk = up(r.verdict?.status);
+    const rejected = vk === 'RE_ESTIMATE_REJECTED' || vk === 'CUSTOMER_REJECTED';
+    const rows = [];
+    if (r.request) rows.push({ key: `RE_REQUESTED_${n}`, label: `Technician Re-Estimate Requested${tag}`,
+      activeLabel: 'Technician requested a re-estimate', keys: [], doneKeys: [], own: [r.request], done: r.request });
+    // A request still waiting for the shop's price: the next row is current.
+    rows.push({ key: `RE_ESTIMATED_${n}`, reKind: 'RE_ESTIMATED', label: `Service Re-Estimated${tag}`,
+      activeLabel: 'Re-estimating the service', keys: [], doneKeys: [],
+      own: r.estimated ? [r.estimated, ...(r.waiting || [])] : [], done: r.estimated || null });
+    if (!r.estimated) return rows;
+    rows.push({ key: `APPROVAL_${n}`, verdictOnly: true,
+      label: r.verdict ? `${rejected ? 'Re-Estimate Rejected by Customer' : 'Re-Estimate Approved by Customer'}${tag}`
+        : `Re-Estimate Approval Pending${tag}`,
+      activeLabel: 'Awaiting customer approval', danger: rejected,
+      keys: [], doneKeys: [], own: r.verdict ? [r.verdict] : [], done: r.verdict || null });
+    // Repair resumes only after an approval — never while it is pending.
+    if (r.verdict && !rejected) rows.push({ key: `RESUMED_${n}`, label: 'Repair Work in Progress',
+      activeLabel: 'Repair resuming', keys: [], doneKeys: [], own: r.resumed ? [r.resumed] : [], done: r.resumed || null, autoDone: r.verdict });
+    return rows;
+  });
+}
+
+function reEstimateIssues(note) {
+  const t = String(note || '');
+  if (!/^Re-estimated:/i.test(t) && !/waiting for customer approval/i.test(t)) return t;
+  if (!/^Re-estimated:/i.test(t)) return null;
+  const issues = (t.split(' · ')[1] || '').split(',').map((x) => x.trim())
+    .filter((x) => x && !/^service charge/i.test(x));
+  return issues.join(', ') || null;
+}
+
+function MilestoneRow({ m, isLast, nextReached, extra, hidePhotos }) {
   const [viewer, setViewer] = useState(null);
   const reached = m.state === 'done' || m.state === 'current';
   const tone = m.danger ? RED : m.state === 'current' ? TEAL : INK;
@@ -289,9 +364,10 @@ function MilestoneRow({ m, isLast, nextReached, extra }) {
   // "Customer approved the re-estimated service".
   const doneNote = m.state === 'done' && m.doneEvent?.note && m.doneEvent.note !== labelOf(m.doneEvent.status)
     ? String(m.doneEvent.note).trim() : null;
-  const notes = m.verdictOnly ? (doneNote ? [doneNote] : []) : [...new Set([doneNote, ...items
+  const notes = (m.verdictOnly ? (doneNote ? [doneNote] : []) : [...new Set([doneNote, ...items
     .filter((e) => e.note && e.note !== labelOf(e.status))
-    .map((e) => String(e.note).trim())].filter(Boolean))].slice(0, 3);
+    .map((e) => String(e.note).trim())].filter(Boolean))].slice(0, 3))
+    .map((n) => ((m.reKind || m.key) === 'RE_ESTIMATED' ? reEstimateIssues(n) : n)).filter(Boolean);
   const photos = [...new Set(items.flatMap((e) => (Array.isArray(e.imageUrls) ? e.imageUrls : [])))];
   const audioEvent = items.find((e) => e.audioUrl) || null;
   const when = m.state === 'done' ? m.doneEvent?.createdAt : m.latest?.createdAt;
@@ -329,7 +405,7 @@ function MilestoneRow({ m, isLast, nextReached, extra }) {
         {notes.map((n) => (
           <Text key={n} style={{ fontSize: 11.5, color: INK, marginTop: 3, lineHeight: 16 }} numberOfLines={3}>{n}</Text>
         ))}
-        <PhotoStrip urls={photos} onOpen={setViewer} />
+        {hidePhotos ? null : <PhotoStrip urls={photos} onOpen={setViewer} />}
         {audioEvent ? <EventMedia audioUrl={audioEvent.audioUrl} imageUrls={null} /> : null}
         {extra}
       </View>
@@ -348,7 +424,7 @@ function MilestoneRow({ m, isLast, nextReached, extra }) {
  * milestone (the shop's Quality Check button, the invoice link) without the
  * tracker knowing about either.
  */
-export function ServiceMilestoneTracker({ events, extras, milestones: given, renderExtra }) {
+export function ServiceMilestoneTracker({ events, extras, milestones: given, renderExtra, hidePhotos = false }) {
   const milestones = given || buildMilestones(events, extras);
   return (
     <View>
@@ -361,6 +437,7 @@ export function ServiceMilestoneTracker({ events, extras, milestones: given, ren
             isLast={i === milestones.length - 1}
             nextReached={!!next && (next.state === 'done' || next.state === 'current')}
             extra={renderExtra ? renderExtra(m) : null}
+            hidePhotos={hidePhotos}
           />
         );
       })}

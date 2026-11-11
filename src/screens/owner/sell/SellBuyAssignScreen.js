@@ -41,7 +41,8 @@ export default function SellBuyAssignScreen({ navigation, route }) {
       await shopBuyOrderAction(o.id, 'assign', { staffUserId: chosen });
       const name = staff?.find((e) => e.userId === chosen)?.name || 'Employee';
       showToast({ type: 'success', title: 'Pickup assigned', message: `${name} will collect and deliver.` });
-      navigation.replace('SellBuyOrderDetail', { id: o.id });
+      if (route?.params?.returnToList) navigation.goBack();
+      else navigation.replace('SellBuyOrderDetail', { id: o.id });
     } catch (e) {
       showToast({ type: 'error', title: 'Could not assign', message: e?.message });
     } finally {

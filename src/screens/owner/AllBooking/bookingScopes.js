@@ -88,6 +88,10 @@ export const SCOPES = {
     noun: 'Re-Estimated job',
     source: 'TICKET',
     match: (s) => s === 'QUOTED',
+    // Also a technician's pending re-estimate request (until it is resolved),
+    // read from activeReEstimate on the Jobs list row.
+    matchRow: (row) => String(row?.status || '').toUpperCase() === 'QUOTED'
+      || ['REQUESTED', 'AWAITING_APPROVAL'].includes(String(row?.activeReEstimate?.status || '').toUpperCase()),
     icon: Pencil,
     color: '#7C3AED',
     bg: '#F2ECFF',
@@ -223,10 +227,10 @@ export const SCOPES = {
   },
   DISPATCHED: {
     key: 'DISPATCHED',
-    label: 'Dispatched',
-    chipLabel: 'Dispatched',
+    label: 'Out for Delivery',
+    chipLabel: 'Out for Delivery',
     eyebrow: 'DISPATCHED',
-    noun: 'Dispatched Job',
+    noun: 'Out for Delivery Job',
     source: 'TICKET',
     match: (status) => DISPATCHED_BAND.includes(status),
     icon: Truck,

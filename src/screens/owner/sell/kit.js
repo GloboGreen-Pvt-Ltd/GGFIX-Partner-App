@@ -146,9 +146,9 @@ export function Stepper({ step, total = 4, labels }) {
   );
 }
 
-export function SellHeader({ title, subtitle, onBack, right, step, totalSteps = 4, rightWidth = 44, stepLabels }) {
+export function SellHeader({ title, subtitle, onBack, right, step, totalSteps = 4, rightWidth = 44, stepLabels, divider }) {
   return (
-    <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, backgroundColor: C.bg }}>
+    <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, backgroundColor: C.bg, ...(divider ? { borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 8 } : null) }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40 }}>
         <View style={{ width: 44 }}>
           {onBack ? (
@@ -173,13 +173,13 @@ export function SellHeader({ title, subtitle, onBack, right, step, totalSteps = 
  * keyboard-aware, and an optional sticky footer above the bottom safe area.
  */
 export function SellScreen({
-  title, subtitle, onBack, right, step, totalSteps, children, footer, scroll = true, refreshControl, contentStyle, rightWidth, stepLabels,
+  title, subtitle, onBack, right, step, totalSteps, children, footer, scroll = true, refreshControl, contentStyle, rightWidth, stepLabels, divider,
 }) {
   const insets = useSafeAreaInsets();
   const body = { width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center', paddingHorizontal: 16, ...contentStyle };
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
-      <SellHeader title={title} subtitle={subtitle} onBack={onBack} right={right} step={step} totalSteps={totalSteps} rightWidth={rightWidth} stepLabels={stepLabels} />
+      <SellHeader title={title} subtitle={subtitle} onBack={onBack} right={right} step={step} totalSteps={totalSteps} rightWidth={rightWidth} stepLabels={stepLabels} divider={divider} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {scroll ? (
           <ScrollView

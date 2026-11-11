@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { RefreshControl, View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ticketApi } from '../../../api/client';
 import { paymentFromTicket } from './ReceiptCard';
+import QrLabelSheet from './QrLabelSheet';
 import { useResponsive } from '../../../theme/responsive';
 import {
   CheckCircle2,
@@ -114,11 +115,15 @@ export default function BookingSummaryScreen({ route, navigation }) {
   const r = useResponsive();
   const { ticketId, customer, devices, trackingId, estimatedPrice } = route.params || {};
   const [ticket, setTicket] = useState(null);
+  const [qrTicketId, setQrTicketId] = useState(null); // Print QR Label popup
 
   // When the screen is opened with only a ticketId (e.g. from a booking link),
   // fetch the real ticket so we render actual data instead of blanks — and
   // never fabricated placeholder identities.
   const needsFetch = !!ticketId && !(customer && Array.isArray(devices) && devices.length);
+  // Pull to refresh: re-runs the screen's load.
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
   const load = useCallback(async () => {
     if (!needsFetch) return;
     const t = await ticketApi.get(`/tickets/${ticketId}`).catch(() => null);
@@ -131,7 +136,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
   };
 
   const handleBarcode = () => {
-    navigation.navigate('BarcodePrint', { ticketId, customer });
+    setQrTicketId(ticketId);
   };
 
   const handleAssignTechnician = () => {
@@ -229,7 +234,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
+      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
         className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32, width: '100%', maxWidth: r.maxWidth('form'), alignSelf: 'center' }}
@@ -412,6 +417,7 @@ export default function BookingSummaryScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
     </View>
   );
 }

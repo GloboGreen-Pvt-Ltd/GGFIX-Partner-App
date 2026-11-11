@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import {
+import { RefreshControl,
   View,
   Text,
   StyleSheet,
@@ -794,6 +794,9 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [advances, setAdvances] = useState([]);
   const [recentLeaves, setRecentLeaves] = useState([]);
+  // Pull to refresh: re-runs the screen's load.
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await loadProfileData(); } catch {} finally { setPullRefreshing(false); } };
   const loadProfileData = useCallback(async () => {
     if (!employee?.id) return;
     try {
@@ -833,7 +836,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
           style={{ flex: 1 }}
           behavior="padding"
         >
-          <ScrollView
+          <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
             contentContainerStyle={[styles.addContent, capStyle, { paddingBottom: rs(96) + r.insets.bottom }]}
             keyboardShouldPersistTaps="handled"
           >

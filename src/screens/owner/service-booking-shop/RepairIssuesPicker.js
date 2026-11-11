@@ -175,6 +175,24 @@ export default function RepairIssuesPicker({ categoryId, initialServices, onChan
     return m;
   }, [groups]);
 
+  // A seeded custom issue whose name matches a catalogue service (e.g. the
+  // technician typed "Battery replacement") is moved onto that service, once.
+  const matchedSeed = useRef(false);
+  useEffect(() => {
+    if (loading || matchedSeed.current) return;
+    matchedSeed.current = true;
+    const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const byName = {};
+    groups.forEach((g) => g.services.forEach((x) => { const k = norm(x.name); if (k && !byName[k]) byName[k] = x; }));
+    const hits = customIssues.filter((c) => byName[norm(c.name)]);
+    if (!hits.length) return;
+    setPickedIds((prev) => { const n = new Set(prev); hits.forEach((c) => n.add(byName[norm(c.name)].id)); return n; });
+    setRows((prev) => { const n = { ...prev }; hits.forEach((c) => { const id = byName[norm(c.name)].id; n[id] = { price: c.price ? String(c.price) : '', warranty: c.warranty || '', ...(c.charge ? { charge: c.charge } : {}) }; }); return n; });
+    setNotes((prev) => { const n = { ...prev }; hits.forEach((c) => { if (c.note) n[byName[norm(c.name)].id] = c.note; }); return n; });
+    setCustomIssues((list) => list.filter((c) => !byName[norm(c.name)]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, groups]);
+
   const row = (id) => rows[id] || { price: '', warranty: '' };
   const setField = (id, key, value) => setRows((p) => ({ ...p, [id]: { ...(p[id] || { price: '', warranty: '' }), [key]: value } }));
   const toggleService = (id) => setPickedIds((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });

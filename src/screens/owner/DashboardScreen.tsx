@@ -202,7 +202,7 @@ export const QUICK_ACTIONS: DashboardTool[] = [
   // Order: Booking · Pickups · Customer · Enquiry · Model Compatibility · Sell Requests.
   { key: 'BookingList', label: 'Job', via: 'parent', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#0788C9' },
   { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
-  { key: 'OwnerSearch', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerCustomers', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
   { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
   { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
   // Customer sell listings near the shop (marketplace /buy/nearby, sellerType CUSTOMER).

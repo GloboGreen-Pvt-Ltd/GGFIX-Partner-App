@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { confirm, notify } from '../../components/confirm';
 import ImageViewerModal from '../../components/ImageViewerModal';
@@ -8,10 +7,10 @@ import { listShopBuyOrders } from '../../api/buyOrders';
 import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { getModelsByBrand } from '../../api/masterData';
-import { useResponsive } from '../../theme/responsive';
 import { hasCategorySpecs, resolveSpecCategory, specDetailRows } from '../../utils/deviceSpecs';
 import { imeiApplies } from '../../utils/imeiPolicy';
 import { loadChatBuyOrders, ordersForListing, sendOrderOutcome } from '../../utils/buyOrders';
+import { Card, SellScreen } from './sell/kit';
 
 // GGFIX palette — green #035C6C, red #F84141, yellow #F3BF23, ink #111111,
 // neutrals #F3F4F6 / #F3F4F6.
@@ -32,37 +31,7 @@ const C = {
   card: '#FFFFFF',
 };
 
-const cardStyle = {
-  backgroundColor: C.card,
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: C.soft,
-  padding: 14,
-  marginBottom: 10,
-};
-
-// Custom header — back button + title.
-function SellHeader({ onBack }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={{ backgroundColor: C.card, paddingTop: insets.top + 6, paddingBottom: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.line }}>
-      <View className="flex-row items-center">
-        <TouchableOpacity
-          onPress={onBack}
-          activeOpacity={0.7}
-          hitSlop={6}
-          accessibilityLabel="Go back"
-          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 10, backgroundColor: C.soft }}
-        >
-          <Ionicons name="chevron-back" size={19} color={C.ink} />
-        </TouchableOpacity>
-        <Text className="font-extrabold" style={{ flex: 1, fontSize: 17, color: C.ink }} numberOfLines={1}>
-          Sell Device Details
-        </Text>
-      </View>
-    </View>
-  );
-}
+const cardStyle = { marginBottom: 10 };
 
 function statusMeta(rawStatus) {
   const s = String(rawStatus || '').toUpperCase();
@@ -114,9 +83,6 @@ function SummaryGroup({ title, rows }) {
 }
 
 export default function MarketplaceListingDetailsScreen({ navigation, route }) {
-  const insets = useSafeAreaInsets();
-  const r = useResponsive();
-  const capStyle = r.isTablet ? { width: Math.min(r.width - 32, 760), alignSelf: 'center' } : null;
   const productId = route?.params?.productId || route?.params?.id;
   // Fixed-price flow: a customer's order on this listing is handled in Order Details,
   // not by manually cancelling / completing the listing here.
@@ -208,20 +174,18 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: C.page }}>
-        <SellHeader onBack={() => navigation.goBack()} />
+      <SellScreen divider title="Sell Device Details" onBack={() => navigation.goBack()} scroll={false}>
         <View className="flex-1 items-center justify-center"><ActivityIndicator color={C.green} /></View>
-      </View>
+      </SellScreen>
     );
   }
   if (!item) {
     return (
-      <View style={{ flex: 1, backgroundColor: C.page }}>
-        <SellHeader onBack={() => navigation.goBack()} />
+      <SellScreen divider title="Sell Device Details" onBack={() => navigation.goBack()} scroll={false}>
         <View className="flex-1 items-center justify-center px-6">
           <Text style={{ fontSize: 13, color: C.muted }}>Could not load this listing.</Text>
         </View>
-      </View>
+      </SellScreen>
     );
   }
 
@@ -263,32 +227,42 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
         : item.descriptionType === 'SPARE_PARTS' ? 'Spare Parts Listing'
           : item.descriptionType;
 
+  // Only action here: open the customer's order (confirm / assign / hand over happen there).
+  const footer = openOrder ? (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('SellBuyOrderDetail', { id: openOrder.id })}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      style={{ minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.green }}
+    >
+      <Text className="font-extrabold" style={{ fontSize: 14, color: '#FFFFFF' }}>View Customer Order · {openOrder.orderNumber}</Text>
+    </TouchableOpacity>
+  ) : null;
+
   return (
-    <View style={{ flex: 1, backgroundColor: C.page }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SellHeader onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: isLive ? 96 + insets.bottom : 24 + insets.bottom }}>
-        <View style={capStyle}>
+    <>
+      <SellScreen divider title="Sell Device Details" subtitle={item.title || undefined} onBack={() => navigation.goBack()} footer={footer}>
+        <View>
           {/* Status banner */}
           <View className="flex-row items-center" style={{ borderRadius: 16, padding: 12, marginBottom: 10, backgroundColor: meta.tint }}>
             <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 10, backgroundColor: meta.bg }}>
               <Ionicons name={meta.icon} size={20} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text className="font-extrabold" style={{ fontSize: 15, color: meta.ink }} numberOfLines={1}>{meta.label}</Text>
+              <Text className="font-extrabold" style={{ fontSize: 15, color: meta.ink }} numberOfLines={2}>{meta.label}</Text>
               <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }} numberOfLines={1}>
                 #{orderId}{dateLabel ? ` · ${dateLabel}` : ''}
               </Text>
             </View>
             {item.price != null ? (
-              <Text className="font-extrabold" style={{ marginLeft: 8, fontSize: 15, color: C.greenDark }}>
+              <Text className="font-extrabold" style={{ marginLeft: 8, flexShrink: 0, fontSize: 15, color: C.greenDark }} numberOfLines={1}>
                 ₹{Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Text>
             ) : null}
           </View>
 
           {/* Device card */}
-          <View style={cardStyle}>
+          <Card style={cardStyle}>
             <View className="flex-row items-center">
               <View style={{ width: 84, height: 96, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.soft }}>
                 {item.imageUrl ? (
@@ -311,7 +285,8 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 ) : (item.ramLabel || item.storageLabel) ? (
                   <IconRow icon="hardware-chip-outline" label="Storage" value={[item.ramLabel, item.storageLabel].filter(Boolean).join(' / ')} />
                 ) : null}
-                <IconRow icon="shield-checkmark-outline" label="Condition" value={conditionText} />
+                {!isParts ? <IconRow icon="shield-checkmark-outline" label="Condition" value={conditionText} /> : null}
+                {descriptionText && !isParts ? <IconRow icon="document-text-outline" label="Listing" value={descriptionText} /> : null}
                 {item.imei && imeiApplies(resolveSpecCategory(item.deviceCategory, item.categoryCode, item.categoryName)) ? <IconRow icon="barcode-outline" label="IMEI" value={item.imei} /> : null}
               </View>
             </View>
@@ -353,11 +328,11 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 </View>
               </>
             ) : null}
-          </View>
+          </Card>
 
           {/* Device Summary */}
-          {hasSummary ? (
-            <View style={cardStyle}>
+          {hasSummary && !isParts ? (
+            <Card style={cardStyle}>
               <View className="flex-row items-center">
                 <Ionicons name="reader-outline" size={16} color={C.green} />
                 <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: C.ink }}>Device Summary</Text>
@@ -366,25 +341,12 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
               <SummaryGroup title="Screen" rows={conditions} />
               <SummaryGroup title="Accessories" rows={accessories} />
               <SummaryGroup title="Warranty" rows={warranty} />
-            </View>
-          ) : null}
-
-          {/* Description type */}
-          {item.descriptionType ? (
-            <View className="flex-row items-center" style={cardStyle}>
-              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                <Ionicons name="document-text-outline" size={15} color={C.green} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text className="font-extrabold" style={{ fontSize: 10.5, letterSpacing: 0.8, color: C.muted }}>DESCRIPTION TYPE</Text>
-                <Text className="font-bold" style={{ fontSize: 13, color: C.ink, marginTop: 1 }}>{descriptionText}</Text>
-              </View>
-            </View>
+            </Card>
           ) : null}
 
           {/* Buyer details — customer buy orders placed on this listing. */}
           {buyers.length ? (
-            <View style={cardStyle}>
+            <Card style={cardStyle}>
               <Text className="font-extrabold" style={{ fontSize: 10.5, letterSpacing: 0.8, color: C.muted, marginBottom: 6 }}>BUYER DETAILS</Text>
               {buyers.map((b, i) => (
                 <View key={b.key} className="flex-row" style={{ paddingTop: i ? 8 : 0, marginTop: i ? 8 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: C.soft }}>
@@ -398,43 +360,32 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                   </View>
                 </View>
               ))}
-            </View>
+            </Card>
           ) : null}
 
           {/* Sale outcome once it's a terminal state. */}
-          {(s === 'SOLD' || s === 'COMPLETED') ? (
-            <View className="flex-row items-center justify-center" style={{ borderRadius: 14, padding: 12, backgroundColor: C.mint }}>
-              <Ionicons name="checkmark-circle" size={20} color={C.green} />
-              <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: C.greenDark }}>Selling Completed</Text>
-            </View>
-          ) : (s === 'CANCELLED' || s === 'CANCELED') ? (
-            <View className="flex-row items-center justify-center" style={{ borderRadius: 14, padding: 12, backgroundColor: C.redTint }}>
-              <Ionicons name="close-circle" size={20} color={C.red} />
-              <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: C.red }}>Listing Cancelled</Text>
-            </View>
-          ) : null}
+          {!isLive ? (() => {
+            const sold = s === 'SOLD' || s === 'COMPLETED';
+            const tone = sold ? C.green : C.red;
+            const when = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+            const amount = item.price != null ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '';
+            return (
+              <Card style={[cardStyle, { backgroundColor: sold ? C.mint : C.redTint, borderColor: sold ? C.mint : C.redTint }]}>
+                <View className="flex-row items-center">
+                  <Ionicons name={sold ? 'checkmark-circle' : 'close-circle'} size={26} color={tone} />
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+                    <Text className="font-extrabold" style={{ fontSize: 14, color: tone }}>{sold ? 'Selling Completed' : 'Listing Cancelled'}</Text>
+                    <Text style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                      {[sold && amount ? `Sold for ${amount}` : null, when ? `${sold ? 'on' : 'Cancelled on'} ${when}` : null].filter(Boolean).join(' ')}
+                    </Text>
+                    {sold && buyers[0]?.buyer ? <Text style={{ fontSize: 12, color: C.ink, marginTop: 2 }} numberOfLines={1}>Buyer: {buyers[0].buyer}</Text> : null}
+                  </View>
+                </View>
+              </Card>
+            );
+          })() : null}
         </View>
-      </ScrollView>
-
-      {/* Only action here: open the customer's order (confirm / assign / hand over happen there). */}
-      {openOrder ? (
-        <View
-          style={{
-            position: 'absolute', left: 0, right: 0, bottom: 0,
-            paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 6,
-            backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => navigation.navigate('SellBuyOrderDetail', { id: openOrder.id })}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            style={[{ minHeight: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.green }, capStyle]}
-          >
-            <Text className="font-extrabold" style={{ fontSize: 14, color: '#FFFFFF' }}>View Customer Order · {openOrder.orderNumber}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      </SellScreen>
 
       <ImageViewerModal
         visible={viewer != null}
@@ -442,6 +393,6 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
         index={viewer || 0}
         onClose={() => setViewer(null)}
       />
-    </View>
+    </>
   );
 }

@@ -24,7 +24,7 @@ const ITEM_LABEL = { NEW: 'New', USED: 'Used', REFURBISHED: 'Refurbished' };
 // Order fulfilment by buyer type. The server stores only fulfilmentOptions
 // (PICKUP / SHIPPING), so each choice maps onto one of those; the buyer type
 // and a delivery radius have no server field yet and are not saved.
-const FULFIL = {
+export const FULFIL = {
   CUSTOMER: [
     { key: 'HOME', value: 'SHIPPING', title: 'Delivery to Home', sub: 'Your employee delivers · cash on delivery' },
     { key: 'VISIT', value: 'PICKUP', title: 'Direct Visit to Shop', sub: 'Customer buys at your shop' },
@@ -59,6 +59,15 @@ export default function SellStepPriceScreen({ navigation }) {
   useEffect(() => {
     if (ready && draft.editingId) { setAudiences(toList(pr.buyerType)); setPicked((pr.fulfilmentKeys || []).slice()); }
   }, [ready, draft.editingId]);
+  // Spare parts are sold to shops only — no Customer option.
+  const isPart = draft.listingType === LISTING_TYPES.SPARE_PART;
+  useEffect(() => {
+    if (!ready || !isPart || (audiences.length === 1 && audiences[0] === 'SHOP')) return;
+    const keep = picked.filter((key) => FULFIL.SHOP.some((f) => f.key === key));
+    setAudiences(['SHOP']);
+    setPicked(keep);
+    set({ buyerType: 'SHOP', fulfilmentKeys: keep, fulfilment: [...new Set(keep.map(valueOf))], deliveryRadiusKm: '' });
+  }, [ready, isPart, audiences]);
   const radiusOk = !picked.includes('HOME') || Number(pr.deliveryRadiusKm) > 0;
   const fulfilmentValid = !!audience && picked.length > 0 && radiusOk;
 
@@ -185,18 +194,27 @@ export default function SellStepPriceScreen({ navigation }) {
       onBack={() => navigation.goBack()}
       footer={fulfilmentValid ? <PrimaryButton title={publishTitle} variant="green" icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
     >
-      <TextField
-        label="Selling Price (Fixed)"
-        required
-        prefix="₹"
-        value={pr.price}
-        onChangeText={(t) => { set({ price: cleanAmount(t) }); setErrors((x) => ({ ...x, price: null })); }}
-        placeholder="0"
-        keyboardType="decimal-pad"
-        maxLength={11}
-        error={errors.price}
-        inputStyle={{ fontSize: rf(16), fontWeight: '800' }}
-      />
+      {/* Price left · stock quantity right */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        <TextField
+          label="Selling Price (Fixed)"
+          required
+          prefix="₹"
+          value={pr.price}
+          onChangeText={(t) => { set({ price: cleanAmount(t) }); setErrors((x) => ({ ...x, price: null })); }}
+          placeholder="0"
+          keyboardType="decimal-pad"
+          maxLength={11}
+          error={errors.price}
+          style={{ flex: 1, marginRight: 10 }}
+          inputStyle={{ fontSize: rf(16), fontWeight: '800' }}
+        />
+        <View style={{ flex: 1, marginTop: 12 }}>
+          <FieldLabel label="Stock Quantity" required hint={p.imei ? '(1 · IMEI)' : null} />
+          <QtyStepper value={pr.quantity} onChange={(v) => { set({ quantity: v }); setErrors((x) => ({ ...x, quantity: null })); }} min={1} max={maxQty} style={{ minHeight: 46 }} />
+          {errors.quantity ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.quantity}</Text> : null}
+        </View>
+      </View>
       {similar ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.greenBg, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, marginTop: 8 }}>
           <TrendingUp size={14} color={C.green} />
@@ -207,15 +225,10 @@ export default function SellStepPriceScreen({ navigation }) {
       ) : null}
 
 
-      <View style={{ marginTop: 16 }}>
-        <FieldLabel label="Stock Quantity" required hint={p.imei ? '(1 for a device with IMEI)' : null} />
-        <QtyStepper value={pr.quantity} onChange={(v) => { set({ quantity: v }); setErrors((x) => ({ ...x, quantity: null })); }} min={1} max={maxQty} />
-        {errors.quantity ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.quantity}</Text> : null}
-      </View>
 
       <Section title="Order Fulfillment" sub="Who buys and how they get the item" style={{ marginTop: 18 }}>
         {/* Each buyer type is its own card: tap it and its options open right below. */}
-        {[['CUSTOMER', 'Customer', 'Sell to customers in the NearGFix app'], ['SHOP', 'Shop', 'Sell to other shops']].map(([k, label, sub]) => {
+        {[['CUSTOMER', 'Customer', 'Sell to customers in the NearGFix app'], ['SHOP', 'Shop', 'Sell to other shops']].filter(([k]) => !isPart || k === 'SHOP').map(([k, label, sub]) => {
           const on = audiences.includes(k);
           return (
             <View key={k} style={{ borderWidth: 1, borderColor: on ? C.green : C.border, borderRadius: 14, marginBottom: 10, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>

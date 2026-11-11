@@ -182,7 +182,9 @@ export default function SellStepConditionScreen({ navigation }) {
   const toggleIn = (key, value) => set({ [key]: c[key].includes(value) ? c[key].filter((x) => x !== value) : [...c[key], value] });
   const limit = DESC_LIMIT[c.descriptionMode] || 500;
   const needsWorking = !isAccessory;
-  const showDefects = isDevice && issues.length > 0;
+  // Dead / Unverified: only the description — no device check, physical condition or problems.
+  const deadFlow = c.working === 'DEAD' || c.working === 'UNVERIFIED';
+  const showDefects = isDevice && !deadFlow && issues.length > 0;
   const family = familyOf(product);
   const isMobile = family === 'mobile';
   const ACCESSORIES = ACCESSORY_SETS[family];
@@ -205,8 +207,8 @@ export default function SellStepConditionScreen({ navigation }) {
     if (isDevice && c.working === 'DEAD' && showDefects && !c.issues.length && !c.missingParts.trim()) {
       e.issues = 'Tell buyers what is not working';
     }
-    if (isDevice && questions.some((q) => !answerFor(q))) e.screening = 'Answer every device check question';
-    if (isDevice && groups.some((g) => !pickFor(g))) e.physical = 'Pick the condition for every part';
+    if (isDevice && !deadFlow && questions.some((q) => !answerFor(q))) e.screening = 'Answer every device check question';
+    if (isDevice && !deadFlow && groups.some((g) => !pickFor(g))) e.physical = 'Pick the condition for every part';
     if (c.warrantyType !== 'NONE') {
       const d = parseDate(c.warrantyValidTill);
       if (!d) e.warranty = 'Enter the warranty end date, e.g. 12/10/2026';
@@ -221,8 +223,9 @@ export default function SellStepConditionScreen({ navigation }) {
     // Keep only answers for the questions shown (the flow may have switched).
     if (isDevice) {
       set({
-        screeningAnswers: questions.filter((q) => answerFor(q)).map((q) => ({ questionId: q.id, answer: answerFor(q), question: q.question })),
-        conditions: groups.map((g) => pickFor(g)).filter(Boolean),
+        screeningAnswers: deadFlow ? [] : questions.filter((q) => answerFor(q)).map((q) => ({ questionId: q.id, answer: answerFor(q), question: q.question })),
+        conditions: deadFlow ? [] : groups.map((g) => pickFor(g)).filter(Boolean),
+        ...(deadFlow ? { issues: [], missingParts: '' } : null),
       });
     }
     if (c.warrantyType !== 'NONE') {
@@ -306,7 +309,7 @@ export default function SellStepConditionScreen({ navigation }) {
       </View>
       ) : null}
 
-      {isDevice && questions.length ? (
+      {isDevice && !deadFlow && questions.length ? (
         <Section title="Quick Device Check" sub="Answer each question about the device's current condition">
           {questions.map((q, i) => (
             <View key={q.id} style={{ marginBottom: 12 }}>
@@ -325,7 +328,7 @@ export default function SellStepConditionScreen({ navigation }) {
         </Section>
       ) : null}
 
-      {isDevice && groups.length ? (
+      {isDevice && !deadFlow && groups.length ? (
         <Section title="Physical Condition" sub="Pick the option that best matches each part of the device">
           {groups.map((g) => (
             <View key={g.id} style={{ marginBottom: 12 }}>

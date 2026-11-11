@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import {
+import { RefreshControl,
   View,
   Text,
   Image,
@@ -38,6 +38,12 @@ export default function TechnicianProfileScreen({ navigation }) {
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [checkInOutLoading, setCheckInOutLoading] = useState(false);
+
+  // Pull to refresh: re-runs the screen's load.
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,7 +145,7 @@ export default function TechnicianProfileScreen({ navigation }) {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       {/* keyboard-controller KAV: edge-to-edge Android no longer resizes the window. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.avatarRow}>
             <View style={styles.avatarLarge}>
               {profile.photoUrl ? (

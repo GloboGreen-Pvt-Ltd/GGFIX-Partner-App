@@ -91,6 +91,17 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   const [user, setUser] = useState(null);
   const [switching, setSwitching] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const confirmLogout = () => {
+    if (loggingOut) return;
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: async () => {
+        setLoggingOut(true);
+        try { await onLogout?.(); } finally { setLoggingOut(false); }
+      } },
+    ]);
+  };
   // null = unknown (haven't checked yet); true/false once we know.
   const [hasKycDocs, setHasKycDocs] = useState(null);
   // Same rule as the Home header: the only reviewed, admin-approved signal
@@ -480,19 +491,20 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
         {onLogout ? (
           <Pressable
-            onPress={onLogout}
+            onPress={confirmLogout}
+            disabled={loggingOut}
             accessibilityRole="button"
             accessibilityLabel="Log out"
-            className="flex-row items-center justify-center"
             hitSlop={4}
             style={({ pressed }) => ({
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%',
               marginTop: rs(18), height: rs(50), borderRadius: rs(14),
               backgroundColor: pressed ? '#FDE1DF' : '#FFFFFF',
               borderWidth: 1.5, borderColor: DANGER,
             })}
           >
-            <LogOut size={rf(17)} color={DANGER} strokeWidth={ICON_STROKE} />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: DANGER, marginLeft: rs(8) }}>Log Out</Text>
+            {loggingOut ? <ActivityIndicator size="small" color={DANGER} /> : <LogOut size={rf(17)} color={DANGER} strokeWidth={ICON_STROKE} />}
+            <Text style={{ fontSize: 14, fontWeight: '800', color: DANGER, marginLeft: rs(8) }}>{loggingOut ? 'Logging out…' : 'Log Out'}</Text>
           </Pressable>
         ) : null}
 

@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
 import { ResponsiveModal } from '../../../components/responsive';
+import QrLabelSheet from '../AllBooking/QrLabelSheet';
 import { openSmsComposer } from '../../../lib/smsShare';
 import {
   paymentAcrossTickets, BookingReceipt, buildBookingConfirmSms, loadReceiptShop, withNote, receiptComplaint, warrantySummary,
@@ -17,6 +18,7 @@ import { useResponsive } from '../../../theme/responsive';
 import { resolveSpecCategory, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies } from '../../../utils/imeiPolicy';
 import TechnicianAssignPanel from './TechnicianAssignPanel';
+import SafeModal from '../../../components/SafeModal';
 
 // GGFIX palette.
 const ACCENT = '#035C6C';       // GGFIX green — fills, icons
@@ -118,6 +120,10 @@ export default function BookingThankYouScreen({ navigation, route }) {
     .map((t, i) => (t?.id ? { ticket: t, device: devices[i] || {} } : null))
     .filter(Boolean);
   const [barcodePickerOpen, setBarcodePickerOpen] = useState(false);
+  const [assignedTech, setAssignedTech] = useState(null);
+  const [assignedMap, setAssignedMap] = useState(null); // ticketId → tech, survives popup close
+  const [assignOpen, setAssignOpen] = useState(false); // Assign Technician popup
+  const [qrTicketId, setQrTicketId] = useState(null); // Print QR Label popup
 
   // Assign — scrolls up to the inline Assign Technician section (Assign All /
   // Individually / Later for a bulk booking, one picker for a single device).
@@ -127,7 +133,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
       notify('Not available', 'This booking has no ticket to assign yet.');
       return;
     }
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    setAssignOpen(true);
   };
 
   // SMS — the short booking confirmation, in the customer's SMS app.
@@ -137,7 +143,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // prints one ticket, so a multi-device booking asks which device first.
   const openBarcodeFor = (ticket) => {
     setBarcodePickerOpen(false);
-    navigation.navigate('BarcodePrint', { ticketId: ticket.id, mode: 'barcode' });
+    setQrTicketId(ticket.id);
   };
   const printBarcode = () => {
     if (!bookedTickets.length) {
@@ -188,10 +194,6 @@ export default function BookingThankYouScreen({ navigation, route }) {
           one just completed. Go to Home instead: the booking is done, so the
           wizard is not somewhere to return to. */}
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingTop: insets.top + rs(4), paddingBottom: rs(16) }}>
-        {/* Assign Technician — inline, right after booking (each device is its own ticket). */}
-        <View style={colStyle}>
-          <TechnicianAssignPanel items={bookedTickets} />
-        </View>
 
         {/* On-screen Thank You receipt — shown here, never sent. */}
         <BookingReceipt
@@ -246,6 +248,15 @@ export default function BookingThankYouScreen({ navigation, route }) {
       </View>
 
       {/* Multi-device booking: pick whose barcode to print. */}
+      <SafeModal visible={assignOpen} transparent animationType="fade" onRequestClose={() => setAssignOpen(false)}>
+        <Pressable onPress={() => setAssignOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: rs(16) }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: rs(8), maxHeight: '85%', width: '100%', maxWidth: 520, alignSelf: 'center' }}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
+            <TechnicianAssignPanel items={bookedTickets} direct={bookedTickets.length === 1} assignedTo={assignedTech} assignedMap={assignedMap} onAssigned={(t, map) => { setAssignedTech(t); setAssignedMap(map); setAssignOpen(false); notify('Technician assigned', `Assigned to ${t?.name || t?.fullName || 'technician'}.`); }} onClose={() => setAssignOpen(false)} />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </SafeModal>
       <ResponsiveModal visible={barcodePickerOpen} onClose={() => setBarcodePickerOpen(false)}>
         <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }}>Print barcode for</Text>
         <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2, marginBottom: 10 }}>Each device has its own tracking ID.</Text>
@@ -270,6 +281,7 @@ export default function BookingThankYouScreen({ navigation, route }) {
           </Pressable>
         ))}
       </ResponsiveModal>
+      <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
 
     </View>
   );
