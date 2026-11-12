@@ -1,5 +1,5 @@
 import { authApi } from './client';
-import { saveSession, clearSession, getSession } from '../auth/session';
+import { saveSession, clearSession, getSession, getRefreshToken } from '../auth/session';
 import { store } from '../store';
 import { setActiveShop } from '../store/authSlice';
 import { registerForPush } from '../lib/pushNotifications';
@@ -107,7 +107,9 @@ export async function resetPassword({ identifier, otp, newPassword }) {
 }
 
 export async function switchShop(shopId) {
-  const data = await authApi.post('/auth/switch-shop', { body: { shopId } });
+  // refreshToken: the server revokes the pre-switch session it replaces.
+  const refreshToken = await getRefreshToken();
+  const data = await authApi.post('/auth/switch-shop', { body: { shopId, ...(refreshToken ? { refreshToken } : {}) } });
   await saveSession(data);
   // Keep Redux's active-shop pointer in lockstep with the persisted session so
   // every `selectShopId` consumer (pickup slots, KYC, new booking, payslips…)
@@ -189,6 +191,11 @@ export async function fetchMe() {
 }
 
 export async function logout() {
+  // Revoke the server-side refresh session (best effort: offline still logs out locally).
+  try {
+    const refreshToken = await getRefreshToken();
+    if (refreshToken) await authApi.post('/auth/logout', { body: { refreshToken }, skipAuthExpiry: true });
+  } catch (_) { /* ignore */ }
   await clearSession();
 }
 

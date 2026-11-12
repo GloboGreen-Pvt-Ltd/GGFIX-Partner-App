@@ -6,16 +6,17 @@ import {
   FlatList,
   Image,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
+  ToastAndroid,
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { confirm } from '../../components/confirm';
 import {
   BarChart3,
   CalendarOff,
@@ -314,13 +315,16 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     }
     if (Platform.OS !== 'android') return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      confirm({ title: 'Exit NearGFix?', message: 'Do you want to close the app?', confirmText: 'Exit', cancelText: 'Cancel' })
-        .then((ok: boolean) => { if (ok) BackHandler.exitApp(); });
+      const now = Date.now();
+      if (now - lastBackRef.current < 2000) { BackHandler.exitApp(); return true; }
+      lastBackRef.current = now;
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
       return true;
     });
     return () => sub.remove();
   }, [navigation]));
 
+  const lastBackRef = useRef(0);
   const { summary, loading, error, refresh } = useBookingCounts();
   const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);

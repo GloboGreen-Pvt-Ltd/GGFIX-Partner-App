@@ -4,6 +4,7 @@ import { AUTH_BASE } from '../api/config';
 
 const TOKEN_KEY = 'auth.token';
 const USER_KEY = 'auth.user';
+const REFRESH_KEY = 'auth.refresh';
 
 // A session belongs to the server that issued it. When the app moves to another
 // API server (e.g. api.ggfix.in → api.neargfix.com) the old token is rejected by
@@ -52,16 +53,40 @@ async function readToken() {
   return legacy;
 }
 
+// Refresh token (POST /auth/refresh): secure storage only, never the profile blob.
+export async function getRefreshToken() {
+  if (secureOk()) {
+    try { return (await SecureStore.getItemAsync(REFRESH_KEY)) || null; } catch (_) { /* fall through */ }
+  }
+  return (await AsyncStorage.getItem(REFRESH_KEY)) || null;
+}
+async function writeRefreshToken(token) {
+  if (secureOk()) {
+    try {
+      if (token) await SecureStore.setItemAsync(REFRESH_KEY, token);
+      else await SecureStore.deleteItemAsync(REFRESH_KEY);
+      return;
+    } catch (_) { /* fall back */ }
+  }
+  if (token) await AsyncStorage.setItem(REFRESH_KEY, token);
+  else await AsyncStorage.removeItem(REFRESH_KEY);
+}
+
 export async function saveSession(session) {
-  const { accessToken, ...profile } = session || {};
+  // refreshToken is kept as-is when a save carries none (e.g. a /auth/me profile merge).
+  const { accessToken, refreshToken, refreshExpiresIn, ...profile } = session || {};
+  if (refreshToken) await writeRefreshToken(refreshToken);
   await writeToken(accessToken || '');
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(profile));
   await AsyncStorage.setItem(SERVER_KEY, AUTH_BASE);
 }
 
 export async function clearSession() {
-  if (secureOk()) { try { await SecureStore.deleteItemAsync(TOKEN_KEY); } catch (_) {} }
-  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, SERVER_KEY]);
+  if (secureOk()) {
+    try { await SecureStore.deleteItemAsync(TOKEN_KEY); } catch (_) {}
+    try { await SecureStore.deleteItemAsync(REFRESH_KEY); } catch (_) {}
+  }
+  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, SERVER_KEY, REFRESH_KEY]);
 }
 
 export async function getToken() {
