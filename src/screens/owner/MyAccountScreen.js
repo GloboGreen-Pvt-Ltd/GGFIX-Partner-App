@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   Switch,
@@ -130,6 +131,20 @@ export default function MyAccountScreen({ onLogout, navigation }) {
   // name/phone/avatar in OwnerPersonalInfo (a separate stack screen) otherwise
   // left this always-mounted tab showing the old values.
   useFocusEffect(useCallback(() => { reloadSession(); }, []));
+  // Pull to refresh: profile, shop and KYC status.
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const onPullRefresh = async () => {
+    setPullRefreshing(true);
+    try {
+      await Promise.allSettled([
+        reloadSession(),
+        getOwnerKycDocuments().then((kyc) => {
+          setHasKycDocs(!!(kyc && (kyc.aadharFrontUrl || kyc.aadharBackUrl || kyc.panUrl)));
+          setKycStatus(kyc?.status || null);
+        }),
+      ]);
+    } finally { setPullRefreshing(false); }
+  };
 
   // Refresh KYC submission status whenever this screen comes into focus, so the
   // KYC Documents row can route the user to View (already uploaded) vs Intro
@@ -456,6 +471,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
 
       <ScrollView
         className="flex-1"
+        refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
         contentContainerStyle={{ paddingHorizontal: rs(16), paddingTop: rs(4), paddingBottom: tabSpace }}
         showsVerticalScrollIndicator={false}
       >
@@ -490,22 +506,22 @@ export default function MyAccountScreen({ onLogout, navigation }) {
         </View>
 
         {onLogout ? (
-          <Pressable
-            onPress={confirmLogout}
-            disabled={loggingOut}
-            accessibilityRole="button"
-            accessibilityLabel="Log out"
-            hitSlop={4}
-            style={({ pressed }) => ({
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%',
-              marginTop: rs(18), height: rs(50), borderRadius: rs(14),
-              backgroundColor: pressed ? '#FDE1DF' : '#FFFFFF',
-              borderWidth: 1.5, borderColor: DANGER,
-            })}
-          >
-            {loggingOut ? <ActivityIndicator size="small" color={DANGER} /> : <LogOut size={rf(17)} color={DANGER} strokeWidth={ICON_STROKE} />}
-            <Text style={{ fontSize: 14, fontWeight: '800', color: DANGER, marginLeft: rs(8) }}>{loggingOut ? 'Logging out…' : 'Log Out'}</Text>
-          </Pressable>
+          // Static styles on a plain View — NativeWind drops Pressable function styles.
+          <View style={{ marginTop: rs(18), borderRadius: rs(14), borderWidth: 1.5, borderColor: DANGER, backgroundColor: '#FFF5F5', overflow: 'hidden' }}>
+            <Pressable
+              onPress={confirmLogout}
+              disabled={loggingOut}
+              accessibilityRole="button"
+              accessibilityLabel="Log out"
+              android_ripple={{ color: '#FDE1DF' }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: rs(50), paddingHorizontal: rs(16), opacity: loggingOut ? 0.7 : 1 }}
+            >
+              <View style={{ height: rs(32), width: rs(32), borderRadius: rs(16), alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDE1DF' }}>
+                {loggingOut ? <ActivityIndicator size="small" color={DANGER} /> : <LogOut size={rf(16)} color={DANGER} strokeWidth={ICON_STROKE} />}
+              </View>
+              <Text style={{ fontSize: rf(14.5), fontWeight: '800', color: DANGER, marginLeft: rs(10) }}>{loggingOut ? 'Logging out…' : 'Log Out'}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {/* Trust footer — reassurance only, no state or navigation. */}

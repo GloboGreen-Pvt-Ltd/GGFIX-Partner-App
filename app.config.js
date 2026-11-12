@@ -55,6 +55,8 @@ export default {
     },
     android: {
       package: 'com.neargfix.partner',
+      // No adb/cloud backup of app data (session profile, cached jobs).
+      allowBackup: false,
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#ffffff' },
       // 'resize' (not the default 'pan') so the root view actually shrinks
       // when the keyboard opens — KeyboardAvoidingView's Android behaviors
@@ -165,6 +167,14 @@ export default {
               '-keepclasseswithmembers class * {',
               '  public void onPayment*(...);',
               '}',
+              // WorkManager (expo-notifications / maps) opens its Room DB by reflection
+              // (WorkDatabase_Impl); without these R8 crashes androidx.startup at launch.
+              '-keep class * extends androidx.room.RoomDatabase { <init>(); }',
+              '-keep class androidx.work.impl.WorkDatabase_Impl { *; }',
+              '-keep class androidx.work.** { *; }',
+              '-keep class androidx.room.** { *; }',
+              '-keep class androidx.startup.** { *; }',
+              '-keep class * implements androidx.startup.Initializer { <init>(); }',
             ].join('\n'),
           },
         },
