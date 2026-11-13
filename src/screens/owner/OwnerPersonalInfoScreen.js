@@ -598,17 +598,15 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: rs(18),
     paddingHorizontal: rs(14),
-    paddingVertical: rs(14),
+    paddingVertical: rs(20),
     marginBottom: rs(12),
   },
   identityTopRow: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
   identityText: {
-    flex: 1,
-    marginLeft: rs(14),
-    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: rs(10),
   },
   avatar: {
     backgroundColor: '#FFFFFF',
@@ -625,13 +623,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
   avatarText: { color: G, fontSize: T.title3, fontWeight: '800', letterSpacing: 1 },
-  name: { fontSize: T.headline, fontWeight: '700', color: TEXT },
+  name: { fontSize: T.title3, textAlign: 'center', fontWeight: '700', color: TEXT },
   shopRow: { flexDirection: 'row', alignItems: 'center', marginTop: rs(4) },
-  shopName: { fontSize: T.caption1, color: MUTED, marginLeft: rs(5), fontWeight: '500' },
+  shopName: { fontSize: T.footnote, color: MUTED, marginLeft: rs(5), fontWeight: '500' },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     backgroundColor: MINT,
     paddingHorizontal: rs(9),
     paddingVertical: rs(3),
@@ -677,7 +675,7 @@ const styles = StyleSheet.create({
     marginBottom: rs(12),
   },
   cardBody: { marginTop: rs(4) },
-  groupLabel: { fontSize: T.caption2, fontWeight: '700', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase' },
+  groupLabel: { fontSize: T.caption1, fontWeight: '700', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase' },
   groupDivider: { height: 1, backgroundColor: BORDER, marginVertical: rs(10) },
 
   // View Mode rows — icon tile, small label above its value (stacked, so a
@@ -691,8 +689,8 @@ const styles = StyleSheet.create({
     width: rs(34), height: rs(34), borderRadius: rs(10),
     backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', marginRight: rs(12),
   },
-  viewRowLabel: { fontSize: T.caption2, color: MUTED, fontWeight: '500' },
-  viewRowValue: { fontSize: T.footnote, color: TEXT, fontWeight: '600', marginTop: rs(2) },
+  viewRowLabel: { fontSize: T.caption1, color: MUTED, fontWeight: '500' },
+  viewRowValue: { fontSize: T.subhead, color: TEXT, fontWeight: '600', marginTop: rs(2) },
   viewRowValueMuted: { color: MUTED, fontWeight: '500' },
   viewRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginLeft: rs(46) },
 

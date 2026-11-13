@@ -108,10 +108,12 @@ export default function RootNavigator() {
   }, [dispatch]);
 
   const handleLogout = async ({ silent = false } = {}) => {
-    // While the session (and so the auth header) still exists. Never throws.
-    await unregisterPush();
+    // While the session (and so the auth header) still exists. Capped at 4s so
+    // a slow / offline network can't leave the user stuck on "Logging out…".
+    try { await Promise.race([unregisterPush(), new Promise((r) => setTimeout(r, 4000))]); } catch (_) {}
     try { await logout(); } catch (_) {}
-    await clearSession();
+    try { await clearSession(); } catch (_) {}
+    // Always leave the signed-in screens, even if clearing storage failed.
     setSessionState(null);
     dispatch(clearAuth());
     if (!silent) notify('Logged out successfully', '', { preset: 'done' });

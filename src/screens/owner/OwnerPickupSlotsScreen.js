@@ -17,11 +17,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
-import { notify } from '../../components/confirm';
+import { notify, confirm } from '../../components/confirm';
 import SafeModal from '../../components/SafeModal';
-// Add-only by design: a saved slot is a commitment customers can already be
-// booking against, so this screen never offers edit or delete.
-import { getShopPickupSlots, addShopPickupSlot } from '../../api/shops';
+import { getShopPickupSlots, addShopPickupSlot, updateShopPickupSlot, deleteShopPickupSlot } from '../../api/shops';
 import { fetchMe, updateOwnerShop } from '../../api/auth';
 import { getSession } from '../../auth/session';
 import { selectShopId } from '../../store/authSlice';
@@ -345,10 +343,43 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
     }
   };
 
-  const resetForm = () => { setForm(EMPTY_FORM); setError(''); };
+  const [editingId, setEditingId] = useState(null);
+  const scrollRef = useRef(null);
+  const resetForm = () => { setForm(EMPTY_FORM); setError(''); setEditingId(null); };
+
+  const onEdit = (slot) => {
+    setEditingId(slot.id);
+    setError('');
+    setForm({
+      days: [slot.dayOfWeek],
+      startTime: String(slot.startTime || '').slice(0, 5),
+      endTime: String(slot.endTime || '').slice(0, 5),
+      capacity: String(slot.capacity ?? 10),
+    });
+    scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+  };
+
+  const onDelete = async (slot) => {
+    const ok = await confirm({
+      title: 'Delete pickup slot?',
+      message: `${dayLabel(slot.dayOfWeek)} ${to12h(slot.startTime)} – ${to12h(slot.endTime)}`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteShopPickupSlot(shopId, slot.id);
+      if (editingId === slot.id) resetForm();
+      await load();
+    } catch (e) {
+      notify('Could not delete', e?.payload?.message || e?.message || 'Please try again.');
+    }
+  };
 
   const toggleDay = (code) => {
     // Multi-select: each picked day becomes its own row on submit.
+    // Editing one saved slot = one day.
+    if (editingId) { setForm((f) => ({ ...f, days: [code] })); return; }
     setForm((f) => {
       const has = f.days.includes(code);
       return { ...f, days: has ? f.days.filter((d) => d !== code) : [...f.days, code] };
@@ -369,7 +400,13 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
 
     setSubmitting(true);
     try {
-      if (form.days.length === 1) {
+      if (editingId) {
+        await updateShopPickupSlot(shopId, editingId, {
+          dayOfWeek: form.days[0], startTime: start, endTime: end, capacity: cap,
+        });
+        resetForm();
+        await load();
+      } else if (form.days.length === 1) {
         await addShopPickupSlot(shopId, {
           dayOfWeek: form.days[0], startTime: start, endTime: end, capacity: cap,
         });
@@ -433,7 +470,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
     <View style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScreenHeader title="Pickup Service" onBack={onBack} topInset={insets.top} />
-      <ScrollView refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
+      <ScrollView ref={scrollRef} refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} colors={['#035C6C']} tintColor="#035C6C" />}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
@@ -517,7 +554,7 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
               <Ionicons name="calendar-outline" size={20} color={C.deep} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitleLg}>Add pickup slot</Text>
+              <Text style={styles.cardTitleLg}>{editingId ? 'Edit pickup slot' : 'Add pickup slot'}</Text>
               <Text style={styles.cardSub} numberOfLines={2}>
                 Pick days, a time window and the pickup distance.
               </Text>
@@ -599,14 +636,19 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                  <Ionicons name={editingId ? 'checkmark-circle-outline' : 'add-circle-outline'} size={18} color="#FFFFFF" />
                   <Text style={styles.submitBtnText}>
-                    {form.days.length > 1 ? `Add slots (${form.days.length})` : 'Add slot'}
+                    {editingId ? 'Update slot' : form.days.length > 1 ? `Add slots (${form.days.length})` : 'Add slot'}
                   </Text>
                 </>
               )}
             </LinearGradient>
           </TouchableOpacity>
+          {editingId ? (
+            <TouchableOpacity onPress={resetForm} activeOpacity={0.8} style={{ alignSelf: 'center', paddingVertical: 10 }}>
+              <Text style={{ color: C.muted, fontWeight: '700' }}>Cancel edit</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.savedHeaderRow}>
@@ -660,8 +702,6 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
             <Text style={styles.emptyText}>Add one above to get started.</Text>
           </View>
         ) : (
-          // Read-only cards: a saved slot is something customers can already be
-          // booking against, so it carries no edit or delete affordance.
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: slotCols === 2 ? -4 : 0 }}>
           {sortedSlots.map((slot, index) => (
             <View key={slot.id} style={{ width: slotCols === 2 ? '50%' : '100%', paddingHorizontal: slotCols === 2 ? 4 : 0 }}>
@@ -690,6 +730,16 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
                   <Text style={styles.slotMeta}>Distance: {slot.capacity ?? 10} km</Text>
                 </View>
               </View>
+              <View style={{ justifyContent: 'center', gap: 8 }}>
+                <TouchableOpacity onPress={() => onEdit(slot)} hitSlop={6} activeOpacity={0.7} accessibilityLabel="Edit slot"
+                  style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5F3F5' }}>
+                  <Ionicons name="create-outline" size={17} color={C.deep} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onDelete(slot)} hitSlop={6} activeOpacity={0.7} accessibilityLabel="Delete slot"
+                  style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEECEC' }}>
+                  <Ionicons name="trash-outline" size={17} color="#F32C26" />
+                </TouchableOpacity>
+              </View>
             </View>
             </View>
           ))}
@@ -700,8 +750,8 @@ export default function OwnerPickupSlotsScreen({ navigation }) {
           <Ionicons name="information-circle-outline" size={16} color={C.deep} />
           <Text style={styles.infoText}>
             Customers can book a pickup within the selected time window on the
-            selected days only. A saved slot can’t be edited or removed — switch
-            Pickup Service off to stop taking pickups without losing it.
+            selected days only. Tap edit or delete on a saved slot to change it, or
+            switch Pickup Service off to pause pickups.
           </Text>
         </View>
         </>

@@ -58,6 +58,7 @@ import { confirm, notify } from '../../../components/confirm';
 import { onTicketUpdated } from '../../../lib/ticketEvents';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { ticketApi } from '../../../api/client';
+import { getRepairDelivery } from '../../../api/repairDelivery';
 import { getModelsByBrand } from '../../../api/masterData';
 // The receipt lives in its own module so the Bookings list can share the same
 // one from its actions sheet.
@@ -68,6 +69,7 @@ import QrLabelSheet from './QrLabelSheet';
 import { RescheduleSheet, ShareReceiptSheet } from './BookingActionSheets';
 import ImageViewerModal from '../../../components/ImageViewerModal';
 import { ServiceMilestoneTracker, buildMilestones } from '../../common/serviceMilestones';
+import RepairDeliveryCard from './RepairDeliveryCard';
 import { useFocusPolling } from '../../../lib/hooks/useFocusPolling';
 
 // Technician uploads: ticket.technicianPhotosJson + issue-note and solution-pack images.
@@ -113,7 +115,7 @@ const OWNER_PROGRESS_ROWS = [
 const STATUS_VARIANT = {
   CREATED:              { label: 'Order Placed',         tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
-  IN_DIAGNOSIS:         { label: 'In Diagnosis',         tone: 'purple' },
+  IN_DIAGNOSIS:         { label: 'Service Accepted',     tone: 'amber' },
   IN_REPAIR:            { label: 'In Service',           tone: 'purple' },
   QUOTED:               { label: 'Re-Estimated',         tone: 'amber' },
   APPROVED:             { label: 'Approved',             tone: 'blue' },
@@ -178,7 +180,7 @@ const ICON_TONE = {
   'SERVICE PROGRESS': 1, CUSTOMER: 0, 'DEVICE PHOTOS': 2, ACCESSORIES: 3, 'MISSING / DAMAGED PARTS': 5,
   'WHATSAPP CONFIRMATION': 2, WARRANTY: 4, 'PRICE SUMMARY': 3, 'SERVICE INFO': 1, 'RE-ESTIMATED': 7, INVOICE: 0, TECHNICIAN: 4,
   Name: 0, Mobile: 1, 'Alt. Mobile': 2, Email: 3, Address: 4, 'ID Proof': 7,
-  Complaint: 3, 'Est. Time': 1, Delivery: 2, IMEI: 4, Approval: 0, Security: 5,
+  Complaint: 3, 'Est. Time': 1, Delivery: 2, 'Booking\nDate & Time': 1, 'Est. Delivery\nDate & Time': 2, IMEI: 4, Approval: 0, Security: 5,
   'Re-Est. On': 1, Revised: 2, Services: 3, Original: 4, 'New Delivery': 7,
 };
 const toneFor = (key) => `${HOME_TILE_TONES[ICON_TONE[key] ?? 0]}CC`;
@@ -215,7 +217,7 @@ const STATUS_RANK = {
 
 // Update Status options (reference design): title, hint, icon, brand colour.
 const STATUS_OPTION = {
-  IN_DIAGNOSIS: { title: 'In Diagnosis', sub: 'Check the device and find the fault', Icon: Search, tone: '#0788C9' },
+  IN_DIAGNOSIS: { title: 'Service Accepted', sub: 'Waiting for the technician to start', Icon: Search, tone: '#0788C9' },
   QUOTED: { title: 'Re-Estimated', sub: 'Extra work quoted to the customer', Icon: Calculator, tone: '#FAA700' },
   APPROVED: { title: 'Customer Approved', sub: 'Customer accepted the estimate', Icon: BadgeCheck, tone: '#609138' },
   IN_REPAIR: { title: 'In Repair', sub: 'Start the actual repair work', Icon: Wrench, tone: '#035C6C' },
@@ -363,6 +365,15 @@ export default function TicketDetailScreen({ route, navigation }) {
   }, [ticketId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Doorstep (pickup) bookings go back through the Return Delivery: the
+  // employee's OTP handover marks them Delivered, so the manual
+  // "Slide to Delivered" is hidden for them.
+  const [doorstep, setDoorstep] = useState(false);
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    if (ticketId) getRepairDelivery(ticketId).then((r) => { if (alive) setDoorstep(!!r?.eligibility?.doorstep); }).catch(() => {});
+    return () => { alive = false; };
+  }, [ticketId]));
   const refreshProgressRef = useRef(null);
 
   // Technician assigned elsewhere → show it at once, then reload from the
@@ -528,6 +539,26 @@ export default function TicketDetailScreen({ route, navigation }) {
       notify('Delivery not confirmed', e?.message || 'Try again', { preset: 'error', haptic: 'error' });
     }
   }, [ticketId, pollDetail]);
+  // Cancel / Return / Close (return flow 2): reason required; the server then
+  // records Return to Customer + Out for Delivery itself.
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnSaving, setReturnSaving] = useState(false);
+  const submitReturn = useCallback(async () => {
+    const note = returnReason.trim();
+    if (!ticketId || returnSaving || note.length < 3) return;
+    const ok = await confirm({ title: 'Return device to customer?', message: 'The booking moves to Return to Customer → Out for Delivery. Deliver it with the slide after handover.', confirmText: 'Submit', destructive: true });
+    if (!ok) return;
+    setReturnSaving(true);
+    try {
+      await ticketApi.post(`/tickets/${ticketId}/progress-events`, { body: { statusKey: 'CUSTOMER_REJECTED', actor: 'OWNER', note } });
+      setReturnOpen(false); setReturnReason('');
+      notify('Return started', 'Out for Delivery — slide to Delivered after handover.', { preset: 'done' });
+      pollDetail();
+    } catch (e) {
+      notify('Could not update', e?.body?.error || e?.body?.message || e?.message || 'Please try again.', { preset: 'error', haptic: 'error' });
+    } finally { setReturnSaving(false); }
+  }, [ticketId, returnReason, returnSaving, pollDetail]);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const onPullRefresh = useCallback(async () => {
     setPullRefreshing(true);
@@ -784,7 +815,7 @@ export default function TicketDetailScreen({ route, navigation }) {
   // The booked issues, each with its own service charge folded in (a/b lines).
   const summaryItems = groupServiceCharges(lineItems);
   // Service History: finished milestones (same tracker as the History screen).
-  const historyMilestones = buildMilestones(recordedEvents).filter((m) => m.state === 'done');
+  const historyMilestones = buildMilestones(recordedEvents).filter((m) => m.state === 'done' && m.key !== 'COLLECTED'); // Booking Details: no "Device Received at Shop" row
   // Technician photos in two groups: Issue Verified & Updated, then (only
   // after a re-estimate request) Additional Issue Verified & Updated.
   const reqAt = recordedEvents
@@ -854,8 +885,11 @@ export default function TicketDetailScreen({ route, navigation }) {
   const techCode = technician?.code
     || (technician?.id ? String(technician.id).slice(0, 8).toUpperCase() : null);
 
-  // Not delivered, and either nobody yet or the technician hasn't accepted.
-  const canChangeTech = !isDelivered && (!hasTechnician || !techAccepted);
+  // Assign / Re-Assign until Out for Delivery (also after acceptance / during
+  // repair); the server enforces the same rule.
+  const outForDelivery = recordedEvents.some((e) => ['READY_FOR_DELIVERY', 'RETURN_DELIVERY'].includes(String(e?.status || '').toUpperCase()));
+  const canChangeTech = !outForDelivery
+    && !['DELIVERED', 'DELIVERED_PROCESSING', 'DELIVERED_TO_CUSTOMER', 'CANCELLED', 'CLOSED', 'COMPLETED', 'RETURNED', 'RETURN_DELIVERY'].includes(statusKey);
   // Own screen on the outer stack: back returns here and this screen reloads on focus.
   const goToAssign = () => {
     if (!canChangeTech) return;
@@ -1119,13 +1153,13 @@ export default function TicketDetailScreen({ route, navigation }) {
             />
             <View>
               <View className="bg-card rounded-2xl px-4 py-2">
-                {customerName ? <DetailRow icon={User} label="Name" value={customerName} /> : null}
+                {customerName ? <DetailRow icon={User} label="Name" value={customerName} labelWidth={90} /> : null}
                 {phone ? (
                   <View className="flex-row items-center py-1.5">
                     <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Mobile') }}>
                       <Phone size={14} color="#FFFFFF" />
                     </View>
-                    <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Mobile</Text>
+                    <Text className="text-[12px] text-text-muted" style={{ width: 90, marginRight: 6 }}>Mobile</Text>
                     <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{phone}</Text>
                     <Pressable
                       onPress={() => contactCustomer('tel')}
@@ -1154,7 +1188,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Alt. Mobile') }}>
                       <Phone size={14} color="#FFFFFF" />
                     </View>
-                    <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Alt. Mobile</Text>
+                    <Text className="text-[12px] text-text-muted" style={{ width: 90, marginRight: 6 }}>Alt. Mobile</Text>
                     <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{altPhone || '—'}</Text>
                     <Pressable
                       onPress={() => { setAltInput(String(altPhone).replace(/\D/g, '').slice(-10)); setAltOpen(true); }}
@@ -1192,14 +1226,14 @@ export default function TicketDetailScreen({ route, navigation }) {
                     ) : null}
                   </View>
                 ) : null}
-                {custExpanded && custInfo.email ? <DetailRow icon={Mail} label="Email" value={custInfo.email} /> : null}
-                {custExpanded && address ? <DetailRow icon={MapPin} label="Address" value={address} full /> : null}
+                {custExpanded && custInfo.email ? <DetailRow icon={Mail} label="Email" value={custInfo.email} labelWidth={90} /> : null}
+                {custExpanded && address ? <DetailRow icon={MapPin} label="Address" value={address} full labelWidth={90} /> : null}
                 {custExpanded && custInfo.idProofUrl ? (
                 <View className="flex-row items-center py-1.5">
                   <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('ID Proof') }}>
                     <IdCard size={14} color="#FFFFFF" />
                   </View>
-                  <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>ID Proof</Text>
+                  <Text className="text-[12px] text-text-muted" style={{ width: 90, marginRight: 6 }}>ID Proof</Text>
                   {custInfo.idProofUrl ? (
                     <Pressable onPress={() => setIdProofOpen(true)} className="flex-row items-center flex-1 active:opacity-70" accessibilityRole="imagebutton" accessibilityLabel="View ID proof">
                       <Image source={{ uri: custInfo.idProofUrl }} style={{ width: 28, height: 28, borderRadius: 6 }} resizeMode="cover" />
@@ -1391,21 +1425,21 @@ export default function TicketDetailScreen({ route, navigation }) {
                 <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Complaint') }}>
                   <FileText size={14} color="#FFFFFF" />
                 </View>
-                <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: 6 }}>Complaint</Text>
+                <Text className="text-[12px] text-text-muted" style={{ width: 127, marginRight: 6, marginTop: 6 }}>Complaint</Text>
                 <Text className="flex-1 text-[12px] text-text font-bold leading-5" style={{ marginTop: 4 }} numberOfLines={3}>
                   {complaintText}
                 </Text>
               </View>
             ) : null}
-            <DetailRow icon={Clock} label="Est. Time" value={fmtInstant(ticket.estimatedReadyAt) || '-'} />
-            <DetailRow icon={Calendar} label="Delivery" value={fmtInstant(ticket.estimatedDeliveryAt) || '-'} />
+            <DetailRow icon={Clock} label={'Booking\nDate & Time'} value={fmtInstant(ticket.createdAt) || '-'} />
+            <DetailRow icon={Calendar} label={'Est. Delivery\nDate & Time'} value={fmtInstant(ticket.estimatedDeliveryAt) || '-'} />
             {/* IMEI (mobile phones only) — shows the number, or a "-" with an Add shortcut when missing. */}
             {showImei ? (
             <View className="flex-row items-center py-1.5">
               <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('IMEI') }}>
                 <ScanLine size={14} color="#FFFFFF" />
               </View>
-              <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>IMEI</Text>
+              <Text className="text-[12px] text-text-muted" style={{ width: 127, marginRight: 6 }}>IMEI</Text>
               {ticket.imei ? (
                 <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={1}>{String(ticket.imei)}</Text>
               ) : (
@@ -1431,7 +1465,7 @@ export default function TicketDetailScreen({ route, navigation }) {
               <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Approval') }}>
                 <ShieldCheck size={14} color="#FFFFFF" />
               </View>
-              <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
+              <Text className="text-[12px] text-text-muted" style={{ width: 127, marginRight: 6 }}>Approval</Text>
               {ticket.customerApproval ? (
                 <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
                   <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
@@ -1460,6 +1494,65 @@ export default function TicketDetailScreen({ route, navigation }) {
           </>
         ) : null}
 
+        {/* Return flow (Service History bottom): Cancel / Return / Close with a
+            mandatory reason → server adds Return to Customer + Out for Delivery.
+            Return path without an invoice: the existing Delivered slide here. */}
+        {(() => {
+          const closed = statusKey === 'DELIVERED' || statusKey === 'CANCELLED';
+          const onReturnPath = ['REPAIR_NOT_COMPLETED', 'CUSTOMER_REJECTED', 'RETURN_DELIVERY'].some((k) => recordedKeys.includes(k));
+          if (closed && !onReturnPath) return null;
+          if (!onReturnPath) {
+            return (
+              <View className="bg-card rounded-2xl px-3 py-3" style={{ marginTop: 10 }}>
+                {returnOpen ? (
+                  <>
+                    <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#B91C1C' }}>Cancel / Return / Close — reason</Text>
+                    <TextInput
+                      value={returnReason}
+                      onChangeText={setReturnReason}
+                      placeholder="Why is the device going back? (required)"
+                      placeholderTextColor="#9CA3AF"
+                      multiline
+                      style={{ marginTop: 8, minHeight: 60, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, fontSize: 13, color: '#111111', textAlignVertical: 'top' }}
+                    />
+                    <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
+                      <Pressable onPress={() => { setReturnOpen(false); setReturnReason(''); }} disabled={returnSaving}
+                        style={{ flex: 1, height: 40, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151' }}>Back</Text>
+                      </Pressable>
+                      <Pressable onPress={submitReturn} disabled={returnSaving || returnReason.trim().length < 3}
+                        style={{ flex: 1, height: 40, borderRadius: 10, backgroundColor: returnReason.trim().length < 3 ? '#FCA5A5' : '#DC2626', alignItems: 'center', justifyContent: 'center' }}>
+                        {returnSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>Submit</Text>}
+                      </Pressable>
+                    </View>
+                  </>
+                ) : (
+                  <Pressable onPress={() => setReturnOpen(true)} accessibilityRole="button"
+                    style={{ height: 42, borderRadius: 12, borderWidth: 1.5, borderColor: '#DC2626', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#DC2626' }}>Cancel / Return / Close</Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          }
+          // On the return path with no invoice (Cancel / Return / Close): handover slide.
+          // Invoice is optional on the return path (Unable to repair may still
+          // raise one): without it, hand over with this slide.
+          if (!invoice && ['DELIVERED_PROCESSING', 'DELIVERED'].includes(statusKey) && !(doorstep && statusKey !== 'DELIVERED')) {
+            return (
+              <View style={{ marginTop: 10 }}>
+                <SlideToComplete
+                  label="Slide to Delivered to Customer"
+                  doneLabel="Returned to Customer"
+                  completed={statusKey === 'DELIVERED'}
+                  onComplete={markDelivered}
+                />
+              </View>
+            );
+          }
+          return null;
+        })()}
+
         {/* ── Re-Estimated — only once the booking has been re-estimated ── */}
         {reEstimateEvent || statusKey === 'QUOTED' ? (
           <>
@@ -1479,7 +1572,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor('Approval') }}>
                     <ShieldCheck size={14} color="#FFFFFF" />
                   </View>
-                  <Text className="text-[12px] text-text-muted" style={{ width: 78 }}>Approval</Text>
+                  <Text className="text-[12px] text-text-muted" style={{ width: 127, marginRight: 6 }}>Approval</Text>
                   {ticket.customerApproval ? (
                     <View className="flex-row items-center rounded-full px-2.5 py-1" style={{ backgroundColor: '#E5F3F5' }}>
                       <CheckCircle2 size={13} color={BRAND_GREEN_DARK} />
@@ -1499,7 +1592,8 @@ export default function TicketDetailScreen({ route, navigation }) {
 
         {/* ── Invoice — once generated: number, date, amount, View Invoice.
             Ready (not yet billed): a Generate Invoice shortcut. ── */}
-        {invoice || statusKey === 'READY' ? (
+        {/* Unable to repair (Repair Not Completed): manual invoice once Out for Delivery. */}
+        {invoice || statusKey === 'READY' || (statusKey === 'DELIVERED_PROCESSING' && recordedKeys.includes('REPAIR_NOT_COMPLETED')) ? (
           <>
             <SectionHeader icon={FileText} label="INVOICE" />
             <View>
@@ -1544,7 +1638,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <Eye size={15} color="#035C6C" />
                     <Text style={{ marginLeft: 6, fontSize: 12.5, fontWeight: '800', color: '#035C6C' }}>View Invoice</Text>
                   </Pressable>
-                  {['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'].includes(statusKey) ? (
+                  {['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'].includes(statusKey) && !(doorstep && statusKey !== 'DELIVERED') ? (
                     <View style={{ marginTop: 10 }}>
                       <SlideToComplete
                         label="Slide to Delivered to Customer"
@@ -1567,7 +1661,7 @@ export default function TicketDetailScreen({ route, navigation }) {
                   </View>
                   <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>No invoice yet</Text>
-                    <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>Ready for delivery — generate the bill</Text>
+                    <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }} numberOfLines={2}>{recordedKeys.includes('REPAIR_NOT_COMPLETED') ? 'Unable to repair — invoice optional' : 'Ready for delivery — generate the bill'}</Text>
                   </View>
                   <View style={{ height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#035C6C', alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 12, fontWeight: '800', color: '#FFFFFF' }}>Generate</Text>
@@ -1577,6 +1671,11 @@ export default function TicketDetailScreen({ route, navigation }) {
             </View>
           </>
         ) : null}
+
+        {/* ── Return to customer by Home Delivery — right after Delivered to
+             Customer (same card as Service History; hides itself when the
+             booking has no home delivery and isn't ready for one). ── */}
+        {ticket?.id ? <RepairDeliveryCard ticketId={ticket.id} /> : null}
 
         {/* ── Technician — one tappable card; opens Assign / Change Technician. ── */}
         <SectionHeader icon={Users} label="TECHNICIAN" />
@@ -2261,13 +2360,13 @@ function SecurityRow({ ticket, value, onSaved, locked = false }) {
 }
 
 // `full`: long text (address) — every line shown, label + icon pinned to the top.
-function DetailRow({ icon: Icon, label, value, onEdit, full = false }) {
+function DetailRow({ icon: Icon, label, value, onEdit, full = false, labelWidth = 127 }) {
   return (
     <View className={`flex-row ${full ? 'items-start' : 'items-center'} py-1.5`}>
       <View className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" style={{ backgroundColor: toneFor(label) }}>
         <Icon size={14} color="#FFFFFF" />
       </View>
-      <Text className="text-[12px] text-text-muted" style={{ width: 78, marginTop: full ? 6 : 0 }}>{label}</Text>
+      <Text className="text-[12px] text-text-muted" numberOfLines={2} style={{ width: labelWidth, marginRight: 6, marginTop: full ? 6 : 0 }}>{label}</Text>
       <Text className="text-[12px] text-text font-bold flex-1" numberOfLines={full ? undefined : 2} style={full ? { marginTop: 5, lineHeight: 17 } : undefined}>{value}</Text>
       {onEdit ? (
         <TouchableOpacity onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${label}`}

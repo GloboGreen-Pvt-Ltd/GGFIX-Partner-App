@@ -12,7 +12,7 @@ import {
   SUBSCRIPTION_BASE,
   VISUAL_SEARCH_BASE,
 } from './config';
-import { getToken, clearSession, notifyAuthExpired } from '../auth/session';
+import { getToken, getSession, getRefreshToken, saveSession, clearSession, notifyAuthExpired } from '../auth/session';
 import { Platform } from 'react-native';
 import { File, UploadType } from 'expo-file-system';
 import { safeHttpMessage, safeNetworkMessage } from '../lib/safeError';
@@ -48,7 +48,7 @@ function verifySessionAfter401(token) {
     try {
       const r = await fetch(`${String(AUTH_BASE).replace(/\/$/, '')}/auth/me`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
       console.log('[AUTH] a service rejected the session token; /auth/me ->', r.status, r.ok ? '(token valid: that service is misconfigured)' : '(token rejected)');
-      if ((r.status === 401 || r.status === 500) && (await getToken()) === token) {
+      if (r.status === 401 && (await getToken()) === token) {
         await clearSession();
         notifyAuthExpired();
       }
@@ -61,7 +61,59 @@ function verifySessionAfter401(token) {
   return sessionProbe;
 }
 
-async function request(baseUrlOrNull, method, path, { query, body, headers, skipAuthExpiry } = {}) {
+// ── Refresh-token rotation (POST /auth/refresh) ─────────────────────────────
+// One refresh at a time: parallel 401s share it, so a rotated refresh token is
+// never presented twice. Result: { token } | { dead } (refresh rejected → log
+// in again) | { none } (no refresh token: session from an older app version) |
+// { offline } (network / server trouble: keep the session, try again later).
+let refreshInFlight = null;
+export function refreshSession() {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) return { none: true };
+    let res;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      res = await fetch(`${String(AUTH_BASE).replace(/\/$/, '')}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
+      });
+    } catch (_) { return { offline: true }; } finally { clearTimeout(timer); }
+    // Logged out / logged in again meanwhile: this result belongs to a dead session.
+    if ((await getRefreshToken()) !== refreshToken) return { offline: true };
+    if (res.status === 401 || res.status === 400) return { dead: true };
+    if (!res.ok) return { offline: true };
+    const data = await res.json().catch(() => null);
+    if (!data?.accessToken) return { offline: true };
+    if ((await getRefreshToken()) !== refreshToken) return { offline: true };
+    // Keep the stored profile; only the tokens change.
+    const profile = (await getSession()) || {};
+    await saveSession({ ...profile, accessToken: data.accessToken, refreshToken: data.refreshToken });
+    return { token: data.accessToken };
+  })().finally(() => { setTimeout(() => { refreshInFlight = null; }, 0); });
+  return refreshInFlight;
+}
+
+// Renew when the JWT is about to expire OR is over a day old: rotating daily
+// keeps the 90-day refresh token sliding, so an active user never hits Login.
+const REFRESH_AHEAD_S = 120;
+const ROTATE_AFTER_S = 24 * 3600;
+function jwtNeedsRefresh(token) {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { exp, iat } = JSON.parse(globalThis.atob(part + '='.repeat((4 - (part.length % 4)) % 4)));
+    const now = Date.now() / 1000;
+    return (typeof exp === 'number' && exp - now < REFRESH_AHEAD_S)
+      || (typeof iat === 'number' && now - iat > ROTATE_AFTER_S);
+  } catch (_) { return false; }
+}
+
+async function request(baseUrlOrNull, method, path, opts = {}) {
+  const { query, body, headers, skipAuthExpiry, _retried } = opts;
   const base = resolveBase(baseUrlOrNull);
   const url = new URL(joinUrl(base, path));
   if (query) {
@@ -70,7 +122,12 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
     });
   }
 
-  const token = await getToken();
+  let token = await getToken();
+  // Renew just before expiry so requests never go out with a dead token.
+  if (token && !skipAuthExpiry && jwtNeedsRefresh(token)) {
+    const r = await refreshSession();
+    if (r.token) token = r.token;
+  }
   const urlString = url.toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -121,7 +178,18 @@ async function request(baseUrlOrNull, method, path, { query, body, headers, skip
     // that must NOT clear the session and bounce the whole app to Login. A 403
     // is a real per-resource authorization failure and never clears the session.
     const isAuthService = base === AUTH_BASE;
-    if (res.status === 401 && token && !skipAuthExpiry && isAuthService) {
+    // Access token rejected: renew it once and replay the request.
+    let refreshResult = null;
+    if (res.status === 401 && token && !skipAuthExpiry && !_retried) {
+      refreshResult = await refreshSession();
+      if (refreshResult.token) return request(baseUrlOrNull, method, path, { ...opts, _retried: true });
+    }
+    if (refreshResult?.dead) {
+      await clearSession();
+      notifyAuthExpired();
+    } else if (refreshResult?.offline) {
+      // Could not reach /auth/refresh: keep the session, the next call retries.
+    } else if (res.status === 401 && token && !skipAuthExpiry && isAuthService) {
       await clearSession();
       notifyAuthExpired();
     } else if (res.status === 401 && token && !skipAuthExpiry) {

@@ -6,16 +6,17 @@ import {
   FlatList,
   Image,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
+  ToastAndroid,
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { confirm } from '../../components/confirm';
 import {
   BarChart3,
   CalendarOff,
@@ -86,6 +87,10 @@ import { DashboardNearbyDeals, type NearbyDeal } from '../../components/dashboar
 import { fetchNearbyListings, getListingOrigin, sortNearestFirst, toListingCard } from '../../api/nearbyListings';
 import { DashboardCategoryRail } from '../../components/dashboard/DashboardCategoryRail';
 import { DashboardAccountSheet } from '../../components/dashboard/DashboardAccountSheet';
+// @ts-ignore JS module
+import { MyRepairJobsCard } from '../../components/dashboard/MyRepairJobsCard';
+// @ts-ignore JS module
+import { cachedOwnerTech, getOwnerTech, onOwnerTechChange } from '../../api/ownerTechnician';
 const HOME_REFRESH_STALE_MS = 15000;
 // Repair / Buy / Sell card art, bundled so it shows instantly offline too.
 // Buy/Sell are placed as in the design reference (fanned phones on Buy, a
@@ -305,6 +310,11 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // a finished booking) is dropped, so Back can never reopen it; (2) Android
   // Back asks before closing the app. Registered only while Home is focused,
   // so it never catches Back on any other screen.
+  // Owner as Technician: Home shows "My Repair Jobs" only while it is ON.
+  const [ownerTech, setOwnerTechState] = useState<any>(cachedOwnerTech());
+  useEffect(() => { const off = onOwnerTechChange(setOwnerTechState); return () => { off(); }; }, []);
+  useFocusEffect(useCallback(() => { getOwnerTech().catch(() => {}); }, []));
+
   useFocusEffect(useCallback(() => {
     const root = navigation.getParent?.();
     const st = root?.getState?.();
@@ -314,13 +324,16 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     }
     if (Platform.OS !== 'android') return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      confirm({ title: 'Exit NearGFix?', message: 'Do you want to close the app?', confirmText: 'Exit', cancelText: 'Cancel' })
-        .then((ok: boolean) => { if (ok) BackHandler.exitApp(); });
+      const now = Date.now();
+      if (now - lastBackRef.current < 2000) { BackHandler.exitApp(); return true; }
+      lastBackRef.current = now;
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
       return true;
     });
     return () => sub.remove();
   }, [navigation]));
 
+  const lastBackRef = useRef(0);
   const { summary, loading, error, refresh } = useBookingCounts();
   const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);
@@ -993,6 +1006,17 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           <DashboardSection title="Overview" pad={PAD} />
           <DashboardOverviewGrid items={overview} pad={PAD} />
         </View>
+
+        {ownerTech?.enabled ? (
+          <View style={{ marginTop: SECTION_GAP }}>
+            <DashboardSection title="My Repair Jobs" pad={PAD} />
+            <MyRepairJobsCard
+              stats={ownerTech}
+              pad={PAD}
+              onOpen={(filter: string) => (navigation as any).navigate('MyRepairJobs', { filter })}
+            />
+          </View>
+        ) : null}
 
         <View style={{ marginTop: SECTION_GAP }}>
           {/* Every tool visible at once, grouped — no tabs to switch. */}

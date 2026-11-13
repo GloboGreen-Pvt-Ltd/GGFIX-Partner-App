@@ -148,17 +148,21 @@ function Detail({ icon: Icon, label, value }) {
   );
 }
 
+// Last loaded list, so reopening the screen shows it at once while it refreshes.
+let pickupCache = null;
+
 export default function OwnerPickupServiceListScreen({ navigation }) {
   const r = useResponsive();
-  const [allItems, setAllItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [allItems, setAllItems] = useState(pickupCache || []);
+  const [loading, setLoading] = useState(!pickupCache);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // `silent` = background poll: no loader, and a failed tick keeps the list.
   const load = useCallback(async (isRefresh = false, silent = false) => {
-    if (isRefresh) setRefreshing(true); else if (!silent) setLoading(true);
+    // Cached list on screen → refresh quietly instead of the full loader.
+    if (isRefresh) setRefreshing(true); else if (!silent && !pickupCache) setLoading(true);
     if (!silent) setError(null);
     try {
       const data = await listShopRepairBookings();
@@ -166,13 +170,16 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
       // Store the full pickup list; the filtered view and the status-chip counts
       // both derive from it, so the chip badges reflect the whole queue instead
       // of only the currently-selected filter's subset.
+      pickupCache = pickups;
       setAllItems(pickups);
+      setLoading(false);
     } catch (e) {
+      // A failed background poll must not end the first load with an empty list.
       if (silent) return;
       setError(e?.body?.message || e?.message || 'Failed to load pickup requests');
-      setAllItems([]);
-    } finally {
+      if (!pickupCache) setAllItems([]);
       setLoading(false);
+    } finally {
       setRefreshing(false);
     }
   }, []);
@@ -226,7 +233,7 @@ export default function OwnerPickupServiceListScreen({ navigation }) {
         />
       </View>
 
-      {loading && items.length === 0 ? (
+      {loading && allItems.length === 0 ? (
         <Loader />
       ) : (
         <FlatList

@@ -78,7 +78,7 @@ const ACCENT_GREEN = '#035C6C';
 const STATUS_VARIANT = {
   CREATED:              { label: 'Service Accepted',     tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
-  IN_DIAGNOSIS:         { label: 'In Diagnosis',         tone: 'purple' },
+  IN_DIAGNOSIS:         { label: 'Service Accepted',     tone: 'amber' },
   IN_REPAIR:            { label: 'Repair Work in Progress', tone: 'purple' },
   QUOTED:               { label: 'Re-Estimated',         tone: 'amber' },
   APPROVED:             { label: 'Customer Approved',    tone: 'blue' },
@@ -114,6 +114,7 @@ const PICKUP_STATUS_VARIANT = {
   DEVICE_PICKED_UP:           { label: 'Device Picked Up',   tone: 'purple' },
   PICKED_UP:                  { label: 'Device Picked Up',   tone: 'purple' },
   REACHED_SHOP:               { label: 'Reached Shop',       tone: 'green' },
+  RECEIVED_AT_SHOP:           { label: 'Received at Shop',   tone: 'green' },
   ACCEPTED:                   { label: 'Accepted',           tone: 'blue' },
   IN_TRANSIT:                 { label: 'In Transit',         tone: 'purple' },
   COMPLETED:                  { label: 'Completed',          tone: 'green' },
@@ -305,7 +306,8 @@ function ticketStatusMeta(t) {
   if (t?.assignedTechnicianId && t?.technicianAcceptedAt === null && PRE_ACCEPT.includes(st)) {
     return { label: 'Technician Assigned', tone: 'blue' };
   }
-  return STATUS_VARIANT[st] || { label: t?.status || 'Pending', tone: 'amber' };
+  // Unknown keys read as words (RECEIVED_AT_SHOP → Received At Shop), never raw.
+  return STATUS_VARIANT[st] || { label: t?.status ? String(t.status).toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Pending', tone: 'amber' };
 }
 
 function latestStatus(item, statusMeta) {
@@ -347,12 +349,13 @@ const SCOPE_TONE = {
 // Last loaded ticket list, kept across mounts: the screen paints it at once
 // and revalidates in the background (no full-screen loader on return).
 let jobsCache = null;
+let pickupsCache = null; // same shop as jobsCache
 let jobsCacheShop = null;
 
 export default function JobsScreen({ navigation, route }) {
   // Cache belongs to one shop: a shop switch / re-login starts empty.
   const shopId = useSelector(selectShopId);
-  if (jobsCacheShop !== shopId) { jobsCache = null; jobsCacheShop = shopId; }
+  if (jobsCacheShop !== shopId) { jobsCache = null; pickupsCache = null; jobsCacheShop = shopId; }
   // The tab bar floats over the page; keep the last items clear of it.
   const insets = useSafeAreaInsets();
   // Full-screen stack page now (no bottom tab bar): just clear the home indicator.
@@ -365,7 +368,8 @@ export default function JobsScreen({ navigation, route }) {
   // Search bar is hidden until the header's Search icon opens it.
   const [searchOpen, setSearchOpen] = useState(false);
   const [items, setItems] = useState(() => jobsCache || []);       // tickets (ticket-service)
-  const [pickups, setPickups] = useState([]);   // pickup repair-bookings (order-service)
+  const [pickups, setPickups] = useState(() => pickupsCache || []);
+  const [pickupsLoaded, setPickupsLoaded] = useState(!!pickupsCache);   // pickup repair-bookings (order-service)
   const [loading, setLoading] = useState(!jobsCache);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -949,6 +953,10 @@ export default function JobsScreen({ navigation, route }) {
   const loadPickups = useCallback(async () => {
     try {
       const list = pickupsOnly(await listShopRepairBookings());
+      // Show the list at once; device images fill in after the model lookups.
+      pickupsCache = list;
+      setPickups(list);
+      setPickupsLoaded(true);
       // Catalogue models for the pickups' brands, so each card shows its device image.
       const L = lookupsRef.current;
       const brandIds = Array.from(new Set((list || []).map((p) => p.brandId).filter(Boolean))).filter((b) => !L.brands.has(b));
@@ -959,14 +967,20 @@ export default function JobsScreen({ navigation, route }) {
           L.brands.add(bId);
         } catch (_) { /* card falls back to the customer's photo */ }
       }));
-      setPickups(list);
+      if (brandIds.length) setPickups([...list]);
     } catch (_) { /* leave the previous pickup snapshot in place */ }
+    finally { setPickupsLoaded(true); }
   }, []);
 
   // Reload on focus (e.g. returning from a detail screen), and — separately —
   // debounce the search so typing doesn't fire a request per keystroke.
   // With a list already on screen, refocus revalidates silently (no loader).
-  useFocusEffect(useCallback(() => { load(jobsCache ? 'silent' : false); loadPickups(); }, [load, loadPickups]));
+  useFocusEffect(useCallback(() => {
+    load(jobsCache ? 'silent' : false); loadPickups();
+    // Auto-refresh while open (5s: faster polling would exhaust the ticket-service DB pool).
+    const t = setInterval(() => load('silent'), 5000);
+    return () => clearInterval(t);
+  }, [load, loadPickups]));
   // loadPickups is already silent; polling surfaces new customer pickups live.
   useFocusPolling(loadPickups);
   // Statuses moved by the Employee App (e.g. Quality Check → Ready for
@@ -1513,8 +1527,8 @@ export default function JobsScreen({ navigation, route }) {
         </View>
       ) : null}
 
-      {loading && items.length === 0 ? (
-        <Loader label="Loading jobs..." />
+      {(String(route?.params?.menu || '').toUpperCase() === 'PICKUP' ? !pickupsLoaded : (loading && items.length === 0)) ? (
+        <Loader label={String(route?.params?.menu || '').toUpperCase() === 'PICKUP' ? 'Loading pickups...' : 'Loading jobs...'} />
       ) : (
         <FlatList
           data={listData}

@@ -19,7 +19,7 @@ import { listShopBuyOrders } from '../../../api/buyOrders';
 import { draftFromProduct, draftTitle, hasUnsavedProgress, sellDraftStore } from './draft';
 import {
   C, CONTENT_MAX, Card, ChoiceCard, EmptyBox, ErrorBox, PrimaryButton, QtyStepper, SearchInput, Segmented, StatusPill,
-  TextField, Thumb, cleanAmount, listingImage, listingSub, money,
+  TextField, Thumb, cleanAmount, listingImage, listingSub, money, statusMeta,
 } from './kit';
 
 // My Listings: every listing of this shop by status, with price / status /
@@ -171,44 +171,43 @@ const ListingCard = memo(function ListingCard({ p, busy, locked, onOpen, onMenu,
   return (
     // The card body, the ⋮ menu and the action buttons are sibling pressables:
     // a button inside a button is invalid on web and confuses screen readers.
-    <Card style={{ marginBottom: 10 }}>
+    // Jobs-screen tile: image panel (status tag) left, price chip + details right, actions below.
+    <View style={{ marginBottom: 12, borderRadius: 16, backgroundColor: '#FFFFFF', overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB' }}>
       <Pressable
         onPress={() => (order ? onOrder(order) : onOpen(p))}
+        onLongPress={busy ? undefined : () => onMenu(p)}
         accessibilityRole="button"
         accessibilityLabel={p.title || 'Listing'}
         className="active:opacity-90"
         style={{ flexDirection: 'row' }}
       >
-        <Thumb uri={listingImage(p)} size={64} />
-        <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-          <Text numberOfLines={2} style={{ fontSize: rf(13.5), fontWeight: '800', color: C.text, paddingRight: 26 }}>{p.title || 'Untitled listing'}</Text>
-          <Text numberOfLines={1} style={{ fontSize: rf(11.5), color: C.muted, marginTop: 2 }}>{listingSub(p)}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-            <Text style={{ fontSize: rf(15), fontWeight: '800', color: C.teal }}>{money(p.price)}</Text>
-            <Text numberOfLines={1} style={{ flex: 1, fontSize: rf(11), color: C.muted, marginLeft: 8 }}>{qtyLine}</Text>
-            <StatusPill status={status} style={{ alignSelf: 'center', marginLeft: 6 }} />
+        <View style={{ width: 111, minHeight: 116, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: '#E5E7EB' }}>
+          <Thumb uri={listingImage(p)} size={84} radius={0} style={{ backgroundColor: '#FFFFFF' }} />
+          <View style={{ position: 'absolute', top: 0, left: 0, maxWidth: '86%', backgroundColor: statusMeta(status).fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta(status).label}</Text>
           </View>
         </View>
+        <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            <View style={{ flex: 1 }} />
+            <View style={{ marginLeft: 6, backgroundColor: C.teal, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{money(p.price)}</Text>
+            </View>
+          </View>
+          <Text numberOfLines={2} style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16, color: C.text }}>{p.title || 'Untitled listing'}</Text>
+          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 12, color: C.muted }}>{listingSub(p)}</Text>
+          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 11, fontWeight: '700', color: C.muted }}>{qtyLine}</Text>
+        </View>
       </Pressable>
-      <Pressable
-        onPress={busy ? undefined : () => onMenu(p)}
-        hitSlop={10}
-        accessibilityRole="button"
-        accessibilityLabel={`More actions for ${p.title || 'listing'}`}
-        accessibilityState={{ busy: !!busy }}
-        className="active:opacity-60"
-        style={{ position: 'absolute', top: 10, right: 8, height: 24, width: 24, alignItems: 'center', justifyContent: 'center' }}
-      >
-        {busy ? <ActivityIndicator size="small" color={C.teal} /> : <EllipsisVertical size={18} color={C.muted} />}
-      </Pressable>
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
-        {locked ? null : <CardButton icon={Pencil} label="Edit" onPress={() => onEdit(p)} disabled={status === 'SOLD' || busy} />}
-        {/* A customer order sells it through Orders; Mark Sold only for sales made outside the app. */}
-        {order ? <CardButton icon={ShoppingBag} tone="green" label="View Order" onPress={() => onOrder(order)} disabled={busy} />
-          : canSell ? <CardButton icon={Check} tone="green" label="Mark Sold" onPress={() => onMarkSold(p)} disabled={busy} /> : null}
-        {!canSell && canPublish ? <CardButton icon={Rocket} tone="green" label="Publish" onPress={() => onPublish(p)} disabled={busy} /> : null}
+      {/* Status row, full width like the Jobs card. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F1F1', paddingHorizontal: 12, paddingVertical: 4 }}>
+        <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: statusMeta(status).fg, marginRight: 6 }} />
+        <Text numberOfLines={1} style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: statusMeta(status).fg }}>
+          {order ? 'Customer order in progress' : statusMeta(status).label}
+        </Text>
       </View>
-    </Card>
+      {/* Edit / Mark Sold / Publish stay in the ⋮ menu; tap opens the order when one exists. */}
+    </View>
   );
 });
 

@@ -150,6 +150,8 @@ export default function ScanQrCodeScreen({ navigation }) {
     setLoading(true);
     try {
       const t = await resolveTicket(data);
+      // Found → straight to Booking Details (replaces the scanner in the stack).
+      if (t?.id) { navigation.replace('TicketDetail', { ticketId: t.id }); return; }
       if (t) setTicket(t);
       else setNotFound(String(data || '').trim() || 'this code');
     } catch (_) {

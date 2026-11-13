@@ -113,14 +113,31 @@ export function buildMilestones(rawEvents, extras = []) {
     { key: 'DIAGNOSED', label: 'Technician Issue Verified & Updated', activeLabel: 'Technician verifying the issue',
       keys: ['TECHNICIAN_WORK_STARTED', 'TECHNICIAN_UPLOADED_DEVICE_IMAGES', 'ISSUE_IDENTIFIED',
         'TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED',
-        ...(reEstimated ? [] : ['WAITING_FOR_CUSTOMER_APPROVAL', 'CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'])],
+        // No WAITING_FOR_CUSTOMER_APPROVAL here: its "Waiting for Customer
+        // Approval" note is not shown under the verified issue.
+        ...(reEstimated ? [] : ['CUSTOMER_APPROVED', 'CUSTOMER_REJECTED'])],
       exclude: revisions.claimed,
       doneKeys: ['TECHNICIAN_COMPLIANCE_ISSUE_VERIFIED_UPDATED'] },
     ...revisionDefs(revisions),
     ...(returnPath ? [
-      { key: 'RETURN', label: 'Return Unrepaired', activeLabel: 'Returning unrepaired', danger: true,
-        keys: ['CUSTOMER_REJECTED', 'IN_REPAIR', 'PARTS_REQUIRED', 'REPAIR_NOT_COMPLETED', 'RETURN_DELIVERY'],
+      // Return path: the repair that started, then why it stopped (the
+      // technician's Unable to repair / the customer's rejection) as its own
+      // done row, then Return Delivery once the shop records it.
+      has('IN_REPAIR') ? inRepair : null,
+      has('REPAIR_NOT_COMPLETED') ? { key: 'NOT_COMPLETED', label: 'Repair Not Completed', activeLabel: 'Repair not completed', danger: true,
+        keys: ['REPAIR_NOT_COMPLETED'], doneKeys: ['REPAIR_NOT_COMPLETED'] } : null,
+      has('CUSTOMER_REJECTED') ? { key: 'REJECTED', label: 'Cancel / Return / Close', activeLabel: 'Customer rejected', danger: true,
+        keys: ['CUSTOMER_REJECTED'], doneKeys: ['CUSTOMER_REJECTED'] } : null,
+      // Status + date · time only (noNotes): no folded-in notes.
+      { key: 'RETURN', label: 'Return to Customer', activeLabel: 'Returning unrepaired', danger: true, noNotes: true,
+        keys: ['RETURN_DELIVERY'],
         doneKeys: ['RETURN_DELIVERY'] },
+      // Server adds Out for Delivery right after Return to Customer; the
+      // invoice (Unable to repair only) is raised after it, then the handover.
+      { key: 'DELIVERED_PROCESSING', label: 'Out for Delivery', activeLabel: 'Out for delivery',
+        keys: ['DELIVERED_PROCESSING'], doneKeys: ['DELIVERED_PROCESSING'] },
+      has('INVOICE_GENERATED') || has('INVOICE_READY') ? { key: 'INVOICE_GENERATED', label: 'Invoice Generated', activeLabel: 'Invoice pending',
+        keys: ['INVOICE_GENERATED', 'INVOICE_READY'], doneKeys: ['INVOICE_GENERATED', 'INVOICE_READY'] } : null,
     ] : [
       // The Employee app's Service Progress checklist, one row per step
       // (Repair Work in Progress is placed above, after Technician Assigned).
@@ -141,9 +158,9 @@ export function buildMilestones(rawEvents, extras = []) {
       { key: 'DELIVERED_PROCESSING', label: 'Out for Delivery', activeLabel: 'Out for delivery',
         keys: ['DELIVERED_PROCESSING'], doneKeys: ['DELIVERED_PROCESSING'] },
     ]),
-    { key: 'DELIVERED', label: returnPath ? 'Returned to Customer' : 'Delivered',
+    { key: 'DELIVERED', label: returnPath ? 'Returned / Closed' : 'Delivered',
       activeLabel: has('DELIVERED_PROCESSING') ? 'Out for delivery' : 'Ready for handover',
-      keys: returnPath ? ['INVOICE_GENERATED', 'INVOICE_READY', 'DELIVERED_PROCESSING', 'DELIVERED'] : ['DELIVERED'], doneKeys: ['DELIVERED'] },
+      keys: ['DELIVERED'], doneKeys: ['DELIVERED'] },
   ].filter(Boolean);
 
   let milestones = defs.map((d) => {
@@ -364,7 +381,7 @@ function MilestoneRow({ m, isLast, nextReached, extra, hidePhotos }) {
   // "Customer approved the re-estimated service".
   const doneNote = m.state === 'done' && m.doneEvent?.note && m.doneEvent.note !== labelOf(m.doneEvent.status)
     ? String(m.doneEvent.note).trim() : null;
-  const notes = (m.verdictOnly ? (doneNote ? [doneNote] : []) : [...new Set([doneNote, ...items
+  const notes = m.noNotes ? [] : (m.verdictOnly ? (doneNote ? [doneNote] : []) : [...new Set([doneNote, ...items
     .filter((e) => e.note && e.note !== labelOf(e.status))
     .map((e) => String(e.note).trim())].filter(Boolean))].slice(0, 3))
     .map((n) => ((m.reKind || m.key) === 'RE_ESTIMATED' ? reEstimateIssues(n) : n)).filter(Boolean);
