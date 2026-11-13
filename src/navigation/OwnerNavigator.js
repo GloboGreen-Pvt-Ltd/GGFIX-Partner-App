@@ -53,6 +53,8 @@ import ProductScanScreen from '../screens/owner/ProductScanScreen';
 import OwnerBuyHomeScreen from '../screens/owner/OwnerBuyHomeScreen';
 import OwnerSellHubScreen from '../screens/owner/OwnerSellHubScreen';
 import TicketDetailScreen from '../screens/owner/AllBooking/TicketDetailScreen';
+import MyRepairJobsScreen from '../screens/owner/MyRepairJobsScreen';
+import OwnerJobDetailsScreen from '../staffkit/screens/JobDetailsScreen';
 import EditBookingScreen from '../screens/owner/AllBooking/EditBookingScreen';
 import ReEstimateScreen from '../screens/owner/AllBooking/ReEstimateScreen';
 import PriceRevisedScreen from '../screens/owner/AllBooking/PriceRevisedScreen';
@@ -65,13 +67,10 @@ import InvoiceGeneratorScreen from '../screens/owner/AllBooking/InvoiceGenerator
 import DeliveryInvoiceReportScreen from '../screens/owner/AllBooking/DeliveryInvoiceReportScreen';
 import AssignTechnicianScreen from '../screens/owner/AssignTechnicianScreen';
 import InventoryScreen from '../screens/owner/InventoryScreen';
-import MarketplaceSellScreen from '../screens/owner/MarketplaceSellScreen';
 import OwnerSellSparePartsScreen from '../screens/owner/OwnerSellSparePartsScreen';
 import OwnerSellMobileChoiceScreen from '../screens/owner/OwnerSellMobileChoiceScreen';
-import SellDeviceDetailsScreen from '../screens/owner/service-booking-shop/DeviceDetailsScreen';
 import OwnerSellGadgetPriceScreen from '../screens/owner/OwnerSellGadgetPriceScreen';
 import OwnerSellListedScreen from '../screens/owner/OwnerSellListedScreen';
-import OwnerSellHomeScreen from '../screens/owner/OwnerSellHomeScreen';
 import MarketplaceOrdersScreen from '../screens/owner/MarketplaceOrdersScreen';
 import MarketplaceListingDetailsScreen from '../screens/owner/MarketplaceListingDetailsScreen';
 // Shared device pickers — also used by the owner sell mobile flow.
@@ -101,7 +100,6 @@ import SellBuyAssignScreen from '../screens/owner/sell/SellBuyAssignScreen';
 import SellBuyAssignListScreen from '../screens/owner/sell/SellBuyAssignListScreen';
 import SellEnquiriesScreen from '../screens/owner/sell/SellEnquiriesScreen';
 import SellEnquiryDetailScreen from '../screens/owner/sell/SellEnquiryDetailScreen';
-import BulkTypeScreen from '../screens/owner/sell/bulk/BulkTypeScreen';
 import BulkTemplateScreen from '../screens/owner/sell/bulk/BulkTemplateScreen';
 import BulkItemsScreen from '../screens/owner/sell/bulk/BulkItemsScreen';
 import BulkDetailsScreen from '../screens/owner/sell/bulk/BulkDetailsScreen';
@@ -591,6 +589,9 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="DevicePhotoCapture" component={DevicePhotoCaptureScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopServiceStatus" component={ShopServiceStatusScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MyRepairJobs" component={MyRepairJobsScreen} options={{ headerShown: false }} />
+      {/* Owner as Technician: the Employee app's Job Details (same design, rules and actions). */}
+      <Stack.Screen name="OwnerJobDetails" component={OwnerJobDetailsScreen} options={{ headerShown: false }} />
       {/* Edit Booking — booking details only (Booking Details → Edit). */}
       <Stack.Screen name="EditBooking" component={EditBookingScreen} options={{ headerShown: false }} />
       {/* Re-Estimate — additional issues + charges only (Booking Details → Re-Est). */}
@@ -618,7 +619,6 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="BookingStatusReport" component={BookingStatusReportScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BookingPreviousReport" component={BookingPreviousReportScreen} options={{ headerShown: false }} />
       <Stack.Screen name="LegacyAssignTechnician" component={AssignTechnicianScreen} options={{ title: 'Assign Technician' }} />
-      <Stack.Screen name="MarketplaceSell" component={MarketplaceSellScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerCart" component={OwnerCartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerNotifications" component={OwnerNotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSearch" component={OwnerSearchScreen} options={{ headerShown: false }} />
@@ -628,13 +628,11 @@ export default function OwnerNavigator({ session, onLogout }) {
       {/* Buy listing (search / category results) and the previous Sell home,
           now opened from the Customer-style Buy / Sell tabs. */}
       <Stack.Screen name="OwnerBuyListing" component={OwnerBuyListingScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="OwnerSellHome" component={OwnerSellHomeScreen} options={{ headerShown: false }} initialParams={{ flow: 'OWNER_LIST' }} />
       <Stack.Screen name="OwnerBuyListingDetails" component={OwnerBuyListingDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellRequests" component={BuyLeadsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellMobile" component={OwnerSellMobileChoiceScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OwnerSellSpareParts" component={OwnerSellSparePartsScreen} options={{ headerShown: false }} />
       {/* Sell: category → the booking flow's one-page Device Details picker. */}
-      <Stack.Screen name="SellDeviceDetails" component={SellDeviceDetailsScreen} options={{ headerShown: false }} />
       {/* Shared device pickers — screens render their own ScreenHeader, so
           hide the native stack header to avoid the "two headers stacked" bug. */}
       <Stack.Screen name="SelectCategory" component={SelectCategoryScreen} options={{ headerShown: false }} />
@@ -671,7 +669,6 @@ export default function OwnerNavigator({ session, onLogout }) {
       {/* Bulk listing: type → template → items → photos → pricing → review → status. */}
       {/* Bulk Listing (Excel): Same Model / Multiple Models. The older batch pages stay registered for drafts started there. */}
       <Stack.Screen name="BulkListingType" component={BulkListingScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="BulkTypeLegacy" component={BulkTypeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BulkExcelTemplate" component={BulkExcelTemplateScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BulkExcelUpload" component={BulkExcelUploadScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BulkExcelReview" component={BulkExcelReviewScreen} options={{ headerShown: false }} />

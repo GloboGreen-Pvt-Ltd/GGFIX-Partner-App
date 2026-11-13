@@ -290,7 +290,11 @@ const EXIT_KEYS = ['CANCELLED', 'CUSTOMER_REJECTED', 'REPAIR_NOT_COMPLETED'];
 // booking's timeline already carries. Returns [] when the booking is finished.
 function nextOptionsFor(type, completed) {
   if (TERMINAL_KEYS.some((k) => completed.has(k))) return [];
-  const stage = type.stages.find((opts) => !opts.some((o) => completed.has(o.key)));
+  // Return path: the invoice step applies to Unable to repair (Repair Not
+  // Completed) only — a Cancel / Return / Close goes straight to handover.
+  const skipInvoice = type.key === 'RETURN' && !completed.has('REPAIR_NOT_COMPLETED');
+  const stage = type.stages.find((opts) => !opts.some((o) => completed.has(o.key))
+    && !(skipInvoice && opts.some((o) => o.key === 'INVOICE_GENERATED')));
   return stage ? [...stage, CANCEL_OPTION] : [CANCEL_OPTION];
 }
 

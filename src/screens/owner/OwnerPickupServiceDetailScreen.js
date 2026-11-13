@@ -91,7 +91,7 @@ function Row({ icon: Icon, label, value, color = '#035C6CCC', full = false }) {
       <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10, backgroundColor: color }}>
         <Icon size={14} color="#FFFFFF" />
       </View>
-      <Text style={{ width: 84, fontSize: rf(11.5), color: '#6B7280', marginTop: full ? 6 : 0 }}>{label}</Text>
+      <Text style={{ width: 96, marginRight: 6, fontSize: rf(11.5), color: '#6B7280', marginTop: full ? 6 : 0 }}>{label}</Text>
       <Text style={{ flex: 1, fontSize: rf(11.5), fontWeight: '700', color: '#111111', marginTop: full ? 5 : 0, lineHeight: rf(16) }} numberOfLines={full ? undefined : 2} selectable>{value || '—'}</Text>
     </View>
   );
@@ -503,8 +503,8 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
             <Section icon={UserCheck} label="SHOP & PICKUP SCHEDULE" color={tone(4)} />
             <View style={{ paddingHorizontal: 16 }}>
               <Row icon={UserCheck} label="Pickup Person" value={pickupAgent || 'Not assigned'} color={tone(4)} />
-              {estApproxTimeText ? <Row icon={Clock} label="Est. Time" value={estApproxTimeText} color={tone(1)} /> : null}
-              {deliveryAtText ? <Row icon={CalendarClock} label="Delivery" value={deliveryAtText} color={tone(2)} /> : null}
+              {estApproxTimeText ? <Row icon={Clock} label={'Est. Ready\nDate & Time'} value={estApproxTimeText} color={tone(1)} /> : null}
+              {deliveryAtText ? <Row icon={CalendarClock} label={'Est. Delivery\nDate & Time'} value={deliveryAtText} color={tone(2)} /> : null}
               {estApproxTimeText || deliveryAtText ? <Row icon={CheckCircle2} label="Approval" value={approvalText} color={tone(0)} /> : null}
               {data.pickupPersonPhone ? <Row icon={Phone} label="Mobile" value={data.pickupPersonPhone} color={tone(1)} /> : null}
               {data.status === 'REACHED_SHOP' || data.status === 'RECEIVED_AT_SHOP' ? (

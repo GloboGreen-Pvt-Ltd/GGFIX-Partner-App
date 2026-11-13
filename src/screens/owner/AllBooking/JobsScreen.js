@@ -78,7 +78,7 @@ const ACCENT_GREEN = '#035C6C';
 const STATUS_VARIANT = {
   CREATED:              { label: 'Service Accepted',     tone: 'amber' },
   ASSIGNED:             { label: 'Technician Assigned',  tone: 'blue' },
-  IN_DIAGNOSIS:         { label: 'In Diagnosis',         tone: 'purple' },
+  IN_DIAGNOSIS:         { label: 'Service Accepted',     tone: 'amber' },
   IN_REPAIR:            { label: 'Repair Work in Progress', tone: 'purple' },
   QUOTED:               { label: 'Re-Estimated',         tone: 'amber' },
   APPROVED:             { label: 'Customer Approved',    tone: 'blue' },
@@ -114,6 +114,7 @@ const PICKUP_STATUS_VARIANT = {
   DEVICE_PICKED_UP:           { label: 'Device Picked Up',   tone: 'purple' },
   PICKED_UP:                  { label: 'Device Picked Up',   tone: 'purple' },
   REACHED_SHOP:               { label: 'Reached Shop',       tone: 'green' },
+  RECEIVED_AT_SHOP:           { label: 'Received at Shop',   tone: 'green' },
   ACCEPTED:                   { label: 'Accepted',           tone: 'blue' },
   IN_TRANSIT:                 { label: 'In Transit',         tone: 'purple' },
   COMPLETED:                  { label: 'Completed',          tone: 'green' },
@@ -305,7 +306,8 @@ function ticketStatusMeta(t) {
   if (t?.assignedTechnicianId && t?.technicianAcceptedAt === null && PRE_ACCEPT.includes(st)) {
     return { label: 'Technician Assigned', tone: 'blue' };
   }
-  return STATUS_VARIANT[st] || { label: t?.status || 'Pending', tone: 'amber' };
+  // Unknown keys read as words (RECEIVED_AT_SHOP → Received At Shop), never raw.
+  return STATUS_VARIANT[st] || { label: t?.status ? String(t.status).toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Pending', tone: 'amber' };
 }
 
 function latestStatus(item, statusMeta) {

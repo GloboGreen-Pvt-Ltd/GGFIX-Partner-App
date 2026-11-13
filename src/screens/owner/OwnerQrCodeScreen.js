@@ -44,7 +44,7 @@ const BORDER = '#E5E7EB';
 const TEXT_PRIMARY = '#111111';
 const TEXT_SECONDARY = '#6B7280';
 // Rendered QR side — compact, still comfortably scannable for the vCard payload.
-const QR_SIZE = 130;
+const QR_SIZE = 200;
 
 const cardShadow = {
   shadowColor: '#111111',
@@ -191,17 +191,6 @@ export default function OwnerQrCodeScreen({ navigation }) {
                 Share your business with customers
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={onShare}
-              activeOpacity={0.8}
-              className="flex-row items-center rounded-full"
-              style={{ paddingHorizontal: rs(13), paddingVertical: rs(8), backgroundColor: ACCENT, ...softShadow }}
-            >
-              <Share2 size={13} color="#FFFFFF" />
-              <Text className="font-extrabold" style={{ marginLeft: rs(6), fontSize: 11, color: '#FFFFFF', letterSpacing: 0.5 }}>
-                SHARE
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -212,77 +201,12 @@ export default function OwnerQrCodeScreen({ navigation }) {
         contentContainerStyle={{ paddingHorizontal: rs(16), paddingBottom: rs(32) + r.insets.bottom }}
       >
         <View style={capStyle}>
-        {/* Shop QR identity card */}
-        <View
-          className="flex-row items-center"
-          style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 11, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', ...softShadow }}
-        >
-          <View style={{ position: 'relative' }}>
-            <View
-              style={{
-                padding: 3, borderRadius: 27, borderWidth: 1.5, borderColor: BRIGHT, borderStyle: 'dashed',
-              }}
-            >
-              <View
-                style={{
-                  width: 44, height: 44, borderRadius: 22,
-                  backgroundColor: MINT, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                }}
-              >
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={{ width: 44, height: 44 }} />
-                ) : (
-                  <Text className="font-extrabold" style={{ fontSize: 15, color: ACCENT, letterSpacing: 1 }}>
-                    {shopName.slice(0, 2).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            </View>
-            {/* Visual affordance only — tapping goes to the real profile-photo
-                editor, same as every other camera badge in this app. */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('OwnerPersonalInfo')}
-              activeOpacity={0.85}
-              style={{
-                position: 'absolute', right: -rs(2), bottom: -rs(2),
-                width: rs(22), height: rs(22), borderRadius: rs(11),
-                backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
-                borderWidth: 2, borderColor: '#FFFFFF',
-              }}
-            >
-              <Camera size={11} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          <View className="flex-1" style={{ marginLeft: 12, minWidth: 0 }}>
-            <Text className="font-extrabold" style={{ fontSize: 10.5, color: PRIMARY, letterSpacing: 1 }}>
-              SHOP QR
-            </Text>
-            <Text className="font-extrabold" style={{ fontSize: 15, color: TEXT_PRIMARY, marginTop: 1 }} numberOfLines={1}>
-              {shopName}
-            </Text>
-            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: rs(1) }} numberOfLines={1}>
-              Tap-to-scan business card
-            </Text>
-          </View>
-          {isVerified ? (
-            <View
-              className="flex-row items-center rounded-full"
-              style={{ marginLeft: 8, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: MINT }}
-            >
-              <ShieldCheck size={12} color={PRIMARY} />
-              <Text className="font-extrabold" style={{ marginLeft: 4, fontSize: 10.5, color: PRIMARY }}>
-                Verified Owner
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
         {/* Main QR business card — the ENTIRE ViewShot region is what Share
             captures, so it carries the header bar, shop/owner name, QR, and
             footer, and reads as a proper business card rather than a bare QR. */}
-        <View className="items-center" style={{ marginTop: 12 }}>
+        <View className="items-center" style={{ marginTop: 8 }}>
           <View
-            style={{ borderRadius: 20, overflow: 'hidden', width: '100%', maxWidth: 300, borderWidth: 1, borderColor: BORDER, ...cardShadow }}
+            style={{ borderRadius: 20, overflow: 'hidden', width: '100%', maxWidth: 320, borderWidth: 1, borderColor: BORDER, ...cardShadow }}
           >
             <ViewShot
               ref={qrOnlyRef}
@@ -357,38 +281,15 @@ export default function OwnerQrCodeScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Owner + Shop details */}
-        <View
-          style={{ backgroundColor: CARD_BG, borderRadius: 18, padding: 12, marginTop: 12, borderWidth: 1, borderColor: BORDER, ...softShadow }}
+        <TouchableOpacity
+          onPress={onShare}
+          activeOpacity={0.85}
+          className="flex-row items-center justify-center"
+          style={{ marginTop: 16, alignSelf: 'center', width: '100%', maxWidth: 320, paddingVertical: 13, borderRadius: 14, backgroundColor: ACCENT }}
         >
-          <DetailSection
-            label="OWNER"
-            Icon={User}
-            title={ownerName}
-            sub={ownerPhone}
-            subIcon={Phone}
-          />
-          <View style={{ height: 1, backgroundColor: SOFT_MINT, marginVertical: 11 }} />
-          <DetailSection
-            label="SHOP"
-            Icon={Store}
-            title={shopName}
-            sub={shopAddress || undefined}
-            subIcon={MapPin}
-            actionLabel="VIEW SHOP"
-            ActionIcon={Eye}
-            onAction={() => navigation.navigate('OwnerShopInfo')}
-          />
-        </View>
-
-        {/* Bottom brand message */}
-        <View className="flex-row items-center" style={{ marginTop: 18, marginBottom: 8 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-          <Text className="font-extrabold" style={{ marginHorizontal: rs(10), fontSize: 9.5, letterSpacing: 1.2, color: PRIMARY }}>
-            LOCAL BUSINESS · BETTER TOGETHER
-          </Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-        </View>
+          <Share2 size={16} color="#FFFFFF" />
+          <Text className="font-extrabold" style={{ marginLeft: 8, fontSize: 14, color: '#FFFFFF' }}>Share QR Code</Text>
+        </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

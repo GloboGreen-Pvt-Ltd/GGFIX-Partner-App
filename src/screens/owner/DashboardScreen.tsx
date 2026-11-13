@@ -87,6 +87,10 @@ import { DashboardNearbyDeals, type NearbyDeal } from '../../components/dashboar
 import { fetchNearbyListings, getListingOrigin, sortNearestFirst, toListingCard } from '../../api/nearbyListings';
 import { DashboardCategoryRail } from '../../components/dashboard/DashboardCategoryRail';
 import { DashboardAccountSheet } from '../../components/dashboard/DashboardAccountSheet';
+// @ts-ignore JS module
+import { MyRepairJobsCard } from '../../components/dashboard/MyRepairJobsCard';
+// @ts-ignore JS module
+import { cachedOwnerTech, getOwnerTech, onOwnerTechChange } from '../../api/ownerTechnician';
 const HOME_REFRESH_STALE_MS = 15000;
 // Repair / Buy / Sell card art, bundled so it shows instantly offline too.
 // Buy/Sell are placed as in the design reference (fanned phones on Buy, a
@@ -306,6 +310,11 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // a finished booking) is dropped, so Back can never reopen it; (2) Android
   // Back asks before closing the app. Registered only while Home is focused,
   // so it never catches Back on any other screen.
+  // Owner as Technician: Home shows "My Repair Jobs" only while it is ON.
+  const [ownerTech, setOwnerTechState] = useState<any>(cachedOwnerTech());
+  useEffect(() => { const off = onOwnerTechChange(setOwnerTechState); return () => { off(); }; }, []);
+  useFocusEffect(useCallback(() => { getOwnerTech().catch(() => {}); }, []));
+
   useFocusEffect(useCallback(() => {
     const root = navigation.getParent?.();
     const st = root?.getState?.();
@@ -997,6 +1006,17 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           <DashboardSection title="Overview" pad={PAD} />
           <DashboardOverviewGrid items={overview} pad={PAD} />
         </View>
+
+        {ownerTech?.enabled ? (
+          <View style={{ marginTop: SECTION_GAP }}>
+            <DashboardSection title="My Repair Jobs" pad={PAD} />
+            <MyRepairJobsCard
+              stats={ownerTech}
+              pad={PAD}
+              onOpen={(filter: string) => (navigation as any).navigate('MyRepairJobs', { filter })}
+            />
+          </View>
+        ) : null}
 
         <View style={{ marginTop: SECTION_GAP }}>
           {/* Every tool visible at once, grouped — no tabs to switch. */}

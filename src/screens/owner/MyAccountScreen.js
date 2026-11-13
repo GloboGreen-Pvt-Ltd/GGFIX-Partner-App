@@ -46,6 +46,7 @@ import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
 import { notify } from '../../components/confirm';
+import { cachedOwnerTech, getOwnerTech, setOwnerTech } from '../../api/ownerTechnician';
 
 // My Account palette — the Oct 2026 brand sheet (theme/colors.js `brand`).
 const G = brand.teal;           // Primary teal: header, key actions
@@ -492,10 +493,12 @@ export default function MyAccountScreen({ onLogout, navigation }) {
           ))}
         </View>
 
-        <SectionLabel subtitle="Keep your account safe and secure">Security</SectionLabel>
-        <View style={LIST_STYLE}>
-          <AppLockRow />
-        </View>
+        {/* Owner as Technician (replaces the Security / App Lock section) — shop owners only. */}
+        {!isShopLogin ? (
+          <View style={[LIST_STYLE, { marginTop: rs(14) }]}>
+            <OwnerTechRow ownerName={ownerName} />
+          </View>
+        ) : null}
 
         <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
         <View style={LIST_STYLE}>
@@ -673,6 +676,49 @@ function SectionLabel({ children, subtitle, count }) {
           </Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// Owner as Technician ON/OFF — saved on the server (default OFF). Turning OFF
+// is refused by the server while the owner still has active repair jobs.
+function OwnerTechRow({ ownerName }) {
+  const [on, setOn] = useState(!!cachedOwnerTech()?.enabled);
+  const [busy, setBusy] = useState(true);
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    getOwnerTech().then((s) => { if (alive) setOn(!!s.enabled); }).catch(() => {}).finally(() => { if (alive) setBusy(false); });
+    return () => { alive = false; };
+  }, []));
+  const toggle = async (next) => {
+    setBusy(true);
+    try {
+      const s = await setOwnerTech(next, ownerName);
+      setOn(!!s.enabled);
+    } catch (e) {
+      const msg = e?.data?.message || e?.message || 'Could not update the setting.';
+      notify(next ? 'Could not turn on' : 'Re-assign your jobs first', msg, { type: 'warning', duration: 5 });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View className="flex-row items-center" style={LIST_ROW}>
+      <View style={{ ...ICON_TILE, backgroundColor: TONE.teal.bg }}>
+        <Ionicons name="construct" size={rf(18)} color={TONE.teal.fg} />
+      </View>
+      <View className="flex-1">
+        <Text style={{ fontSize: 13.5, fontWeight: '700', color: DARK }}>Owner as Technician</Text>
+        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }} numberOfLines={1}>Work on repair jobs yourself</Text>
+      </View>
+      <Switch
+        value={on}
+        onValueChange={toggle}
+        disabled={busy}
+        trackColor={{ true: G, false: LIGHT }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={LIGHT}
+      />
     </View>
   );
 }

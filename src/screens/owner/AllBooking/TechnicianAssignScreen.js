@@ -3,7 +3,8 @@ import { RefreshControl, ActivityIndicator, Pressable, ScrollView, StatusBar, Te
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check, RefreshCw, Search, Smartphone, UserX, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
-import { notify } from '../../../components/confirm';
+import { confirm, notify } from '../../../components/confirm';
+import { getOwnerTech } from '../../../api/ownerTechnician';
 import { emitTicketUpdated } from '../../../lib/ticketEvents';
 import { useResponsive } from '../../../theme/responsive';
 
@@ -46,6 +47,9 @@ export default function TechnicianAssignScreen({ navigation, route }) {
   const [picked, setPicked] = useState(null);
   const [saving, setSaving] = useState(false);
   const sendingRef = useRef(false);
+  // Owner as Technician ON → "Assign to Myself" (the owner's own technician row).
+  const [selfTech, setSelfTech] = useState(null);
+  const [reason, setReason] = useState('');
 
   // Pull to refresh: re-runs the screen's load.
 
@@ -57,8 +61,12 @@ export default function TechnicianAssignScreen({ navigation, route }) {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await ticketApi.get('/technicians');
+      const [data, ot] = await Promise.all([
+        ticketApi.get('/technicians'),
+        getOwnerTech().catch(() => null),
+      ]);
       setTechs(Array.isArray(data) ? data : data?.content ?? data?.data ?? []);
+      setSelfTech(ot?.enabled && ot.technicianId ? { id: ot.technicianId, name: 'Myself', roleLabel: 'Owner', _self: true } : null);
     } catch (e) {
       setTechs([]);
       setLoadError(e?.message || 'Could not load technicians.');
@@ -68,7 +76,8 @@ export default function TechnicianAssignScreen({ navigation, route }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const current = techs.find((t) => t.id === currentTechnicianId) || null;
+  const current = techs.find((t) => t.id === currentTechnicianId)
+    || (selfTech && selfTech.id === currentTechnicianId ? selfTech : null);
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     const techOnly = techs.filter(isTechnicianRole);
@@ -84,10 +93,24 @@ export default function TechnicianAssignScreen({ navigation, route }) {
 
   const assign = async () => {
     if (!changed || sendingRef.current) return;
+    // Re-assign: confirm old → new first; the repair progress stays, the new
+    // technician has to accept before continuing.
+    if (currentTechnicianId) {
+      const ok = await confirm({
+        title: 'Re-assign technician?',
+        message: `${current ? techName(current) : 'Current technician'} → ${techName(picked)}
+
+Repair progress, photos and history are kept. ${techName(picked)} must accept the job to continue.`,
+        confirmText: 'Re-assign',
+      });
+      if (!ok) return;
+    }
     sendingRef.current = true;
     setSaving(true);
     try {
-      const res = await ticketApi.patch(`/tickets/${ticketId}`, { body: { assignedTechnicianId: picked.id } });
+      const body = { assignedTechnicianId: picked.id, expectedTechnicianId: currentTechnicianId || null };
+      if (currentTechnicianId && reason.trim()) body.reassignReason = reason.trim();
+      const res = await ticketApi.patch(`/tickets/${ticketId}`, { body });
       if (res?.assignedTechnicianId && res.assignedTechnicianId !== picked.id) throw new Error('The server did not save the technician.');
       emitTicketUpdated(ticketId, { assignedTechnicianId: picked.id, technician: picked });
       notify(currentTechnicianId ? 'Technician changed' : 'Technician assigned', `${techName(picked)} is now on #${trackingId || 'this job'}.`, { preset: 'done' });
@@ -128,7 +151,7 @@ export default function TechnicianAssignScreen({ navigation, route }) {
             <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
               <Text style={{ fontSize: 13.5, fontWeight: '800', color: INK }} numberOfLines={1}>{deviceName || 'Device'}</Text>
               <Text style={{ fontSize: 11.5, color: MUTED, marginTop: 1 }} numberOfLines={1}>
-                {currentTechnicianId ? `Now: ${current ? techName(current) : 'Assigned technician'} · not accepted yet` : 'No technician assigned yet'}
+                {currentTechnicianId ? `Now: ${current ? techName(current) : 'Assigned technician'}` : 'No technician assigned yet'}
               </Text>
             </View>
           </View>
@@ -150,6 +173,27 @@ export default function TechnicianAssignScreen({ navigation, route }) {
               </Pressable>
             ) : null}
           </View>
+
+          {selfTech ? (
+            <Pressable
+              onPress={() => setPicked(selfTech)}
+              disabled={selfTech.id === currentTechnicianId}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: picked?.id === selfTech.id }}
+              className="flex-row items-center active:opacity-80"
+              style={{ minHeight: 56, marginTop: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: picked?.id === selfTech.id ? 1.5 : 1, borderColor: picked?.id === selfTech.id ? ACCENT : LINE, backgroundColor: picked?.id === selfTech.id ? MINT : '#FFFFFF', opacity: selfTech.id === currentTechnicianId ? 0.55 : 1 }}
+            >
+              <View className="items-center justify-center" style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: ACCENT }}>
+                <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: INK }}>Assign to Myself</Text>
+                <Text style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }} numberOfLines={1}>
+                  {selfTech.id === currentTechnicianId ? 'You are on this job' : 'Work on this repair yourself'}
+                </Text>
+              </View>
+            </Pressable>
+          ) : null}
 
           <Text style={{ fontSize: 13, fontWeight: '800', color: INK, marginTop: 14, marginBottom: 8 }}>
             Technicians{techCount ? <Text style={{ color: MUTED, fontWeight: '600' }}> ({techCount})</Text> : null}
@@ -213,6 +257,17 @@ export default function TechnicianAssignScreen({ navigation, route }) {
 
       <View style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: LINE, paddingHorizontal: 14, paddingTop: 10, paddingBottom: insets.bottom + 10 }}>
         <View style={col}>
+          {currentTechnicianId && changed ? (
+            <TextInput
+              value={reason}
+              onChangeText={setReason}
+              placeholder="Reason for re-assigning (optional)"
+              placeholderTextColor={SUBTLE}
+              cursorColor={ACCENT}
+              maxLength={200}
+              style={{ height: 42, marginBottom: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, fontSize: 13.5, color: INK }}
+            />
+          ) : null}
           <Pressable
             onPress={assign}
             disabled={!changed || saving}

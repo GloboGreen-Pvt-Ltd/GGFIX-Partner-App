@@ -23,7 +23,7 @@ const googleServicesFile = process.env.GOOGLE_SERVICES_JSON
 
 export default {
   expo: {
-    name: 'NearGFix Partner',
+    name: 'Partner',
     slug: 'neargfix-partner',
     // EAS account/organization that owns the project (from your Expo dashboard).
     // Verify this matches expo.dev → your account. Change if different.

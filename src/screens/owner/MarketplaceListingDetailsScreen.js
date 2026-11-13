@@ -98,6 +98,7 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(!route?.params?.listing);
   const [acting, setActing] = useState(false);
   const [viewer, setViewer] = useState(null); // photo index open full screen
+  const [showDetails, setShowDetails] = useState(false); // device details collapsed under image + name
   // Customer buy orders for this listing (from the shop's chat) — Buyer Details.
   const [buyers, setBuyers] = useState([]);
   useEffect(() => {
@@ -275,6 +276,21 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 <Text className="font-extrabold" style={{ fontSize: 15, color: C.ink, lineHeight: 19 }} numberOfLines={2}>
                   {item.title || 'Device'}
                 </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDetails((v) => !v)}
+                  accessibilityRole="button"
+                  className="flex-row items-center"
+                  style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: C.mint }}
+                >
+                  <Text className="font-bold" style={{ fontSize: 12, color: C.greenDark }}>{showDetails ? 'Hide details' : 'Show details'}</Text>
+                  <Ionicons name={showDetails ? 'chevron-up' : 'chevron-down'} size={14} color={C.greenDark} style={{ marginLeft: 4 }} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {showDetails ? (
+            <>
+              <View style={{ marginTop: 10 }}>
                 {isParts && part.group ? <IconRow icon="construct-outline" label="Part" value={part.group} /> : null}
                 {isParts && fromDevice ? <IconRow icon="phone-portrait-outline" label="From" value={fromDevice} /> : null}
                 {item.color ? <IconRow icon="color-palette-outline" label="Color" value={item.color} /> : null}
@@ -289,7 +305,6 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                 {descriptionText && !isParts ? <IconRow icon="document-text-outline" label="Listing" value={descriptionText} /> : null}
                 {item.imei && imeiApplies(resolveSpecCategory(item.deviceCategory, item.categoryCode, item.categoryName)) ? <IconRow icon="barcode-outline" label="IMEI" value={item.imei} /> : null}
               </View>
-            </View>
 
             {/* Seller's condition note, full width under the details. */}
             {partNote ? (
@@ -327,6 +342,8 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
                   ))}
                 </View>
               </>
+            ) : null}
+            </>
             ) : null}
           </Card>
 
