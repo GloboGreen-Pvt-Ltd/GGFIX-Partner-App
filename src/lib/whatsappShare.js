@@ -18,9 +18,27 @@
 //
 // Android 11+ package visibility for both WhatsApp packages comes from
 // plugins/withAndroidQueries.js.
-import { Linking, NativeModules, TurboModuleRegistry } from 'react-native';
+import { Linking, NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { captureRef } from 'react-native-view-shot';
 import { notify } from '../components/confirm';
+
+/**
+ * Open a whatsapp:// link in WhatsApp, then WhatsApp Business — targeted by
+ * package on Android so the system chooser (Truecaller, Messages …) never shows.
+ */
+async function openWhatsAppUrl(url) {
+  if (Platform.OS === 'android') {
+    for (const packageName of ['com.whatsapp', 'com.whatsapp.w4b']) {
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: url, packageName });
+        return true;
+      } catch (_) { /* not installed — try the next */ }
+    }
+    return false;
+  }
+  try { await Linking.openURL(url); return true; } catch (_) { return false; }
+}
 
 function notInstalled() {
   notify('WhatsApp not found', 'Install WhatsApp or WhatsApp Business to share this receipt.');
@@ -105,11 +123,7 @@ export function waNumberOf(phone) {
 export async function sendWhatsAppText(phone, message) {
   const wa = waNumberOf(phone);
   if (!wa) return false;
-  try {
-    await Linking.openURL(`whatsapp://send?phone=${wa}&text=${encodeURIComponent(message || '')}`);
-  } catch (_) {
-    notInstalled();
-  }
+  if (!(await openWhatsAppUrl(`whatsapp://send?phone=${wa}&text=${encodeURIComponent(message || '')}`))) notInstalled();
   return true;
 }
 
@@ -168,15 +182,12 @@ export async function shareReceiptToWhatsApp({ viewRef, message, phone, filename
 
   // Image wanted but this binary has no react-native-share: share the image
   // through the system sheet (expo-sharing) with the text on the clipboard.
-  if (withImage && base64 && await shareImageViaSheet(viewRef, message, filename)) return;
+  // (iOS only — on Android the sheet lists every app, e.g. Truecaller/Messages.)
+  if (Platform.OS !== 'android' && withImage && base64 && await shareImageViaSheet(viewRef, message, filename)) return;
 
   // Text fallback — straight into the customer's WhatsApp chat.
   const digits = String(phone || '').replace(/\D/g, '');
   const waNumber = digits.length === 10 ? `91${digits}` : digits;
   const url = `whatsapp://send?${waNumber ? `phone=${waNumber}&` : ''}text=${encodeURIComponent(message || '')}`;
-  try {
-    await Linking.openURL(url);
-  } catch (_) {
-    notInstalled();
-  }
+  if (!(await openWhatsAppUrl(url))) notInstalled();
 }

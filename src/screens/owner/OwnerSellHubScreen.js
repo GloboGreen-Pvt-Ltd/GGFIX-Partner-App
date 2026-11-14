@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowRight, Bell, Check, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package, ShoppingBag, Store, Truck, LayoutList,
+  ArrowRight, Bell, History, Check, Box, ChevronRight, CirclePlus, MapPin, MessageSquareDot, Package, ShoppingBag, Store, Truck, LayoutList,
 } from 'lucide-react-native';
 import { listShopBuyOrders } from '../../api/buyOrders';
 import { selectSession } from '../../store/authSlice';
@@ -69,18 +69,29 @@ function StatCard({ Icon, iconColor, tint, title, count, countColor = C.text, on
   );
 }
 
+// Device name as saved by the listing flow: brand + model (+ storage), else the title.
+function deviceName(p) {
+  const l = p?._assessment?.listing || {};
+  const model = String(l.modelName || p?.modelName || '').trim();
+  if (!model) return p?.title || 'Listing';
+  const brand = String(l.brandName || p?.brandName || '').trim();
+  const storage = String(p?.storageLabel || l.storageLabel || '').replace(/\s+/g, '');
+  const name = brand && !model.toLowerCase().startsWith(brand.toLowerCase()) ? `${brand} ${model}` : model;
+  return storage ? `${name} (${storage})` : name;
+}
+
 function ListingRow({ p, onPress }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={p.title || 'Listing'}
+      accessibilityLabel={deviceName(p)}
       className="active:opacity-90"
       style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 }}
     >
       <Thumb uri={listingImage(p)} />
       <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text }}>{p.title || 'Listing'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text }}>{deviceName(p)}</Text>
         <Text numberOfLines={1} style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{listingSub(p)}</Text>
         {p.price != null ? <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: C.teal, marginTop: 3 }}>{money(p.price)}</Text> : null}
       </View>
@@ -94,32 +105,35 @@ function ListingTile({ p, onPress, width }) {
   const img = listingImage(p);
   const st = String(p._status || p.status || '').toUpperCase();
   const label = st ? st.charAt(0) + st.slice(1).toLowerCase() : '';
+  // One status chip, coloured per status (was shown twice, always green).
+  const tone = { ACTIVE: '#01AC77', SOLD: '#2F6FE0', DRAFT: '#D97706', INACTIVE: '#6B7280' }[st] || C.teal;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={p.title || 'Listing'}
+      accessibilityLabel={`${deviceName(p)}${label ? `, ${label}` : ''}`}
       className="active:opacity-90"
-      style={{ width, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden', padding: 8 }}
+      style={{
+        width, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden',
+        shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+      }}
     >
-      <View style={{ height: 104, borderRadius: 12, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
-        {img ? <Image resizeMethod="resize" source={{ uri: img }} style={{ width: '80%', height: 96 }} resizeMode="contain" /> : <Package size={26} color={C.muted} />}
+      {/* Photo fills the top of the card. */}
+      <View style={{ height: 116, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
+        {img ? <Image resizeMethod="resize" source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Package size={28} color={C.muted} />}
         {label ? (
-          <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: '#01AC77', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Check size={11} color="#FFFFFF" strokeWidth={3} />
-            <Text style={{ marginLeft: 3, fontSize: rf(10), fontWeight: '800', color: '#FFFFFF' }}>{label}</Text>
+          <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: tone, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+            {st === 'SOLD' || st === 'ACTIVE' ? <Check size={11} color="#FFFFFF" strokeWidth={3} /> : null}
+            <Text style={{ marginLeft: st === 'SOLD' || st === 'ACTIVE' ? 3 : 0, fontSize: rf(9.5), fontWeight: '700', color: '#FFFFFF' }}>{label}</Text>
           </View>
         ) : null}
       </View>
-      <Text numberOfLines={1} style={{ fontSize: rf(13), fontWeight: '800', color: C.text, marginTop: 8 }}>{p.title || 'Listing'}</Text>
-      {p.price != null ? <Text style={{ fontSize: rf(15), fontWeight: '800', color: '#01AC77', marginTop: 2 }}>{money(p.price)}</Text> : null}
-      <Text numberOfLines={1} style={{ fontSize: rf(10.5), color: C.muted, marginTop: 2 }}>{p.conditionLabel || listingSub(p)}</Text>
-      {label ? (
-        <View style={{ marginTop: 8, height: 28, borderRadius: 999, backgroundColor: '#E6F7F0', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-          <Check size={13} color="#01AC77" strokeWidth={3} />
-          <Text style={{ marginLeft: 4, fontSize: rf(11.5), fontWeight: '800', color: '#01AC77' }}>{label}</Text>
-        </View>
-      ) : null}
+      <View style={{ paddingHorizontal: 9, paddingTop: 7, paddingBottom: 9 }}>
+        {/* Full device name: up to 2 lines, same height on every tile so prices line up. */}
+        <Text numberOfLines={2} style={{ fontSize: rf(12), lineHeight: rf(15.5), minHeight: rf(15.5) * 2, fontWeight: '700', color: C.text }}>{deviceName(p)}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(10.5), color: C.muted, marginTop: 2 }}>{p.conditionLabel || listingSub(p)}</Text>
+        {p.price != null ? <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: C.teal, marginTop: 4 }}>{money(p.price)}</Text> : null}
+      </View>
     </Pressable>
   );
 }
@@ -218,9 +232,12 @@ export default function OwnerSellHubScreen({ navigation }) {
       .then((rows) => {
         const list = Array.isArray(rows) ? rows : [];
         setBuyOrders(list);
+        // Same numbers the screens show: Orders = all orders (Orders "All"),
+        // Assign Pickup = home-delivery orders in its pipeline (Assign list "All").
+        const pipeline = ['CONFIRMED', 'DELIVERY_FAILED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'];
         setOrderCounts({
-          fresh: list.filter((o) => o.status === 'PLACED').length,
-          assign: list.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && ['CONFIRMED', 'DELIVERY_FAILED'].includes(o.status)).length,
+          fresh: list.length,
+          assign: list.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && pipeline.includes(o.status)).length,
         });
       })
       .catch(() => setOrderCounts(null));
@@ -328,7 +345,6 @@ export default function OwnerSellHubScreen({ navigation }) {
         title="Sell"
         subtitle={shopName}
         sideWidth={90}
-        right={<HeaderIconButton icon={Bell} label="Notifications" onPress={() => navigation.navigate('OwnerNotifications')} badge={unread} badgeColor="#EF4444" />}
       />
 
       <ScrollView
@@ -385,33 +401,28 @@ export default function OwnerSellHubScreen({ navigation }) {
               </Pressable>
               )}
 
-              {/* ---------- 2 x 2 actions ---------- */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 10, marginTop: 12 }}>
+              {/* ---------- Quick actions ---------- */}
+              {/* One card, four shortcuts: solid icon circle · count badge · label. */}
+              <View style={{ flexDirection: 'row', marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: C.border, paddingVertical: 11, paddingHorizontal: 4, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}>
                 {[
                   { key: 'add', title: 'Add Listing', sub: 'List your device for sale', Icon: CirclePlus, bg: '#ECF8F3', ring: '#D3F0E3', fg: '#01AC77', onPress: () => navigation.navigate('SellListingType') },
                   { key: 'mine', title: 'My Listings', sub: 'View & manage your listings', Icon: LayoutList, bg: '#EEF3FD', ring: '#DCE6FB', fg: '#2F6FE0', count: count(summary?.active), badge: '#2F6FE0', onPress: () => navigation.navigate('SellMyListings', { initialStatus: 'ALL' }) },
                   { key: 'orders', title: 'Orders', sub: 'View your orders', Icon: ShoppingBag, bg: '#FFF2EC', ring: '#FFE1D3', fg: '#F2622E', count: orderCounts?.fresh ?? null, badge: '#EF4444', onPress: () => navigation.navigate('SellBuyOrders') },
                   { key: 'assign', title: 'Assign Pickup', sub: 'Schedule pickup for orders', Icon: Truck, bg: '#F2F0FD', ring: '#E2DDFA', fg: '#5B47D6', count: orderCounts?.assign ?? null, badge: '#01AC77', onPress: () => navigation.navigate('SellBuyAssignList') },
                 ].map((t) => (
-                  <Pressable key={t.key} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.count != null ? `${t.title}, ${t.count}` : t.title} className="active:opacity-85"
-                    style={{ width: tileW, minHeight: 124, borderRadius: 18, borderWidth: 1, borderColor: t.ring, backgroundColor: t.bg, padding: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <View style={{ height: 46, width: 46, borderRadius: 23, backgroundColor: t.ring, alignItems: 'center', justifyContent: 'center' }}>
-                        <t.Icon size={22} color={t.fg} strokeWidth={2.4} />
+                  <Pressable key={t.key} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.count != null ? `${t.title}, ${t.count}` : t.title} className="active:opacity-80"
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: 4 }}>
+                    <View>
+                      <View style={{ height: 48, width: 48, borderRadius: 24, backgroundColor: t.fg, alignItems: 'center', justifyContent: 'center' }}>
+                        <t.Icon size={22} color="#FFFFFF" strokeWidth={2.2} />
                       </View>
                       {t.count != null ? (
-                        <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: t.badge, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: '#FFFFFF' }}>{t.count}</Text>
+                        <View style={{ position: 'absolute', top: -4, right: -8, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: rf(10), fontWeight: '800', color: '#FFFFFF' }}>{t.count > 99 ? '99+' : t.count}</Text>
                         </View>
                       ) : null}
                     </View>
-                    <Text style={{ fontSize: rf(14.5), fontWeight: '800', color: C.text, marginTop: 8 }}>{t.title}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-                      <Text numberOfLines={2} style={{ flex: 1, fontSize: rf(11), color: C.muted, marginTop: 2 }}>{t.sub}</Text>
-                      <View style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
-                        <ChevronRight size={15} color={C.text} />
-                      </View>
-                    </View>
+                    <Text numberOfLines={1} style={{ fontSize: rf(11.5), fontWeight: '700', color: C.text, marginTop: 7, textAlign: 'center' }}>{t.title}</Text>
                   </Pressable>
                 ))}
               </View>

@@ -264,7 +264,9 @@ export default function CustomerDetailsScreen({ navigation, route }) {
      Book Service now lands straight on this form; searching a name or mobile
      fills it in, and typing into it directly is the "new customer" path — no
      separate button or screen for that any more. */
+  const MIN_SEARCH = 3;
   const [q, setQ] = useState('');
+  const [searchField, setSearchField] = useState(null); // 'name' | 'phone' — whose suggestions show
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
@@ -287,7 +289,8 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(async () => {
-      if (!q.trim()) { setResults([]); setSearchError(false); return; }
+      // Suggestions start from the first 3 letters / digits of a name or mobile.
+      if (q.trim().length < MIN_SEARCH) { setResults([]); setSearchError(false); return; }
       setSearching(true);
       setSearchError(false);
       try {
@@ -624,14 +627,6 @@ export default function CustomerDetailsScreen({ navigation, route }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const optionalFilled = [data.email.trim(), data.address.trim(), idProofUrl].filter(Boolean).length;
 
-  // Search found nobody for a full 10-digit number -> a new customer: use that
-  // number in the Mobile field (unless one is already typed).
-  useEffect(() => {
-    const digits = normalizeMobile(q);
-    if (digits.length !== 10 || searching || searchError || dedupedResults.length > 0) return;
-    if (!normalizeMobile(phoneInputRef.current)) set('phone', digits);
-  }, [q, searching, searchError, dedupedResults.length, set]);
-
   // Draft autosave / restore: new bookings only (an edit, a re-service or a
   // caller-supplied customer already has its data).
   const draftable = !route?.params?.editMode && !route?.params?.reService && !initial.name && !existingPick.id;
@@ -679,6 +674,45 @@ export default function CustomerDetailsScreen({ navigation, route }) {
       continuingRef.current = false;
     }
   };
+
+  // Matching customers, shown under the field being typed (3+ letters / digits).
+  const suggestions = (
+    <>
+          {dedupedResults.map((c) => {
+            const st = customerStatus(c, linkedIdsRef.current);
+            return (
+              <Pressable
+                key={`${c.source || 'shop'}:${c.id}`}
+                onPress={() => pickCustomer(c)}
+                accessibilityRole="button"
+                accessibilityLabel={`Use ${c.name || 'customer'}`}
+                className="flex-row items-center rounded-xl px-3 mt-2 active:opacity-80"
+                style={{ minHeight: 52, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#C7E6EA' }}
+              >
+                <View className="items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#E5F3F5' }}>
+                  <User size={16} color={ACCENT} strokeWidth={2} />
+                </View>
+                <View className="flex-1" style={{ marginLeft: 10, minWidth: 0 }}>
+                  <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{c.name || 'Customer'}</Text>
+                  <Text className="text-[12px] text-text-muted" numberOfLines={1}>{c.phone || c.mobile || ''}</Text>
+                </View>
+                <View className="flex-row items-center px-2 py-0.5 rounded-full" style={{ backgroundColor: st === 'app' ? '#E5F3F5' : 'rgba(96,145,56,0.14)' }}>
+                  <Check size={11} color={st === 'app' ? ACCENT : '#609138'} strokeWidth={3} />
+                  <Text className="text-[10.5px] font-bold" style={{ marginLeft: 3, color: st === 'app' ? ACCENT : '#609138' }}>
+                    {{ existing: 'Existing', linked: 'Linked', app: 'App user' }[st]}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+
+          {!searching && q.trim().length >= MIN_SEARCH && searchError ? (
+            <Text className="text-[12px] py-2" style={{ color: '#B45309' }}>
+              Couldn&apos;t check for an existing customer. Check your connection and try again.
+            </Text>
+          ) : null}
+    </>
+  );
 
   return (
     // Explicit white rather than the `bg-background` class. The token IS white
@@ -745,85 +779,18 @@ export default function CustomerDetailsScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {/* ── Search an existing customer by mobile number or name (GET /customers?q=) ── */}
-        <View className="mb-3">
-          <View className="flex-row items-center px-3.5" style={{ ...FIELD_BOX, height: INPUT_H, backgroundColor: '#F9FAFB' }}>
-            <Search size={18} color={MUTED} strokeWidth={2} />
-            <TextInput
-              placeholder="Search by mobile number or name"
-              placeholderTextColor={PLACEHOLDER}
-              value={q}
-              onChangeText={setQ}
-              returnKeyType="search"
-              autoCapitalize="words"
-              autoCorrect={false}
-              maxLength={40}
-              cursorColor={ACCENT}
-              className="flex-1 ml-2.5 text-text"
-              style={{ paddingVertical: 0, fontSize: 14, includeFontPadding: false }}
-              accessibilityLabel="Search customer by mobile number or name"
-            />
-            {searching ? (
-              <ActivityIndicator size="small" color={ACCENT} />
-            ) : q ? (
-              <Pressable onPress={() => { setQ(''); setResults([]); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
-                <X size={17} color={MUTED} />
-              </Pressable>
-            ) : null}
-          </View>
-
-          {dedupedResults.map((c) => {
-            const st = customerStatus(c, linkedIdsRef.current);
-            return (
-              <Pressable
-                key={`${c.source || 'shop'}:${c.id}`}
-                onPress={() => pickCustomer(c)}
-                accessibilityRole="button"
-                accessibilityLabel={`Use ${c.name || 'customer'}`}
-                className="flex-row items-center rounded-xl px-3 mt-2 active:opacity-80"
-                style={{ minHeight: 52, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#C7E6EA' }}
-              >
-                <View className="items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#E5F3F5' }}>
-                  <User size={16} color={ACCENT} strokeWidth={2} />
-                </View>
-                <View className="flex-1" style={{ marginLeft: 10, minWidth: 0 }}>
-                  <Text className="text-[13.5px] font-extrabold text-text" numberOfLines={1}>{c.name || 'Customer'}</Text>
-                  <Text className="text-[12px] text-text-muted" numberOfLines={1}>{c.phone || c.mobile || ''}</Text>
-                </View>
-                <View className="flex-row items-center px-2 py-0.5 rounded-full" style={{ backgroundColor: st === 'app' ? '#E5F3F5' : 'rgba(96,145,56,0.14)' }}>
-                  <Check size={11} color={st === 'app' ? ACCENT : '#609138'} strokeWidth={3} />
-                  <Text className="text-[10.5px] font-bold" style={{ marginLeft: 3, color: st === 'app' ? ACCENT : '#609138' }}>
-                    {{ existing: 'Existing', linked: 'Linked', app: 'App user' }[st]}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-
-          {!searching && q.trim() && searchError ? (
-            <Text className="text-[12px] py-2" style={{ color: '#B45309' }}>
-              Couldn&apos;t check for an existing customer. Check your connection and try again.
-            </Text>
-          ) : !searching && q.trim() && dedupedResults.length === 0 ? (
-            <View className="flex-row items-center py-2">
-              <UserPlus size={14} color={ACCENT} />
-              <Text className="text-[12px] font-semibold" style={{ marginLeft: 6, color: ACCENT }}>
-                New customer{normalizeMobile(q).length === 10 ? ' — enter the name below' : ''}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
         {/* ── Essentials: name + mobile ── */}
         <Field label="Customer Name" required>
-          <FormTextInput icon={USER_ICON} placeholder="Customer name" value={data.name} onChangeText={onName} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" returnKeyType="next" />
+          <FormTextInput icon={USER_ICON} placeholder="Customer name" value={data.name} onChangeText={(v) => { onName(v); setSearchField('name'); setQ(v); }} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} autoCapitalize="words" returnKeyType="next" />
+          {searchField === 'name' ? suggestions : null}
         </Field>
 
         <Field label="Mobile Number" required>
-          <FormTextInput icon={PHONE_ICON} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} value={data.phone} onChangeText={(v) => onPhone(v.replace(/\D/g, ''))} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
+          <FormTextInput icon={PHONE_ICON} placeholder="10-digit mobile number" keyboardType="number-pad" maxLength={10} value={data.phone} onChangeText={(v) => { const d = v.replace(/\D/g, ''); onPhone(d); setSearchField('phone'); setQ(d); }} className={inputCls} style={INPUT_STYLE} cursorColor={ACCENT} />
           {data.phone && normalizeMobile(data.phone).length !== 10 ? (
             <Text className="text-[11.5px] mt-1.5" style={{ color: '#B45309' }}>Enter all 10 digits.</Text>
           ) : null}
+          {searchField === 'phone' ? suggestions : null}
         </Field>
 
         <Field label="Alternative Mobile Number" optional>

@@ -438,10 +438,7 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                   borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
                 }}
               >
-                <View style={{ width: rs(38), height: rs(38), borderRadius: rs(12), backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="storefront" size={rf(18)} color={G} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0, marginLeft: rs(10) }}>
+                <View style={{ flex: 1, minWidth: 0, marginLeft: rs(4) }}>
                   <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1}>
                     {shopName || 'No shop linked'}
                   </Text>
@@ -457,11 +454,14 @@ export default function MyAccountScreen({ onLogout, navigation }) {
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Switch shop"
-                    className="flex-row items-center"
-                    style={({ pressed }) => ({ backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: rs(12), paddingVertical: rs(7), marginLeft: rs(8), opacity: pressed ? 0.8 : 1 })}
+                    className="active:opacity-80"
+                    // Plain style object — NativeWind drops function-form Pressable styles,
+                    // which left this pill without its white background.
+                    style={{ alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: rs(12), paddingHorizontal: rs(10), paddingVertical: rs(6), marginLeft: rs(8) }}
                   >
-                    <Ionicons name="swap-horizontal" size={rf(13)} color={G} />
-                    <Text style={{ fontSize: 11.5, fontWeight: '800', color: G, marginLeft: rs(4) }}>Switch</Text>
+                    {/* Icon on top, "Switch" on the next line. */}
+                    <Ionicons name="storefront" size={rf(12)} color={G} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: G, marginTop: rs(2) }}>Switch</Text>
                   </Pressable>
                 ) : null}
               </View>

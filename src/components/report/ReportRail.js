@@ -102,7 +102,7 @@ export function ReportHeaderButton({ Icon, onPress, label, active = false, style
 /**
  * Left status rail. items: [{ key, label, tone, Icon, count }].
  */
-export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad = 16 }) {
+export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad = 16, jobsLook = false }) {
   const { width: winW } = useWindowDimensions();
   const rz = railSizes(winW);
   return (
@@ -132,12 +132,12 @@ export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad 
             }}
           >
             <LinearGradient
-              colors={['#FFFFFF', `${tone}${on ? '24' : '10'}`]}
+              colors={jobsLook ? ['#FFFFFF', '#FFFFFF'] : ['#FFFFFF', `${tone}${on ? '24' : '10'}`]}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={{
                 alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                borderWidth: on ? 1.5 : 1, borderColor: on ? tone : `${tone}22`,
+                borderWidth: on ? 1.5 : 1, borderColor: jobsLook ? (on ? '#035C6C' : '#E5E7EB') : (on ? tone : `${tone}22`),
               }}
             >
               <View>
@@ -151,7 +151,7 @@ export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad 
                 ) : null}
               </View>
               <Text
-                style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: on ? '800' : '700', color: tone, textAlign: 'center' }}
+                style={{ marginTop: 5, fontSize: rz.font, lineHeight: rz.line, fontWeight: on ? '800' : '700', color: jobsLook ? '#111111' : tone, textAlign: 'center' }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.85}

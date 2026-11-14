@@ -19,6 +19,8 @@ import { ticketApi } from '../../api/client';
 import { listShopRepairBookings } from '../../api/orders';
 import { pickupsOnly } from './AllBooking/bookingScopes';
 import { loadSearchableModels, searchModels } from '../../utils/deviceSearch';
+import DeviceImage from '../../components/DeviceImage';
+import { DevicePhoto } from '../../staffkit/components/JobCardKit';
 import { navigateDeviceAction } from '../../utils/deviceActions';
 import { sendDeviceIdentifyFeedback } from '../../api/masterData';
 import DeviceActionSheet from '../../components/DeviceActionSheet';
@@ -311,11 +313,13 @@ export default function OwnerSearchScreen({ navigation, route }) {
     >
       <View className="flex-row items-center">
         <View
-          className="h-11 w-11 rounded-xl items-center justify-center mr-3 overflow-hidden"
-          style={{ backgroundColor: '#F3F4F6' }}
+          className="rounded-xl items-center justify-center mr-3 overflow-hidden"
+          style={{ width: 48, height: 48, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF0F2' }}
         >
+          {/* DeviceImage (expo-image): decodes catalogue images RN's <Image> fails on
+              some Android builds; fixed pixel size — % sizes collapse in this box. */}
           {d.modelImageUrl
-            ? <Image source={{ uri: d.modelImageUrl }} style={{ width: '86%', height: '86%' }} resizeMode="contain" />
+            ? <DeviceImage url={d.modelImageUrl} style={{ width: 42, height: 42 }} contentFit="contain" />
             : <Smartphone size={20} color="#9CA3AF" strokeWidth={2} />}
         </View>
         <View className="flex-1">
@@ -349,9 +353,16 @@ export default function OwnerSearchScreen({ navigation, route }) {
         style={{ borderWidth: 1, borderColor: '#E5F3F5' }}
       >
         <View className="flex-row items-center">
-          <View className="h-9 w-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
-            {isPickup ? <Truck size={17} color={GREEN_DARK} strokeWidth={2} /> : <Package size={17} color={GREEN_DARK} strokeWidth={2} />}
-          </View>
+          {isPickup ? (
+            <View className="h-9 w-9 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#E5F3F5' }}>
+              <Truck size={17} color={GREEN_DARK} strokeWidth={2} />
+            </View>
+          ) : (
+            // Booking: the device photo (ticket image, else catalogue model image) — same as Jobs cards.
+            <View className="rounded-xl mr-3 overflow-hidden" style={{ width: 48, height: 48, padding: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EEF0F2' }}>
+              <DevicePhoto ticket={r} />
+            </View>
+          )}
           <View className="flex-1">
             <View className="flex-row items-center">
               <Text className="text-[10px] font-extrabold" style={{ color: GREEN }}>#{ref}</Text>
@@ -441,16 +452,6 @@ export default function OwnerSearchScreen({ navigation, route }) {
                 {listening
                   ? <MicOff size={15} color={GREEN_DARK} strokeWidth={2} />
                   : <Mic size={15} color={GREEN_DARK} strokeWidth={2} />}
-              </Pressable>
-              <Pressable
-                onPress={openLens}
-                accessibilityRole="button"
-                accessibilityLabel="Product scanner"
-                hitSlop={6}
-                className="w-7 h-7 rounded-full items-center justify-center"
-                style={{ backgroundColor: '#E5F3F5' }}
-              >
-                <Camera size={15} color={GREEN_DARK} strokeWidth={2} />
               </Pressable>
             </View>
           </View>

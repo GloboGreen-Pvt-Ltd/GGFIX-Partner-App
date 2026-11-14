@@ -90,6 +90,20 @@ export async function requestShopLoginOtp(mobile) {
  * Returns { channel: 'EMAIL'|'MOBILE', sent, target, ttlMinutes?, devOtp?, defaultOtp?, email }.
  * The wire field is `email` but accepts an email OR a mobile number.
  */
+/** Create Account step 1 — 409 when the owner mobile is already registered. */
+export async function requestPartnerSignupOtp(mobile) {
+  return await authApi.post('/auth/partner/signup/otp/send', { body: { mobile } });
+}
+
+/** Create Account step 2 — verifies the OTP, creates owner + shop, signs in. */
+export async function partnerSignup({ ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp }) {
+  const data = await authApi.post('/auth/partner/signup', {
+    body: { ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp },
+  });
+  await saveSession(data);
+  return data;
+}
+
 export async function requestOtp(identifier) {
   return await authApi.post('/auth/otp/send', { body: { email: identifier } });
 }

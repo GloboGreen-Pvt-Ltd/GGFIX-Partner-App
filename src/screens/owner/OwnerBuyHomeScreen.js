@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector } from 'react-redux';
 import {
-  ArrowLeft, Bell, Cable, ChevronRight, Eye, FileText, Headphones, Laptop, LayoutGrid, MapPin, Package,
+  ArrowLeft, Bell, Cable, History, ChevronRight, Eye, FileText, Headphones, Laptop, LayoutGrid, MapPin, Package,
   Search, Settings, ShieldCheck, SlidersHorizontal, Smartphone, Store, Tablet, Truck, UserRound, Watch, X,
 } from 'lucide-react-native';
 import { EmptyState, Loader } from '../../components/rnr';
@@ -100,7 +100,10 @@ const specLine = (it) => String(it?.description || '').split(/\s*[·|/,]\s*/).ma
 // NOTE: Pressables take plain style objects only — NativeWind's cssInterop
 // drops function-form `style={({ pressed }) => ...}` on native. Press feedback
 // uses the `active:` className.
-function RailItem({ label, Icon, active, onPress }) {
+// Horizontal category menu item: round image (admin category-menu image or
+// the category's own image), the line icon when there is none.
+function RailItem({ label, Icon, image, active, onPress }) {
+  const [broken, setBroken] = useState(false);
   return (
     <Pressable
       onPress={onPress}
@@ -108,13 +111,17 @@ function RailItem({ label, Icon, active, onPress }) {
       accessibilityState={{ selected: !!active }}
       accessibilityLabel={label}
       className="active:opacity-80"
-      style={{
-        alignSelf: 'stretch', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 3, borderRadius: 16,
-        backgroundColor: active ? TEAL : 'transparent', ...(active ? cardShadow : null),
-      }}
+      style={{ width: 72, alignItems: 'center', paddingVertical: 3 }}
     >
-      <Icon size={26} color={active ? '#FFFFFF' : TEAL} strokeWidth={1.8} />
-      <Text numberOfLines={2} style={{ marginTop: 6, fontSize: rf(10.5), lineHeight: rf(13), textAlign: 'center', fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : INK }}>
+      <View style={{
+        width: 58, height: 58, borderRadius: 29, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: active ? '#E5F3F5' : '#FFFFFF', borderWidth: active ? 2 : 1, borderColor: active ? TEAL : LINE,
+      }}>
+        {image && !broken
+          ? <Image source={{ uri: image }} style={{ width: 46, height: 46 }} resizeMode="contain" onError={() => setBroken(true)} />
+          : <Icon size={24} color={TEAL} strokeWidth={1.8} />}
+      </View>
+      <Text numberOfLines={1} style={{ marginTop: 5, fontSize: rf(11), textAlign: 'center', fontWeight: active ? '800' : '600', color: active ? TEAL : INK }}>
         {label}
       </Text>
     </Pressable>
@@ -229,7 +236,15 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   const shopId = useSelector(selectShopId);
   const [cats, setCats] = useState([]);
   const [menuImages, setMenuImages] = useState({});
+  const [searchOpen, setSearchOpen] = useState(false);
+  const toggleSearch = () => setSearchOpen((v) => { if (v) setSearchText(''); return !v; });
   const [buyBanners, setBuyBanners] = useState([]);
+  const [bannerRatio, setBannerRatio] = useState(null); // width / height of the first admin banner
+  useEffect(() => {
+    const uri = buyBanners[0]?.uri;
+    if (!uri) return;
+    Image.getSize(uri, (w, h) => { if (w > 0 && h > 0) setBannerRatio(w / h); }, () => {});
+  }, [buyBanners]);
   const [products, setProducts] = useState([]);
   // Every nearby sell listing — customer and shop (GET /marketplace/buy/nearby).
   const [leads, setLeads] = useState([]);
@@ -370,11 +385,14 @@ export default function OwnerBuyHomeScreen({ navigation }) {
     });
   };
 
-  // Left category rail.
-  const railW = width >= 680 ? 104 : (width < 360 ? 72 : 82);
+  // Category menu is a horizontal strip above the list (no left rail).
+  const railW = 0;
+  const catImage = (c) => c?.imageUrl || c?.iconUrl || menuImages[categoryMenuKey(c?.name)] || null;
   const contentW = Math.min(width - railW, MAX_W);
   const bannerW = contentW - PAD * 2;
-  const bannerH = Math.round(Math.max(130, Math.min(220, bannerW * 0.5)));
+  // Banner height follows the admin banner image's own aspect ratio, so the
+  // whole artwork shows on every screen width (no cropping); 2:1 until known.
+  const bannerH = Math.round(Math.max(110, Math.min(260, (bannerW - 2) / (bannerRatio || 2)) + 2));
   const heroTitle = Math.max(15, Math.min(rf(22), bannerW * 0.068));
   const heroSmall = bannerW < 300;
   const heroImage = menuImages[categoryMenuKey('Mobile')] || 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png';
@@ -392,19 +410,35 @@ export default function OwnerBuyHomeScreen({ navigation }) {
       <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingHorizontal: 14, paddingBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Pressable onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back" className="active:opacity-70" style={{ height: 40, width: 36, justifyContent: 'center' }}>
-            <ArrowLeft size={24} color={INK} />
+            <ArrowLeft size={22} color={INK} />
           </Pressable>
-          <View style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
-            <Text numberOfLines={1} style={{ fontSize: rf(22), fontWeight: '800', color: INK }}>Buy</Text>
-            <Text numberOfLines={1} style={{ fontSize: rf(13), color: MUTED, marginTop: 1 }}>Devices & Spares</Text>
+          {/* Title centred on the screen (behind the buttons, not between them). */}
+          <View pointerEvents="none" style={{ position: 'absolute', left: 112, right: 112, alignItems: 'center' }}>
+            <Text numberOfLines={1} style={{ fontSize: rf(17), fontWeight: '800', color: INK }}>Buy</Text>
+            <Text numberOfLines={1} style={{ fontSize: rf(12), color: MUTED, marginTop: 1 }}>Devices & Spares</Text>
           </View>
-          <Pressable onPress={() => navigation.navigate('OwnerNotifications')} hitSlop={8} accessibilityRole="button" accessibilityLabel={unread ? `Notifications, ${unread} unread` : 'Notifications'} className="active:opacity-70" style={{ height: 40, width: 40, alignItems: 'center', justifyContent: 'center' }}>
-            <Bell size={24} color={INK} />
-            {unread > 0 ? <View style={{ position: 'absolute', top: 6, right: 7, height: 9, width: 9, borderRadius: 5, backgroundColor: RED, borderWidth: 1.5, borderColor: '#FFFFFF' }} /> : null}
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={toggleSearch} hitSlop={6} accessibilityRole="button" accessibilityLabel="Search" className="active:opacity-80"
+            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: searchOpen ? TEAL : '#E5F3F5' }}>
+            <Search size={15} color={searchOpen ? '#FFFFFF' : TEAL} />
+          </Pressable>
+          <Pressable onPress={() => setShowFilters(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Filters" className="active:opacity-80"
+            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: activeFilters > 0 ? TEAL : '#E5F3F5' }}>
+            <SlidersHorizontal size={15} color={activeFilters > 0 ? '#FFFFFF' : TEAL} />
+            {activeFilters > 0 ? (
+              <View style={{ position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: RED, borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{activeFilters}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('BuyOrders')} hitSlop={6} accessibilityRole="button" accessibilityLabel="Purchase history" className="active:opacity-80"
+            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: false ? TEAL : '#E5F3F5' }}>
+            <History size={15} color={TEAL} />
           </Pressable>
         </View>
 
-        {/* Search + Filters */}
+        {/* Search: hidden until the header Search icon is tapped (Jobs screen). */}
+        {searchOpen ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: LINE, paddingHorizontal: 14, height: 46, ...cardShadow }}>
             <Pressable onPress={() => runSearch()} hitSlop={6} accessibilityLabel="Search">
@@ -415,6 +449,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
               onChangeText={setSearchText}
               onSubmitEditing={() => runSearch()}
               returnKeyType="search"
+              autoFocus
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="Search mobiles, spares, accessories..."
@@ -427,41 +462,24 @@ export default function OwnerBuyHomeScreen({ navigation }) {
               </Pressable>
             ) : null}
           </View>
-          <Pressable
-            onPress={() => setShowFilters(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Filters"
-            className="active:opacity-80"
-            style={{
-              marginLeft: 8, height: 46, paddingHorizontal: 14, borderRadius: 16, flexDirection: 'row', alignItems: 'center',
-              backgroundColor: activeFilters > 0 ? TEAL : '#F4FAFB', borderWidth: 1.5, borderColor: TEAL,
-            }}
-          >
-            <SlidersHorizontal size={17} color={activeFilters > 0 ? '#FFFFFF' : TEAL} />
-            <Text style={{ marginLeft: 6, fontSize: rf(13.5), fontWeight: '800', color: activeFilters > 0 ? '#FFFFFF' : TEAL }} numberOfLines={1}>Filters</Text>
-            {activeFilters > 0 ? (
-              <View style={{ marginLeft: 6, paddingHorizontal: 6, borderRadius: 999, backgroundColor: '#FFFFFF' }}>
-                <Text style={{ fontSize: rf(10), fontWeight: '800', color: TEAL }}>{activeFilters}</Text>
-              </View>
-            ) : null}
-          </Pressable>
         </View>
+        ) : null}
       </View>
 
-      <View style={{ flex: 1, flexDirection: 'row' }}>
-        {/* Category rail — All, each category, Spares; tapping filters this page. */}
+      <View style={{ flex: 1 }}>
+        {/* Category menu — All, each category (with its image), Spares; tapping filters this page. */}
         {loading ? (
-          <View style={{ width: railW, paddingVertical: 24 }}><Loader /></View>
+          <View style={{ paddingVertical: 14 }}><Loader /></View>
         ) : (
-          <ScrollView style={{ width: railW, flexGrow: 0 }} contentContainerStyle={{ paddingLeft: 8, paddingRight: 2, paddingTop: 12, paddingBottom: tabSpace }} showsVerticalScrollIndicator={false}>
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 4, rowGap: 4, borderWidth: 1, borderColor: LINE, ...cardShadow }}>
+          <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 8 }}>
               <RailItem label="All" Icon={LayoutGrid} active={selCat === 'ALL'} onPress={openAll} />
               {cats.map((c) => (
-                <RailItem key={c.id} label={c.name} Icon={catIcon(c)} active={selCat === c.id} onPress={() => pickCat(c.id)} />
+                <RailItem key={c.id} label={c.name} Icon={catIcon(c)} image={catImage(c)} active={selCat === c.id} onPress={() => pickCat(c.id)} />
               ))}
-              <RailItem label="Spares" Icon={Settings} active={selCat === SPARES} onPress={() => pickCat(SPARES)} />
-            </View>
-          </ScrollView>
+              <RailItem label="Spares" Icon={Settings} image={menuImages[categoryMenuKey('Spares')] || menuImages[categoryMenuKey('Spare Parts')]} active={selCat === SPARES} onPress={() => pickCat(SPARES)} />
+            </ScrollView>
+          </View>
         )}
 
         <ScrollView ref={listRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}>
@@ -507,7 +525,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                       accessibilityLabel="Buy offer banner"
                       style={{ width: bannerW - 2, height: bannerH - 2 }}
                     >
-                      <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW - 2, height: bannerH - 2 }} resizeMode="cover" />
+                      <Image resizeMethod="resize" source={{ uri: b.uri }} style={{ width: bannerW - 2, height: bannerH - 2 }} resizeMode="contain" />
                     </Pressable>
                   ))}
                 </ScrollView>

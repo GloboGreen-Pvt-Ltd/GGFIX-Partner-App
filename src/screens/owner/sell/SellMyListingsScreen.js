@@ -6,7 +6,7 @@ import { useSelector } from 'react-redux';
 import {
   Check, ChevronDown, ChevronUp, CircleCheck, CirclePause, EllipsisVertical, Eye, FilePen, IndianRupee, LayoutGrid, Package, Pencil, Plus, Power, PowerOff, Rocket, Search, ShoppingBag, SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react-native';
-import { RC, ReportHeader, StatusRail, reportStyles, useReportGeometry } from '../../../components/report/ReportRail';
+import { RC, ReportHeader, ReportHeaderButton, StatusRail, reportStyles, useReportGeometry } from '../../../components/report/ReportRail';
 import SafeModal, { ModalInsets } from '../../../components/SafeModal';
 import { confirm, notify } from '../../../components/confirm';
 import { showToast } from '../../../components/Toast';
@@ -187,16 +187,13 @@ const ListingCard = memo(function ListingCard({ p, busy, locked, onOpen, onMenu,
             <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta(status).label}</Text>
           </View>
         </View>
-        <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            <View style={{ flex: 1 }} />
-            <View style={{ marginLeft: 6, backgroundColor: C.teal, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{money(p.price)}</Text>
-            </View>
-          </View>
-          <Text numberOfLines={2} style={{ marginTop: 4, fontSize: 12, fontWeight: '800', lineHeight: 16, color: C.text }}>{p.title || 'Untitled listing'}</Text>
-          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 12, color: C.muted }}>{listingSub(p)}</Text>
-          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 11, fontWeight: '700', color: C.muted }}>{qtyLine}</Text>
+        <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 9 }}>
+          <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: '700', lineHeight: 17, color: C.text }}>{p.title || 'Untitled listing'}</Text>
+          <Text numberOfLines={1} style={{ marginTop: 3, fontSize: 11.5, color: C.muted }}>{listingSub(p)}</Text>
+          <View style={{ flex: 1, minHeight: 6 }} />
+          {/* Stock · Sold, then the price at the very bottom. */}
+          <Text numberOfLines={1} style={{ marginTop: 6, fontSize: 11, fontWeight: '600', color: C.muted }}>{qtyLine}</Text>
+          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 15, fontWeight: '800', color: C.teal }}>{money(p.price)}</Text>
         </View>
       </Pressable>
       {/* Status row, full width like the Jobs card. */}
@@ -293,6 +290,9 @@ export default function SellMyListingsScreen({ navigation, route }) {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [sort, setSort] = useState('NEWEST');
   const [filterOpen, setFilterOpen] = useState(false);
+  // Search bar hidden until the header Search icon is tapped (Jobs screen); closing clears it.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const toggleSearch = () => setSearchOpen((v) => { if (v) setQInput(''); return !v; });
 
   const [rows, setRows] = useState([]);
   const [counts, setCounts] = useState(null);
@@ -659,29 +659,21 @@ export default function SellMyListingsScreen({ navigation, route }) {
   return (
     <View style={reportStyles.screen}>
       <ReportHeader
-        title="MY LISTINGS"
-        subtitle={counts?.ALL != null ? `${counts.ALL} Listings` : 'Manage your listings'}
+        title="My Listings"
+        subtitle={counts?.ALL != null ? `${counts.ALL} Listing${counts.ALL === 1 ? '' : 's'}` : 'Manage your listings'}
         onBack={() => navigation.goBack()}
+        searchOpen={searchOpen}
+        onToggleSearch={toggleSearch}
+        right={<ReportHeaderButton Icon={SlidersHorizontal} label="Filter and sort" active={filtersOn} onPress={() => setFilterOpen(true)} />}
       />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' }}>
-        <SearchInput value={qInput} onChangeText={setQInput} placeholder="Search in my listings" style={{ flex: 1 }} />
-        <Pressable
-          onPress={() => setFilterOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Filter and sort"
-          className="active:opacity-70"
-          style={{
-            height: 44, width: 44, borderRadius: 12, borderWidth: 1, borderColor: filtersOn ? C.teal : C.border,
-            backgroundColor: filtersOn ? C.mint : '#FFFFFF', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <SlidersHorizontal size={18} color={C.teal} />
-          {filtersOn ? <View style={{ position: 'absolute', top: 7, right: 7, height: 8, width: 8, borderRadius: 4, backgroundColor: C.green }} /> : null}
-        </Pressable>
-      </View>
+      {searchOpen ? (
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: C.border }}>
+          <SearchInput value={qInput} onChangeText={setQInput} placeholder="Search in my listings" autoFocus />
+        </View>
+      ) : null}
 
       <View style={reportStyles.body}>
-      <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+      <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} jobsLook />
       <View style={{ flex: 1, paddingHorizontal: 10 }}>
       {filtersOn ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
