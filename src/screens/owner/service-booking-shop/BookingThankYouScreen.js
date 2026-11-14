@@ -142,8 +142,12 @@ export default function BookingThankYouScreen({ navigation, route }) {
   // Barcode Print — same Barcode / QR screen the Bookings list opens. It
   // prints one ticket, so a multi-device booking asks which device first.
   const openBarcodeFor = (ticket) => {
+    // Let the device picker modal close first — opening a second modal in
+    // the same frame is dropped on Android/iOS, so the label popup never shows.
+    const fromPicker = barcodePickerOpen;
     setBarcodePickerOpen(false);
-    setQrTicketId(ticket.id);
+    if (fromPicker) setTimeout(() => setQrTicketId(ticket.id), 350);
+    else setQrTicketId(ticket.id);
   };
   const printBarcode = () => {
     if (!bookedTickets.length) {

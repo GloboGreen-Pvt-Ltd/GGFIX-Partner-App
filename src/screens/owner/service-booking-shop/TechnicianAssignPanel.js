@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { Check, ChevronDown, Clock, RefreshCw, User, UserCheck, Users, X } from 'lucide-react-native';
 import { ticketApi } from '../../../api/client';
+import { getOwnerTech } from '../../../api/ownerTechnician';
 import { ResponsiveModal } from '../../../components/responsive';
 
 const ACCENT = '#035C6C';
@@ -53,12 +54,19 @@ export default function TechnicianAssignPanel({ items = [], direct = false, assi
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await ticketApi.get('/technicians');
+      const [data, ot] = await Promise.all([
+        ticketApi.get('/technicians'),
+        getOwnerTech().catch(() => null),
+      ]);
       const rows = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
       // Assign Technician lists technicians only — Staff / Pickup Person rows are hidden
       // (falls back to everyone if no row is tagged Technician).
       const onlyTech = rows.filter((t) => !t.roleLabel || /technician/i.test(t.roleLabel));
-      setTechs(onlyTech.length ? onlyTech : rows);
+      const list = onlyTech.length ? onlyTech : rows;
+      // Owner as Technician ON → "Myself" first (same as Booking Details assign).
+      const self = ot?.enabled && ot.technicianId
+        ? { id: ot.technicianId, name: 'Myself', roleLabel: 'Owner', _self: true } : null;
+      setTechs(self ? [self, ...list.filter((t) => t.id !== self.id)] : list);
     } catch (e) {
       setTechs([]);
       setLoadError(e?.message || 'Could not load technicians.');

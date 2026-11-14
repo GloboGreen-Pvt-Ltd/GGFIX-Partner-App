@@ -212,7 +212,9 @@ export default function RootNavigator() {
         <Stack.Screen name="Login" options={{ contentStyle: { backgroundColor: '#F3F4F6' } }}>
           {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
         </Stack.Screen>
-        <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+        <Stack.Screen name="CreateAccount">
+          {(props) => <CreateAccountScreen {...props} onLogin={handleLogin} />}
+        </Stack.Screen>
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ForgotPasswordOtp" component={ForgotPasswordOtpScreen} />
         <Stack.Screen name="ResetPassword">
