@@ -11,7 +11,7 @@ import {
   Mic, Play, Pause, Trash2, Plus, Image as ImageIcon,
   ShieldCheck, PackageX, Square, IndianRupee, BadgeCheck, Hourglass,
   Package, ChevronRight, ChevronsRight, Lock, CircleCheck,
-  CalendarDays, Clock, UserRound, BriefcaseBusiness, Wrench, Hammer, MapPin,
+  CalendarDays, Clock, UserRound, BriefcaseBusiness, Wrench, Hammer, MapPin, UserCheck,
 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
@@ -594,6 +594,7 @@ function AssignmentPreview({ ticket, navigation, busy, onAccept, onReject }) {
           ) : null}
 
           <InfoRow icon={CalendarDays} label="Assigned On" value={fmtDateTime(ticket.assignedAt || ticket.createdAt)} />
+          {ticket.bookedByName ? <InfoRow icon={UserCheck} label="Booked By" value={`${ticket.bookedByName}${ticket.bookedByRole === 'OWNER' ? ' (Owner)' : ''}`} /> : null}
           <InfoRow
             icon={Clock}
             label="Due By"
@@ -1298,7 +1299,8 @@ export default function JobDetailsScreen({ route, navigation }) {
     if (leavingRef.current) return;
     leavingRef.current = true;
     setCompletedBanner(false);
-    navigation.popTo('TaskReport', { filter: 'Completed', refreshAt: Date.now() });
+    // Partner app: the owner's own jobs list (TaskReport is Employee-app only).
+    navigation.popTo('MyRepairJobs', { filter: 'completed', refreshAt: Date.now() });
   }, [navigation]);
   // Quality Check saved (the popup only opens after the API succeeds) → back
   // to My Jobs on Completed once the redirect bar has filled; Close stays here.

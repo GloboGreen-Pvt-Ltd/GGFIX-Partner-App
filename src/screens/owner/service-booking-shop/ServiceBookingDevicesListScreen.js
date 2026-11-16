@@ -34,6 +34,7 @@ import { imeiApplies } from '../../../utils/imeiPolicy';
 import { StepProgress } from './BookingSteps';
 import { withNote } from '../AllBooking/ReceiptCard';
 import { bookingPhotoUrls } from '../../../utils/bookingPhotos';
+import BookingPinSheet from './BookingPinSheet';
 
 // One deep green for the whole screen, matching the rest of the booking flow.
 // Explicit values rather than `text-primary`/`bg-success` classes: NativeWind
@@ -209,6 +210,10 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
   // Set synchronously: two quick taps can both run submit() before
   // `submitting` re-renders the button as disabled.
   const submitLockRef = useRef(false);
+  // Employee PIN (new bookings): server-verified booking token, used for every
+  // device ticket of this submit; dropped on success, failure or expiry.
+  const [pinOpen, setPinOpen] = useState(false);
+  const pinRef = useRef(null);
   const reopenedRef = useRef(false);
 
   const totalFor = (d) => (d.services || []).reduce((s, x) => s + (Number(x.price) || 0), 0);
@@ -340,7 +345,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
     whatsappOptIn,
   });
 
-  const submit = async () => {
+  const submit = async (pinOk) => {
     if (!params.customerId) { notify('Missing', 'Customer is required'); return; }
     // Payment is optional — but a half-answered one isn't. A mode with no
     // amount, or an amount with no mode, would store a number nobody can read
@@ -363,6 +368,16 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       return;
     }
     if (submitLockRef.current) return;
+    // New booking → Employee PIN first (Booked By is set by the server from it).
+    if (!params.editMode) {
+      const p = pinOk || pinRef.current;
+      if (!p?.token || (p.expiresAt && Date.parse(p.expiresAt) - Date.now() < 15000)) {
+        pinRef.current = null;
+        setPinOpen(true);
+        return;
+      }
+      pinRef.current = p;
+    }
     submitLockRef.current = true;
     setSubmitting(true);
     try {
@@ -447,9 +462,13 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         const numbering = bookingNumber
           ? { bookingNumber }
           : (devices.length > 1 ? { multiDevice: true } : {});
-        const res = await ticketApi.post('/tickets', { body: { ...buildTicketBody(devices[i], i), ...numbering } });
+        const res = await ticketApi.post('/tickets', {
+          body: { ...buildTicketBody(devices[i], i), ...numbering },
+          headers: pinRef.current?.token ? { 'X-Booking-Pin': pinRef.current.token } : undefined,
+        });
         createdRef.current[i] = res;
       }
+      pinRef.current = null; // one submit per verification
       const created = devices.map((_, i) => createdRef.current[i]);
       navigation.replace('BookingThankYou', {
         customer: params.customer,
@@ -457,6 +476,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         tickets: created,
       });
     } catch (e) {
+      // A rejected/expired PIN token is never reused — the retry asks again.
+      pinRef.current = null;
       const done = Object.keys(createdRef.current).length;
       const remaining = devices.length - done;
       // Tell the owner what already got booked, so they know a retry continues
@@ -912,7 +933,7 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
               </Text>
             </View>
             <Pressable
-              onPress={submit}
+              onPress={() => submit()}
               disabled={submitting || deviceCount === 0}
               className="flex-row items-center active:opacity-80"
               style={{
@@ -940,6 +961,12 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         </View>
       </View>
       </KeyboardAvoidingView>
+      <BookingPinSheet
+        visible={pinOpen}
+        deviceCount={deviceCount}
+        onClose={() => setPinOpen(false)}
+        onConfirm={(t) => { setPinOpen(false); setTimeout(() => submit(t), 300); }}
+      />
     </View>
   );
 }

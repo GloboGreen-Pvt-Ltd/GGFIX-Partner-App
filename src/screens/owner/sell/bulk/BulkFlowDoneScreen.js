@@ -8,6 +8,7 @@ import { bulkDraftStore, resultCounts, rowTitle, useBulkDraft } from './bulkDraf
 import { FileError, shareTextFile, stamp } from './bulkFiles';
 import { DraftLoading, NoBatch } from './BulkUi';
 import { errorReportCsv } from './excelSheet';
+import { exitBulkTo } from './BulkFlowKit';
 
 // Bulk Listing Completed!: published vs failed (sheet rows with errors + items
 // the server rejected), View My Listings, Download Error Report.
@@ -60,7 +61,7 @@ export default function BulkFlowDoneScreen({ navigation }) {
   };
   const mine = () => {
     bulkDraftStore.reset(null);
-    navigation.navigate('SellMyListings', { initialStatus: 'ALL' });
+    exitBulkTo(navigation, 'SellMyListings', { initialStatus: 'ALL' });
   };
 
   return (

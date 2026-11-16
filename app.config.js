@@ -55,6 +55,8 @@ export default {
     },
     android: {
       package: 'com.neargfix.partner',
+      // Google Maps (Android) key from env / EAS secret — never committed.
+      config: { googleMaps: { apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY } },
       // No adb/cloud backup of app data (session profile, cached jobs).
       allowBackup: false,
       adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#ffffff' },

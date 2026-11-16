@@ -44,7 +44,7 @@ export default function BulkExcelReviewScreen({ navigation }) {
     <SellScreen title={flowTitle(draft)} onBack={() => navigation.goBack()}
       footer={(
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <PrimaryButton title="Edit Excel" icon={SquarePen} variant="outline" style={{ flex: 1 }} onPress={() => navigation.navigate('BulkExcelUpload')} />
+          <PrimaryButton title="Edit Excel" icon={SquarePen} variant="outline" style={{ flex: 1 }} onPress={() => navigation.popTo('BulkExcelUpload')} />
           <PrimaryButton title="Next" iconRight={ArrowRight} variant="green" style={{ flex: 1 }} disabled={!rows.length} onPress={() => navigation.navigate('BulkFlowPhotos')} />
         </View>
       )}>

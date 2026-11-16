@@ -12,7 +12,29 @@ import { rf } from '../../../utils/responsive';
 import { C, Card, ErrorBox, PrimaryButton, Section, SellScreen, Thumb, money } from '../sell/kit';
 import { BellButton, dateTime, readPrevQuote } from './buyKit';
 import { leadDistance } from './BuyLeadsScreen';
-import PurchaseManagement from './PurchaseManagement';
+import { getShopPurchase } from '../../../api/orders';
+import { goToStep } from './purchaseKit';
+
+// Quote accepted → straight to the purchase's current step page (Assign Pickup →
+// Pickup Tracking → Inspection → Final Price → Payment). Purchase Management removed.
+function AcceptedRedirect({ navigation, mine, leadRef, header, onReload }) {
+  const id = mine?.purchaseOrderId || mine?.sellOrderId;
+  const [failed, setFailed] = useState(null);
+  const go = useCallback(() => {
+    setFailed(null);
+    if (!id) { setFailed('Purchase order not found. Pull down to refresh.'); return; }
+    getShopPurchase(id).then((o) => goToStep(navigation, o || { id, status: mine?.orderStatus }, leadRef))
+      .catch((e) => setFailed(e?.message || 'Could not open the purchase.'));
+  }, [id, navigation, leadRef, mine?.orderStatus]);
+  useEffect(() => { go(); }, [go]);
+  return (
+    <SellScreen {...header}>
+      {failed
+        ? <ErrorBox message={failed} onRetry={() => { onReload?.(); go(); }} style={{ marginTop: 16 }} />
+        : <ActivityIndicator color={C.teal} style={{ marginTop: 40 }} />}
+    </SellScreen>
+  );
+}
 
 // Page 5 — after Lead Details: this shop's quote on a customer's sell request
 // (GET /sell-orders/listing-quotations/{listingId}). Where it stands, the
@@ -119,12 +141,9 @@ export default function BuyLeadQuoteScreen({ navigation, route }) {
   const ref = mine?.sellNumber || `#${String(l.id || '').slice(0, 8).toUpperCase()}`;
   const header = { title: 'Product Quotation', subtitle: `Lead ${ref}`, onBack: () => navigation.goBack(), right: <BellButton navigation={navigation} /> };
 
-  // Accepted → Purchase Management (collection method, progress, Manage Pickup).
+  // Accepted → the purchase's current step page.
   if (state === 'ACCEPTED') {
-    return (
-      <PurchaseManagement navigation={navigation} lead={l} mine={mine} leadRef={ref} error={error} onReload={load}
-        refreshing={refreshing} onRefresh={onRefresh} onCall={call} onChat={openChat} chatBusy={chatBusy} />
-    );
+    return <AcceptedRedirect navigation={navigation} mine={mine} leadRef={ref} header={header} onReload={load} />;
   }
 
   if (!mine || state === 'NONE') {

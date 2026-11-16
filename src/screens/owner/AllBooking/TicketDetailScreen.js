@@ -1097,6 +1097,12 @@ export default function TicketDetailScreen({ route, navigation }) {
                     <Text className="text-[11px] font-bold text-text text-right" style={{ marginTop: 1 }}>{fmtInstant(ticket.createdAt) || '-'}</Text>
                   </>
                 ) : null}
+                {ticket.bookedByName ? (
+                  <>
+                    <Text className="text-[10px] text-text-muted" style={{ marginTop: 6 }}>Booked By</Text>
+                    <Text className="text-[11px] font-bold text-text text-right" style={{ marginTop: 1 }} numberOfLines={1}>{ticket.bookedByName}{ticket.bookedByRole === 'OWNER' ? ' (Owner)' : ''}</Text>
+                  </>
+                ) : null}
               </View>
             </View>
             {/* Status, starting at the card's left edge under the image. */}

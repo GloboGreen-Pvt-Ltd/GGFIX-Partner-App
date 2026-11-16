@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, TextInput, RefreshControl, ScrollView, StatusBar, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -87,6 +87,8 @@ export default function MyRepairJobsScreen({ navigation, route }) {
   const railW = winW >= 680 ? 104 : (winW < 360 ? 70 : 78);
   const rz = railSizes(winW);
   const [filter, setFilter] = useState(route?.params?.filter || 'assigned');
+  // popTo('MyRepairJobs', { filter }) from Job Details updates params on the existing screen.
+  useEffect(() => { if (route?.params?.filter) setFilter(route.params.filter); }, [route?.params?.filter, route?.params?.refreshAt]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

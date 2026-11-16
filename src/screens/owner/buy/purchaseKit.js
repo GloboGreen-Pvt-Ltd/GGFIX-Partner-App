@@ -28,6 +28,9 @@ export function doorstepRoute(o) {
 /** Page for a status; pass the order to resolve the doorstep stages and the shop handover. */
 export function purchaseRoute(status, o) {
   const s = up(status);
+  // Shop visit not under way yet → Schedule Shop Visit (same rule as Lead Details),
+  // never the pickup-person assignment page.
+  if (o?.fulfilment === 'SHOP_VISIT' && (!s || ['SELL_CONFIRMED', 'PICKUP_SCHEDULED', 'PICKUP_ASSIGNED'].includes(s))) return 'BuyScheduleVisit';
   if (o && o.fulfilment !== 'SHOP_VISIT') {
     if (s === 'OUT_FOR_PICKUP') return doorstepRoute(o);
     if (s === 'PICKED_UP') return 'BuyHandover';

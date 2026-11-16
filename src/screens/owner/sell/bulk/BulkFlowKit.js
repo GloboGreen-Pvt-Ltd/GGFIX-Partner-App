@@ -1,4 +1,5 @@
 import React from 'react';
+import { CommonActions } from '@react-navigation/native';
 import { Pressable, Text, View } from 'react-native';
 import { Check, ChevronRight } from 'lucide-react-native';
 import { rf } from '../../../../utils/responsive';
@@ -10,6 +11,32 @@ import { BATCH, pendingRows } from './bulkDraft';
 // Creating → Completed. State lives in the bulk draft.
 
 export const STEPS = ['Template', 'Upload', 'Review', 'Photos', 'Publish'];
+
+/**
+ * Put `chain` (route names or { name, params }) on top of the current screen in
+ * one reset, so Resume lands on the right page with every earlier step behind
+ * it — Back walks the flow instead of jumping to the template or stacking copies.
+ */
+export function pushChain(navigation, chain) {
+  const st = navigation.getState();
+  const keep = st.routes.slice(0, st.index + 1);
+  const routes = [...keep, ...chain.map((c) => (typeof c === 'string' ? { name: c } : c))];
+  navigation.dispatch(CommonActions.reset({ index: routes.length - 1, routes }));
+}
+
+/**
+ * Leave the bulk flow for `name`: drops every Bulk* page and goes back to `name`
+ * when it is already open underneath (e.g. My Listings), else opens it there.
+ */
+export function exitBulkTo(navigation, name, params) {
+  const st = navigation.getState();
+  const first = st.routes.findIndex((r) => /^Bulk/.test(r.name));
+  let routes = first < 0 ? st.routes.slice(0, st.index + 1) : st.routes.slice(0, first);
+  const at = routes.findIndex((r) => r.name === name);
+  if (at >= 0) routes = [...routes.slice(0, at), { ...routes[at], params: { ...(routes[at].params || {}), ...(params || {}) } }];
+  else routes = [...routes, { name, params }];
+  navigation.dispatch(CommonActions.reset({ index: routes.length - 1, routes }));
+}
 export const flowTitle = (d) => `Bulk Listing – ${d?.batchType === BATCH.MULTI_MODEL ? 'Multiple Models' : 'Same Model'}`;
 
 export const FLOW_TYPES = [BATCH.SAME_MODEL, BATCH.MULTI_MODEL];

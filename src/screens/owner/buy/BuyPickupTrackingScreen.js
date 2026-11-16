@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Text, UIManager, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { CalendarClock, Check, ClipboardCheck, House, MapPin, PackageCheck, Phone, Store, UserPlus } from 'lucide-react-native';
 import { scheduleShopPurchase } from '../../../api/orders';
+import Constants from 'expo-constants';
 import { showToast } from '../../../components/Toast';
 import ScheduleSheet from './ScheduleSheet';
 import { getListingOrigin } from '../../../api/nearbyListings';
@@ -48,8 +49,25 @@ function TimelineStep({ title, sub, mode, last }) {
   );
 }
 
+// Native Google map (react-native-maps) with the Android key from app.config.js
+// (GOOGLE_MAPS_ANDROID_API_KEY). Only used when this build has the map module
+// and a key — otherwise the drawn schematic below stays.
+let Maps = null;
+try { Maps = require('react-native-maps'); } catch (_) { Maps = null; }
+const HAS_MAP = Platform.OS === 'android'
+  && !!Constants.expoConfig?.android?.config?.googleMaps?.apiKey
+  && !!Maps && !!UIManager.hasViewManagerConfig?.('AIRMap');
+
 function RouteCard({ from, to, address }) {
   const dist = from && to ? km(from, to) : null;
+  const showMap = HAS_MAP && !!from;
+  const pts = [from, to].filter(Boolean).map((p) => ({ latitude: p.lat, longitude: p.lng }));
+  const region = showMap ? {
+    latitude: pts.reduce((a, p) => a + p.latitude, 0) / pts.length,
+    longitude: pts.reduce((a, p) => a + p.longitude, 0) / pts.length,
+    latitudeDelta: pts.length > 1 ? Math.max(0.01, Math.abs(pts[0].latitude - pts[1].latitude) * 1.8) : 0.01,
+    longitudeDelta: pts.length > 1 ? Math.max(0.01, Math.abs(pts[0].longitude - pts[1].longitude) * 1.8) : 0.01,
+  } : null;
   const open = () => {
     if (!from) return;
     const url = to
@@ -60,6 +78,16 @@ function RouteCard({ from, to, address }) {
   return (
     <Pressable onPress={open} disabled={!from} accessibilityRole="button" accessibilityLabel="Open the route in Maps" className="active:opacity-90"
       style={{ marginTop: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: '#EEF6EF', borderWidth: 1, borderColor: '#DCEBDD' }}>
+      {showMap ? (
+        <View pointerEvents="none" style={{ height: 170, backgroundColor: '#E8EEF0' }}>
+          <Maps.default provider={Maps.PROVIDER_GOOGLE} style={{ width: '100%', height: 170 }} initialRegion={region}
+            scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false} liteMode accessibilityLabel="Map of the customer and shop">
+            <Maps.Marker coordinate={pts[0]} title="Customer" pinColor="#035C6C" />
+            {pts[1] ? <Maps.Marker coordinate={pts[1]} title="Shop" pinColor="#0B6B4B" /> : null}
+            {pts[1] ? <Maps.Polyline coordinates={pts} strokeColor="#035C6C" strokeWidth={4} /> : null}
+          </Maps.default>
+        </View>
+      ) : (
       <View style={{ height: 130 }}>
         {/* Schematic: customer (home) → shop; distance is straight-line from the saved coordinates. */}
         <Svg width="100%" height="130" viewBox="0 0 320 130" preserveAspectRatio="none">
@@ -75,6 +103,7 @@ function RouteCard({ from, to, address }) {
           <Store size={17} color="#FFFFFF" />
         </View>
       </View>
+      )}
       <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10, marginTop: -6 }}>
         <MapPin size={13} color={C.green} />
         <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.green, marginLeft: 4 }}>
