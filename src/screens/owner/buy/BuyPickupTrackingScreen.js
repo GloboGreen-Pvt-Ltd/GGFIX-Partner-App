@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { CalendarClock, Check, ClipboardCheck, House, MapPin, PackageCheck, Phone, Store, UserPlus } from 'lucide-react-native';
 import { scheduleShopPurchase } from '../../../api/orders';
+import { getApiKey } from '../../../api/auth';
 import { showToast } from '../../../components/Toast';
 import ScheduleSheet from './ScheduleSheet';
 import { getListingOrigin } from '../../../api/nearbyListings';
@@ -48,8 +49,33 @@ function TimelineStep({ title, sub, mode, last }) {
   );
 }
 
+// Google Static Maps image: customer (C) and shop (S) pins with the line between
+// them; centred on the customer when the shop location is unknown.
+function staticMapUrl(from, to, key, w) {
+  const pt = (p) => `${p.lat},${p.lng}`;
+  const parts = [
+    `size=${Math.min(640, Math.max(200, Math.round(w)))}x170`, 'scale=2', 'maptype=roadmap',
+    `markers=${encodeURIComponent(`color:0x035C6C|label:C|${pt(from)}`)}`,
+  ];
+  if (to) {
+    parts.push(`markers=${encodeURIComponent(`color:0x0B6B4B|label:S|${pt(to)}`)}`);
+    parts.push(`path=${encodeURIComponent(`color:0x035C6CCC|weight:4|${pt(from)}|${pt(to)}`)}`);
+  } else {
+    parts.push(`center=${pt(from)}`, 'zoom=15');
+  }
+  parts.push(`key=${encodeURIComponent(key)}`);
+  return `https://maps.googleapis.com/maps/api/staticmap?${parts.join('&')}`;
+}
+
 function RouteCard({ from, to, address }) {
   const dist = from && to ? km(from, to) : null;
+  // Maps key from the database (GET /auth/api-keys/GOOGLE_MAPS); the drawn
+  // schematic stays when there is no key, no location or the image fails.
+  const [mapKey, setMapKey] = useState(null);
+  const [mapFailed, setMapFailed] = useState(false);
+  const [w, setW] = useState(340);
+  useEffect(() => { getApiKey('GOOGLE_MAPS').then(setMapKey); }, []);
+  const mapUri = mapKey && from && !mapFailed ? staticMapUrl(from, to, mapKey, w) : null;
   const open = () => {
     if (!from) return;
     const url = to
@@ -60,7 +86,12 @@ function RouteCard({ from, to, address }) {
   return (
     <Pressable onPress={open} disabled={!from} accessibilityRole="button" accessibilityLabel="Open the route in Maps" className="active:opacity-90"
       style={{ marginTop: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: '#EEF6EF', borderWidth: 1, borderColor: '#DCEBDD' }}>
-      <View style={{ height: 130 }}>
+      {mapUri ? (
+        <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ height: 170, backgroundColor: '#E8EEF0' }}>
+          <Image source={{ uri: mapUri }} style={{ width: '100%', height: 170 }} resizeMode="cover" onError={() => setMapFailed(true)} accessibilityLabel="Map of the customer and shop" />
+        </View>
+      ) : (
+      <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ height: 130 }}>
         {/* Schematic: customer (home) → shop; distance is straight-line from the saved coordinates. */}
         <Svg width="100%" height="130" viewBox="0 0 320 130" preserveAspectRatio="none">
           <Path d="M0 30 H320 M0 75 H320 M0 110 H320 M60 0 V130 M150 0 V130 M240 0 V130" stroke="#FFFFFF" strokeWidth="6" />
@@ -75,6 +106,7 @@ function RouteCard({ from, to, address }) {
           <Store size={17} color="#FFFFFF" />
         </View>
       </View>
+      )}
       <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10, marginTop: -6 }}>
         <MapPin size={13} color={C.green} />
         <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.green, marginLeft: 4 }}>

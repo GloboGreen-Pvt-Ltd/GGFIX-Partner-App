@@ -104,6 +104,22 @@ export async function partnerSignup({ ownerName, ownerMobile, shopName, shopMobi
   return data;
 }
 
+/**
+ * A third-party API key stored in the database (app_api_keys), e.g. GOOGLE_MAPS.
+ * null when it isn't set or the server is older. Cached for the session once found.
+ */
+const apiKeyCache = {};
+export async function getApiKey(name) {
+  if (apiKeyCache[name]) return apiKeyCache[name];
+  try {
+    const r = await authApi.get(`/auth/api-keys/${encodeURIComponent(name)}`);
+    if (r?.key) apiKeyCache[name] = r.key;
+    return r?.key || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function requestOtp(identifier) {
   return await authApi.post('/auth/otp/send', { body: { email: identifier } });
 }
