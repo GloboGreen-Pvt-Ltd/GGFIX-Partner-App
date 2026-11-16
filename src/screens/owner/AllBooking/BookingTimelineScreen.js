@@ -334,6 +334,14 @@ export default function BookingTimelineScreen({ route }) {
   // What hangs under a milestone — on a finished row in the tracker, or in the
   // status card while that milestone is the one in progress.
   const milestoneExtra = (m) => {
+    // Booking Confirmed → who submitted it (Employee PIN verified by the server).
+    if (m.key === 'BOOKED' && ticket?.bookedByName) {
+      return (
+        <Text style={{ marginTop: 4, fontSize: 11.5, color: '#6B7280' }} numberOfLines={1}>
+          Booked By: <Text style={{ fontWeight: '800', color: '#111111' }}>{ticket.bookedByName}{ticket.bookedByRole === 'OWNER' ? ' (Owner)' : ''}</Text>
+        </Text>
+      );
+    }
     // The shop can close the quality check itself (walk-in, or the owner
     // checked it on the bench) — offered only while the repair is in progress.
     if (m.key === 'QUALITY_CHECK' && m.state === 'current' && !qcEvent) {

@@ -20,6 +20,7 @@ import { shareTextFile, stamp } from './bulkFiles';
 import {
   ActionRow, DraftLoading, NoBatch, goSellHome,
 } from './BulkUi';
+import { exitBulkTo } from './BulkFlowKit';
 
 const isFailed = (r) => !!r.result && (r.result.outcome === 'FAILED' || !r.result.productId);
 const CONFETTI = [
@@ -69,7 +70,7 @@ export default function BulkStatusScreen({ navigation }) {
   const draftRows = draft.rows.filter((r) => r.result && !isFailed(r) && r.result.status !== 'ACTIVE');
 
   const leave = (fn) => { leaving.current = true; fn(); };
-  const openListings = (initialStatus) => navigation.navigate('SellMyListings', { initialStatus });
+  const openListings = (initialStatus) => exitBulkTo(navigation, 'SellMyListings', { initialStatus });
 
   const retryFailed = async () => {
     if (busy.current || !failedRows.length) return;

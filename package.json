@@ -85,6 +85,7 @@
     "react-native-fast-tflite": "^3.0.1",
     "react-native-gesture-handler": "~3.3.0",
     "react-native-keyboard-controller": "1.22.7",
+    "react-native-maps": "1.29.11",
     "react-native-nitro-image": "^0.15.2",
     "react-native-nitro-modules": "^0.37.1",
     "react-native-qrcode-svg": "^6.2.0",

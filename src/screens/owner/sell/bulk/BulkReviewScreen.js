@@ -119,14 +119,14 @@ export default function BulkReviewScreen({ navigation }) {
       </View>
 
       <View style={{ borderRadius: 14, borderWidth: 1, borderColor: C.border, paddingHorizontal: 12, marginTop: 12 }}>
-        <Row label="Total Variants" value={String(n)} onEdit={() => navigation.navigate('BulkItems')} />
-        <Row label="Total Quantity" value={String(pcs)} onEdit={() => navigation.navigate('BulkItems')} />
-        <Row label="Total Value" value={money(value)} onEdit={() => navigation.navigate('BulkPricing')} />
-        <Row label="Condition" value={cond} onEdit={() => navigation.navigate('BulkDetails')} />
-        <Row label="Warranty" value={warrantyLabel(det.warrantyMonths)} onEdit={() => navigation.navigate('BulkDetails')} />
-        <Row label="Fulfillment" value={pr.fulfilment.map((f) => FULFIL_LABEL[f] || f).join(', ') || '—'} onEdit={() => navigation.navigate('BulkPricing')} />
-        <Row label="Photos" value={uploading ? `${uploading} uploading` : short ? `${short} variant${short > 1 ? 's' : ''} need more` : 'Ready'} onEdit={() => navigation.navigate('BulkPhotos')} />
-        <Row label="Description" value={String(det.description || '').trim() || '—'} onEdit={() => navigation.navigate('BulkDetails')} last />
+        <Row label="Total Variants" value={String(n)} onEdit={() => navigation.popTo('BulkItems')} />
+        <Row label="Total Quantity" value={String(pcs)} onEdit={() => navigation.popTo('BulkItems')} />
+        <Row label="Total Value" value={money(value)} onEdit={() => navigation.popTo('BulkPricing')} />
+        <Row label="Condition" value={cond} onEdit={() => navigation.popTo('BulkDetails')} />
+        <Row label="Warranty" value={warrantyLabel(det.warrantyMonths)} onEdit={() => navigation.popTo('BulkDetails')} />
+        <Row label="Fulfillment" value={pr.fulfilment.map((f) => FULFIL_LABEL[f] || f).join(', ') || '—'} onEdit={() => navigation.popTo('BulkPricing')} />
+        <Row label="Photos" value={uploading ? `${uploading} uploading` : short ? `${short} variant${short > 1 ? 's' : ''} need more` : 'Ready'} onEdit={() => navigation.popTo('BulkPhotos')} />
+        <Row label="Description" value={String(det.description || '').trim() || '—'} onEdit={() => navigation.popTo('BulkDetails')} last />
       </View>
 
       {critical ? <ErrorBox message={criticalMsg} /> : null}

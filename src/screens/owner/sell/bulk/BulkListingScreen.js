@@ -5,7 +5,7 @@ import { confirm } from '../../../../components/confirm';
 import { rf } from '../../../../utils/responsive';
 import { C, PrimaryButton, SellScreen } from '../kit';
 import { BATCH, BATCH_META, bulkDraftStore, hasProgress, pendingRows, resumeRoute } from './bulkDraft';
-import { MethodCard, flowResumeRoute, isFlowBatch } from './BulkFlowKit';
+import { MethodCard, flowResumeRoute, isFlowBatch, pushChain } from './BulkFlowKit';
 
 // Bulk Listing (Excel) — Bulk Sell Listing: list many products from one Excel
 // file. Same Model Bulk (units of one model) or Multiple Models Bulk. An
@@ -20,17 +20,18 @@ export default function BulkListingScreen({ navigation }) {
     navigation.navigate('BulkExcelTemplate');
   };
   const resume = (d) => {
+    // One reset with every earlier step behind the resumed page (Back walks the flow).
     if (isFlowBatch(d)) {
       const route = flowResumeRoute(d);
-      if (route !== 'BulkExcelTemplate') navigation.navigate('BulkExcelTemplate');
-      if (route === 'BulkFlowDone') navigation.navigate('BulkExcelReview');
-      navigation.navigate(route);
+      pushChain(navigation, route === 'BulkExcelTemplate' ? ['BulkExcelTemplate']
+        : route === 'BulkExcelReview' ? ['BulkExcelTemplate', 'BulkExcelUpload', 'BulkExcelReview']
+          : ['BulkExcelTemplate', 'BulkExcelUpload', 'BulkExcelReview', route]);
       return;
     }
     // Older batch types (spare parts, accessories, CSV) keep their own pages.
     const route = resumeRoute(d);
-    if (route === 'BulkItems') navigation.navigate('BulkTemplate', { csv: d.batchType === BATCH.CSV });
-    navigation.navigate(route, route === 'BulkTemplate' ? { csv: d.batchType === BATCH.CSV } : undefined);
+    const tpl = { name: 'BulkTemplate', params: { csv: d.batchType === BATCH.CSV } };
+    pushChain(navigation, route === 'BulkTemplate' ? [tpl] : route === 'BulkItems' ? [tpl, 'BulkItems'] : [tpl, 'BulkItems', route]);
   };
 
   const next = async () => {
