@@ -477,13 +477,22 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       const partial = (devices.length > 1 && done > 0)
         ? `\n\n${done} of ${devices.length} devices were already booked. Tapping Submit again will only book the remaining ${remaining} device${remaining > 1 ? 's' : ''}.`
         : '';
-      const msg = `${e?.status ? 'Unable to create booking. Please try again.' : (e?.message || 'Unable to create booking. Please try again.')}${partial}`;
+      // Specific, safe reason when one is known (never the raw server text).
+      const raw = String(e?.devMessage || e?.message || '');
+      const reason = /cancelled/i.test(raw) ? 'TPIN verification was cancelled.'
+        : /TPIN authorization invalid|expired or already used/i.test(raw) ? 'TPIN approval expired or was already used. Submit again and re-enter the TPIN.'
+        : /TPIN_REQUIRED/.test(raw) ? 'TPIN verification is required to create this booking.'
+        : /check in first/i.test(raw) ? 'The employee must check in before using their TPIN.'
+        : !e?.status ? 'No internet connection. Your booking details are kept — please try again.'
+        : e.status >= 500 ? 'Server error. Your booking details are kept — please try again.'
+        : (e?.message || 'Unable to create booking. Please try again.');
+      const msg = `${reason}${partial}`;
       // Log the full error so it can be read from the Metro console too.
       if (__DEV__) console.log('Booking submit error →', e?.status, e?.devMessage || e?.message);
       // Alert stays on screen until dismissed, so the message is readable
       // (the toast disappears in ~2s).
       if (partial) Alert.alert('Booking incomplete', msg);
-      else notify('Unable to create booking. Please try again.', '', { preset: 'error' });
+      else if (!/cancelled/i.test(raw)) notify('Unable to create booking', reason, { preset: 'error' });
     } finally { submitLockRef.current = false; setSubmitting(false); }
   };
 

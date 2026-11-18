@@ -44,10 +44,8 @@ export default function AppLockGate({ children, onLogout }) {
     const sub = AppState.addEventListener('change', (next) => {
       const prev = appState.current;
       appState.current = next;
-      if (enabled && /inactive|background/.test(prev) && next === 'active') {
-        setLocked(true);
-        runUnlock();
-      }
+      // Boot-only lock: no re-lock when the app returns to the foreground.
+      void prev;
     });
     return () => sub.remove();
   }, [enabled, runUnlock]);

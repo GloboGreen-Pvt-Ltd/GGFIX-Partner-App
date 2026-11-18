@@ -85,6 +85,7 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
             <ResetPinFlow type="TPIN" session={session} onDone={() => setMode('verify')} onCancel={() => setMode('verify')} />
           ) : (
             <PinPad
+              systemKeyboard
               title="Enter Transaction PIN"
               subtitle="Owner, shop or employee: enter your own TPIN"
               error={error}
@@ -92,7 +93,7 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
               onComplete={submit}
               footer={(
                 <Pressable onPress={() => setMode(tpinSet ? 'reset' : 'create')} style={{ marginTop: 6 }}>
-                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>{tpinSet ? 'Reset TPIN' : 'Create owner TPIN'}</Text>
+                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>{tpinSet ? 'Reset TPIN' : 'Create TPIN'}</Text>
                 </Pressable>
               )}
             />

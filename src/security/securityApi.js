@@ -101,6 +101,7 @@ export function pinErrorMessage(e) {
   if (/PIN_LOCKED/.test(m)) return 'Too many wrong attempts. Try again in 15 minutes.';
   if (/check in first/i.test(m)) return 'Please check in first to use your TPIN.';
   if (/TPIN_AMBIGUOUS/.test(m)) return 'This TPIN is used by more than one person. Ask the shop owner to reset one of them.';
+  if (/TPIN_IN_USE/.test(m)) return 'This TPIN is not available. Choose a different TPIN.';
   if (/Employee app/i.test(m)) return 'Check-in / check-out must be done in the Employee app.';
   if (/too simple/i.test(m)) return 'PIN is too simple. Avoid repeated or sequential digits.';
   if (/SESSION_EXPIRED|SESSION_REVOKED/.test(m)) return 'Session expired. Please log in again.';
