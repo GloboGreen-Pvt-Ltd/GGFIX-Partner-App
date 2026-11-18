@@ -65,7 +65,7 @@ import {
 import { hasCategorySpecs, specDisplayParts } from '../../../utils/deviceSpecs';
 import { imeiApplies, primeModelCategory, resolveRecordCategory } from '../../../utils/imeiPolicy';
 import { estimatedTotalOf, paymentFromTicket } from './ReceiptCard';
-import QrLabelSheet from './QrLabelSheet';
+import QrLabelSheet, { MultiQrPrintSheet } from './QrLabelSheet';
 
 // Swiggy / Zomato green palette — same as the booking-flow screens.
 const BRAND_GREEN = '#035C6C';
@@ -475,6 +475,7 @@ export default function JobsScreen({ navigation, route }) {
   // Details), but the card now carries those same actions as a button row, so
   // the sheet was an extra tap in front of the one destination people wanted.
   const [qrTicketId, setQrTicketId] = useState(null); // Print QR Label popup
+  const [multiQr, setMultiQr] = useState(null); // bulk booking → Print All QR labels
   const [actionBooking, setActionBooking] = useState(null);   // sheet target
   const [techPickerOpen, setTechPickerOpen] = useState(false); // sheet 1
   const [shareOpen, setShareOpen] = useState(false);           // sheet 2
@@ -1681,6 +1682,11 @@ export default function JobsScreen({ navigation, route }) {
 
       {/* ── Technician list sheet (from the card's "Assign" button) ────── */}
       <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
+      <MultiQrPrintSheet
+        visible={!!multiQr}
+        onClose={() => setMultiQr(null)}
+        items={(multiQr || []).map((d) => ({ id: d.id, trackingId: d.trackingId, name: d._modelName || d.deviceDisplayName || d.deviceModelName || d.modelName, ticket: d }))}
+      />
       <TechnicianPickerSheet
         visible={techPickerOpen}
         booking={actionBooking}
@@ -1750,6 +1756,14 @@ export default function JobsScreen({ navigation, route }) {
         <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 10 }} numberOfLines={1}>
           Tap a device to open its booking details
         </Text>
+        <Pressable
+          onPress={() => { const g = devicePickerFor; setDevicePickerFor(null); setTimeout(() => setMultiQr(g?.devices || []), 350); }}
+          accessibilityRole="button"
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", height: 40, borderRadius: 12, backgroundColor: ACCENT_GREEN, marginBottom: 10 }}
+        >
+          <QrCode size={16} color="#FFFFFF" />
+          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 13, marginLeft: 6 }}>Print All QR Labels</Text>
+        </Pressable>
         {(devicePickerFor?.devices || []).map((d) => {
           const meta = ticketStatusMeta(d);
           const tone = TONE_STYLE[meta.tone] || TONE_STYLE.amber;

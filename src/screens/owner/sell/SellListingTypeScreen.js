@@ -9,7 +9,7 @@ import { LISTING_TYPES, draftTitle, hasUnsavedProgress, useSellDraft, sellDraftS
 // Page 2 — what is being sold. Device / Spare Part / Accessory start the
 // single-listing wizard; Bulk Listing opens the bulk flow.
 
-const STEPS = ['Device', 'Details', 'Photos', 'Price', 'Publish'];
+const STEPS = ['Device', 'Details', 'Price', 'Publish'];
 const TYPES = [
   { type: LISTING_TYPES.DEVICE, title: 'Device', sub: '(Mobile, Laptop etc.)', Icon: ShoppingCart },
   { type: LISTING_TYPES.SPARE_PART, title: 'Spare Part', Icon: Wrench },

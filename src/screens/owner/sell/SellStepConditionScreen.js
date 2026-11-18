@@ -8,6 +8,8 @@ import { rf } from '../../../utils/responsive';
 import { C, CONTENT_MAX, FieldLabel, PickerModal, PrimaryButton, Section, Segmented, SelectField, SellScreen, TextField, reportErrors } from './kit';
 import { LISTING_TYPES, useSellDraft, sellDraftStore } from './draft';
 import ConditionArt, { artFor, conditionArtFor } from './conditionArt';
+import { SellPhotosSection, photosCheck } from './SellStepPhotosScreen';
+import { notify } from '../../../components/confirm';
 
 // Page 4 (step 2 of 4) — working state, description, defects, missing parts,
 // accessories in the box and warranty.
@@ -124,6 +126,7 @@ export default function SellStepConditionScreen({ navigation }) {
   const product = draft.product;
   const setProduct = (values) => sellDraftStore.patch('product', values);
   const [warrantyOpen, setWarrantyOpen] = useState(false);
+  const [openPick, setOpenPick] = useState({}); // physical groups reopened with Change
   const [errors, setErrors] = useState({});
 
   // Defect list from master data (per category). Empty → the section hides.
@@ -191,7 +194,8 @@ export default function SellStepConditionScreen({ navigation }) {
   // Description only for devices that are Dead / Unverified (accessories & parts keep it).
   const showDescription = !needsWorking || c.working === 'DEAD' || c.working === 'UNVERIFIED';
   // A Working device must carry its IMEI (phones) or serial number (others).
-  const idRequired = isDevice && c.working === 'WORKING';
+  // IMEI / serial is optional now; its format is still checked when entered.
+  const idRequired = false;
 
   const validate = () => {
     const e = {};
@@ -235,15 +239,17 @@ export default function SellStepConditionScreen({ navigation }) {
     } else if (c.warrantyValidTill) {
       set({ warrantyValidTill: '' });
     }
-    navigation.navigate('SellStepPhotos');
+    const pe = photosCheck();
+    if (pe) { setErrors((x) => ({ ...x, photos: pe })); notify('Photos', pe); return; }
+    navigation.navigate('SellStepPrice');
   };
 
   return (
     <SellScreen
       title="Condition & Description"
-      subtitle="Step 2 of 4 • Item condition & info"
+      subtitle="Step 2 of 3 • Condition, info & photos"
       step={2}
-      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
+      stepLabels={['Device', 'Details', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >
@@ -312,16 +318,24 @@ export default function SellStepConditionScreen({ navigation }) {
       {isDevice && !deadFlow && questions.length ? (
         <Section title="Quick Device Check" sub="Answer each question about the device's current condition">
           {questions.map((q, i) => (
-            <View key={q.id} style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, lineHeight: rf(18) }}>{`${i + 1}. ${q.question}`}</Text>
-              {q.helperText ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 2 }}>{q.helperText}</Text> : null}
-              <Segmented
-                options={(q.options || ['Yes', 'No']).map((o) => ({ value: o, label: o }))}
-                lines={2}
-                value={answerFor(q)}
-                onChange={(v) => { setAnswer(q, v); setErrors((x) => ({ ...x, screening: null })); }}
-                style={{ marginTop: 8 }}
-              />
+            <View key={q.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: i < questions.length - 1 ? 1 : 0, borderBottomColor: C.border }}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, lineHeight: rf(17) }}>{`${i + 1}. ${q.question}`}</Text>
+                {q.helperText ? <Text style={{ fontSize: rf(10.5), color: C.muted, marginTop: 1 }}>{q.helperText}</Text> : null}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(q.options || ['Yes', 'No']).map((o) => {
+                  const on = answerFor(q) === o;
+                  return (
+                    <Pressable key={o} onPress={() => { setAnswer(q, on ? null : o); setErrors((x) => ({ ...x, screening: null })); }}
+                      accessibilityRole="radio" accessibilityState={{ selected: on }}
+                      style={{ minWidth: 46, paddingHorizontal: 8, height: 32, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+                        borderColor: on ? C.teal : C.border, backgroundColor: on ? C.mint : '#FFFFFF' }}>
+                      <Text style={{ fontSize: rf(12.5), fontWeight: '800', color: on ? C.teal : C.text }} numberOfLines={1}>{o}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           ))}
           {errors.screening ? <Text style={{ fontSize: rf(11), color: C.red }}>{errors.screening}</Text> : null}
@@ -331,19 +345,32 @@ export default function SellStepConditionScreen({ navigation }) {
       {isDevice && !deadFlow && groups.length ? (
         <Section title="Physical Condition" sub="Pick the option that best matches each part of the device">
           {groups.map((g) => (
-            <View key={g.id} style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, marginBottom: 8 }}>{g.name}</Text>
+            <View key={g.id} style={{ marginBottom: 10 }}>
               {/* Picture tile per option (No Spot, Minor Spot, Scratches…). */}
+              {pickFor(g) && !openPick[g.id] ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+                  <Text style={{ flex: 1, fontSize: rf(12.5), fontWeight: '700', color: C.text }} numberOfLines={1}>{g.name}</Text>
+                  <Text style={{ flexShrink: 1, fontSize: rf(12.5), fontWeight: '800', color: C.teal }} numberOfLines={1}>{pickFor(g).optionLabel || g.opts.find((o) => o.id === pickFor(g).optionId)?.label || 'Selected'}</Text>
+                  <Pressable onPress={() => setOpenPick((s) => ({ ...s, [g.id]: true }))} accessibilityRole="button" accessibilityLabel={`Change ${g.name}`}
+                    style={{ paddingHorizontal: 14, height: 32, borderRadius: 999, borderWidth: 1, borderColor: C.teal, justifyContent: 'center' }}>
+                    <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.teal }}>Change</Text>
+                  </Pressable>
+                </View>
+              ) : (
+              <>
+              <Text style={{ fontSize: rf(12.5), fontWeight: '700', color: C.text, marginBottom: 8 }}>{g.name}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
                 {g.opts.map((o) => {
                   const p = pickFor(g);
                   const on = !!p && (p.optionId === o.id || p.optionLabel === o.label);
                   return (
                     <ArtCard key={optKey(g, o)} label={o.label} kind={conditionArtFor(o.label)} width={cardW} on={on}
-                      onPress={() => { setPick(g, o); setErrors((x) => ({ ...x, physical: null })); }} />
+                      onPress={() => { setPick(g, o); setOpenPick((s) => ({ ...s, [g.id]: false })); setErrors((x) => ({ ...x, physical: null })); }} />
                   );
                 })}
               </View>
+              </>
+              )}
             </View>
           ))}
           {errors.physical ? <Text style={{ fontSize: rf(11), color: C.red }}>{errors.physical}</Text> : null}
@@ -425,6 +452,11 @@ export default function SellStepConditionScreen({ navigation }) {
             ))}
           </View>
         ) : null}
+      </Section>
+
+      <Section title="Photos" sub="Camera or gallery · tap a photo to set cover, reorder or remove">
+        <SellPhotosSection />
+        {errors.photos ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 6 }}>{errors.photos}</Text> : null}
       </Section>
 
       <PickerModal

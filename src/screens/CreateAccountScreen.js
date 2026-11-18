@@ -18,6 +18,7 @@ import { partnerSignup, requestPartnerSignupOtp } from '../api/auth';
 import { notify } from '../components/confirm';
 import { setLegalAgreed } from '../legal/legalConsent';
 import { GREEN, MUTED, INK, SCREEN_BG, FIELD_BORDER } from './authUi';
+import { ShopLocationPicker, ShopNameSuggestions } from './signupLocation';
 
 // Partner App "Create Account": owner + shop details → Send OTP → verify →
 // the server creates the owner and first shop and signs in (onLogin → Home).
@@ -33,7 +34,15 @@ export default function CreateAccountScreen({ navigation, onLogin }) {
   const insets = useSafeAreaInsets();
   const isWide = width >= 600;
   const [step, setStep] = useState('FORM'); // FORM | OTP
-  const [form, setForm] = useState({ ownerName: '', ownerMobile: '', shopName: '', shopMobile: '', shopAddress: '' });
+  const [form, setForm] = useState({ ownerName: '', ownerMobile: '', shopName: '', shopMobile: '', shopAddress: '', ownerWhatsapp: '', pincode: '' });
+  const [waSame, setWaSame] = useState(true); // "Is this your WhatsApp number?"
+  const [shopFocus, setShopFocus] = useState(false);
+  const [loc, setLoc] = useState(null); // { latitude, longitude, placeId, confirmed }
+  // Google fills address / PIN; the owner can still edit them by hand.
+  const fillAddress = (f) => {
+    if (!f) return;
+    setForm((s) => ({ ...s, shopAddress: f.address || s.shopAddress, pincode: f.pincode || s.pincode }));
+  };
   const [otp, setOtp] = useState('');
   const [seconds, setSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -61,6 +70,8 @@ export default function CreateAccountScreen({ navigation, onLogin }) {
     if (!form.shopName.trim()) return 'Enter the shop name';
     if (form.shopMobile && form.shopMobile.length !== 10) return 'Enter a 10-digit shop contact number';
     if (!form.shopAddress.trim()) return 'Enter the shop address';
+    if (!waSame && form.ownerWhatsapp.length !== 10) return 'Enter the 10-digit WhatsApp number';
+    if (form.pincode && !/^\d{6}$/.test(form.pincode)) return 'Enter a 6-digit PIN code';
     return null;
   };
 
@@ -103,6 +114,12 @@ export default function CreateAccountScreen({ navigation, onLogin }) {
         shopName: form.shopName.trim(),
         shopMobile: form.shopMobile || null,
         shopAddress: form.shopAddress.trim(),
+        ownerWhatsapp: waSame ? form.ownerMobile : form.ownerWhatsapp,
+        pincode: form.pincode || null,
+        // Only a pin the owner confirmed is saved.
+        latitude: loc?.confirmed ? loc.latitude : null,
+        longitude: loc?.confirmed ? loc.longitude : null,
+        googlePlaceId: loc?.confirmed ? loc.placeId || null : null,
         otp: entered,
       });
       notify('Account created', 'Welcome to NearGFix Partner', { preset: 'done' });
@@ -157,12 +174,39 @@ export default function CreateAccountScreen({ navigation, onLogin }) {
               <Section title="Owner Information">
                 <Field icon={User} label="Owner's Full Name" value={form.ownerName} onChangeText={set('ownerName')} placeholder="Full name" autoCapitalize="words" />
                 <Field icon={Phone} label="Owner's Mobile Number" value={form.ownerMobile} onChangeText={(v) => set('ownerMobile')(digits10(v))} placeholder="9876543210" keyboardType="number-pad" prefix="+91" />
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: MUTED, marginTop: 10, marginBottom: 6 }}>Is this your WhatsApp number?</Text>
+                <View style={{ flexDirection: 'row' }}>
+                  {[['Yes', true], ['No', false]].map(([l, v]) => (
+                    <Pressable key={l} onPress={() => setWaSame(v)} accessibilityRole="radio" accessibilityState={{ selected: waSame === v }}
+                      style={{ flex: 1, height: 40, marginRight: v ? 8 : 0, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+                        borderColor: waSame === v ? GREEN : FIELD_BORDER, backgroundColor: waSame === v ? '#E5F3F5' : '#FFFFFF' }}>
+                      <Text style={{ fontSize: 13.5, fontWeight: '800', color: waSame === v ? GREEN : INK }}>{l}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {!waSame ? (
+                  <Field icon={Phone} label="WhatsApp Number" value={form.ownerWhatsapp} onChangeText={(v) => set('ownerWhatsapp')(digits10(v))} placeholder="9876543210" keyboardType="number-pad" prefix="+91" />
+                ) : null}
               </Section>
 
               <Section title="Shop Information">
-                <Field icon={Store} label="Shop Name" value={form.shopName} onChangeText={set('shopName')} placeholder="Shop name" autoCapitalize="words" />
+                <Field icon={Store} label="Shop Name" value={form.shopName} onChangeText={set('shopName')} placeholder="Search on Google or type shop name" autoCapitalize="words"
+                  onFocus={() => setShopFocus(true)} onBlur={() => setTimeout(() => setShopFocus(false), 250)} />
+                <ShopNameSuggestions query={form.shopName} focused={shopFocus} onPick={(d) => {
+                  setShopFocus(false);
+                  setForm((s) => ({
+                    ...s,
+                    shopName: d.name || s.shopName,
+                    shopMobile: s.shopMobile || (d.phone.length === 10 ? d.phone : ''),
+                    shopAddress: d.address || s.shopAddress,
+                    pincode: d.pincode || s.pincode,
+                  }));
+                  if (d.latitude != null) setLoc({ latitude: d.latitude, longitude: d.longitude, placeId: d.placeId, confirmed: false });
+                }} />
                 <Field icon={Phone} label="Shop Contact Number" value={form.shopMobile} onChangeText={(v) => set('shopMobile')(digits10(v))} placeholder="9876543210" keyboardType="number-pad" prefix="+91" />
                 <Field icon={MapPin} label="Shop Address" value={form.shopAddress} onChangeText={set('shopAddress')} placeholder="Door no, street, area, city" multiline />
+                <Field icon={MapPin} label="PIN Code" value={form.pincode} onChangeText={(v) => set('pincode')(String(v).replace(/\D/g, '').slice(0, 6))} placeholder="641001" keyboardType="number-pad" />
+                <ShopLocationPicker value={loc} onChange={(next, filled) => { setLoc(next); fillAddress(filled); }} />
               </Section>
 
               <ErrorText msg={error} />

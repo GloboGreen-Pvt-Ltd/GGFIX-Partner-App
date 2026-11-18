@@ -30,14 +30,25 @@ const PAGE_SIZE = 20;
 const MAX_RELOAD_PAGES = 5; // a focus reload refetches up to 100 rows (server cap)
 
 // Left status rail (Jobs style); All is the default.
+// All | Active | Order | Sold. Draft / Inactive are not main tabs any more but
+// stay reachable (rail shows them only while such listings exist) so old
+// drafts and deactivated listings can still be managed.
 const TABS = [
   { value: 'ALL', label: 'All', tone: RC.teal, Icon: LayoutGrid },
   { value: 'ACTIVE', label: 'Active', tone: RC.green, Icon: CircleCheck },
-  { value: 'DRAFT', label: 'Draft', tone: RC.orange, Icon: FilePen },
+  { value: 'ORDER', label: 'Order', tone: RC.orange, Icon: ShoppingBag },
   { value: 'SOLD', label: 'Sold', tone: RC.blue, Icon: Tag },
+];
+const EXTRA_TABS = [
+  { value: 'DRAFT', label: 'Draft', tone: RC.orange, Icon: FilePen },
   { value: 'INACTIVE', label: 'Inactive', tone: RC.gray, Icon: CirclePause },
 ];
-const TAB_VALUES = TABS.map((t) => t.value);
+const TAB_VALUES = [...TABS, ...EXTRA_TABS].map((t) => t.value);
+// ORDER is app-side (open customer orders), so the server is asked for ALL.
+const serverStatus = (tab) => (tab === 'ORDER' ? 'ALL' : tab);
+// All tab: Active → Ordered → Sold (→ Draft / Inactive), newest first inside each.
+const groupRank = (p, ordered) => (ordered || p._status === 'RESERVED' ? 1
+  : p._status === 'ACTIVE' ? 0 : p._status === 'SOLD' ? 2 : 3);
 
 const TYPE_OPTIONS = [
   { value: 'ALL', label: 'All' },
@@ -56,6 +67,7 @@ const EMPTY = {
   DRAFT: { title: 'No drafts', sub: 'Listings saved as a draft wait here until you publish them.' },
   SOLD: { title: 'Nothing sold yet', sub: 'Listings you mark as sold move here.' },
   INACTIVE: { title: 'No inactive listings', sub: 'Deactivated listings are hidden from buyers and kept here.' },
+  ORDER: { title: 'No orders', sub: 'Listings with an open customer order show up here.' },
   ALL: { title: 'No listings yet', sub: 'Add a device, spare part or accessory to start selling.', add: true },
 };
 
@@ -183,8 +195,8 @@ const ListingCard = memo(function ListingCard({ p, busy, locked, onOpen, onMenu,
       >
         <View style={{ width: 111, minHeight: 116, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: '#E5E7EB' }}>
           <Thumb uri={listingImage(p)} size={84} radius={0} style={{ backgroundColor: '#FFFFFF' }} />
-          <View style={{ position: 'absolute', top: 0, left: 0, maxWidth: '86%', backgroundColor: statusMeta(status).fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta(status).label}</Text>
+          <View style={{ position: 'absolute', top: 0, left: 0, maxWidth: '86%', backgroundColor: statusMeta(order ? 'RESERVED' : status).fg, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{statusMeta(order ? 'RESERVED' : status).label}</Text>
           </View>
         </View>
         <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 9 }}>
@@ -200,7 +212,7 @@ const ListingCard = memo(function ListingCard({ p, busy, locked, onOpen, onMenu,
       <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F1F1', paddingHorizontal: 12, paddingVertical: 4 }}>
         <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: statusMeta(status).fg, marginRight: 6 }} />
         <Text numberOfLines={1} style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: statusMeta(status).fg }}>
-          {order ? 'Customer order in progress' : statusMeta(status).label}
+          {order ? `Ordered · ${order.orderNumber || 'customer order'}` : statusMeta(status).label}
         </Text>
       </View>
       {/* Edit / Mark Sold / Publish stay in the ⋮ menu; tap opens the order when one exists. */}
@@ -341,7 +353,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
     if (mode === 'refresh') setRefreshing(true);
     setMoreError(null);
     try {
-      const res = await listMyListings({ status: tab, q, page: 0, size: pages * PAGE_SIZE }, ctx);
+      const res = await listMyListings({ status: serverStatus(tab), q, page: 0, size: pages * PAGE_SIZE }, ctx);
       if (g !== gen.current) return;
       const total = Number(res?.totalElements);
       setRows(res?.content || []);
@@ -389,7 +401,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const res = await listMyListings({ status: tab, q, page: next, size: PAGE_SIZE }, ctx);
+      const res = await listMyListings({ status: serverStatus(tab), q, page: next, size: PAGE_SIZE }, ctx);
       if (g !== gen.current) return;
       const content = res?.content || [];
       setRows((prev) => mergeRows(prev, content));
@@ -406,8 +418,17 @@ export default function SellMyListingsScreen({ navigation, route }) {
   }, [loading, refreshing, error, moreError, page, totalPages, tab, q, ctx]);
 
   const visible = useMemo(
-    () => sortRows(typeFilter === 'ALL' ? rows : rows.filter((p) => p.listingType === typeFilter), sort),
-    [rows, typeFilter, sort],
+    () => {
+      let list = typeFilter === 'ALL' ? rows : rows.filter((p) => p.listingType === typeFilter);
+      // Order: one row per listing with an open order (orders keyed by product → no duplicates).
+      if (tab === 'ORDER') list = list.filter((p) => openOrders[String(p.id)] || p._status === 'RESERVED');
+      const sorted = sortRows(list, sort);
+      if (tab !== 'ALL' || sort !== 'NEWEST') return sorted;
+      return sorted.map((p, i) => [p, i])
+        .sort((a, b) => (groupRank(a[0], !!openOrders[String(a[0].id)]) - groupRank(b[0], !!openOrders[String(b[0].id)])) || a[1] - b[1])
+        .map(([p]) => p);
+    },
+    [rows, typeFilter, sort, tab, openOrders],
   );
   const display = useMemo(() => groupBatches(visible), [visible]);
   const [openGroups, setOpenGroups] = useState({});
@@ -417,7 +438,7 @@ export default function SellMyListingsScreen({ navigation, route }) {
   /** Replace a row with the server's copy (null removes it); rows that left this tab drop out. */
   const replaceRow = useCallback((id, next) => {
     setRows((list) => {
-      if (!next || (tab !== 'ALL' && next._status !== tab)) return list.filter((r) => !sameId(r.id, id));
+      if (!next || (tab !== 'ALL' && tab !== 'ORDER' && next._status !== tab)) return list.filter((r) => !sameId(r.id, id));
       return list.map((r) => (sameId(r.id, id) ? next : r));
     });
   }, [tab]);
@@ -610,7 +631,9 @@ export default function SellMyListingsScreen({ navigation, route }) {
   const priceShown = useLastValue(priceFor);
   const soldShown = useLastValue(soldFor);
 
-  const railItems = TABS.map((t) => ({ ...t, key: t.value, count: counts ? counts[t.value] : undefined }));
+  const orderCount = Object.keys(openOrders).length;
+  const railItems = [...TABS, ...EXTRA_TABS.filter((t) => tab === t.value || (counts && counts[t.value] > 0))]
+    .map((t) => ({ ...t, key: t.value, count: t.value === 'ORDER' ? orderCount : (counts ? counts[t.value] : undefined) }));
   const card = (p) => (
     <ListingCard
       key={String(p.id)}

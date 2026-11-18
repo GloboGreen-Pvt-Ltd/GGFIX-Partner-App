@@ -156,6 +156,28 @@ function EnquiryRow({ e, onPress }) {
   );
 }
 
+const ACTIVE_PICKUP = ['CONFIRMED', 'DELIVERY_FAILED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY'];
+const PICKUP_LABEL = { CONFIRMED: 'Needs employee', DELIVERY_FAILED: 'Delivery failed', ASSIGNED: 'Assigned', ACCEPTED: 'Accepted', PICKED_UP: 'Picked up', OUT_FOR_DELIVERY: 'Out for delivery' };
+
+// Compact Active Pickup Assignments card → opens Assign Pickup.
+function PickupRow({ o, onPress }) {
+  const needs = o.status === 'CONFIRMED' || o.status === 'DELIVERY_FAILED';
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" className="active:opacity-80"
+      style={{ flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}>
+      <Thumb uri={o.productImage} size={44} />
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+        <Text numberOfLines={1} style={{ fontSize: rf(12.5), fontWeight: '800', color: C.text }}>{o.productTitle || 'Product'}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(11), color: C.muted, marginTop: 1 }}>#{o.orderNumber}{o.assignedStaffName ? ` · ${o.assignedStaffName}` : ''}</Text>
+        <Text numberOfLines={1} style={{ fontSize: rf(10.5), fontWeight: '800', color: needs ? C.amber : C.teal, marginTop: 1 }}>{PICKUP_LABEL[o.status] || o.status}</Text>
+      </View>
+      <View style={{ paddingHorizontal: 10, height: 28, borderRadius: 999, justifyContent: 'center', backgroundColor: needs ? C.teal : '#FFFFFF', borderWidth: 1, borderColor: C.teal }}>
+        <Text style={{ fontSize: rf(11), fontWeight: '800', color: needs ? '#FFFFFF' : C.teal }}>{needs ? 'Assign' : 'View'}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 function SectionTitle({ title, sub, action, onAction }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
@@ -234,9 +256,10 @@ export default function OwnerSellHubScreen({ navigation }) {
         setBuyOrders(list);
         // Same numbers the screens show: Orders = all orders (Orders "All"),
         // Assign Pickup = home-delivery orders in its pipeline (Assign list "All").
-        const pipeline = ['CONFIRMED', 'DELIVERY_FAILED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'];
+        const pipeline = ACTIVE_PICKUP; // Assign Pickup 'All' = active pickups only
         setOrderCounts({
-          fresh: list.length,
+          // Active only — closed orders (delivered/cancelled/etc.) are not counted.
+          fresh: list.filter((o) => !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'RETURNED', 'HANDED_OVER'].includes(o.status)).length,
           assign: list.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && pipeline.includes(o.status)).length,
         });
       })
@@ -403,7 +426,7 @@ export default function OwnerSellHubScreen({ navigation }) {
 
               {/* ---------- Quick actions ---------- */}
               {/* One card, four shortcuts: solid icon circle · count badge · label. */}
-              <View style={{ flexDirection: 'row', marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: C.border, paddingVertical: 11, paddingHorizontal: 4, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}>
+              <View style={{ flexDirection: 'row', marginTop: 12, paddingVertical: 6, paddingHorizontal: 4 }}>
                 {[
                   { key: 'add', title: 'Add Listing', sub: 'List your device for sale', Icon: CirclePlus, bg: '#ECF8F3', ring: '#D3F0E3', fg: '#01AC77', onPress: () => navigation.navigate('SellListingType') },
                   { key: 'mine', title: 'My Listings', sub: 'View & manage your listings', Icon: LayoutList, bg: '#EEF3FD', ring: '#DCE6FB', fg: '#2F6FE0', count: count(summary?.active), badge: '#2F6FE0', onPress: () => navigation.navigate('SellMyListings', { initialStatus: 'ALL' }) },
@@ -413,8 +436,8 @@ export default function OwnerSellHubScreen({ navigation }) {
                   <Pressable key={t.key} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.count != null ? `${t.title}, ${t.count}` : t.title} className="active:opacity-80"
                     style={{ flex: 1, alignItems: 'center', paddingVertical: 4 }}>
                     <View>
-                      <View style={{ height: 48, width: 48, borderRadius: 24, backgroundColor: t.fg, alignItems: 'center', justifyContent: 'center' }}>
-                        <t.Icon size={22} color="#FFFFFF" strokeWidth={2.2} />
+                      <View style={{ height: 52, width: 52, borderRadius: 26, backgroundColor: '#FAFBFD', borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#035C6C', shadowOpacity: 0.12, shadowRadius: 7, shadowOffset: { width: 0, height: 3 }, elevation: 3 }}>
+                        <t.Icon size={20} color="#17191B" strokeWidth={1.8} />
                       </View>
                       {t.count != null ? (
                         <View style={{ position: 'absolute', top: -4, right: -8, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
@@ -451,6 +474,20 @@ export default function OwnerSellHubScreen({ navigation }) {
             </View>
           ) : (
             <>
+              {/* ---------- Active pickup assignments (live orders) ---------- */}
+              {(() => {
+                const act = buyOrders.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && ACTIVE_PICKUP.includes(o.status));
+                if (!act.length) return null;
+                return (
+                  <>
+                    <SectionTitle title="Active Pickup Assignments" sub={`${act.length} active`} action="Assign Pickup" onAction={() => navigation.navigate('SellBuyAssignList')} />
+                    {act.slice(0, 3).map((o) => (
+                      <PickupRow key={o.id} o={o} onPress={() => navigation.navigate('SellBuyAssignList', { initialSection: o.status === 'CONFIRMED' || o.status === 'DELIVERY_FAILED' ? 'READY' : 'ALL' })} />
+                    ))}
+                  </>
+                );
+              })()}
+
               {/* ---------- Recent listings ---------- */}
               <SectionTitle title="Recent Listings" sub="Devices and parts you've listed" action={recent.length ? 'See All' : null} onAction={() => navigation.navigate('SellMyListings', { initialStatus: 'ALL' })} />
               {loading && !recent.length ? (

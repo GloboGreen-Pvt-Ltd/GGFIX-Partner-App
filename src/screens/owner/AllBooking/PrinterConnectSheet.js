@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Text, TextInput, View } from 'react-native';
 import { Bluetooth, BluetoothConnected, Check, Minus, Plus, Printer, Usb, Wifi, X } from 'lucide-react-native';
 import { ResponsiveModal, SPACING } from '../../../components/responsive';
@@ -65,7 +65,15 @@ function openBluetoothSettings() {
  * Android's USB Host API via an OTG cable). Switching tabs is a plain UI
  * concern — usePrinterConnection() owns the actual per-transport state.
  */
-export default function PrinterConnectSheet({ visible, onClose, label, initialCopies = 1 }) {
+// `labels` (2+) = multi-booking Print All: one tap prints every label in
+// order, each with its own tracking ID; only sends that failed are retried.
+export default function PrinterConnectSheet({ visible, onClose, label: single, labels, initialCopies = 1 }) {
+  const multi = Array.isArray(labels) && labels.length > 1;
+  const label = multi ? labels[0] : single;
+  const [sentIds, setSentIds] = useState({}); // trackingId -> handed to the printer
+  const [failedIds, setFailedIds] = useState([]);
+  const [progress, setProgress] = useState(null); // { n, total }
+  const runningRef = useRef(false);
   const {
     state, error, transport, setTransport,
     devices, selectedDevice, networkHost, setNetworkHost, networkPort, setNetworkPort,
@@ -78,6 +86,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
 
   useEffect(() => {
     if (visible) {
+      if (!runningRef.current) { setSentIds({}); setFailedIds([]); }
       setCopies(Math.min(10, Math.max(1, Math.round(initialCopies || 1))));
       listDevices();
     }
@@ -91,13 +100,15 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
     || state === PRINTER_STATE.REQUESTING_PERMISSION
     || state === PRINTER_STATE.CONNECTING
     || state === PRINTER_STATE.GENERATING_LABEL
-    || state === PRINTER_STATE.PRINTING;
+    || state === PRINTER_STATE.PRINTING
+    || !!progress;
 
   const handlePrimaryAction = () => {
     if (!isConnected) {
       connect();
       return;
     }
+    if (multi) { printAll(); return; }
     print({
       trackingId: label.trackingId,
       brandModel: label.brandModel,
@@ -107,10 +118,36 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
     }, copies, preset);
   };
 
+  const allSent = multi && labels.every((l) => sentIds[l.trackingId]);
+  const printAll = async () => {
+    if (runningRef.current) return; // no duplicate submissions
+    runningRef.current = true;
+    const done = allSent ? {} : { ...sentIds };
+    const queue = labels.filter((l) => !done[l.trackingId]);
+    const failed = [];
+    try {
+      for (let i = 0; i < queue.length; i += 1) {
+        const l = queue[i];
+        setProgress({ n: i + 1, total: queue.length });
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await print({
+          trackingId: l.trackingId, brandModel: l.brandModel, customerName: l.customerName,
+          deviceSecurity: l.deviceSecurity, createdOn: l.createdOn,
+        }, copies, preset);
+        if (ok) done[l.trackingId] = true; else failed.push(l.trackingId);
+        setSentIds({ ...done });
+      }
+    } finally {
+      setFailedIds(failed);
+      setProgress(null);
+      runningRef.current = false;
+    }
+  };
+
   // Only a live connect / print holds the sheet open — a stuck check or
   // permission step must never trap the user in it.
   const handleClose = () => {
-    if (state === PRINTER_STATE.CONNECTING || state === PRINTER_STATE.PRINTING) return;
+    if (state === PRINTER_STATE.CONNECTING || state === PRINTER_STATE.PRINTING || runningRef.current) return;
     onClose?.();
   };
 
@@ -130,7 +167,11 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
   const connectedName = selectedDevice?.name || selectedDevice?.productName
     || (transport === PRINTER_TRANSPORT.NETWORK ? networkHost : null);
 
-  const primaryLabel = isConnected
+  const primaryLabel = multi && isConnected
+    ? (progress ? `Printing ${progress.n} of ${progress.total}`
+      : failedIds.length ? `Retry Failed (${failedIds.length})`
+        : allSent ? 'Print All Again' : `Print All Labels (${labels.length})`)
+    : isConnected
     ? (busy ? 'Printing…' : (state === PRINTER_STATE.PRINT_SUCCESS ? 'Print Again' : (state === PRINTER_STATE.PRINT_ERROR ? 'Retry' : 'Print Label')))
     : (state === PRINTER_STATE.CONNECTING ? 'Connecting…' : 'Connect Printer');
   const canAttemptConnect = transport === PRINTER_TRANSPORT.NETWORK ? !!networkHost.trim() : !!selectedDevice;
@@ -147,7 +188,7 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY }}>Print QR Label</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY }}>{multi ? `Print QR Labels (${labels.length})` : 'Print QR Label'}</Text>
           <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>
             {`TVS LP-46 Dlite · ${preset.widthMm} × ${preset.heightMm} mm`}
           </Text>
@@ -426,7 +467,13 @@ export default function PrinterConnectSheet({ visible, onClose, label, initialCo
         </Touchable>
       ) : null}
 
-      {state === PRINTER_STATE.PRINT_SUCCESS ? (
+      {multi && !progress && (failedIds.length || allSent) ? (
+        <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, fontWeight: '700', color: failedIds.length ? DANGER : ACCENT }}>
+          {failedIds.length ? `Failed: ${failedIds.join(', ')}` : `All ${labels.length} labels sent to printer`}
+        </Text>
+      ) : null}
+
+      {state === PRINTER_STATE.PRINT_SUCCESS && !progress && (!multi || allSent) ? (
         <Touchable onPress={onClose} style={{ marginTop: 10, alignItems: 'center', paddingVertical: 10 }} pressedStyle={{ opacity: 0.7 }}>
           <Text style={{ fontWeight: '800', color: TEXT_SECONDARY }}>Done</Text>
         </Touchable>

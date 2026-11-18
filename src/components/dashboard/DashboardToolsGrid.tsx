@@ -57,7 +57,6 @@ export function DashboardToolsGrid({ items, pad, columns, cardWidth, gap, onPres
           <DashboardToolCard
             key={tool.label}
             tool={tool}
-            discColor={BRAND_DISCS[i % BRAND_DISCS.length]}
             width={cardWidth}
             style={{ marginRight: col === columns - 1 ? 0 : gap, marginBottom: 6 }}
             onPress={onPress}

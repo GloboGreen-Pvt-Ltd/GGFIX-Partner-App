@@ -1,7 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Banknote, Check, CircleCheck, Phone, Smartphone, Truck, UserRound } from 'lucide-react-native';
+import { Banknote, Check, CircleCheck, Copy, Eye, EyeOff, KeyRound, Phone, Smartphone, Truck, UserRound } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { confirm } from '../../../components/confirm';
 import { showToast } from '../../../components/Toast';
 import { BUY_ORDER_STATUS, getShopBuyOrder, shopBuyOrderAction } from '../../../api/buyOrders';
@@ -19,6 +20,72 @@ const FLOW = {
 const EXIT = ['REJECTED', 'CANCELLED', 'DELIVERY_FAILED', 'RETURNED'];
 const OTP_LEN = 4; // server issues a 4-digit order OTP
 const fmt = (t) => (t ? new Date(t).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : '');
+
+// Partner-side wording for the server's real statuses (no invented steps).
+const STEP_LABEL = {
+  PLACED: 'Order Placed',
+  CONFIRMED: 'Order Confirmed',
+  ASSIGNED: 'Delivery Person Assigned',
+  ACCEPTED: 'Delivery Person on the Way',
+  PICKED_UP: 'Picked Up from Shop',
+  OUT_FOR_DELIVERY: 'Out for Delivery',
+  DELIVERED: 'Delivered',
+  COMPLETED: 'Handed Over · OTP & Payment Verified',
+  DELIVERY_FAILED: 'Delivery Failed',
+  RETURNED: 'Returned to Shop',
+  REJECTED: 'Order Rejected',
+  CANCELLED: 'Order Cancelled',
+};
+
+/** Order Status Timeline from the order's real events: done (time + note), current, pending. */
+export function OrderTimeline({ order: o }) {
+  const s = o.status;
+  const closed = CLOSED.includes(s);
+  const events = o.events || [];
+  const ev = (st) => [...events].reverse().find((e) => e.status === st);
+  const flow = FLOW[o.fulfilmentType] || FLOW.VISIT_SHOP;
+  const reached = flow.reduce((n, st, i) => (ev(st) || st === s ? i : n), -1);
+  const exits = events.filter((e) => EXIT.includes(e.status));
+  const ended = ['REJECTED', 'CANCELLED', 'RETURNED'].includes(s);
+  return (
+    <View>
+      {flow.map((st, i) => {
+        const current = i === reached + 1 && !closed;
+        const state = i <= reached ? 'done' : current ? 'current' : 'pending';
+        if (ended && state !== 'done') return null;
+        const e = ev(st);
+        const last = i === flow.length - 1;
+        return (
+          <View key={st} style={{ flexDirection: 'row' }}>
+            <View style={{ alignItems: 'center', width: 18 }}>
+              <View style={{ height: 18, width: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: state === 'done' ? C.green : '#FFFFFF', borderWidth: 2, borderColor: state === 'pending' ? C.border : C.green }}>
+                {state === 'done' ? <Check size={10} color="#FFFFFF" strokeWidth={3} /> : null}
+              </View>
+              {!last ? <View style={{ flex: 1, width: 2, minHeight: 12, backgroundColor: state === 'done' ? C.green : C.border }} /> : null}
+            </View>
+            <View style={{ flex: 1, marginLeft: 8, paddingBottom: 10 }}>
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={{ flex: 1, fontSize: 12.5, fontWeight: state === 'pending' ? '600' : '800', color: state === 'pending' ? C.muted : C.text }}>{STEP_LABEL[st] || BUY_ORDER_STATUS[st]?.label || st}</Text>
+                <Text style={{ fontSize: 11, color: state === 'current' ? C.green : C.muted, fontWeight: state === 'current' ? '800' : '400' }}>{state === 'done' ? fmt(e?.at) : state === 'current' ? 'Current' : 'Pending'}</Text>
+              </View>
+              {state === 'done' && e?.note ? <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{e.note}</Text> : null}
+            </View>
+          </View>
+        );
+      })}
+      {exits.map((e, i) => (
+        <View key={`x${i}`} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 4 }}>
+          <View style={{ height: 18, width: 18, borderRadius: 9, backgroundColor: C.red }} />
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '800', color: C.red }}>{STEP_LABEL[e.status] || e.status}</Text>
+            {e.note ? <Text style={{ fontSize: 11, color: C.muted }}>{e.note}</Text> : null}
+          </View>
+          <Text style={{ fontSize: 11, color: C.muted }}>{fmt(e.at)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function Row({ label, value, bold }) {
   if (value == null || value === '') return null;
@@ -73,6 +140,7 @@ export default function SellBuyOrderDetailScreen({ navigation, route }) {
   const [image, setImage] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [pinVisible, setPinVisible] = useState(false); // Shop Pickup PIN hidden until tapped
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
   const [otp, setOtp] = useState('');
@@ -124,14 +192,7 @@ export default function SellBuyOrderDetailScreen({ navigation, route }) {
   const closed = CLOSED.includes(s);
   const meta = BUY_ORDER_STATUS[s] || {};
   const img = image || listingImage({ imageUrl: o.productImage });
-  const events = o.events || [];
-  const at = (st) => [...events].reverse().find((e) => e.status === st)?.at;
 
-  // Timeline: the order's flow, each step done (with its real time), current or pending.
-  const flow = FLOW[o.fulfilmentType] || FLOW.VISIT_SHOP;
-  const reached = flow.reduce((n, st, i) => (at(st) || st === s ? i : n), -1);
-  const exits = events.filter((e) => EXIT.includes(e.status));
-  const ended = ['REJECTED', 'CANCELLED', 'RETURNED'].includes(s);
 
   // Handover requirements — each one named when the button is disabled.
   const total = Number(o.totalAmount);
@@ -169,35 +230,40 @@ export default function SellBuyOrderDetailScreen({ navigation, route }) {
             <Text style={{ fontSize: 12.5, fontWeight: '800', color: C.green, marginLeft: 4 }}>{o.customerPhone}</Text>
           </Pressable>
         ) : null}
-        <Row label="Quantity" value={`${o.quantity || 1} × ${money(o.unitPrice)}`} />
+        <Row label="Quantity" value={String(o.quantity || 1)} />
         <Row label="Fulfilment" value={home ? 'Home Delivery' : 'Visit Shop & Buy'} />
         {home ? <Row label="Address" value={o.deliveryAddress} /> : null}
-        <Row label="Payment" value={`${o.paymentMethod === 'COD' ? 'Cash on delivery' : 'Pay at shop'} · ${o.paymentStatus === 'PAID' ? 'Paid' : 'Pending'}`} bold />
+        <Row label="Payment" value={o.paymentStatus === 'PAID' ? 'Completed' : 'Pending'} bold />
       </Block>
 
-      {/* Status timeline */}
-      <Block title="Status Timeline">
-        {flow.map((st, i) => {
-          const current = i === reached + 1 && !closed;
-          const state = i <= reached ? 'done' : current ? 'current' : 'pending';
-          if (ended && state !== 'done') return null;
-          return (
-            <View key={st} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
-              <View style={{ height: 18, width: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: state === 'done' ? C.green : '#FFFFFF', borderWidth: 2, borderColor: state === 'pending' ? C.border : C.green }}>
-                {state === 'done' ? <Check size={10} color="#FFFFFF" strokeWidth={3} /> : null}
-              </View>
-              <Text style={{ flex: 1, marginLeft: 8, fontSize: 12.5, fontWeight: state === 'pending' ? '600' : '800', color: state === 'pending' ? C.muted : C.text }}>{BUY_ORDER_STATUS[st]?.label || st}</Text>
-              <Text style={{ fontSize: 11, color: C.muted }}>{state === 'done' ? fmt(at(st)) : state === 'current' ? 'Now' : ''}</Text>
-            </View>
-          );
-        })}
-        {exits.map((e, i) => (
-          <View key={`x${i}`} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
-            <View style={{ height: 18, width: 18, borderRadius: 9, backgroundColor: C.red }} />
-            <Text style={{ flex: 1, marginLeft: 8, fontSize: 12.5, fontWeight: '800', color: C.red }}>{BUY_ORDER_STATUS[e.status]?.label || e.status}{e.note ? ` · ${e.note}` : ''}</Text>
-            <Text style={{ fontSize: 11, color: C.muted }}>{fmt(e.at)}</Text>
+      {/* Shop Pickup PIN — the assigned employee enters it at pickup (server-checked, this order only). */}
+      {home && o.pickupPin && ['ASSIGNED', 'ACCEPTED'].includes(s) ? (
+        <Block title="Shop Pickup PIN">
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <KeyRound size={18} color={C.teal} />
+            <Text style={{ flex: 1, marginLeft: 8, fontSize: 24, fontWeight: '900', letterSpacing: 8, color: C.text }}>{pinVisible ? o.pickupPin : '••••'}</Text>
+            <Pressable onPress={() => setPinVisible((v) => !v)} hitSlop={8} accessibilityRole="button" accessibilityLabel={pinVisible ? 'Hide PIN' : 'Show PIN'} style={{ padding: 6 }}>
+              {pinVisible ? <EyeOff size={18} color={C.muted} /> : <Eye size={18} color={C.muted} />}
+            </Pressable>
+            <Pressable onPress={async () => { try { await Clipboard.setStringAsync(o.pickupPin); showToast({ type: 'success', title: 'PIN copied' }); } catch (_) {} }}
+              hitSlop={8} accessibilityRole="button" accessibilityLabel="Copy PIN" style={{ padding: 6 }}>
+              <Copy size={18} color={C.teal} />
+            </Pressable>
           </View>
-        ))}
+          <Text style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Give this PIN only to the assigned employee at pickup. It changes if you reassign.</Text>
+        </Block>
+      ) : home && ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) ? (
+        <Block title="Shop Pickup">
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <CircleCheck size={16} color={C.green} />
+            <Text style={{ marginLeft: 6, fontSize: 12.5, fontWeight: '800', color: C.green }}>Pickup Confirmed</Text>
+          </View>
+        </Block>
+      ) : null}
+
+      {/* Status timeline */}
+      <Block title="Order Status Timeline">
+        <OrderTimeline order={o} />
       </Block>
 
       {/* Actions — only what the server accepts in this status */}
@@ -205,7 +271,7 @@ export default function SellBuyOrderDetailScreen({ navigation, route }) {
         <PrimaryButton title="Confirm Order" variant="green" style={{ marginTop: 12 }} loading={busy === 'confirm'} disabled={!!busy} onPress={() => act('confirm', {}, 'Order confirmed')} />
       ) : null}
 
-      {home && CAN_ASSIGN.includes(s) ? (
+      {home && CAN_ASSIGN.includes(s) && route?.params?.fromAssign ? (
         <PrimaryButton title={o.assignedStaffUserId ? 'Reassign Pickup Person' : 'Assign Pickup Person'} icon={Truck} variant={o.assignedStaffUserId ? 'outline' : 'green'}
           style={{ marginTop: 10 }} disabled={!!busy} onPress={() => navigation.navigate('SellBuyAssign', { order: o })} />
       ) : null}

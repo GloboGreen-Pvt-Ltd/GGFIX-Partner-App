@@ -129,7 +129,19 @@ async function findDuplicateEmployee({ name, phone, shopId, excludeId }) {
 
 // Diagnostics for the two-step add-employee flow. Only the stage, HTTP status
 // and (dev builds only) the auth userId — never passwords, OTPs or tokens.
-function logEmployeeSetup(event, { stage, status, userId, ...rest } = {}) {
+/** Employee Login MPIN rules (mirrors auth-service validatePin). Returns an error or null. */
+function mpinError(mpin, confirm, required) {
+  const p = String(mpin || ''); const c = String(confirm || '');
+  if (!p && !c) return required ? 'Set a 6-digit Login MPIN for the employee.' : null;
+  if (!/^\d{6}$/.test(p)) return 'Login MPIN must be exactly 6 digits.';
+  if (p !== c) return 'MPIN and Confirm MPIN do not match.';
+  if (new Set(p).size === 1 || '0123456789'.includes(p) || '9876543210'.includes(p)) return 'MPIN is too simple. Avoid repeated or sequential digits.';
+  return null;
+}
+// auth-service PR #73: owner-only; revokes the employee's sessions on reset.
+const setEmployeeLoginMpin = (userId, pin) => authApi.put(`/auth/security/employees/${userId}/mpin`, { body: { pin } });
+
+function logEmployeeSetup(event,{ stage, status, userId, ...rest } = {}) {
   console.warn(`[employee-setup] ${event}`, {
     stage,
     status: status ?? null,
@@ -388,6 +400,8 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
     phone: employee?.phone ?? '',
     email: employee?.email ?? '',
     password: '',
+    mpin: '', // owner-set Employee Login MPIN — never prefilled / displayed
+    mpinConfirm: '',
     roleLabel: employee?.roleLabel ?? '',
     salaryAmount: employee?.salaryAmount ?? '',
     salaryPeriod: employee?.salaryPeriod ?? 'Monthly',
@@ -481,7 +495,11 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       return;
     }
     const email = form.email?.trim() || null;
-    const password = form.password?.trim() || null;
+    const password = null; // Employee login is mobile + owner-set MPIN only.
+    if (loginEnabled) {
+      const mErr = mpinError(form.mpin, form.mpinConfirm, true);
+      if (mErr) { notify('Login MPIN', mErr); return; }
+    }
     // One normalized 10-digit mobile for the auth account AND the technician row —
     // the Staff App logs in with exactly this string.
     const phone = normalizeIndianMobile(form.phone);
@@ -571,6 +589,14 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             logEmployeeSetup('earlier partial login superseded', { stage: 'auth:create-technician', userId: pending.userId });
           }
           pendingLoginRef.current = { phone, userId };
+        }
+        // Mandatory owner-set Login MPIN (hashed server-side; never stored here).
+        try {
+          await setEmployeeLoginMpin(userId, form.mpin);
+        } catch (mpinErr) {
+          logEmployeeSetup('login MPIN set failed', { stage: 'auth:set-mpin', status: mpinErr?.status });
+          showBlockingError('Login MPIN not set', mpinErr?.message || 'Could not set the Login MPIN. Please try again.');
+          return;
         }
       }
       if (userId) {
@@ -728,6 +754,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       notify('Invalid mobile number', INVALID_MOBILE_MSG);
       return;
     }
+    // Optional Reset/Update Login MPIN (only for employees with a Staff App login).
+    const resetMpin = !!(linkedUserId && (form.mpin || form.mpinConfirm));
+    if (resetMpin) {
+      const mErr = mpinError(form.mpin, form.mpinConfirm, true);
+      if (mErr) { notify('Login MPIN', mErr); return; }
+    }
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSaving(true);
@@ -736,6 +768,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       if (dupMsg) {
         notify('Duplicate employee', dupMsg, { preset: 'error', haptic: 'error' });
         return;
+      }
+      if (resetMpin) {
+        // Old MPIN becomes invalid and the employee's active sessions are signed out (server).
+        await setEmployeeLoginMpin(linkedUserId, form.mpin);
+        setForm((f) => ({ ...f, mpin: '', mpinConfirm: '' }));
+        notify('Login MPIN updated', 'The employee must log in again with the new MPIN.', { type: 'success' });
       }
       // PATCH /technicians/{id} only updates technicians.phone; the project has no
       // endpoint that changes the auth login mobile. Don't let that drift happen
@@ -1268,24 +1306,45 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
 
             {/* App Login (optional) */}
             <View style={styles.addCard}>
-              <FormSectionHeader icon="lock-closed-outline" title="App Login (optional)" tone={FORM_TONES[4]} />
-              <Text style={styles.addLabel}>Password</Text>
-              <View style={styles.addInputRow}>
-                <TextInput
-                  style={styles.addInputInline}
-                  placeholder="Min 4 characters"
-                  placeholderTextColor="#9CA3AF"
-                  value={form.password}
-                  onChangeText={(v) => set('password', v)}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword((s) => !s)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={rs(18)} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
+              <FormSectionHeader icon="lock-closed-outline" title="Staff App Login" tone={FORM_TONES[4]} />
+              {(isAdd && loginEnabled) || (isEdit && linkedUserId) ? (
+                <>
+                  <Text style={styles.addLabel}>{isEdit ? 'Reset Login MPIN (leave blank to keep current)' : 'Login MPIN *'}</Text>
+                  <View style={styles.addInputRow}>
+                    <TextInput
+                      style={styles.addInputInline}
+                      placeholder="6-digit MPIN"
+                      placeholderTextColor="#9CA3AF"
+                      value={form.mpin}
+                      onChangeText={(v) => set('mpin', v.replace(/\D/g, '').slice(0, 6))}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoComplete="off"
+                      secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((s) => !s)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={rs(18)} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.addLabel}>Confirm MPIN{isEdit ? '' : ' *'}</Text>
+                  <View style={styles.addInputRow}>
+                    <TextInput
+                      style={styles.addInputInline}
+                      placeholder="Re-enter 6-digit MPIN"
+                      placeholderTextColor="#9CA3AF"
+                      value={form.mpinConfirm}
+                      onChangeText={(v) => set('mpinConfirm', v.replace(/\D/g, '').slice(0, 6))}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoComplete="off"
+                      secureTextEntry={!showPassword}
+                    />
+                  </View>
+                </>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.loginCheckRow}

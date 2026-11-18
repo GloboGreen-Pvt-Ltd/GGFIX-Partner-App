@@ -16,6 +16,7 @@ import './src/theme/remScaling';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { LogBox, View } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
+const BLOCK_SCREENSHOTS = false; // true restores the release-build screenshot block
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -95,7 +96,8 @@ export default function App() {
   // screenshot-able. In-app captures (receipt image, invoice PDF, camera photos)
   // are unaffected — they never go through the system screen capture.
   useEffect(() => {
-    if (__DEV__) return undefined;
+    // Screenshot block turned off (owner request, 2026-11-17).
+    if (__DEV__ || !BLOCK_SCREENSHOTS) return undefined;
     ScreenCapture.preventScreenCaptureAsync('app-root').catch(() => {});
     return () => { ScreenCapture.allowScreenCaptureAsync('app-root').catch(() => {}); };
   }, []);

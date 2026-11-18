@@ -19,7 +19,7 @@ export const LABEL_PRESETS = [
   { id: 'barcode1', name: 'BarCode1', widthMm: 50, heightMm: 25, gapMm: 2 },
 ];
 
-export const DEFAULT_LABEL_PRESET = LABEL_PRESETS[0];
+export const DEFAULT_LABEL_PRESET = LABEL_PRESETS[1]; // BarCode1 (50 x 25 mm)
 
 /** Preset by id; anything unknown falls back to the default (38 x 25). */
 export function getLabelPreset(id) {

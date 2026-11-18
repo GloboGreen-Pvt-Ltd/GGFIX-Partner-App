@@ -205,11 +205,11 @@ const TOOL_TONES = ACCENT_TONES;
 export const QUICK_ACTIONS: DashboardTool[] = [
   // Solid glyphs on pastel circles, per the Home design reference.
   // Order: Booking · Pickups · Customer · Enquiry · Model Compatibility · Sell Requests.
-  { key: 'BookingList', label: 'Job', via: 'parent', icon: mci('calendar-text'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#0788C9' },
-  { key: 'BookingList', label: 'Pickups', icon: mci('truck'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
-  { key: 'OwnerCustomers', label: 'Customer', icon: ion('people'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
-  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
-  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
+  { key: 'BookingList', label: 'Job', via: 'parent', icon: mci('calendar-text-outline'), color: TOOL_TONES[3], iconColor: '#FFFFFF', iconBg: '#035C6C' },
+  { key: 'BookingList', label: 'Pickups', icon: mci('truck-outline'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent', params: { menu: 'PICKUP', preset: 'PICKUP_ALL' } },
+  { key: 'OwnerCustomers', label: 'Customer', icon: ion('people-outline'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
+  { key: 'ShopChatInbox', label: 'Enquiry', icon: ion('chatbubble-outline'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
+  { key: 'OwnerModelCompatibility', label: 'Model\nCompatibility', icon: mci('chip'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
   // Customer sell listings near the shop (marketplace /buy/nearby, sellerType CUSTOMER).
   { key: 'OwnerSellRequests', label: 'Sell Requests', icon: mci('cellphone-arrow-down'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
 ];
@@ -219,20 +219,20 @@ export const QUICK_ACTIONS: DashboardTool[] = [
 export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
   // Staff Task Management first (screens/owner/staffTasks).
-  { key: 'StaffTasks', label: 'Staff Tasks', icon: mci('clipboard-check'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
-  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
-  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent', params: { mode: 'attendance' } },
-  { key: 'OwnerEmployeeWorkingRecord', label: 'Job Report', icon: mci('clipboard-text'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
-  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
-  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
-  { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
+  { key: 'StaffTasks', label: 'Staff Tasks', icon: mci('clipboard-check-outline'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerEmployeeList', label: 'Team', icon: ion('people-outline'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerStaffReport', label: 'Attendance', icon: mci('account-check-outline'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent', params: { mode: 'attendance' } },
+  { key: 'OwnerEmployeeWorkingRecord', label: 'Job Report', icon: mci('clipboard-text-outline'), color: TOOL_TONES[2], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery-outline'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove-outline'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check-outline'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
   // Solid dark glyphs on pastel circles, matching the Service Tools tiles.
-  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#035C6C', via: 'parent' },
-  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#609138', via: 'parent' },
-  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerRevenue', label: 'Revenue', icon: mci('currency-inr'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
+  { key: 'BookingStatus', label: 'Service Status', icon: ion('stats-chart-outline'), color: TOOL_TONES[1], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
+  { key: 'OwnerCashBook', label: 'Cash Book', icon: ion('wallet-outline'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#1C3053', via: 'parent' },
 ];
 
 function greetingFor(date: Date = new Date()): string {
@@ -880,17 +880,9 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
     marginHorizontal: PAD,
     // Breathing room between the Services / Employee / Reports switcher and the panel.
     marginTop: 8,
-    backgroundColor: C.card,
-    borderRadius: toolPanelRadius,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    // No panel box — just the circle icons.
     paddingTop: 8,
     paddingBottom: 2,
-    shadowColor: '#111111',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
   } as const;
 
   // Clears the floating bottom tab bar (GlassTabBar in OwnerNavigator.js) —

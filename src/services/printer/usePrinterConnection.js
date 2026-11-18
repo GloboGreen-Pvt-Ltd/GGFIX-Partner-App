@@ -203,7 +203,7 @@ export function usePrinterConnection() {
     // Guards a double tap landing before the first re-render disables the
     // button — the button's own `disabled` covers the steady state, this
     // covers the gap between tap and paint.
-    if (isPrintingRef.current) return;
+    if (isPrintingRef.current) return false;
     isPrintingRef.current = true;
     setError(null);
     try {
@@ -215,10 +215,12 @@ export function usePrinterConnection() {
       // (none of them have a read-back channel) — this state means "handed
       // to the printer", not "the sticker came out".
       setState(PRINTER_STATE.PRINT_SUCCESS);
+      return true;
     } catch (e) {
       setIsConnected(Transport.isConnected());
       setState(PRINTER_STATE.PRINT_ERROR);
       setError(e?.message || 'Could not send the label to the printer.');
+      return false;
     } finally {
       isPrintingRef.current = false;
     }

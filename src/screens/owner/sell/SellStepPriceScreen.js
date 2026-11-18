@@ -126,7 +126,7 @@ export default function SellStepPriceScreen({ navigation }) {
     set({ fulfilmentKeys: next, fulfilment: [...new Set(next.map(valueOf))] });
     setErrors((x) => ({ ...x, fulfilment: null }));
   };
-  // Customer and Shop can both be on; turning one off drops its options.
+  // Nothing on at first: tapping Customer / Shop turns it on and shows its options below; tapping again hides them.
   const chooseAudience = (k) => {
     const nextA = audiences.includes(k) ? audiences.filter((x) => x !== k) : [...audiences, k];
     const keep = picked.filter((key) => nextA.some((a) => FULFIL[a].some((f) => f.key === key)));
@@ -143,7 +143,9 @@ export default function SellStepPriceScreen({ navigation }) {
 
   const submit = async () => {
     if (lock.current) return;
-    const mode = pr.publishMode;
+    // One action publishes directly (Publish Options removed) — also when editing a saved draft.
+    if (pr.publishMode !== 'PUBLISH') set({ publishMode: 'PUBLISH' });
+    const mode = 'PUBLISH';
     if (!validate(mode)) return;
     lock.current = true;
     setBusy(true);
@@ -175,8 +177,8 @@ export default function SellStepPriceScreen({ navigation }) {
     ? [p.ramLabel, p.storageLabel, p.color].filter(Boolean).join(' · ')
     : draft.listingType === LISTING_TYPES.SPARE_PART ? [p.partType, p.partQuality].filter(Boolean).join(' · ') : [p.accessoryType, p.brandName].filter(Boolean).join(' · ');
   const publishTitle = draft.editingId
-    ? (pr.publishMode === 'DRAFT' ? 'Save as Draft' : 'Save Changes')
-    : (pr.publishMode === 'DRAFT' ? 'Save Draft' : 'Publish Listing');
+    ? (pr.publishMode === 'DRAFT' ? 'Publish Listing' : 'Save Changes')
+    : 'Publish Listing';
 
   const editLink = (route) => (
     <Pressable onPress={() => navigation.navigate(route)} accessibilityRole="button" accessibilityLabel="Edit" hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -188,9 +190,9 @@ export default function SellStepPriceScreen({ navigation }) {
   return (
     <SellScreen
       title={draft.editingId ? 'Price & Save' : 'Price & Publish'}
-      subtitle="Step 4 of 4 • Set price & publish"
-      step={4}
-      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
+      subtitle="Step 3 of 3 • Set price & publish"
+      step={3}
+      stepLabels={['Device', 'Details', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={fulfilmentValid ? <PrimaryButton title={publishTitle} variant="green" icon={Check} onPress={submit} loading={busy} disabled={!ready || busy} /> : null}
     >
@@ -227,51 +229,66 @@ export default function SellStepPriceScreen({ navigation }) {
 
 
       <Section title="Order Fulfillment" sub="Who buys and how they get the item" style={{ marginTop: 18 }}>
-        {/* Each buyer type is its own card: tap it and its options open right below. */}
-        {[['CUSTOMER', 'Customer', 'Sell to customers in the NearGFix app'], ['SHOP', 'Shop', 'Sell to other shops']].filter(([k]) => !isPart || k === 'SHOP').map(([k, label, sub]) => {
-          const on = audiences.includes(k);
-          return (
-            <View key={k} style={{ borderWidth: 1, borderColor: on ? C.green : C.border, borderRadius: 14, marginBottom: 10, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
-              <Pressable onPress={() => chooseAudience(k)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
-                style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
-                <View style={{ height: 22, width: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? C.green : C.border, backgroundColor: on ? C.green : '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-                  {on ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
+        {/* Customer | Shop side by side; each toggles on its own (one must stay on). */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {[['CUSTOMER', 'Customer', 'NearGFix app buyers'], ['SHOP', 'Shop', 'Other shops']].filter(([k]) => !isPart || k === 'SHOP').map(([k, label, sub]) => {
+            const on = audiences.includes(k);
+            return (
+              <Pressable key={k} onPress={() => chooseAudience(k)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, borderWidth: 1.5, borderColor: on ? C.green : C.border, backgroundColor: on ? C.greenBg : '#FFFFFF' }}>
+                <View style={{ height: 20, width: 20, borderRadius: 6, borderWidth: 2, borderColor: on ? C.green : C.border, backgroundColor: on ? C.green : '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                  {on ? <Check size={13} color="#FFFFFF" strokeWidth={3} /> : null}
                 </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={{ fontSize: rf(14), fontWeight: '800', color: C.text }}>{label}</Text>
-                  <Text style={{ fontSize: rf(11), color: C.muted }}>{sub}</Text>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={{ fontSize: rf(13.5), fontWeight: '800', color: C.text }}>{label}</Text>
+                  <Text style={{ fontSize: rf(10.5), color: C.muted }} numberOfLines={1}>{sub}</Text>
                 </View>
               </Pressable>
-              {on ? (
-                <View style={{ paddingHorizontal: 10, paddingTop: 8 }}>
-                  {FULFIL[k].map((f) => (
-                    <View key={f.key}>
-                      <ChoiceCard title={f.title} sub={f.sub} selected={picked.includes(f.key)} onPress={() => toggleFulfilment(f.key)} style={{ marginTop: 0, marginBottom: 8 }} />
-                      {f.key === 'HOME' && picked.includes('HOME') ? (
-                        <TextField
-                          label="Delivery radius (KM)"
-                          required
-                          value={pr.deliveryRadiusKm || ''}
-                          onChangeText={(t) => { set({ deliveryRadiusKm: t.replace(/[^0-9]/g, '').slice(0, 3) }); setErrors((x) => ({ ...x, fulfilment: null })); }}
-                          placeholder="e.g. 10"
-                          keyboardType="number-pad"
-                          maxLength={3}
-                          style={{ marginTop: 0, marginBottom: 10 }}
-                        />
-                      ) : null}
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
+            );
+          })}
+        </View>
+        {['CUSTOMER', 'SHOP'].filter((k) => audiences.includes(k) && (!isPart || k === 'SHOP')).map((k) => (
+          <View key={k} style={{ marginTop: 12 }}>
+            <Text style={{ fontSize: rf(11.5), fontWeight: '800', color: C.muted, marginBottom: 6 }}>{k === 'CUSTOMER' ? 'CUSTOMER OPTIONS' : 'SHOP OPTIONS'}</Text>
+            {FULFIL[k].map((f) => (
+              <View key={f.key}>
+                <ChoiceCard title={f.title} sub={f.sub} selected={picked.includes(f.key)} onPress={() => toggleFulfilment(f.key)} style={{ marginTop: 0, marginBottom: 8 }} />
+                {f.key === 'HOME' && picked.includes('HOME') ? (
+                  <TextField
+                    label="Delivery radius (KM)"
+                    required
+                    value={pr.deliveryRadiusKm || ''}
+                    onChangeText={(t) => { set({ deliveryRadiusKm: t.replace(/[^0-9]/g, '').slice(0, 3) }); setErrors((x) => ({ ...x, fulfilment: null })); }}
+                    placeholder="e.g. 10"
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    style={{ marginTop: 0, marginBottom: 10 }}
+                  />
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ))}
         {audience && !picked.length ? <Text style={{ fontSize: rf(11), color: C.muted, marginTop: 4 }}>Select at least one option to publish.</Text> : null}
         {errors.fulfilment ? <Text style={{ fontSize: rf(11), color: C.red, marginTop: 4 }}>{errors.fulfilment}</Text> : null}
       </Section>
 
-      <Section title="Listing Preview" sub="Check everything before you publish">
+      <Section title="Listing Summary" sub="Check everything before you publish">
         <Card>
+          {photos.length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {photos.map((u, i) => (
+                <View key={u + i}>
+                  <Thumb uri={u} size={52} />
+                  {i === 0 ? (
+                    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(3,92,108,0.85)', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
+                      <Text style={{ fontSize: rf(8.5), color: '#FFFFFF', fontWeight: '800', textAlign: 'center' }}>COVER</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Thumb uri={photos[0]} size={64} />
             <View style={{ flex: 1, marginLeft: 10 }}>
@@ -298,7 +315,7 @@ export default function SellStepPriceScreen({ navigation }) {
           {draft.condition.accessories.length ? <InfoRow label="In the box" value={draft.condition.accessories.join(', ')} /> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
             <Text style={{ flex: 1, fontSize: rf(12), fontWeight: '800', color: C.text }}>Media</Text>
-            {editLink('SellStepPhotos')}
+            {editLink(isPart ? 'SellStepPhotos' : 'SellStepCondition')}
           </View>
           <InfoRow label="Photos" value={`${photos.length} photo${photos.length === 1 ? '' : 's'}${draft.media.video?.status === 'done' ? ' + video' : ''}`} />
           <InfoRow label="Stock" value={`${pr.quantity} unit${Number(pr.quantity) === 1 ? '' : 's'}${pr.negotiable ? ' · Negotiable' : ''}`} />
@@ -306,10 +323,6 @@ export default function SellStepPriceScreen({ navigation }) {
         </Card>
       </Section>
 
-      <Section title="Publish Options">
-        <ChoiceCard radio title="Publish immediately" sub="Go live on the marketplace now" selected={pr.publishMode === 'PUBLISH'} onPress={() => set({ publishMode: 'PUBLISH' })} style={{ marginTop: 0 }} />
-        <ChoiceCard radio title="Save as draft" sub="Review or publish later from My Listings" selected={pr.publishMode === 'DRAFT'} onPress={() => set({ publishMode: 'DRAFT' })} />
-      </Section>
 
       {errors.photos ? <ErrorBox message={errors.photos} /> : null}
       {submitError ? <ErrorBox message={submitError} onRetry={submit} /> : null}

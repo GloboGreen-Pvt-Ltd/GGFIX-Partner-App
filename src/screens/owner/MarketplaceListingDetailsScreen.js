@@ -3,7 +3,8 @@ import { View, Text, Image, TouchableOpacity, ActivityIndicator } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { confirm, notify } from '../../components/confirm';
 import ImageViewerModal from '../../components/ImageViewerModal';
-import { listShopBuyOrders } from '../../api/buyOrders';
+import { getShopBuyOrder, listShopBuyOrders } from '../../api/buyOrders';
+import { OrderTimeline } from './sell/SellBuyOrderDetailScreen';
 import { marketplaceApi } from '../../api/client';
 import { resolveDeviceImageSource } from '../../utils/images';
 import { getModelsByBrand } from '../../api/masterData';
@@ -87,12 +88,26 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
   // Fixed-price flow: a customer's order on this listing is handled in Order Details,
   // not by manually cancelling / completing the listing here.
   const [openOrder, setOpenOrder] = useState(null);
+  // Timeline: the open order, else the latest real order on this listing (with events).
+  const [timelineOrder, setTimelineOrder] = useState(null);
+  const [otherOrders, setOtherOrders] = useState([]);
+  const [summaryOpen, setSummaryOpen] = useState(false); // Device Summary accordion, collapsed by default
   useEffect(() => {
     if (!productId) return;
+    let alive = true;
     listShopBuyOrders()
-      .then((rows) => setOpenOrder((Array.isArray(rows) ? rows : []).find((o) => o.productId === productId
-        && ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status)) || null))
+      .then((rows) => {
+        const mine = (Array.isArray(rows) ? rows : []).filter((o) => o.productId === productId)
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        const open = mine.find((o) => ['PLACED', 'CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERY_FAILED'].includes(o.status)) || null;
+        if (!alive) return;
+        setOpenOrder(open);
+        const pick = open || mine[0] || null;
+        setOtherOrders(mine.filter((o) => o !== pick));
+        if (pick) getShopBuyOrder(pick.id).then((full) => { if (alive) setTimelineOrder(full || pick); }).catch(() => { if (alive) setTimelineOrder(pick); });
+      })
       .catch(() => {});
+    return () => { alive = false; };
   }, [productId]);
   const [item, setItem] = useState(route?.params?.listing || null);
   const [loading, setLoading] = useState(!route?.params?.listing);
@@ -350,14 +365,39 @@ export default function MarketplaceListingDetailsScreen({ navigation, route }) {
           {/* Device Summary */}
           {hasSummary && !isParts ? (
             <Card style={cardStyle}>
-              <View className="flex-row items-center">
+              <TouchableOpacity onPress={() => setSummaryOpen((v) => !v)} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ expanded: summaryOpen }} className="flex-row items-center">
                 <Ionicons name="reader-outline" size={16} color={C.green} />
-                <Text className="font-extrabold" style={{ marginLeft: 6, fontSize: 13, color: C.ink }}>Device Summary</Text>
+                <Text className="font-extrabold" style={{ flex: 1, marginLeft: 6, fontSize: 13, color: C.ink }}>Device Summary</Text>
+                <Ionicons name={summaryOpen ? 'chevron-up' : 'chevron-down'} size={18} color={C.muted} />
+              </TouchableOpacity>
+              {summaryOpen ? (
+                <>
+                  <SummaryGroup title="Screening Questions" rows={screening} />
+                  <SummaryGroup title="Screen" rows={conditions} />
+                  <SummaryGroup title="Accessories" rows={accessories} />
+                  <SummaryGroup title="Warranty" rows={warranty} />
+                </>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {/* Order Status Timeline — the linked customer order (server events only). */}
+          {timelineOrder ? (
+            <Card style={cardStyle}>
+              <View className="flex-row items-center" style={{ marginBottom: 8 }}>
+                <Ionicons name="git-commit-outline" size={16} color={C.green} />
+                <Text className="font-extrabold" style={{ flex: 1, marginLeft: 6, fontSize: 13, color: C.ink }}>Order Status Timeline</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('SellBuyOrderDetail', { id: timelineOrder.id })} hitSlop={8}>
+                  <Text className="font-extrabold" style={{ fontSize: 12, color: C.green }}>{timelineOrder.orderNumber || 'View order'} ›</Text>
+                </TouchableOpacity>
               </View>
-              <SummaryGroup title="Screening Questions" rows={screening} />
-              <SummaryGroup title="Screen" rows={conditions} />
-              <SummaryGroup title="Accessories" rows={accessories} />
-              <SummaryGroup title="Warranty" rows={warranty} />
+              <OrderTimeline order={timelineOrder} />
+              {otherOrders.map((o) => (
+                <TouchableOpacity key={o.id} onPress={() => navigation.navigate('SellBuyOrderDetail', { id: o.id })} className="flex-row items-center" style={{ paddingTop: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: C.soft }}>
+                  <Text style={{ flex: 1, fontSize: 12, color: C.ink }}>{o.orderNumber || 'Order'} · {o.customerName || 'Customer'}</Text>
+                  <Text style={{ fontSize: 11.5, color: C.muted }}>{o.status} ›</Text>
+                </TouchableOpacity>
+              ))}
             </Card>
           ) : null}
 
