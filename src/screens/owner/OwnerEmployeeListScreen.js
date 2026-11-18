@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { EmployeeDeviceApprovals } from '../../security/EmployeeSecurity';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ChevronLeft,
@@ -398,6 +399,8 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
                   </Pressable>
                 ) : null}
               </View>
+
+              {!isPickupPicker ? <EmployeeDeviceApprovals style={{ marginTop: 10 }} /> : null}
 
               {/* Role filter */}
               {!isPickupPicker ? (
