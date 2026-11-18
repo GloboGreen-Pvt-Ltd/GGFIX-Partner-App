@@ -25,13 +25,14 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
   const pending = useRef(null);
   const hasTpin = useRef(tpinSet);
   hasTpin.current = tpinSet;
-
+  // Any authorized Owner / Shop / Employee TPIN works: the server identifies whose
+  // PIN it is within this shop and returns the verified approver (never matched here).
   useEffect(() => {
     setTpinHandler((r) => new Promise((resolve, reject) => {
       if (pending.current) { reject(new Error('Another TPIN verification is in progress')); return; }
       pending.current = { resolve, reject };
       setError(null); setVerified(null); setBusy(false);
-      setMode(hasTpin.current ? 'verify' : 'create');
+      setMode('verify'); // employees can approve even when the owner has no TPIN yet
       setReq(r);
     }));
     return () => setTpinHandler(null);
@@ -51,8 +52,9 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
     setBusy(true); setError(null);
     try {
       const res = await authorizeTpin({ pin, ...req });
-      setVerified(res.actorName || 'Verified');
-      setTimeout(() => finish(res.authorizationToken), 700);
+      // Server-verified identity only (name + role from auth-service).
+      setVerified(res.actorName ? `${res.actorName}${res.actorRole ? ` (${res.actorRole})` : ''}` : 'Verified');
+      setTimeout(() => finish(res.authorizationToken), 1200);
     } catch (e) {
       setError(pinErrorMessage(e));
     } finally { setBusy(false); }
@@ -73,7 +75,9 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
           {verified ? (
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
               <Ionicons name="checkmark-circle" size={44} color={C.primary} />
-              <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '800', color: C.text }}>Verified: {verified}</Text>
+              <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '800', color: C.text, textAlign: 'center' }}>
+                Verified – Approved by: {verified}
+              </Text>
             </View>
           ) : mode === 'create' ? (
             <NewPinFlow type="TPIN" subtitle="Set your permanent Transaction PIN once" onDone={() => { onTpinCreated?.(); setMode('verify'); }} />
@@ -82,13 +86,13 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
           ) : (
             <PinPad
               title="Enter Transaction PIN"
-              subtitle="Required for every protected action"
+              subtitle="Owner, shop or employee: enter your own TPIN"
               error={error}
               busy={busy}
               onComplete={submit}
               footer={(
-                <Pressable onPress={() => setMode('reset')} style={{ marginTop: 6 }}>
-                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>Reset TPIN</Text>
+                <Pressable onPress={() => setMode(tpinSet ? 'reset' : 'create')} style={{ marginTop: 6 }}>
+                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>{tpinSet ? 'Reset TPIN' : 'Create owner TPIN'}</Text>
                 </Pressable>
               )}
             />
