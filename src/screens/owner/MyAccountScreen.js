@@ -46,6 +46,7 @@ import { rf, rs } from '../../utils/responsive';
 import { useResponsive } from '../../theme/responsive';
 import { useTabBarSpace } from '../../navigation/tabBarMetrics';
 import { notify } from '../../components/confirm';
+import SecuritySettings from '../../security/SecuritySettings';
 import { cachedOwnerTech, getOwnerTech, setOwnerTech } from '../../api/ownerTechnician';
 
 // My Account palette — the Oct 2026 brand sheet (theme/colors.js `brand`).
@@ -499,6 +500,8 @@ export default function MyAccountScreen({ onLogout, navigation }) {
             <OwnerTechRow ownerName={ownerName} />
           </View>
         ) : null}
+
+        <SecuritySettings style={{ marginTop: rs(14) }} />
 
         <SectionLabel subtitle="Legal, support and other information">More</SectionLabel>
         <View style={LIST_STYLE}>

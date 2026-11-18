@@ -1,4 +1,5 @@
 import { authApi } from './client';
+import { guardOtp } from './otpCooldown';
 import { saveSession, clearSession, getSession, getRefreshToken } from '../auth/session';
 import { store } from '../store';
 import { setActiveShop } from '../store/authSlice';
@@ -80,7 +81,7 @@ export async function shopLogin({ mobile, password, otp }) {
 }
 
 /** Request the dev OTP for a shop mobile (returns it in `devOtp` until a real SMS gateway is wired up). */
-export async function requestShopLoginOtp(mobile) {
+async function _requestShopLoginOtp(mobile) {
   return await authApi.post('/auth/shop-login/request-otp', { body: { mobile } });
 }
 
@@ -91,20 +92,21 @@ export async function requestShopLoginOtp(mobile) {
  * The wire field is `email` but accepts an email OR a mobile number.
  */
 /** Create Account step 1 — 409 when the owner mobile is already registered. */
-export async function requestPartnerSignupOtp(mobile) {
+async function _requestPartnerSignupOtp(mobile) {
   return await authApi.post('/auth/partner/signup/otp/send', { body: { mobile } });
 }
 
 /** Create Account step 2 — verifies the OTP, creates owner + shop, signs in. */
-export async function partnerSignup({ ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp }) {
+export async function partnerSignup({ ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp, ...extra }) {
+  // extra = ownerWhatsapp, pincode, latitude, longitude, googlePlaceId (optional)
   const data = await authApi.post('/auth/partner/signup', {
-    body: { ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp },
+    body: { ownerName, ownerMobile, shopName, shopMobile, shopAddress, otp, ...extra },
   });
   await saveSession(data);
   return data;
 }
 
-export async function requestOtp(identifier) {
+async function _requestOtp(identifier) {
   return await authApi.post('/auth/otp/send', { body: { email: identifier } });
 }
 
@@ -208,6 +210,9 @@ export async function logout() {
   // Revoke the server-side refresh session (best effort: offline still logs out locally).
   try {
     const refreshToken = await getRefreshToken();
+    if ((await getSession())?.deviceSessionId) {
+      try { await authApi.post('/auth/security/session/logout', { skipAuthExpiry: true }); } catch (_) {}
+    }
     if (refreshToken) await authApi.post('/auth/logout', { body: { refreshToken }, skipAuthExpiry: true });
   } catch (_) { /* ignore */ }
   await clearSession();
@@ -248,3 +253,8 @@ export async function updateOwnerShop(ownerId, shopId, patch) {
 export async function updateOwnerProfile(ownerId, patch) {
   return await authApi.patch(`/auth/shop-owners/${ownerId}`, { body: patch });
 }
+
+// OTP sends go through the cooldown / in-flight guard (see otpCooldown.js).
+export const requestShopLoginOtp = (mobile) => guardOtp(mobile, () => _requestShopLoginOtp(mobile));
+export const requestPartnerSignupOtp = (mobile) => guardOtp(mobile, () => _requestPartnerSignupOtp(mobile));
+export const requestOtp = (identifier) => guardOtp(identifier, () => _requestOtp(identifier));
