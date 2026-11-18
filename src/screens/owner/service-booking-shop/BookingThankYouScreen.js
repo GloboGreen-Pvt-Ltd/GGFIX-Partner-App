@@ -7,8 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notify } from '../../../components/confirm';
-import { ResponsiveModal } from '../../../components/responsive';
-import QrLabelSheet from '../AllBooking/QrLabelSheet';
+import QrLabelSheet, { MultiQrPrintSheet } from '../AllBooking/QrLabelSheet';
 import { openSmsComposer } from '../../../lib/smsShare';
 import {
   paymentAcrossTickets, BookingReceipt, buildBookingConfirmSms, loadReceiptShop, withNote, receiptComplaint, warrantySummary,
@@ -261,30 +260,12 @@ export default function BookingThankYouScreen({ navigation, route }) {
           </Pressable>
         </Pressable>
       </SafeModal>
-      <ResponsiveModal visible={barcodePickerOpen} onClose={() => setBarcodePickerOpen(false)}>
-        <Text style={{ fontSize: 16, fontWeight: '800', color: '#111111' }}>Print barcode for</Text>
-        <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2, marginBottom: 10 }}>Each device has its own tracking ID.</Text>
-        {bookedTickets.map(({ ticket, device }) => (
-          <Pressable
-            key={ticket.id}
-            onPress={() => openBarcodeFor(ticket)}
-            accessibilityRole="button"
-            className="flex-row items-center active:opacity-80"
-            style={{ borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}
-          >
-            <View className="items-center justify-center" style={{ height: 34, width: 34, borderRadius: 17, backgroundColor: '#FFF0D2', marginRight: 10 }}>
-              <Ionicons name="barcode-outline" size={17} color="#B45309" />
-            </View>
-            <View className="flex-1">
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>{device.modelName || 'Device'}</Text>
-              {ticket.trackingId ? (
-                <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 1 }}>#{ticket.trackingId}</Text>
-              ) : null}
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={TEXT_SECONDARY} />
-          </Pressable>
-        ))}
-      </ResponsiveModal>
+      {/* Multi-device booking: one popup, Select All by default, Print All Labels. */}
+      <MultiQrPrintSheet
+        visible={barcodePickerOpen}
+        onClose={() => setBarcodePickerOpen(false)}
+        items={bookedTickets.map(({ ticket, device }) => ({ id: ticket.id, trackingId: ticket.trackingId, name: device.modelName || ticket.deviceDisplayName, ticket }))}
+      />
       <QrLabelSheet visible={!!qrTicketId} ticketId={qrTicketId} onClose={() => setQrTicketId(null)} />
 
     </View>

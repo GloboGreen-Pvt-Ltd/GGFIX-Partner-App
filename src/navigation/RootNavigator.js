@@ -15,7 +15,7 @@ import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import OwnerNavigator from './OwnerNavigator';
 import { isPartnerAccount, PARTNER_ONLY_MESSAGE } from '../auth/accountAccess';
 import { notify } from '../components/confirm';
-import AppLockGate from '../components/AppLockGate';
+import SecurityGate from '../security/SecurityGate';
 import LegalDocumentScreen from '../legal/LegalDocumentScreen';
 import LegalConsentGate from '../legal/LegalConsentGate';
 import BootSplash from '../components/BootSplash';
@@ -232,16 +232,15 @@ export default function RootNavigator() {
       ? <OwnerNavigator session={session} onLogout={handleLogout} />
       : <UnsupportedRoleScreen onLogout={handleLogout} />;
     mainContent = (
-      <AppLockGate onLogout={handleLogout}>
+      <SecurityGate onLogout={handleLogout}>
         <LegalConsentGate accountId={session.userId} onLogout={handleLogout}>{roleContent}</LegalConsentGate>
-      </AppLockGate>
+      </SecurityGate>
     );
   }
 
-  if (!showBootOverlay) {
-    return mainContent;
-  }
-
+  // Same tree shape before and after the splash fades: returning `mainContent`
+  // bare here used to remount the whole signed-in app (SecurityGate re-boot,
+  // second lock, dashboard refetch) right after the splash.
   // While sessionLoading is true, mainContent is still null, so this is the
   // exact same BootSplash element (same JSX position, same component
   // instance) that was already on screen before the session resolved — it
@@ -254,12 +253,14 @@ export default function RootNavigator() {
   return (
     <View style={{ flex: 1 }}>
       {mainContent}
-      <Animated.View
-        style={[StyleSheet.absoluteFill, { opacity: bootFade }]}
-        pointerEvents={minTimeElapsed ? 'none' : 'auto'}
-      >
-        <BootSplash />
-      </Animated.View>
+      {showBootOverlay ? (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { opacity: bootFade }]}
+          pointerEvents={minTimeElapsed ? 'none' : 'auto'}
+        >
+          <BootSplash />
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

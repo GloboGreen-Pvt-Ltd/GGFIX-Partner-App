@@ -57,7 +57,7 @@ function DeviceStep({ navigation, draft }) {
   const [params] = useState(() => ({
     flow: 'SELL_WIZARD',
     title: draft.editingId ? 'Edit Product Details' : 'Add Product Details',
-    subtitle: 'Step 1 of 4 • Product info',
+    subtitle: 'Step 1 of 3 • Product info',
     categoryId: p.categoryId || undefined,
     editMode: !!p.modelId,
     brandId: p.brandId || undefined,
@@ -91,7 +91,7 @@ function PartStep({ navigation, draft }) {
     flow: 'SELL_WIZARD',
     partMode: true,
     title: draft.editingId ? 'Edit Product Details' : 'Add Spare Part Details',
-    subtitle: 'Step 1 of 4 • Product info',
+    subtitle: 'Step 1 of 3 • Product info',
     categoryId: p.categoryId || undefined,
     editMode: !!p.modelId,
     brandId: p.brandId || undefined,
@@ -319,9 +319,9 @@ function PartAccessoryDetails({ navigation }) {
   return (
     <SellScreen
       title={deviceTitle}
-      subtitle="Step 1 of 4 • Product info"
+      subtitle="Step 1 of 3 • Product info"
       step={2}
-      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
+      stepLabels={['Device', 'Details', 'Price', 'Publish']}
       onBack={() => navigation.goBack()}
       footer={<PrimaryButton title="Next" iconRight={ArrowRight} onPress={next} disabled={!ready} />}
     >

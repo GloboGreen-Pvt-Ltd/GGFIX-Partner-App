@@ -57,11 +57,10 @@ function DashboardToolCardBase({ tool, width, style, onPress, discColor }: Dashb
   const handlePress = useCallback(() => onPress(tool), [onPress, tool]);
 
   const icon = iconSize(winW);
-  const box = iconBoxSize(winW);
+  const box = Math.min(70, Math.round(width * 0.85));
   const minHeight = cardMinHeight(winW);
   const fontSize = labelFontSize(winW);
   const tone = tool.color ?? PINE;
-  const glyphColor = tool.iconColor ?? tone;
   const glyphBg = discColor ?? tool.iconBg ?? withAlpha(tone, 0.16);
   // Solid glyphs read a touch smaller than outline ones at the same size.
   const glyphSize = tool.iconColor ? icon + 3 : icon;
@@ -101,13 +100,21 @@ function DashboardToolCardBase({ tool, width, style, onPress, discColor }: Dashb
           style={{
             width: box,
             height: box,
-            borderRadius: box / 2,
-            backgroundColor: glyphBg,
+            borderRadius: Math.round(box * 0.28),
+            // White ring circle + section-colour soft shadow (Manage Services style).
+            backgroundColor: '#FAFBFD',
+            borderWidth: 3,
+            borderColor: '#FFFFFF',
+            shadowColor: glyphBg,
+            shadowOpacity: 0.10,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 3,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icon size={glyphSize} color={glyphColor} strokeWidth={2} />
+          <Icon size={Math.round(box * 0.36)} color="#17191B" strokeWidth={1.5} />
         </View>
         {/* Reserves 2 lines' worth of height even for a short one-line label,
             so a longer translated string never makes one card taller than
@@ -118,7 +125,7 @@ function DashboardToolCardBase({ tool, width, style, onPress, discColor }: Dashb
             fontSize,
             lineHeight: fontSize + 4,
             minHeight: (fontSize + 4) * 2,
-            fontWeight: '600',
+            fontWeight: '500',
             color: '#1C3053', // brand Navy
             marginTop: 4,
             letterSpacing: -0.1,

@@ -13,6 +13,8 @@ import {
   VISUAL_SEARCH_BASE,
 } from './config';
 import { getToken, getSession, getRefreshToken, saveSession, clearSession, notifyAuthExpired } from '../auth/session';
+import { alertIfReplaced } from '../security/sessionNotice';
+import { matchTpinRoute, requestTpin, tpinActive, TPIN_HEADER } from '../security/tpinBridge';
 import { Platform } from 'react-native';
 import { File, UploadType } from 'expo-file-system';
 import { safeHttpMessage, safeNetworkMessage } from '../lib/safeError';
@@ -76,16 +78,18 @@ export function refreshSession() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      res = await fetch(`${String(AUTH_BASE).replace(/\/$/, '')}/auth/refresh`, {
+      // Device-bound sessions (migration 116) rotate via /auth/security; legacy via /auth/refresh.
+      const secure = !!(await getSession())?.deviceSessionId;
+      res = await fetch(`${String(AUTH_BASE).replace(/\/$/, '')}${secure ? '/auth/security/session/refresh' : '/auth/refresh'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify(secure ? { refreshToken, accessToken: await getToken() } : { refreshToken }),
         signal: controller.signal,
       });
     } catch (_) { return { offline: true }; } finally { clearTimeout(timer); }
     // Logged out / logged in again meanwhile: this result belongs to a dead session.
     if ((await getRefreshToken()) !== refreshToken) return { offline: true };
-    if (res.status === 401 || res.status === 400) return { dead: true };
+    if (res.status === 401 || res.status === 400) { await alertIfReplaced(res); return { dead: true }; }
     if (!res.ok) return { offline: true };
     const data = await res.json().catch(() => null);
     if (!data?.accessToken) return { offline: true };
@@ -113,6 +117,12 @@ function jwtNeedsRefresh(token) {
 }
 
 async function request(baseUrlOrNull, method, path, opts = {}) {
+  // Protected business action: one-time TPIN authorization (kept on replay).
+  const tpinAction = tpinActive() && !(opts.headers && opts.headers[TPIN_HEADER]) ? matchTpinRoute(method, path) : null;
+  if (tpinAction) {
+    const auth = await requestTpin(tpinAction, method, path);
+    if (auth) opts = { ...opts, headers: { ...(opts.headers || {}), [TPIN_HEADER]: auth } };
+  }
   const { query, body, headers, skipAuthExpiry, _retried } = opts;
   const base = resolveBase(baseUrlOrNull);
   const url = new URL(joinUrl(base, path));

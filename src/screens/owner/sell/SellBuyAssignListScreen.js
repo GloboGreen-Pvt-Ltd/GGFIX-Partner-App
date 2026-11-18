@@ -11,7 +11,8 @@ import BuyOrderCard from './BuyOrderCard';
 // All · Assigned · Accepted · Ready (confirmed / failed, needs an employee) · Delivered.
 // Assign / Reassign opens SellBuyAssign and comes back here; View opens the order.
 const SECTIONS = [
-  { key: 'ALL', label: 'All', tone: RC.teal, Icon: LayoutGrid },
+  // All = active pickups only (no delivered / completed / cancelled / rejected).
+  { key: 'ALL', label: 'All', tone: RC.teal, Icon: LayoutGrid, statuses: ['CONFIRMED', 'DELIVERY_FAILED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY'] },
   { key: 'ASSIGNED', label: 'Assigned', tone: RC.blue, Icon: UserCheck, statuses: ['ASSIGNED'] },
   { key: 'ACCEPTED', label: 'Accepted', tone: RC.orange, Icon: ClipboardCheck, statuses: ['ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY'] },
   { key: 'READY', label: 'Ready', tone: RC.navy, Icon: PackageCheck, statuses: ['CONFIRMED', 'DELIVERY_FAILED'] },
@@ -64,7 +65,7 @@ export default function SellBuyAssignListScreen({ navigation, route }) {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ReportHeader
         title="ASSIGN PICKUP"
-        subtitle={`${pickups.length} Pickups`}
+        subtitle={`${railItems[0].count} Active Pickups`}
         onBack={() => navigation.goBack()}
         searchOpen={searchOpen}
         onToggleSearch={toggleSearch}
@@ -77,7 +78,7 @@ export default function SellBuyAssignListScreen({ navigation, route }) {
       ) : null}
 
       <View style={reportStyles.body}>
-        <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+        <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} jobsLook />
         <View style={{ flex: 1 }}>
           <FlatList
             data={error ? [] : shown}
@@ -86,8 +87,6 @@ export default function SellBuyAssignListScreen({ navigation, route }) {
               <BuyOrderCard
                 o={item}
                 staffName={staffBy[item.assignedStaffUserId]}
-                onAssign={(o) => navigation.navigate('SellBuyAssign', { order: o, returnToList: true })}
-                onView={(o) => navigation.navigate('SellBuyOrderDetail', { id: o.id })}
               />
             )}
             showsVerticalScrollIndicator={false}

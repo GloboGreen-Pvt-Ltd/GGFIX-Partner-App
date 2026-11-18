@@ -50,7 +50,8 @@ export default function SellBuyOrdersScreen({ navigation, route }) {
       const d = await shopBuyOrderAction(o.id, 'confirm');
       showToast({ type: 'success', title: 'Order confirmed', message: o.orderNumber });
       await load();
-      if (d?.fulfilmentType === 'HOME_DELIVERY') navigation.navigate('SellBuyAssign', { order: d });
+      // Assignment lives in Assign Pickup only.
+      if (d?.fulfilmentType === 'HOME_DELIVERY') navigation.navigate('SellBuyAssignList', { initialSection: 'READY' });
     } catch (e) {
       showToast({ type: 'error', title: 'Could not confirm', message: e?.message });
     } finally {
@@ -88,7 +89,7 @@ export default function SellBuyOrdersScreen({ navigation, route }) {
       ) : null}
 
       <View style={reportStyles.body}>
-        <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} />
+        <StatusRail items={railItems} active={tab} onSelect={setTab} width={railW} isSmall={isSmall} bottomPad={bottomPad} jobsLook />
         <View style={{ flex: 1 }}>
           <FlatList
             data={error ? [] : shown}
@@ -99,7 +100,6 @@ export default function SellBuyOrdersScreen({ navigation, route }) {
                 busy={busyId === item.id}
                 disabled={!!busyId}
                 onConfirm={confirmOrder}
-                onAssign={(o) => navigation.navigate('SellBuyAssign', { order: o })}
                 onView={(o) => navigation.navigate('SellBuyOrderDetail', { id: o.id })}
               />
             )}

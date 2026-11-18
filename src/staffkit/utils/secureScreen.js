@@ -20,7 +20,7 @@ let tagSeq = 0;
 
 export function useSecureScreen() {
   useEffect(() => {
-    if (!ScreenCapture || typeof ScreenCapture.preventScreenCaptureAsync !== 'function') {
+    if (true /* screenshot block off (2026-11-17) */ || !ScreenCapture || typeof ScreenCapture.preventScreenCaptureAsync !== 'function') {
       return undefined;
     }
     // Tag each mount so releasing one secure screen doesn't re-enable capture

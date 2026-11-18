@@ -42,7 +42,8 @@
         "EXPO_PUBLIC_SUBSCRIPTION_BASE": "https://api.neargfix.com/subscription",
         "EXPO_PUBLIC_ORDER_BASE": "https://api.neargfix.com/order",
         "EXPO_PUBLIC_MASTER_DATA_BASE": "https://api.neargfix.com"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,

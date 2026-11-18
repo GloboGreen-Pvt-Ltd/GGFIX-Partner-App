@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { BackHandler, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Animated, BackHandler, Easing, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -24,7 +24,30 @@ const CONFETTI = [
   [78, 16, '-35deg', '#F3BF23'], [52, 0, '55deg', '#2BB389'], [92, 64, '-25deg', '#2BB389'],
 ];
 
+// Celebration burst: 16 particles fly out from the badge and fade.
+const BURST = Array.from({ length: 16 }, (_, i) => {
+  const ang = (i / 16) * Math.PI * 2;
+  const dist = 70 + (i % 3) * 18;
+  return { dx: Math.cos(ang) * dist, dy: Math.sin(ang) * dist * 0.8, color: ['#F3BF23', '#2BB389', '#035C6C', '#F38B4A'][i % 4], round: i % 2 === 0 };
+});
+
+/** Short pop + checkmark + particle burst (no payment wording). */
+function useCelebrate() {
+  const pop = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(pop, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+      Animated.timing(burst, { toValue: 1, duration: 900, delay: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(fade, { toValue: 1, duration: 450, delay: 250, useNativeDriver: true }),
+    ]).start();
+  }, [pop, burst, fade]);
+  return { pop, burst, fade };
+}
+
 export default function SellListingSuccessScreen({ navigation, route }) {
+  const { pop, burst, fade } = useCelebrate();
   const listing = route?.params?.listing || null;
   const outcome = route?.params?.outcome || 'PUBLISHED';
   const head = HEAD[outcome] || HEAD.PUBLISHED;
@@ -61,15 +84,28 @@ export default function SellListingSuccessScreen({ navigation, route }) {
           {/* Badge on a podium, confetti around it */}
           <View style={{ alignItems: 'center', height: 150, justifyContent: 'flex-end' }}>
             {CONFETTI.map(([x, y, r, c], i) => (
-              <View key={i} style={{ position: 'absolute', left: '50%', top: y, marginLeft: x, width: 16, height: 4, borderRadius: 2, backgroundColor: c, transform: [{ rotate: r }] }} />
+              <Animated.View key={i} style={{ position: 'absolute', left: '50%', top: y, marginLeft: x, width: 16, height: 4, borderRadius: 2, backgroundColor: c, opacity: fade, transform: [{ rotate: r }, { scale: fade }] }} />
             ))}
+            {BURST.map((b, i) => (
+              <Animated.View key={`b${i}`} pointerEvents="none" style={{
+                position: 'absolute', left: '50%', top: 64, marginLeft: -4, width: b.round ? 8 : 10, height: b.round ? 8 : 4, borderRadius: 4, backgroundColor: b.color, zIndex: 2,
+                opacity: burst.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+                transform: [
+                  { translateX: burst.interpolate({ inputRange: [0, 1], outputRange: [0, b.dx] }) },
+                  { translateY: burst.interpolate({ inputRange: [0, 1], outputRange: [0, b.dy] }) },
+                  { rotate: burst.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${(i % 2 ? 1 : -1) * 180}deg`] }) },
+                ],
+              }} />
+            ))}
+            <Animated.View style={{ transform: [{ scale: pop }], zIndex: 1 }}>
             <View style={{ height: 92, width: 92, borderRadius: 46, backgroundColor: '#1FA77A', alignItems: 'center', justifyContent: 'center', marginBottom: -12, zIndex: 1, elevation: 5, shadowColor: '#1FA77A', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}>
               <BadgeCheck size={54} color="#FFFFFF" strokeWidth={2.2} />
             </View>
+            </Animated.View>
             <View style={{ height: 28, width: 150, borderRadius: 75, backgroundColor: '#7FD8B6', borderBottomWidth: 6, borderBottomColor: '#3FBF94' }} />
           </View>
 
-          <Text style={{ fontSize: rf(26), fontWeight: '900', color: '#0B2E24', marginTop: 20, textAlign: 'center' }}>{head.title}</Text>
+          <Animated.Text style={{ fontSize: rf(26), fontWeight: '900', color: '#0B2E24', marginTop: 20, textAlign: 'center', opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}>{head.title}</Animated.Text>
           <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: MINT, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10, maxWidth: '100%' }}>
             {outcome === 'PUBLISHED' ? <Rocket size={16} color={C.green} style={{ marginRight: 8 }} /> : null}
             <Text style={{ flexShrink: 1, fontSize: rf(13), fontWeight: '600', color: C.text, textAlign: 'center' }}>{head.sub}</Text>

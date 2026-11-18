@@ -45,7 +45,51 @@ function assetOf(a) {
   return { uri: a.uri, fileName: a.fileName || null, mimeType: a.mimeType || null };
 }
 
+/**
+ * Photos check used by Next (Condition & Description for devices/accessories,
+ * this screen for spare parts). Returns an error message or null; fixes the
+ * cover to the first uploaded photo when the chosen one is gone.
+ */
+export function photosCheck() {
+  const d = sellDraftStore.get();
+  const m = d.media || {};
+  const photos = m.photos || [];
+  const min = minPhotos(d.listingType);
+  const done = photos.filter((ph) => ph.status === 'done');
+  if (photos.some((ph) => ph.status === 'uploading') || m.video?.status === 'uploading') return 'Wait for the photo uploads to finish.';
+  if (done.length < min) return `Add at least ${min} photo${min > 1 ? 's' : ''} (${done.length} uploaded).`;
+  if (photos.some((ph) => ph.status === 'error')) return 'Some photos failed to upload. Retry or remove them before continuing.';
+  const cover = done.some((ph) => ph.key === m.coverKey) ? m.coverKey : done[0]?.key || null;
+  if (m.coverKey !== cover) sellDraftStore.patch('media', { coverKey: cover });
+  return null;
+}
+
+/** Spare parts: their own Photos step (they skip Condition & Description). */
 export default function SellStepPhotosScreen({ navigation }) {
+  const { draft, ready } = useSellDraft();
+  const uploading = (draft.media.photos || []).some((ph) => ph.status === 'uploading') || draft.media.video?.status === 'uploading';
+  const [err, setErr] = useState(null);
+  const next = () => {
+    const e = photosCheck();
+    if (e) { setErr(e); notify('Photos', e); return; }
+    navigation.navigate('SellStepPrice');
+  };
+  return (
+    <SellScreen
+      title={`Add Photos (${minPhotos(draft.listingType)} – ${MAX_PHOTOS})`}
+      step={2}
+      stepLabels={['Device', 'Details', 'Price', 'Publish']}
+      onBack={() => navigation.goBack()}
+      footer={<PrimaryButton title="Next" variant="green" iconRight={ArrowRight} onPress={next} disabled={!ready || uploading} loading={uploading} />}
+    >
+      <SellPhotosSection />
+      {err ? <ErrorBox message={err} /> : null}
+    </SellScreen>
+  );
+}
+
+/** Photo grid + camera/gallery/cover/order/remove/retry/video — embeddable. */
+export function SellPhotosSection({ style }) {
   const { draft, ready } = useSellDraft();
   const m = draft.media;
   const photos = m.photos || [];
@@ -158,31 +202,12 @@ export default function SellStepPhotosScreen({ navigation }) {
   };
   const setCover = (key) => sellDraftStore.patch('media', { coverKey: key });
 
-  const next = () => {
-    if (uploading) { notify('Uploading', 'Wait for the uploads to finish.'); return; }
-    if (done.length < min) {
-      setError(`Add at least ${min} photo${min > 1 ? 's' : ''} (${done.length} uploaded).`);
-      return;
-    }
-    if (failed.length) {
-      setError('Some photos failed to upload. Retry or remove them before continuing.');
-      return;
-    }
-    if (m.coverKey !== coverKey) setCover(coverKey);
-    navigation.navigate('SellStepPrice');
-  };
 
   const previewPhoto = photos.find((ph) => ph.key === preview);
   const previewIndex = photos.findIndex((ph) => ph.key === preview);
 
   return (
-    <SellScreen
-      title={`Add Photos (${min} – ${MAX_PHOTOS})`}
-      step={3}
-      stepLabels={['Device', 'Details', 'Photos', 'Price', 'Publish']}
-      onBack={() => navigation.goBack()}
-      footer={<PrimaryButton title="Next" variant="green" iconRight={ArrowRight} onPress={next} disabled={!ready || uploading} loading={uploading} />}
-    >
+    <View style={style}>
       <View style={{ marginTop: 10 }}>
         <FieldLabel label="Photos" required hint={`(Min. ${min}, Max. ${MAX_PHOTOS})`} right={<Text style={{ fontSize: rf(11), color: done.length >= min ? C.green : C.muted, fontWeight: '700' }}>{done.length}/{MAX_PHOTOS}</Text>} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -339,6 +364,6 @@ export default function SellStepPhotosScreen({ navigation }) {
           ) : null}
         </View>
       </SafeModal>
-    </SellScreen>
+    </View>
   );
 }

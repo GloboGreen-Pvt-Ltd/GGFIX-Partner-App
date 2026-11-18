@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Image, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { type LucideIcon } from 'lucide-react-native';
+import { ArrowRight, type LucideIcon } from 'lucide-react-native';
 import { Touchable, withAlpha } from './theme';
 
 export interface DashboardShortcut {
@@ -100,48 +100,41 @@ export function DashboardShortcutCards({ items, pad, gap = 10, height = 150 }: P
               minWidth: 0,
               height,
               borderRadius: 18,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: it.tone,
               overflow: 'hidden',
-              borderWidth: 1,
-              borderColor: withAlpha(it.tone, 0.14),
-              // Soft shadow in the card's own colour.
               shadowColor: it.tone,
-              shadowOpacity: 0.14,
+              shadowOpacity: 0.18,
               shadowRadius: 8,
               shadowOffset: { width: 0, height: 3 },
-              elevation: 2,
+              elevation: 3,
             }}
             pressedStyle={{ opacity: 0.85 }}
           >
-            {/* White at the top fading into the card's tint at the bottom. */}
+            {/* Solid brand gradient (Explore-products style). */}
             <LinearGradient
               pointerEvents="none"
-              colors={['#FFFFFF', it.bg]}
+              colors={[it.tone, withAlpha(it.tone, 0.78)]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#FFFFFF' }}
             />
+            {/* Concentric soft circles, top-right. */}
+            <View pointerEvents="none" style={{ position: 'absolute', top: -cardW * 0.35, right: -cardW * 0.35, width: cardW * 1.1, height: cardW * 1.1, borderRadius: cardW, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <View pointerEvents="none" style={{ position: 'absolute', top: -cardW * 0.12, right: -cardW * 0.12, width: cardW * 0.64, height: cardW * 0.64, borderRadius: cardW, backgroundColor: 'rgba(0,0,0,0.08)' }} />
 
-            {/* Photo / decoration: centred along the card's bottom edge. */}
-            <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: -2, alignItems: 'center' }}>
-              {it.image ? (
-                <Image
-                  source={typeof it.image === 'string' ? { uri: it.image } : it.image}
-                  resizeMode="contain"
-                  // -2 (on the wrapper) cancels the ~2% transparent strip at the bottom of each PNG.
-                  style={photoBox(it.image, maxPhotoW, maxPhotoH)}
-                />
-              ) : Deco ? (
-                <View style={{ marginBottom: 8, opacity: 0.9 }}>
-                  <Deco size={44} color={it.tone} strokeWidth={1.6} />
-                </View>
-              ) : null}
+            {/* Brand icon centred in the top-right circle (no photo). */}
+            <View pointerEvents="none" style={{ position: 'absolute', top: cardW * 0.2 - 22, right: cardW * 0.2 - 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon size={34} color="#FFFFFF" strokeWidth={1.8} />
             </View>
 
-            {/* Title only, in the card's colour (subtitle and arrow removed). */}
-            <Text style={{ paddingHorizontal: 8, paddingTop: 10, fontSize: 16, lineHeight: 21, fontWeight: '800', color: it.tone, textAlign: 'center' }} numberOfLines={1}>
-              {it.label}
-            </Text>
+            {/* White title bottom-left + arrow bottom-right. */}
+            <View style={{ position: 'absolute', left: 10, right: 8, bottom: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: cardW < 110 ? 14 : 16, lineHeight: 20, fontWeight: '800', color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{it.label}</Text>
+                <Text style={{ fontSize: cardW < 110 ? 11 : 12, lineHeight: 15, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{it.sub}</Text>
+              </View>
+              <ArrowRight size={cardW < 110 ? 16 : 18} color="#FFFFFF" strokeWidth={2.2} />
+            </View>
           </Touchable>
         );
       })}

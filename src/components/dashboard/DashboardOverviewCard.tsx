@@ -77,7 +77,7 @@ export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverv
           {/* Big count, caption under it. */}
           <View>
             <Text
-              style={{ fontSize: small ? 16 : 18, lineHeight: small ? 20 : 22, fontWeight: '800', color: item.color }}
+              style={{ fontSize: small ? 16 : 18, lineHeight: small ? 20 : 22, fontWeight: '800', color: '#111111' }}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
