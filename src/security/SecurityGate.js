@@ -171,6 +171,7 @@ export default function SecurityGate({ children, onLogout }) {
     overlay = (
       <Card>
         <PinPad
+          systemKeyboard
           title="Enter MPIN"
           subtitle="Unlock NearGFix Partner"
           error={error}

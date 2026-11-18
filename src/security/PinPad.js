@@ -107,6 +107,12 @@ export default function PinPad({ title, subtitle, error, busy, onComplete, onBio
             </View>
           ) : null}
       </View>
+      {systemKeyboard && onBiometric ? (
+        <Pressable onPress={onBiometric} accessibilityLabel="Biometric" style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 22, backgroundColor: C.tint }}>
+          <Ionicons name="finger-print" size={22} color={C.primary} />
+          <Text style={{ marginLeft: 8, color: C.primary, fontWeight: '700', fontSize: 13.5 }}>Use fingerprint</Text>
+        </Pressable>
+      ) : null}
       {systemKeyboard ? null : <View style={{ marginTop: 8, alignItems: 'center' }}>
         {[['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']].map((row) => (
           <View key={row[0]} style={{ flexDirection: 'row' }}>{row.map(digit)}</View>
