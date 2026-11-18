@@ -33,6 +33,7 @@ import { useResponsive } from '../../theme/responsive';
 import { rlh, rs } from '../../utils/responsive';
 import LedgerDateSheet from './LedgerDateSheet';
 import { normalizeIndianMobile } from '../../utils/mobile';
+import { EmployeeMpinSheet, employeeMpinProblem, setEmployeeMpin } from '../../security/EmployeeSecurity';
 
 const ROLES = ['Technician', 'Staff', 'Pickup Person'];
 
@@ -392,6 +393,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
   const [shiftOpen, setShiftOpen] = useState(false);
   const [dateField, setDateField] = useState(null); // 'dateOfJoin' | 'dateOfBirth' | null
   const [showPassword, setShowPassword] = useState(false);
+  const [mpinSheet, setMpinSheet] = useState(false);
   const [loginEnabled, setLoginEnabled] = useState(true);
   const [form, setForm] = useState({
     name: employee?.name ?? '',
@@ -521,6 +523,12 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
       );
       return;
     }
+    if (provisionLogin) {
+      // Staff App login = mobile + this owner-set 6-digit Login MPIN (no OTP).
+      const mpinErr = employeeMpinProblem(form.mpin);
+      if (mpinErr) { notify('Login MPIN', mpinErr); return; }
+      if (form.mpin !== form.mpinConfirm) { notify('Login MPIN', 'Login MPIN and confirmation do not match.'); return; }
+    }
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSaving(true);
@@ -588,6 +596,15 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
         } catch (mpinErr) {
           logEmployeeSetup('login MPIN set failed', { stage: 'auth:set-mpin', status: mpinErr?.status });
           showBlockingError('Login MPIN not set', mpinErr?.message || 'Could not set the Login MPIN. Please try again.');
+          return;
+        }
+      }
+      if (userId) {
+        try {
+          await setEmployeeMpin(userId, form.mpin);
+        } catch (pinErr) {
+          logEmployeeSetup('login MPIN not set', { stage: 'auth:employee-mpin', status: pinErr?.status });
+          showBlockingError('Login MPIN not set', `${pinErr?.message || 'The Login MPIN could not be saved.'}\n\nNothing else was saved. Fix the MPIN and tap Save again.`);
           return;
         }
       }
@@ -1340,10 +1357,43 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                 <Text style={styles.loginCheckLabel}>Employee login enabled</Text>
               </TouchableOpacity>
 
+              {loginEnabled ? (
+                <>
+                  <Text style={styles.addLabel}>Login MPIN (6 digits) *</Text>
+                  <View style={styles.addInputRow}>
+                    <TextInput
+                      style={styles.addInputInline}
+                      placeholder="••••••"
+                      placeholderTextColor="#9CA3AF"
+                      value={form.mpin}
+                      onChangeText={(v) => set('mpin', v.replace(/\D/g, '').slice(0, 6))}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      secureTextEntry
+                      autoComplete="off"
+                    />
+                  </View>
+                  <Text style={styles.addLabel}>Confirm Login MPIN *</Text>
+                  <View style={styles.addInputRow}>
+                    <TextInput
+                      style={styles.addInputInline}
+                      placeholder="••••••"
+                      placeholderTextColor="#9CA3AF"
+                      value={form.mpinConfirm}
+                      onChangeText={(v) => set('mpinConfirm', v.replace(/\D/g, '').slice(0, 6))}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      secureTextEntry
+                      autoComplete="off"
+                    />
+                  </View>
+                </>
+              ) : null}
+
               <View style={styles.otpHint}>
                 <Ionicons name="information-circle-outline" size={rs(13)} color="#035C6C" />
                 <Text style={styles.otpHintText}>
-                  Employee signs in to the NearGFix Staff App with this mobile number + the Login MPIN you set. Only you can set or reset it.
+                  Employee signs in to the NearGFix Staff App with this mobile number + Login MPIN. Keep it separate from their TPIN.
                 </Text>
               </View>
             </View>
@@ -1749,8 +1799,16 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
             />
             <View style={{ flex: 1 }} />
           </View>
+          {linkedUserId ? (
+            <TouchableOpacity onPress={() => setMpinSheet(true)} activeOpacity={0.8}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: rs(10), paddingVertical: rs(10), borderRadius: rs(12), borderWidth: 1, borderColor: '#035C6C' }}>
+              <Ionicons name="key-outline" size={rs(16)} color="#035C6C" />
+              <Text style={{ marginLeft: rs(6), color: '#035C6C', fontWeight: '800', fontSize: rs(13) }}>Reset Login MPIN</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScrollView>
+      <EmployeeMpinSheet visible={mpinSheet} userId={linkedUserId} employeeName={employee?.name} onClose={() => setMpinSheet(false)} />
     </SafeAreaView>
   );
 }
