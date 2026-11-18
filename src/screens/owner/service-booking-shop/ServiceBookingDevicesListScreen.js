@@ -368,16 +368,8 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
       return;
     }
     if (submitLockRef.current) return;
-    // New booking → Employee PIN first (Booked By is set by the server from it).
-    if (!params.editMode) {
-      const p = pinOk || pinRef.current;
-      if (!p?.token || (p.expiresAt && Date.parse(p.expiresAt) - Date.now() < 15000)) {
-        pinRef.current = null;
-        setPinOpen(true);
-        return;
-      }
-      pinRef.current = p;
-    }
+    // Employee PIN step removed (TPIN is used instead). X-Booking-Pin is optional
+    // server-side; without it the booking is created and "Booked By" is not set.
     submitLockRef.current = true;
     setSubmitting(true);
     try {
@@ -961,12 +953,6 @@ export default function ServiceBookingDevicesListScreen({ navigation, route }) {
         </View>
       </View>
       </KeyboardAvoidingView>
-      <BookingPinSheet
-        visible={pinOpen}
-        deviceCount={deviceCount}
-        onClose={() => setPinOpen(false)}
-        onConfirm={(t) => { setPinOpen(false); setTimeout(() => submit(t), 300); }}
-      />
     </View>
   );
 }

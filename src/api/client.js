@@ -188,9 +188,13 @@ async function request(baseUrlOrNull, method, path, opts = {}) {
     // that must NOT clear the session and bounce the whole app to Login. A 403
     // is a real per-resource authorization failure and never clears the session.
     const isAuthService = base === AUTH_BASE;
+    // A wrong / locked MPIN or TPIN is answered 401 WRONG_PIN:n / PIN_LOCKED by
+    // auth-service — a credential error, NOT a dead session: no refresh, no logout.
+    const pinRejected = res.status === 401
+      && /WRONG_PIN|PIN_LOCKED/.test(String((json && (json.message || json.error)) || text || ''));
     // Access token rejected: renew it once and replay the request.
     let refreshResult = null;
-    if (res.status === 401 && token && !skipAuthExpiry && !_retried) {
+    if (res.status === 401 && token && !skipAuthExpiry && !_retried && !pinRejected) {
       refreshResult = await refreshSession();
       if (refreshResult.token) return request(baseUrlOrNull, method, path, { ...opts, _retried: true });
     }
@@ -199,6 +203,8 @@ async function request(baseUrlOrNull, method, path, opts = {}) {
       notifyAuthExpired();
     } else if (refreshResult?.offline) {
       // Could not reach /auth/refresh: keep the session, the next call retries.
+    } else if (pinRejected) {
+      // Wrong / locked PIN: keep the session; the caller shows the PIN error.
     } else if (res.status === 401 && token && !skipAuthExpiry && isAuthService) {
       await clearSession();
       notifyAuthExpired();
@@ -209,7 +215,7 @@ async function request(baseUrlOrNull, method, path, opts = {}) {
       verifySessionAfter401(token);
     }
     const rawMessage = (json && (json.message || json.error)) || text || `HTTP ${res.status}`;
-    const message = res.status === 401 && token && isAuthService
+    const message = res.status === 401 && token && isAuthService && !pinRejected
       ? 'Session expired. Please log in again.'
       : safeHttpMessage(res.status === 401 && !token ? 400 : res.status, rawMessage);
     const err = new Error(message);
