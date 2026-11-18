@@ -29,6 +29,14 @@ export default {
     // Verify this matches expo.dev → your account. Change if different.
     owner: 'globogreen-system-and-technology-private-limited',
     version: '1.0.0',
+    // OTA (EAS Update): updates download in the background on launch and apply on
+    // the next cold start (fallbackToCacheTimeout 0) - no mid-session reloads.
+    runtimeVersion: { policy: 'appVersion' },
+    updates: {
+      url: 'https://u.expo.dev/' + (process.env.EAS_PROJECT_ID || '6a0559ba-0f56-4eac-a7ad-49c793780620'),
+      checkAutomatically: 'ON_LOAD',
+      fallbackToCacheTimeout: 0,
+    },
     platforms: ['ios', 'android', 'web'],
     orientation: 'portrait',
     userInterfaceStyle: 'automatic',
