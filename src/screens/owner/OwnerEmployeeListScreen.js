@@ -34,7 +34,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { ticketApi } from '../../api/client';
 import { assignPickupPerson, assignPurchasePickup } from '../../api/orders';
 import { notify } from '../../components/confirm';
-import EmployeeDeviceApprovals from '../../components/EmployeeDeviceApprovals';
 import { FEATURE, asEntitlements, fetchEmployeeLimit } from '../../subscription/entitlements';
 import { handleLimitError, showLimitPopup } from '../../subscription/limitPopup';
 import { useResponsive } from '../../theme/responsive';
@@ -341,7 +340,6 @@ export default function OwnerEmployeeListScreen({ navigation, route }) {
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={BRAND_GREEN_DARK} colors={[BRAND_GREEN_DARK]} />
           }
         >
-          {!isPickupPicker ? <EmployeeDeviceApprovals /> : null}
           {/* Summary — seats ring (allowance) + active / inactive counts. */}
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12, ...cardShadow }}>
             <ProgressRing active={ringActive} total={ringTotal} size={56} />
