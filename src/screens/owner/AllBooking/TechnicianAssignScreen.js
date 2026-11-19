@@ -65,7 +65,7 @@ export default function TechnicianAssignScreen({ navigation, route }) {
         ticketApi.get('/technicians'),
         getOwnerTech().catch(() => null),
       ]);
-      setTechs(Array.isArray(data) ? data : data?.content ?? data?.data ?? []);
+      setTechs((Array.isArray(data) ? data : data?.content ?? data?.data ?? []).filter((t) => t?.checkedIn !== false));
       setSelfTech(ot?.enabled && ot.technicianId ? { id: ot.technicianId, name: 'Myself', roleLabel: 'Owner', _self: true } : null);
     } catch (e) {
       setTechs([]);

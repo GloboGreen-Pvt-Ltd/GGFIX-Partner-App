@@ -16,3 +16,5 @@ export const releaseRepairDelivery = (ticketId) => ticketApi.post(`${base(ticket
 export const receiveRepairReturn = (ticketId) => ticketApi.post(`${base(ticketId)}/receive-return`);
 /** Shop employees with an Employee App login (same list as the pickup picker). */
 export const listShopEmployees = () => ticketApi.get('/technicians');
+/** Server-confirmed attendance: only checked-in staff can take new jobs (older servers send no flag → kept). */
+export const isCheckedIn = (t) => t?.checkedIn !== false;

@@ -31,6 +31,7 @@ export function NewPinFlow({ type, onDone, onSubmit, subtitle }) {
   return (
     <PinPad
       resetKey={key}
+      systemKeyboard={type === 'MPIN'}
       title={first ? `Confirm ${label(type)}` : `Create 6-digit ${label(type)}`}
       subtitle={first ? 'Re-enter the same PIN' : (subtitle || 'Avoid repeated or sequential digits')}
       error={error}

@@ -8,7 +8,7 @@ import { ActivityIndicator, AppState, Image, Modal, Pressable, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AppLockGate from '../components/AppLockGate';
-import PinPad, { C } from './PinPad';
+import PinPad, { C, useKeyboardHeight } from './PinPad';
 import { NewPinFlow, ResetPinFlow } from './SecurityFlows';
 import TpinSheet from './TpinSheet';
 import DeviceLimitScreen from './DeviceLimitScreen';
@@ -22,9 +22,10 @@ export const useSecurity = () => useContext(SecurityContext);
 
 const Card = ({ children }) => {
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999, backgroundColor: C.bg, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }}>
-      <Image source={require('../../assets/logo.png')} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18 }} resizeMode="contain" />
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999, backgroundColor: C.bg, paddingTop: insets.top + (kb ? 16 : 56), paddingBottom: kb ? kb + 16 : insets.bottom + 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'flex-start' }}>
+      {kb ? null : <Image source={require('../../assets/logo.png')} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18 }} resizeMode="contain" />}
       {children}
     </View>
   );
@@ -98,7 +99,8 @@ export default function SecurityGate({ children, onLogout }) {
         const away = (Date.now() - bgAt.current) / 1000;
         bgAt.current = null;
         const limit = Number(session?.lockTimeoutSeconds) || DEFAULT_LOCK_S;
-        if (stageRef.current === 'open' && away >= limit) setStage('locked');
+        // Boot-only lock: MPIN / biometric is asked at app start, not on resume.
+        void away; void limit;
       }
     });
     return () => sub.remove();
@@ -169,6 +171,7 @@ export default function SecurityGate({ children, onLogout }) {
     overlay = (
       <Card>
         <PinPad
+          systemKeyboard
           title="Enter MPIN"
           subtitle="Unlock NearGFix Partner"
           error={error}

@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import PinPad, { C } from './PinPad';
+import PinPad, { C, useKeyboardHeight } from './PinPad';
 import { NewPinFlow, ResetPinFlow } from './SecurityFlows';
 import { authorizeTpin, pinErrorMessage } from './securityApi';
 import { setTpinHandler } from './tpinBridge';
@@ -17,6 +17,7 @@ const ACTION_LABEL = {
 
 export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
   const [req, setReq] = useState(null); // { action, method, path }
   const [mode, setMode] = useState('verify');
   const [error, setError] = useState(null);
@@ -63,7 +64,8 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
   return (
     <Modal visible={!!req} transparent animationType="slide" onRequestClose={cancel}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,24,39,0.45)' }}>
-        <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16 + insets.bottom, alignItems: 'center' }}>
+        {/* Android: lift the sheet by the keyboard height so title, boxes and errors stay visible. */}
+        <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingTop: 10, paddingBottom: Platform.OS === 'android' && kb ? kb + 12 : 16 + insets.bottom, alignItems: 'center' }}>
           <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, marginBottom: 10 }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 12 }}>
             <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: C.tint, alignItems: 'center', justifyContent: 'center' }}>
@@ -85,6 +87,7 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
             <ResetPinFlow type="TPIN" session={session} onDone={() => setMode('verify')} onCancel={() => setMode('verify')} />
           ) : (
             <PinPad
+              systemKeyboard
               title="Enter Transaction PIN"
               subtitle="Owner, shop or employee: enter your own TPIN"
               error={error}
@@ -92,7 +95,7 @@ export default function TpinSheet({ session, tpinSet, onTpinCreated }) {
               onComplete={submit}
               footer={(
                 <Pressable onPress={() => setMode(tpinSet ? 'reset' : 'create')} style={{ marginTop: 6 }}>
-                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>{tpinSet ? 'Reset TPIN' : 'Create owner TPIN'}</Text>
+                  <Text style={{ color: C.primary, fontWeight: '700', fontSize: 12.5 }}>{tpinSet ? 'Reset TPIN' : 'Create TPIN'}</Text>
                 </Pressable>
               )}
             />
