@@ -58,7 +58,7 @@ export default function TechnicianAssignPanel({ items = [], direct = false, assi
         ticketApi.get('/technicians'),
         getOwnerTech().catch(() => null),
       ]);
-      const rows = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
+      const rows = (Array.isArray(data) ? data : data?.content ?? data?.data ?? []).filter((t) => t?.checkedIn !== false);
       // Assign Technician lists technicians only — Staff / Pickup Person rows are hidden
       // (falls back to everyone if no row is tagged Technician).
       const onlyTech = rows.filter((t) => !t.roleLabel || /technician/i.test(t.roleLabel));

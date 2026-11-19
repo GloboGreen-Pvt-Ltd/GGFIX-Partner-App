@@ -61,7 +61,7 @@ export default function BuyAssignPickupScreen({ navigation, route }) {
   const loadStaff = useCallback(async () => {
     try {
       const [list, orders] = await Promise.all([ticketApi.get('/technicians'), listShopPurchases().catch(() => [])]);
-      setStaff((Array.isArray(list) ? list : []).filter((e) => String(e.roleLabel || '').toLowerCase() === PICKUP_ROLE));
+      setStaff((Array.isArray(list) ? list : []).filter((e) => String(e.roleLabel || '').toLowerCase() === PICKUP_ROLE && e?.checkedIn !== false));
       setOnJob((orders || []).filter((r) => ON_JOB.includes(up(r.status)) && r.id !== p.id).map((r) => r.pickupPersonId).filter(Boolean));
       setStaffError(null);
     } catch (e) {

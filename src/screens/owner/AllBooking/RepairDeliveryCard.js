@@ -4,7 +4,7 @@ import SafeModal from '../../../components/SafeModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { CalendarClock, Check, ChevronDown, ChevronUp, CircleAlert, PackageCheck, Phone, RotateCcw, Truck, UserPlus, X } from 'lucide-react-native';
 import {
-  assignRepairDelivery, getRepairDelivery, listShopEmployees, receiveRepairReturn, releaseRepairDelivery, rescheduleRepairDelivery, scheduleRepairDelivery,
+  assignRepairDelivery, getRepairDelivery, isCheckedIn, listShopEmployees, receiveRepairReturn, releaseRepairDelivery, rescheduleRepairDelivery, scheduleRepairDelivery,
 } from '../../../api/repairDelivery';
 import { confirm, notify } from '../../../components/confirm';
 
@@ -76,7 +76,7 @@ function ScheduleSheet({ visible, mode, initial, onClose, onSubmit }) {
     if (needTech) {
       try {
         const list = await listShopEmployees();
-        setStaff((Array.isArray(list) ? list : list?.content || []).filter((e) => e.userId));
+        setStaff((Array.isArray(list) ? list : list?.content || []).filter((e) => e.userId && isCheckedIn(e)));
       } catch (e) {
         setStaff([]);
         setError(e?.message || 'Could not load employees.');
