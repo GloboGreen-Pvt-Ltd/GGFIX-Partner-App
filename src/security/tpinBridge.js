@@ -4,6 +4,9 @@
 const ROUTES = [
   ['POST', /^\/tickets\/?$/, 'REPAIR_BOOKING'],
   ['PATCH', /^\/tickets\/[^/]+\/status$/, 'TICKET_STATUS'],
+  // Pickup person → shop: device received; shop → return-delivery person: handover.
+  ['POST', /^\/shop\/pickup-bookings\/[^/]+\/receive-at-shop$/, 'PICKUP_DELIVERY'],
+  ['POST', /^\/tickets\/[^/]+\/repair-delivery\/release$/, 'PICKUP_DELIVERY'],
   ['PATCH', /^\/technicians\/me\/pickup-bookings\/[^/]+\/status$/, 'PICKUP_DELIVERY'],
   ['POST', /^\/technicians\/me\/sell-pickups\/[^/]+\/payment$/, 'PAYMENT'],
   ['POST', /^\/repair-bookings\/[^/]+\/confirm-order$/, 'REPAIR_BOOKING'],
