@@ -16,7 +16,7 @@ const PICKUP_STAGES = new Set([
 // Booking Details tile / icon colours.
 const TONES = ['#035C6C', '#0788C9', '#609138', '#E08E00', '#1C3053', '#F32C26', '#357D89', '#0571A8'];
 import { Badge, Button, Loader } from '../../components/rnr';
-import { confirmShopRepairBooking, getShopRepairBooking, markPickupReceivedAtShop } from '../../api/orders';
+import { confirmShopRepairBooking, getShopRepairBooking, listPendingShopHandovers, markPickupReceivedAtShop, startShopHandover } from '../../api/orders';
 import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
 import { getBrands, getModelsByBrand, getRamOptions, getStorageOptions } from '../../api/masterData';
 import { cleanIssueSummary } from '../../utils/pickupEstimateMeta';
@@ -208,6 +208,7 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
 
   const onPullRefresh = async () => { setPullRefreshing(true); try { await load(); } catch {} finally { setPullRefreshing(false); } };
 
+  const [handoverReq, setHandoverReq] = useState(null); // pending shop handover request (TPIN)
   const load = useCallback(async () => {
     if (!id) return;
     if (!preloaded) setLoading(true);
@@ -215,6 +216,11 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
     try {
       const res = await getShopRepairBooking(id);
       setData(res);
+      if (String(res?.status || '').toUpperCase() === 'REACHED_SHOP') {
+        listPendingShopHandovers()
+          .then((rows) => setHandoverReq((rows || []).find((r) => String(r.bookingId) === String(id)) || null))
+          .catch(() => {});
+      } else setHandoverReq(null);
     } catch (e) {
       // If we already have the list-passed booking, treat fetch failures as
       // non-fatal so the user still sees customer/address info.
@@ -232,6 +238,11 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
     try {
       const next = await getShopRepairBooking(id);
       setData((prev) => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+      // A handover request can arrive while this screen is open.
+      if (String(next?.status || '').toUpperCase() === 'REACHED_SHOP') {
+        const rows = await listPendingShopHandovers().catch(() => null);
+        if (rows) setHandoverReq((rows || []).find((r) => String(r.bookingId) === String(id)) || null);
+      } else setHandoverReq(null);
     } catch (_) { /* keep the last snapshot */ }
   }, [id]));
 
@@ -307,10 +318,17 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
     if (!data?.id || receiving) return;
     setReceiving(true);
     try {
+      // Pickup person's app → "Shop Confirmation in Progress"; best-effort.
+      await startShopHandover(data.id).catch(() => {});
+      // The TPIN sheet opens here: Owner / Shop / same-shop Employee types their own TPIN.
       const resp = await markPickupReceivedAtShop(data.id);
       await load();
-      notify('Received', resp?.message || 'Device received at shop.', { preset: 'done' });
+      const v = resp?.data || {};
+      const role = { OWNER: 'Owner', SHOP: 'Shop', EMPLOYEE: 'Employee' }[v.verifiedRole] || v.verifiedRole;
+      notify('Handover Completed', v.verifiedByName ? `Verified by ${v.verifiedByName}${role ? ` (${role})` : ''}` : (resp?.message || 'Device received at shop.'), { preset: 'done' });
     } catch (e) {
+      if (e?.cancelled) return;
+      if (e?.status === 409 || e?.body?.code === 'ALREADY_CONFIRMED') await load();
       notify('Could not confirm', e?.body?.error || e?.message || 'Please try again.', { preset: 'error', haptic: 'error' });
     } finally {
       setReceiving(false);
@@ -511,11 +529,13 @@ export default function OwnerPickupServiceDetailScreen({ navigation, route }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                   <Text style={{ flex: 1, fontSize: rf(12), fontWeight: '700', color: '#111111' }} numberOfLines={2}>
                     {data.status === 'RECEIVED_AT_SHOP'
-                      ? `Received${data.receivedByUserName ? ' by ' + data.receivedByUserName : ''}${data.receivedAtShopAt ? ' · ' + fmtInstant(data.receivedAtShopAt) : ''}`
-                      : 'Confirm device received by shop staff'}
+                      ? `Handover completed${data.receivedByUserName ? ' · verified by ' + data.receivedByUserName : ''}${data.receivedAtShopAt ? ' · ' + fmtInstant(data.receivedAtShopAt) : ''}`
+                      : handoverReq
+                        ? `Device Handover Confirmation · ${handoverReq.device || 'Device'}${handoverReq.pickupPersonName ? ' · by ' + handoverReq.pickupPersonName : ''}`
+                        : 'Waiting for the pickup person to request the shop handover'}
                   </Text>
-                  {data.status === 'REACHED_SHOP' ? (
-                    <Button size="sm" variant="primary" elevated={false} loading={receiving} onPress={handleMarkReceived}>Mark Received</Button>
+                  {data.status === 'REACHED_SHOP' && handoverReq ? (
+                    <Button size="sm" variant="primary" elevated={false} loading={receiving} onPress={handleMarkReceived}>Confirm Device Received</Button>
                   ) : null}
                 </View>
               ) : null}

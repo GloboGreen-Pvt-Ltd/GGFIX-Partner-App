@@ -65,8 +65,13 @@ export const verifyMpin = (pin) => authApi.post('/auth/security/mpin/verify', { 
 export const resetPin = (type, { otpToken, newPin, verificationMethod }) =>
   authApi.post(`/auth/security/pin/${type}/reset`, { body: { otpToken, newPin, verificationMethod } });
 
+// Shop-counter confirmations (pickup → shop handover): any Owner / Shop / active
+// Employee of this shop types their own TPIN; the server identifies who it is.
+const SHOP_MEMBER_TPIN = [/^\/shop\/pickup-bookings\/[^/]+\/receive-at-shop$/];
+
 export function authorizeTpin({ pin, action, method, path }) {
-  return authApi.post('/auth/security/tpin/authorize', {
+  const shopMember = SHOP_MEMBER_TPIN.some((re) => re.test(String(path || '')));
+  return authApi.post(shopMember ? '/auth/security/tpin/authorize-shop-member' : '/auth/security/tpin/authorize', {
     body: {
       pin,
       actionType: action,
@@ -101,6 +106,7 @@ export function pinErrorMessage(e) {
   if (/PIN_LOCKED/.test(m)) return 'Too many wrong attempts. Try again in 15 minutes.';
   if (/check in first/i.test(m)) return 'Please check in first to use your TPIN.';
   if (/TPIN_AMBIGUOUS/.test(m)) return 'This TPIN is used by more than one person. Ask the shop owner to reset one of them.';
+  if (/TPIN_IN_USE/.test(m)) return 'This TPIN is not available. Choose a different TPIN.';
   if (/Employee app/i.test(m)) return 'Check-in / check-out must be done in the Employee app.';
   if (/too simple/i.test(m)) return 'PIN is too simple. Avoid repeated or sequential digits.';
   if (/SESSION_EXPIRED|SESSION_REVOKED/.test(m)) return 'Session expired. Please log in again.';

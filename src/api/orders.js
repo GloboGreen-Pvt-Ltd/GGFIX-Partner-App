@@ -69,6 +69,14 @@ export async function markPickupReceivedAtShop(id, { receivedByName } = {}) {
     body: { receivedByName },
   });
 }
+// Devices waiting for this shop's TPIN handover confirmation (pickup person requested it).
+// [{ bookingId, bookingNumber, device, color, pickupPersonName, shopName, requestedAt }]
+export async function startShopHandover(id) {
+  return await ticketApi.post(`/shop/pickup-bookings/${id}/handover-start`, { body: {} });
+}
+export async function listPendingShopHandovers() {
+  return await ticketApi.get('/shop/pickup-bookings/handover-pending');
+}
 export async function cancelRepairBooking(id) {
   return await orderApi.post(`/repair-bookings/${id}/cancel`);
 }
