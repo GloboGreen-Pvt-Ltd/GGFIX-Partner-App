@@ -28,6 +28,8 @@ function fetchTimeline(id, date, today) {
   return p;
 }
 
+// 12-hour clock for the time scale (manual: Hermes toLocaleTimeString varies).
+const clock = (t) => { const d = new Date(t); const h = d.getHours(); return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 const ms = (iso) => { const t = iso ? Date.parse(iso) : NaN; return Number.isFinite(t) ? t : null; };
 function seed(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(s) { return () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -96,22 +98,28 @@ function PresenceLine({ employeeId, date, today, checkInTime, checkOutTime, last
     return () => { alive = false; };
   }, [k, employeeId, date, today, version, checkOutTime]);
 
-  const paths = useMemo(() => {
-    if (!width || !Array.isArray(timeline)) return [];
+  const NONE = { paths: [] };
+  const { paths, t0, t1, open } = useMemo(() => {
+    if (!width || !Array.isArray(timeline)) return NONE;
     try {
       // Past day with no check-out: end at the last recorded event, never beyond.
       const end = today ? Date.now() : Math.max(...timeline.map((e) => ms(e?.at) ?? -Infinity));
-      if (!Number.isFinite(end)) return [];
+      if (!Number.isFinite(end)) return NONE;
       const segs = toSegments(timeline, { end, lastVerifiedMs: ms(lastVerifiedAt), today });
-      return segs.length ? buildPaths(segs, width, `${employeeId}|${date}`) : [];
+      if (!segs.length) return NONE;
+      // Scale = exactly the drawn x-range (first segment start .. last segment end).
+      const closed = timeline.some((e) => e?.type === 'CHECKED_OUT');
+      return { paths: buildPaths(segs, width, `${employeeId}|${date}`), t0: segs[0].from, t1: segs[segs.length - 1].to, open: !closed };
     } catch {
-      return [];
+      return NONE;
     }
     // version: recompute "now" on each list refresh
   }, [timeline, width, today, lastVerifiedAt, employeeId, date, version]);
 
   if (!checkInTime) return null;
+  const lbl = { flex: 1, fontSize: rf(10.5), color: '#8A94A0' };
   return (
+    <View>
     <View style={{ height: H, marginTop: 10 }} onLayout={(e) => setWidth(Math.floor(e.nativeEvent.layout.width))} accessibilityLabel="Presence line">
       {timeline === undefined ? null
         : !paths.length ? <Text style={{ fontSize: rf(11), color: '#9AA3AD', textAlign: 'center', lineHeight: H }}>{timeline === null ? 'Presence line unavailable' : 'No presence data yet'}</Text>
@@ -123,6 +131,14 @@ function PresenceLine({ employeeId, date, today, checkInTime, checkOutTime, last
               ))}
             </Svg>
           ) : null}
+    </View>
+    {paths.length && t1 > t0 ? (
+      <View style={{ flexDirection: 'row', marginTop: 2, paddingHorizontal: 2 }} accessibilityLabel="Presence time scale">
+        <Text style={lbl} numberOfLines={1}>{clock(t0)}</Text>
+        <Text style={[lbl, { textAlign: 'center' }]} numberOfLines={1}>{clock(t0 + (t1 - t0) / 2)}</Text>
+        <Text style={[lbl, { textAlign: 'right' }]} numberOfLines={1}>{open && today ? `Now ${clock(t1)}` : clock(t1)}</Text>
+      </View>
+    ) : null}
     </View>
   );
 }
