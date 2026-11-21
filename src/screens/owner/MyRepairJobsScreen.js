@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, TextInput, RefreshControl, ScrollView, StatusBar, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Check, CheckCheck, Clock, Inbox, LayoutList, Smartphone, UserPlus, X } from 'lucide-react-native';
+import { ArrowLeft, Briefcase, Check, CheckCheck, CircleCheck, Clock, Inbox, LayoutList, Smartphone, UserPlus, X } from 'lucide-react-native';
+import { AssignedIcon } from '../../components/dashboard/MyRepairJobsCard'; // same glyphs as Home's My Repair Jobs
 import { ticketApi } from '../../api/client';
 import { confirm, notify } from '../../components/confirm';
 import { useFocusPolling } from '../../lib/hooks/useFocusPolling';
@@ -22,10 +23,10 @@ const MUTED = '#6B7280';
 const LINE = '#E5E7EB';
 
 const RAIL = [
-  { key: 'assigned', label: 'Assigned', icon: UserPlus, tone: '#0788C9' },
-  { key: 'all', label: 'All Jobs', icon: LayoutList, tone: TEAL },
+  { key: 'assigned', label: 'Assigned', icon: AssignedIcon, tone: '#0788C9' },
+  { key: 'all', label: 'All Jobs', icon: Briefcase, tone: TEAL },
   { key: 'pending', label: 'Pending', icon: Clock, tone: '#FAA700' },
-  { key: 'completed', label: 'Completed', icon: CheckCheck, tone: '#609138' },
+  { key: 'completed', label: 'Completed', icon: CircleCheck, tone: '#609138' },
 ];
 const BUCKET_COLOR = { assigned: '#2563EB', pending: '#D97706', completed: GREEN };
 
@@ -165,7 +166,7 @@ export default function MyRepairJobsScreen({ navigation, route }) {
       <View style={{ paddingTop: insets.top }}>
         <JobHeader navigation={navigation} title="My Repair Jobs" sub="Assigned & Working Jobs"
           searchOn={searchOn} onSearch={() => { setSearchOn((v) => !v); setQuery(''); }}
-          onScan={() => navigation.navigate('ScanQrCode')} />
+          onScan={() => navigation.navigate('ScanQrCode', { target: 'job' })} />
       </View>
       {searchOn ? (
         <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: LINE }}>
@@ -195,15 +196,17 @@ export default function MyRepairJobsScreen({ navigation, route }) {
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${it.label}, ${counts[it.key] ?? 0}`}
                 className="active:opacity-80"
-                style={{ marginVertical: 4, borderRadius: 14, backgroundColor: '#FFFFFF' }}
+                style={{ marginVertical: 4 }}
               >
-                <View style={{
-                  alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                  borderWidth: active ? 1.5 : 1, borderColor: active ? '#035C6C' : '#E5E7EB',
-                }}>
+                <View style={{ alignItems: 'center', paddingVertical: 6, paddingHorizontal: 3 }}>
                   <View>
-                    <View style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: it.tone, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
+                    {/* Home's My Repair Jobs style: white circle, white rim, soft tinted shadow, dark glyph. */}
+                    <View style={{
+                      width: disc + 12, height: disc + 12, borderRadius: (disc + 12) / 2, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: '#FAFBFD', borderWidth: active ? 1.5 : 3, borderColor: active ? '#035C6C' : '#FFFFFF',
+                      shadowColor: it.tone, shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                    }}>
+                      <Icon size={Math.round(disc * 0.62)} color={active ? '#035C6C' : '#17191B'} strokeWidth={1.5} />
                     </View>
                     <View style={{ position: 'absolute', top: -4, right: -8, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: it.tone, alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontSize: rz.badge, fontWeight: '800', color: it.tone }} numberOfLines={1}>{counts[it.key] ?? 0}</Text>

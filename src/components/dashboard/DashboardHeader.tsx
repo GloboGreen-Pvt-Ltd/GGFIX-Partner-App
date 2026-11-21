@@ -140,6 +140,42 @@ export function DashboardHeader({
           onLayout={(e) => { const h = e.nativeEvent.layout.height; if (h > 0 && Math.abs(h - rowH) > 0.5) setRowH(h); }}
           style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 8, paddingBottom: 10 }}
         >
+          {/* Left: profile avatar (taps open My Account). */}
+            <View style={{ marginRight: 10 }}>
+            <Touchable
+              onPress={onAvatarPress}
+              accessibilityRole="button"
+              accessibilityLabel={isVerified ? 'Account, verified shop' : 'Account, shop not verified'}
+              hitSlop={avatarHitSlop}
+              style={{ height: avatarSize, width: avatarSize }}
+              pressedStyle={{ opacity: 0.6 }}
+            >
+              <ProfileAvatar
+                imageUrl={shopImage}
+                name={shopName}
+                size={avatarSize}
+                // White behind the photo: a transparent PNG logo no longer sits on brand teal.
+                backgroundColor="#FFFFFF"
+                textColor="#035C6C" // initials (no photo) in teal, readable on white
+                borderWidth={1.5}
+                borderColor="#FFFFFF"
+              />
+            </Touchable>
+            {/* Verification badge on the avatar's bottom-right: green + white tick,
+                or red + white ✕ (decorative — the avatar's label says it). */}
+            <View
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants"
+              accessibilityElementsHidden
+              style={{
+                position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8,
+                backgroundColor: isVerified ? VERIFIED_GREEN : UNVERIFIED_RED,
+                borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {isVerified ? <Check size={9} color="#FFFFFF" strokeWidth={3.5} /> : <X size={9} color="#FFFFFF" strokeWidth={3.5} />}
+            </View>
+            </View>
           {/* Left (reference: bold ETA line + address line with ▾): verified
               greeting on top, then the shop name. */}
           <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
@@ -197,41 +233,6 @@ export function DashboardHeader({
             >
               <ShoppingCart size={actionIconSize} color="#111111" strokeWidth={HEADER_ACTION_STROKE} />
             </Touchable>
-            <View>
-            <Touchable
-              onPress={onAvatarPress}
-              accessibilityRole="button"
-              accessibilityLabel={isVerified ? 'Account, verified shop' : 'Account, shop not verified'}
-              hitSlop={avatarHitSlop}
-              style={{ height: avatarSize, width: avatarSize }}
-              pressedStyle={{ opacity: 0.6 }}
-            >
-              <ProfileAvatar
-                imageUrl={shopImage}
-                name={shopName}
-                size={avatarSize}
-                // White behind the photo: a transparent PNG logo no longer sits on brand teal.
-                backgroundColor="#FFFFFF"
-                textColor="#035C6C" // initials (no photo) in teal, readable on white
-                borderWidth={1.5}
-                borderColor="#FFFFFF"
-              />
-            </Touchable>
-            {/* Verification badge on the avatar's bottom-right: green + white tick,
-                or red + white ✕ (decorative — the avatar's label says it). */}
-            <View
-              pointerEvents="none"
-              importantForAccessibility="no-hide-descendants"
-              accessibilityElementsHidden
-              style={{
-                position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8,
-                backgroundColor: isVerified ? VERIFIED_GREEN : UNVERIFIED_RED,
-                borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              {isVerified ? <Check size={9} color="#FFFFFF" strokeWidth={3.5} /> : <X size={9} color="#FFFFFF" strokeWidth={3.5} />}
-            </View>
-            </View>
           </View>
         </View>
         </Animated.View>

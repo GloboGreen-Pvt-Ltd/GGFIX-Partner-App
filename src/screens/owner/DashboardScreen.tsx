@@ -226,6 +226,7 @@ export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery-outline'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
   { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove-outline'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
   { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check-outline'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerShopPresence', label: 'Shop Presence', icon: mci('map-marker-check-outline'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
@@ -264,6 +265,8 @@ function formatBookingDate(iso: string | undefined): string {
 // HomeScreen.js. Real API fields (MasterBanner entity, GET /master/banners):
 // `imageUrl`/`imageBase64`, `linkTarget`, `sortOrder`, `isActive` — NOT the
 // `sort`/`active` names a naive guess would reach for.
+const SHOW_HOME_BANNER = false;
+
 export interface DashboardBanner {
   id: string;
   title?: string | null;
@@ -889,7 +892,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
   // a custom tabBar doesn't reserve scroll space on its own, so the last
   // section would otherwise sit partly behind it. +16 covers the active
   // tab's icon lifting slightly above the bar on selection.
-  const scrollBottomPad = getTabBarTotalHeight(isTablet, insets.bottom) + 16;
+  const scrollBottomPad = getTabBarTotalHeight(isTablet, insets.bottom) + 5;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.groupedBg }}>
@@ -944,7 +947,8 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
             flight; the whole block collapses to nothing (no broken-image
             icon) if there's no active Slider-1 row, no usable image, or
             the image itself fails to load. */}
-        {bannersLoading ? (
+        {/* Home banner is not shown in the Partner App (code kept for reuse). */}
+        {!SHOW_HOME_BANNER ? null : bannersLoading ? (
           <View style={{ marginTop: 4, marginBottom: 20, width: '100%', maxWidth: bannerMaxWidth, alignSelf: 'center', paddingHorizontal: PAD }}>
             <View style={{ height: bannerHeight, borderRadius: 20, backgroundColor: C.fill }} />
           </View>
@@ -990,7 +994,7 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           </View>
         ) : null}
 
-        <View style={{ marginTop: bannersLoading || (heroBanners.length > 0 && !bannerImageFailed) ? 0 : 16 }}>
+        <View style={{ marginTop: SHOW_HOME_BANNER && (bannersLoading || (heroBanners.length > 0 && !bannerImageFailed)) ? 0 : 5 }}>
           <DashboardShortcutCards items={shortcuts} pad={PAD} height={isTablet ? 104 : 86} />
         </View>
 
@@ -999,6 +1003,9 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
           <DashboardOverviewGrid items={overview} pad={PAD} />
         </View>
 
+        {/* Shop presence summary removed from Home — open it from the Shop Presence tile. */}
+
+        {/* Shown for both owner and shop-number logins. */}
         {ownerTech?.enabled ? (
           <View style={{ marginTop: SECTION_GAP }}>
             <DashboardSection title="My Repair Jobs" pad={PAD} />

@@ -16,8 +16,13 @@ import { getSession } from '../auth/session';
 export const NEARBY_RADIUS_KM = 20;
 
 export async function getListingOrigin() {
-  let session = await fetchMe().catch(() => null);
-  if (!session) session = await getSession();
+  // Fast path: the saved session already has the shop's coordinates — skip the
+  // live /auth/me round-trip so nearby listings start loading at once.
+  let session = await getSession().catch(() => null);
+  const cached = session?.activeShop;
+  if (!(cached && cached.latitude != null && cached.longitude != null)) {
+    session = (await fetchMe().catch(() => null)) || session;
+  }
   const shop = session?.activeShop;
   const shopId = shop?.id || session?.shopId || null;
   const ownShopIds = ownShopIdsOf(session, shopId);

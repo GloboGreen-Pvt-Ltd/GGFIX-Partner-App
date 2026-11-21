@@ -118,7 +118,9 @@ function DetailRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function ScanQrCodeScreen({ navigation }) {
+export default function ScanQrCodeScreen({ navigation, route }) {
+  // From My Repair Jobs: open the Employee-style job page, not the booking details.
+  const asJob = route?.params?.target === 'job';
   // Edge-to-edge: real status-bar / gesture-or-3-button-bar insets, no fixed padding.
   const insets = useSafeAreaInsets();
   // Result sheet is capped + centred on tablets (side inset is 0 on phones).
@@ -151,7 +153,7 @@ export default function ScanQrCodeScreen({ navigation }) {
     try {
       const t = await resolveTicket(data);
       // Found → straight to Booking Details (replaces the scanner in the stack).
-      if (t?.id) { navigation.replace('TicketDetail', { ticketId: t.id }); return; }
+      if (t?.id) { navigation.replace(asJob ? 'OwnerJobDetails' : 'TicketDetail', { ticketId: t.id }); return; }
       if (t) setTicket(t);
       else setNotFound(String(data || '').trim() || 'this code');
     } catch (_) {

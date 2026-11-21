@@ -4,11 +4,13 @@
 // timeout; unlock with MPIN or native biometrics (never extends the OTP deadline).
 // Falls back to the legacy AppLockGate when the server has no /auth/security API.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Image, Modal, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Image, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurTargetView, BlurView } from 'expo-blur';
+import { StatusBar } from 'expo-status-bar';
 import AppLockGate from '../components/AppLockGate';
-import PinPad, { C } from './PinPad';
+import PinPad, { C, useKeyboardHeight } from './PinPad';
 import { NewPinFlow, ResetPinFlow } from './SecurityFlows';
 import TpinSheet from './TpinSheet';
 import DeviceLimitScreen from './DeviceLimitScreen';
@@ -17,14 +19,36 @@ import { authenticate, isAppLockEnabled, isDeviceSecure, setAppLockEnabled } fro
 import { startDeviceSession, sessionStatus, verifyMpin, setBiometricPreference, pinErrorMessage } from './securityApi';
 
 const DEFAULT_LOCK_S = 300; // Partner: 5 minutes
+
+// App-lock popup: white rounded card over the dimmed + blurred (still mounted) app.
+const LockSheet = ({ children, target }) => {
+  const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }).start(); }, [fade]);
+  return (
+    <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999, opacity: fade }}>
+      <StatusBar style="light" backgroundColor="#000000" />
+      {/* Real frosted blur of the app behind (Android needs the blurred content wrapped in BlurTargetView). */}
+      <BlurView blurTarget={target} intensity={60} tint="dark" blurMethod="dimezisBlurView" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingTop: insets.top + 12, paddingBottom: (kb || insets.bottom) + 12 }}>
+        <View style={{ width: '100%', maxWidth: 420, backgroundColor: C.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 24 }}>
+          <Image source={require('../../assets/logo.png')} style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 14 }} resizeMode="contain" />
+          {children}
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
 const SecurityContext = createContext({ secure: false });
 export const useSecurity = () => useContext(SecurityContext);
 
 const Card = ({ children }) => {
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999, backgroundColor: C.bg, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }}>
-      <Image source={require('../../assets/logo.png')} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18 }} resizeMode="contain" />
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999, backgroundColor: C.bg, paddingTop: insets.top + (kb ? 16 : 56), paddingBottom: kb ? kb + 16 : insets.bottom + 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'flex-start' }}>
+      {kb ? null : <Image source={require('../../assets/logo.png')} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18 }} resizeMode="contain" />}
       {children}
     </View>
   );
@@ -36,7 +60,9 @@ const Btn = ({ title, onPress, busy, ghost, danger }) => (
   </Pressable>
 );
 
-export default function SecurityGate({ children, onLogout }) {
+// ready=false while BootSplash is still on screen: the lock waits behind it, so the
+// order is loading → MPIN / biometric → app (no prompt or keyboard over the splash).
+export default function SecurityGate({ children, onLogout, ready = true }) {
   const [stage, setStage] = useState('boot'); // boot|legacy|otp|device|mpin|bio|locked|reset|open
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState(null);
@@ -44,7 +70,9 @@ export default function SecurityGate({ children, onLogout }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [bioOn, setBioOn] = useState(false);
+  const [lockView, setLockView] = useState('choice'); // choice (biometric popup) | pin (MPIN popup)
   const bgAt = useRef(null);
+  const blurTarget = useRef(null);
   const stageRef = useRef(stage);
   stageRef.current = stage;
 
@@ -60,7 +88,10 @@ export default function SecurityGate({ children, onLogout }) {
       await startDeviceSession({ replaceExisting });
       setSession(await getSession());
       const st = await loadStatus();
-      setStage(st.mpinSet ? 'open' : 'mpin');
+      // Existing MPIN (e.g. set earlier or on another phone): still offer biometric
+      // unlock on this device after login if it isn't on yet.
+      const offerBio = st.mpinSet && !(await isAppLockEnabled()) && (await isDeviceSecure());
+      setStage(!st.mpinSet ? 'mpin' : offerBio ? 'bio' : 'open');
     } catch (e) {
       if (e?.status === 404 || e?.status === 405) setStage('legacy');
       else if (e?.status === 409 && e?.payload?.status === 'DEVICE_LIMIT') { setDeviceInfo(e.payload); setStage('device'); }
@@ -98,7 +129,8 @@ export default function SecurityGate({ children, onLogout }) {
         const away = (Date.now() - bgAt.current) / 1000;
         bgAt.current = null;
         const limit = Number(session?.lockTimeoutSeconds) || DEFAULT_LOCK_S;
-        if (stageRef.current === 'open' && away >= limit) setStage('locked');
+        // Boot-only lock: MPIN / biometric is asked at app start, not on resume.
+        void away; void limit;
       }
     });
     return () => sub.remove();
@@ -109,7 +141,8 @@ export default function SecurityGate({ children, onLogout }) {
     if (await authenticate()) { setError(null); setStage('open'); }
   }, [bioOn]);
 
-  useEffect(() => { if (stage === 'locked') tryBiometric(); }, [stage, tryBiometric]);
+  useEffect(() => { if (stage === 'locked') setLockView(bioOn ? 'choice' : 'pin'); }, [stage, bioOn]);
+  useEffect(() => { if (ready && stage === 'locked') tryBiometric(); }, [ready, stage, tryBiometric]);
 
   const unlockWithMpin = async (pin) => {
     setBusy(true); setError(null);
@@ -165,25 +198,44 @@ export default function SecurityGate({ children, onLogout }) {
         </View>
       </Modal>
     );
+  } else if (stage === 'locked' && !ready) {
+    overlay = <Card>{null}</Card>; // blank lock behind BootSplash; PIN pad mounts after it fades
+  } else if (stage === 'locked' && lockView === 'choice' && bioOn) {
+    overlay = (
+      <LockSheet target={blurTarget}>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, textAlign: 'center' }}>NearGFix Partner is Locked</Text>
+        <Text style={{ fontSize: 13, color: C.muted, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>Authentication is required to access NearGFix Partner.</Text>
+        <Pressable onPress={tryBiometric} accessibilityLabel="Unlock with Biometrics" style={{ alignSelf: 'stretch', height: 50, borderRadius: 14, marginTop: 22, backgroundColor: C.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="finger-print" size={22} color="#FFFFFF" />
+          <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15, marginLeft: 8 }}>Unlock with Biometrics</Text>
+        </Pressable>
+        <Pressable onPress={() => { setError(null); setLockView('pin'); }} style={{ alignSelf: 'stretch', height: 46, marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: C.primary, fontWeight: '800', fontSize: 14 }}>Enter MPIN</Text>
+        </Pressable>
+        <Pressable onPress={onLogout} style={{ marginTop: 14 }}><Text style={{ color: C.error, fontWeight: '700', fontSize: 13 }}>Log out</Text></Pressable>
+      </LockSheet>
+    );
   } else if (stage === 'locked') {
     overlay = (
-      <Card>
+      <LockSheet target={blurTarget}>
         <PinPad
-          title="Enter MPIN"
+          systemKeyboard
+          hideIcon
+          title="Enter your MPIN"
           subtitle="Unlock NearGFix Partner"
           error={error}
           busy={busy}
           onComplete={unlockWithMpin}
           onBiometric={bioOn ? tryBiometric : undefined}
           footer={(
-            <View style={{ flexDirection: 'row', marginTop: 10 }}>
-              <Pressable onPress={() => { setError(null); setStage('reset'); }}><Text style={{ color: C.primary, fontWeight: '700', fontSize: 13 }}>Reset MPIN</Text></Pressable>
+            <View style={{ flexDirection: 'row', marginTop: 14 }}>
+              <Pressable onPress={() => { setError(null); setStage('reset'); }}><Text style={{ color: C.primary, fontWeight: '700', fontSize: 13 }}>Forgot MPIN?</Text></Pressable>
               <Text style={{ color: C.border, marginHorizontal: 10 }}>|</Text>
               <Pressable onPress={onLogout}><Text style={{ color: C.error, fontWeight: '700', fontSize: 13 }}>Log out</Text></Pressable>
             </View>
           )}
         />
-      </Card>
+      </LockSheet>
     );
   } else if (stage === 'reset') {
     overlay = <Card><ResetPinFlow type="MPIN" session={session} onDone={() => setStage('open')} onCancel={() => setStage('locked')} /></Card>;
@@ -192,7 +244,7 @@ export default function SecurityGate({ children, onLogout }) {
   return (
     <SecurityContext.Provider value={ctx}>
       <View style={{ flex: 1 }}>
-        {stage === 'boot' ? null : children}
+        <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>{stage === 'boot' ? null : children}</BlurTargetView>
         {stage !== 'boot' ? (
           <TpinSheet session={session} tpinSet={!!status?.tpinSet} onTpinCreated={() => loadStatus().catch(() => {})} />
         ) : null}

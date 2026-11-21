@@ -20,14 +20,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search,
   X,
-  ChevronLeft,
+  ArrowLeft,
   ChevronRight,
   ShoppingCart,
   MapPin,
-  Navigation as NavIcon,
   Phone,
-  Eye,
-  Sparkles,
   Smartphone,
   Store,
   User,
@@ -35,13 +32,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Check,
-  ShieldCheck,
-  BadgePercent,
-  RotateCcw,
   Tag,
   LayoutGrid,
   Plus,
-  TrendingUp,
 } from 'lucide-react-native';
 import { marketplaceApi } from '../../api/client';
 import { listProducts, getCart, addToCart } from '../../api/marketplace';
@@ -51,10 +44,8 @@ import { fetchMe } from '../../api/auth';
 import { getSession } from '../../auth/session';
 import { getDeviceCategories, getBrands, getBrandsForCategory, getModelsByBrand, getBanners, getCategoryMenuImages, categoryMenuKey } from '../../api/masterData';
 import { listShops } from '../../api/shops';
-import { OfferBanner } from '../../components/rnr';
 import { notify } from '../../components/confirm';
 import SafeModal, { ModalInsets } from '../../components/SafeModal';
-import { tintFor } from '../shared/categoryTints';
 import { useResponsive } from '../../theme/responsive';
 
 // GGFIX palette — green #035C6C, ink #111111, white, neutrals #F3F4F6/#F3F4F6.
@@ -100,13 +91,6 @@ function bannerImage(b) {
   return url || null;
 }
 
-// Static trust strip — marketing content, same on every load.
-const TRUST = [
-  { icon: ShieldCheck,  title: 'Verified Sellers', sub: '100% Trusted',    color: GREEN, bg: '#E5F3F5' },
-  { icon: BadgePercent, title: 'Best Prices',      sub: 'Great Discounts', color: GREEN, bg: '#E5F3F5' },
-  { icon: RotateCcw,    title: 'Easy Returns',     sub: '7 Days Policy',   color: GREEN, bg: '#E5F3F5' },
-  { icon: ShieldCheck,  title: 'Warranty',         sub: 'Brand Warranty',  color: '#D97706', bg: '#FEF3C7' },
-];
 
 const SORTS = [
   { key: 'default',    label: 'Recommended' },
@@ -228,6 +212,8 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   const brandsLoading = brandData.key !== catKey;
 
   const browsing = !!selected || !!brandFilter || !!query.trim();
+  // List tabs: Top Listings (current sort) · Nearby (nearest first) · Recently Added.
+  const [listTab, setListTab] = useState('TOP');
 
   // Keep the cart badge fresh on focus.
   useFocusEffect(
@@ -438,7 +424,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
           .map((p) => {
             const card = productToCard(p);
             const shop = p.shopId ? shopMap.get(p.shopId) : null;
-            return { ...card, shopName: shop?.name || null, city: shop?.city || null, state: shop?.state || null };
+            return { ...card, createdAt: p.createdAt, shopName: shop?.name || null, city: shop?.city || null, state: shop?.state || null };
           });
         setProducts(productCards);
       } catch (e) {
@@ -523,11 +509,12 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   }, [listings, products, selected, brandFilter,
       brandModelIds, query, brandNameById, sellerFilter, sortBy]);
 
-  // Discovery rails (used when not actively browsing a category / search).
-  const trending = useMemo(
-    () => [...visibleItems].sort((a, b) => (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9)).slice(0, 10),
-    [visibleItems],
-  );
+  const tabItems = useMemo(() => {
+    const arr = [...visibleItems];
+    if (listTab === 'NEARBY') return arr.filter((it) => it.distanceKm != null).sort((a, b) => Number(a.distanceKm) - Number(b.distanceKm));
+    if (listTab === 'RECENT') return arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return arr;
+  }, [visibleItems, listTab]);
 
   // The details page shows the category + brand names too; pass the ones this
   // screen already loaded so it doesn't have to fetch them again.
@@ -560,173 +547,114 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     setTimeout(() => setShowBrands(true), 260);
   };
 
-  // ── Vertical browse card (kept from before) ───────────────────────
+  // ── Compact product card (Discover) ──────────────────────────────
+  // Tap = View Details. Phone = Contact seller; + = add a shop catalogue item to the cart.
+  const thumbSize = isSmall ? 76 : isTablet ? 104 : 88;
   const renderItem = ({ item }) => {
     const productName = item.productName || 'Untitled';
     const isCustomer = item.sellerType === 'CUSTOMER';
     const isSpare = item.productType === 'SPARE_PART';
-    const sellerLabel = isCustomer ? 'Customer' : 'Shop';
-    const sellerLine = [item.city, item.state].filter(Boolean).join(', ') || item.address || '—';
-    const distance = item.distanceKm != null ? `${item.distanceKm} km` : null;
-    const priceNum = item.expectedPrice != null ? Number(item.expectedPrice) : null;
-    const isAwaitingQuote = priceNum != null && priceNum === 0;
-    const price = priceNum != null && priceNum > 0 ? priceNum.toLocaleString('en-IN') : null;
-
+    const n = item.expectedPrice != null ? Number(item.expectedPrice) : null;
+    const price = n != null && n > 0 ? `₹${n.toLocaleString('en-IN')}` : null;
+    const specs = [
+      String(item.description || '').split(/\s*[·|,]\s*/).map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' • '),
+      item.condition ? listingConditionLabel(item.condition) : null,
+    ].filter(Boolean).join('  •  ');
+    const km = item.distanceKm != null ? Number(item.distanceKm) : null;
+    const dist = km != null && Number.isFinite(km) ? `${km < 10 ? String(Math.round(km * 10) / 10) : Math.round(km)} km` : null;
+    const place = [item.city || item.state || null, dist].filter(Boolean).join(' • ');
+    const contact = () => {
+      const phone = item.contactPhone || item.sellerPhone;
+      if (phone) Linking.openURL(`tel:${phone}`).catch(() => {});
+      else notify('No phone yet', isCustomer ? 'This customer has not shared a phone number. Tap the card to send a quotation instead.' : 'No contact phone available for this seller.');
+    };
     return (
-      <TouchableOpacity activeOpacity={0.85} onPress={() => openDetail(item)} className="bg-white rounded-2xl p-3 mb-2.5" style={cardShadow}>
-        <View className="flex-row items-start">
-          <View style={{ position: 'relative', marginRight: 10 }}>
-            <View className="w-[56px] h-[56px] rounded-2xl overflow-hidden items-center justify-center" style={{ backgroundColor: '#E5F3F5' }}>
-              {item.productImage ? (
-                <Image source={{ uri: item.productImage }} style={{ width: 56, height: 56 }} resizeMode="cover" />
-              ) : isSpare ? <Wrench size={21} color={GREEN_DARK} /> : <Smartphone size={22} color={GREEN_DARK} />}
-            </View>
-            <View pointerEvents="none" style={{ position: 'absolute', bottom: -6, left: -8, right: -8, alignItems: 'center' }}>
-              <View
-                style={{
-                  maxWidth: '100%', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 999, borderWidth: 2, borderColor: '#FFFFFF',
-                  backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center',
-                }}
-              >
-                {isCustomer ? <User size={9} color="#FFFFFF" /> : <Store size={9} color="#FFFFFF" />}
-                <Text
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.1}
-                  style={{ flexShrink: 1, marginLeft: 2, fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}
-                >
-                  {sellerLabel}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-1 pr-2">
-            <Text className="text-[13px] font-extrabold text-gray-900" numberOfLines={1}>{productName}</Text>
-            <View className="flex-row items-center mt-1.5" style={{ flexWrap: 'wrap' }}>
-              {isSpare ? (
-                <View className="self-start flex-row items-center px-2 py-1 rounded-full mr-1.5 mb-1" style={{ backgroundColor: '#FEF3C7' }}>
-                  <Wrench size={10} color="#B45309" />
-                  <Text className="ml-1 text-[10px] font-extrabold" style={{ color: '#B45309', letterSpacing: 0.3 }}>SPARE PART</Text>
-                </View>
-              ) : null}
-              {item.condition ? (
-                <View className="self-start flex-row items-center px-2 py-1 rounded-full mb-1" style={{ backgroundColor: '#E5F3F5' }}>
-                  <Sparkles size={10} color={GREEN} />
-                  <Text className="ml-1 text-[10px] font-extrabold" style={{ color: GREEN, letterSpacing: 0.3 }}>{listingConditionLabel(item.condition)}</Text>
-                </View>
-              ) : null}
-            </View>
-            {item.shopName ? (
-              <View className="flex-row items-center mt-0.5">
-                <Store size={12} color="#9CA3AF" />
-                <Text className="text-[11px] text-gray-700 font-bold ml-1 flex-1" numberOfLines={1}>{item.shopName}</Text>
-              </View>
+      <Pressable
+        onPress={() => openDetail(item)}
+        accessibilityRole="button"
+        accessibilityLabel={productName}
+        className="active:opacity-90"
+        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#EEF0F2', ...cardShadow }}
+      >
+        <View style={{ width: thumbSize, height: thumbSize, borderRadius: 14, backgroundColor: '#F3F5F7', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {item.productImage ? (
+            <Image source={{ uri: item.productImage }} style={{ width: '88%', height: '88%' }} resizeMode="contain" resizeMethod="resize" />
+          ) : isSpare ? <Wrench size={26} color={GREEN_DARK} /> : <Smartphone size={28} color={GREEN_DARK} />}
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text numberOfLines={1} style={{ flex: 1, fontSize: isSmall ? 14 : 15.5, fontWeight: '800', color: '#111111' }}>{productName}</Text>
+            {item.source === 'product' ? (
+              <Pressable onPress={() => handleAddToCart(item)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add to cart" className="active:opacity-70" style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}>
+                <Plus size={19} color={GREEN_DARK} strokeWidth={2.4} />
+              </Pressable>
             ) : null}
-            <View className="flex-row items-center mt-0.5">
-              <MapPin size={12} color="#9CA3AF" />
-              <Text className="text-[11px] text-gray-500 ml-1 flex-1" numberOfLines={1}>{sellerLine}</Text>
-            </View>
-            {distance ? (
-              <View className="self-start flex-row items-center px-2 py-1 rounded-full mt-1.5" style={{ backgroundColor: '#E5F3F5' }}>
-                <NavIcon size={10} color={GREEN_DARK} />
-                <Text className="ml-1 text-[10px] font-extrabold" style={{ color: GREEN_DARK }}>{distance} away</Text>
-              </View>
-            ) : null}
+            <Pressable onPress={contact} hitSlop={8} accessibilityRole="button" accessibilityLabel="Contact seller" className="active:opacity-70" style={{ height: 30, width: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginLeft: 2 }}>
+              <Phone size={17} color="#111111" />
+            </Pressable>
           </View>
-
-          <View className="items-end" style={{ minWidth: 70 }}>
-            {isAwaitingQuote ? (
-              <View className="px-2 py-1.5 rounded-lg items-center" style={{ backgroundColor: '#FEF3C7' }}>
-                <Text className="text-[10px] font-extrabold text-center" style={{ color: '#B45309', lineHeight: 13 }}>Awaiting{'\n'}Quote</Text>
-              </View>
-            ) : price ? (
+          {specs ? <Text numberOfLines={1} style={{ marginTop: 1, fontSize: 12, color: '#4B5563' }}>{specs}</Text> : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F6EE', borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, marginRight: 8, maxWidth: '55%' }}>
+              {isCustomer ? <User size={11} color="#0B6B4B" /> : <Store size={11} color="#0B6B4B" />}
+              <Text numberOfLines={1} style={{ marginLeft: 3, fontSize: 10.5, fontWeight: '700', color: '#0B6B4B', flexShrink: 1 }}>{sellerOf(item)}</Text>
+            </View>
+            {place ? (
               <>
-                <Text className="text-[9.5px] uppercase font-bold text-gray-400" style={{ letterSpacing: 0.5 }}>Price</Text>
-                <Text className="text-[13px] font-extrabold mt-0.5" style={{ color: GREEN_DARK }}>₹{price}</Text>
+                <MapPin size={11} color="#6B7280" />
+                <Text numberOfLines={1} style={{ flexShrink: 1, marginLeft: 2, fontSize: 11, color: '#6B7280' }}>{place}</Text>
               </>
-            ) : <Text className="text-[13px] font-extrabold text-gray-300">—</Text>}
+            ) : null}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+            {price ? <Text numberOfLines={1} style={{ fontSize: isSmall ? 16 : 18, fontWeight: '800', color: GREEN_DARK, marginRight: 8 }}>{price}</Text> : null}
+            {!price ? <Text numberOfLines={1} style={{ fontSize: 12.5, fontWeight: '700', color: '#E8590C' }}>(Open for Quote)</Text> : null}
+            {isSpare ? <Text numberOfLines={1} style={{ fontSize: 10.5, fontWeight: '800', color: '#B45309', marginLeft: price ? 0 : 8 }}>SPARE PART</Text> : null}
           </View>
         </View>
-
-        <View className="my-2" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' }} />
-
-        <View className="flex-row">
-          <TouchableOpacity
-            activeOpacity={0.85} onPress={() => openDetail(item)}
-            className="flex-1 mr-2 rounded-xl py-2.5 flex-row items-center justify-center"
-            style={{ backgroundColor: '#E5F3F5', borderWidth: 1, borderColor: '#E5F3F5' }}
-          >
-            <Eye size={14} color={GREEN_DARK} />
-            <Text className="ml-1.5 text-[12px] font-extrabold" style={{ color: GREEN_DARK }}>View Details</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => {
-              const phone = item.contactPhone || item.sellerPhone;
-              if (phone) Linking.openURL(`tel:${phone}`).catch(() => {});
-              else notify('No phone yet', isCustomer ? 'This customer has not shared a phone number. Tap View Details to send a quotation instead.' : 'No contact phone available for this seller.');
-            }}
-            className="flex-1 ml-2" style={cardShadow}
-          >
-            <LinearGradient colors={[GREEN_LIGHT, GREEN_DARK]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <Phone size={14} color="#FFFFFF" />
-              <Text className="ml-1.5 text-white text-[12px] font-extrabold">Contact</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // ── Category chip (image tile + label) ─────────────────────────────
-  // Same tinted-tile look as OwnerSellHomeScreen's category tiles (soft
-  // per-category colour behind the image, from the shared `tintFor`) —
-  // this chip still has to carry Buy's own filter semantics Sell's tiles
-  // don't need, so "active" reads as a green ring + bold label on top of
-  // that same tint, rather than the plain white/bordered chip before.
-  // Compact tiles — about five fit across a phone.
-  const CAT_CHIP_SIZE = isSmall ? 50 : isTablet ? 80 : 56;
-  const CAT_CHIP_IMG_SIZE = isSmall ? 30 : isTablet ? 52 : 34;
-  const CAT_CHIP_ICON_SIZE = isSmall ? 18 : isTablet ? 28 : 20;
-  const CAT_CHIP_LABEL_F = isSmall ? 9.5 : isTablet ? 12 : 10;
-
-  // `photo`: a Category Menu image — a large transparent cut-out, drawn at
-  // nearly the tile's full size (fit, not cropped) over the category tint.
-  const CategoryChip = ({ active, label, isAll, uri, photo, emoji, code, onPress }) => {
-    const tint = isAll ? '#E5F3F5' : tintFor(code);
-    return (
-      <Pressable onPress={onPress} className="items-center mr-2.5 active:opacity-80" style={{ width: CAT_CHIP_SIZE }}>
-        <View
-          className="items-center justify-center overflow-hidden"
-          style={{
-            height: CAT_CHIP_SIZE,
-            width: CAT_CHIP_SIZE,
-            borderRadius: 14,
-            backgroundColor: tint,
-            borderWidth: active ? 2 : 0,
-            borderColor: GREEN_DARK,
-          }}
-        >
-          {isAll ? (
-            <LayoutGrid size={CAT_CHIP_ICON_SIZE} color={GREEN_DARK} />
-          ) : uri && photo ? (
-            <Image source={{ uri }} style={{ width: '86%', height: '86%' }} resizeMode="contain" resizeMethod="resize" />
-          ) : uri ? (
-            <Image source={{ uri }} style={{ width: CAT_CHIP_IMG_SIZE, height: CAT_CHIP_IMG_SIZE }} resizeMode="contain" />
-          ) : (
-            <Text style={{ fontSize: CAT_CHIP_ICON_SIZE - 4 }}>{emoji}</Text>
-          )}
-        </View>
-        <Text
-          className="mt-1 text-center"
-          numberOfLines={1}
-          style={{ fontSize: CAT_CHIP_LABEL_F, color: active ? GREEN_DARK : '#111111', fontWeight: active ? '800' : '600' }}
-        >
-          {label}
-        </Text>
       </Pressable>
     );
   };
+
+  // ── Category chip: round tile + label; active = teal ring (All = teal fill) ──
+  const CAT_CHIP_SIZE = isSmall ? 52 : isTablet ? 72 : 58;
+  const CAT_CHIP_IMG_SIZE = isSmall ? 30 : isTablet ? 44 : 34;
+  const CAT_CHIP_ICON_SIZE = isSmall ? 20 : isTablet ? 28 : 22;
+  const CAT_CHIP_LABEL_F = isSmall ? 10.5 : isTablet ? 12.5 : 11.5;
+
+  const CategoryChip = ({ active, label, isAll, uri, photo, emoji, onPress }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
+      accessibilityLabel={label}
+      className="items-center active:opacity-80"
+      style={{ width: CAT_CHIP_SIZE + 14, marginRight: 4 }}
+    >
+      <View
+        style={{
+          height: CAT_CHIP_SIZE, width: CAT_CHIP_SIZE, borderRadius: CAT_CHIP_SIZE / 2, overflow: 'hidden',
+          alignItems: 'center', justifyContent: 'center',
+          backgroundColor: isAll && active ? GREEN : '#FFFFFF',
+          borderWidth: active ? 2 : 1, borderColor: active ? GREEN_DARK : '#E5E7EB',
+          ...(active ? {} : cardShadow),
+        }}
+      >
+        {isAll ? (
+          <LayoutGrid size={CAT_CHIP_ICON_SIZE} color={active ? '#FFFFFF' : GREEN_DARK} />
+        ) : uri && photo ? (
+          <Image source={{ uri }} style={{ width: '78%', height: '78%' }} resizeMode="contain" resizeMethod="resize" />
+        ) : uri ? (
+          <Image source={{ uri }} style={{ width: CAT_CHIP_IMG_SIZE, height: CAT_CHIP_IMG_SIZE }} resizeMode="contain" />
+        ) : (
+          <Text style={{ fontSize: CAT_CHIP_ICON_SIZE - 4 }}>{emoji}</Text>
+        )}
+      </View>
+      <Text numberOfLines={1} style={{ marginTop: 5, textAlign: 'center', fontSize: CAT_CHIP_LABEL_F, color: active ? GREEN_DARK : '#111111', fontWeight: active ? '800' : '600' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
 
   // Selling details for the Nearby Deals cards. Listings have no separate
   // storage field — the sell flow writes "colour · RAM / storage" into
@@ -749,53 +677,6 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
     </View>
   );
 
-  // ── Nearby Deals card (image left + quick add) ────────────────────
-  const TrendingCard = ({ item }) => {
-    const name = item.productName || 'Item';
-    const priceLabel = priceLabelOf(item);
-    const quote = priceLabel === 'Open for quotation';
-    const distance = item.distanceKm != null ? `${item.distanceKm} km` : null;
-    return (
-      <Pressable onPress={() => openDetail(item)} className="bg-white rounded-2xl flex-row items-center active:opacity-90" style={{ width: 244, marginRight: 12, padding: 10, ...cardShadow }}>
-        <View className="rounded-xl items-center justify-center overflow-hidden mr-2.5" style={{ width: 60, height: 60, backgroundColor: '#E5F3F5' }}>
-          {item.productImage ? <Image source={{ uri: item.productImage }} style={{ width: 60, height: 60 }} resizeMode="cover" /> : <Smartphone size={24} color={GREEN_DARK} />}
-        </View>
-        <View className="flex-1 pr-1">
-          <Text className="text-[12px] font-extrabold text-gray-900" numberOfLines={1}>{name}</Text>
-          {item.condition ? <Text className="text-[10px] text-text-muted mt-0.5" numberOfLines={1}>{listingConditionLabel(item.condition)}</Text> : null}
-          {item.description ? <Text className="text-[10px] text-text-muted mt-0.5" numberOfLines={1}>{item.description}</Text> : null}
-          <SellerLine item={item} />
-          <View className="flex-row items-center mt-0.5">
-            <Text className={quote ? 'text-[11px] font-extrabold' : 'text-[13px] font-extrabold'} style={{ color: quote ? '#B45309' : GREEN_DARK }} numberOfLines={1}>{priceLabel}</Text>
-            {distance ? <Text className="text-[10px] text-text-muted ml-2" numberOfLines={1}>{distance}</Text> : null}
-          </View>
-        </View>
-        <Pressable
-          onPress={() => handleAddToCart(item)}
-          hitSlop={8}
-          className="h-9 w-9 rounded-full items-center justify-center"
-          style={{ backgroundColor: '#E5F3F5' }}
-        >
-          {item.source === 'product' ? <Plus size={17} color={GREEN_DARK} strokeWidth={2.6} /> : <ChevronRight size={17} color={GREEN_DARK} strokeWidth={2.6} />}
-        </Pressable>
-      </Pressable>
-    );
-  };
-
-  const SectionHead = ({ icon, title, onViewAll }) => (
-    <View className="flex-row items-center justify-between" style={{ paddingHorizontal: padH, marginTop: 18, marginBottom: 10 }}>
-      <View className="flex-row items-center">
-        {icon}
-        <Text className="text-[13px] font-extrabold text-gray-900 ml-1.5">{title}</Text>
-      </View>
-      {onViewAll ? (
-        <Pressable onPress={onViewAll} className="flex-row items-center active:opacity-70">
-          <Text className="text-[12px] font-extrabold" style={{ color: GREEN_DARK }}>View all</Text>
-          <ChevronRight size={15} color={GREEN_DARK} />
-        </Pressable>
-      ) : null}
-    </View>
-  );
 
   const ListHeader = (
     <View>
@@ -826,101 +707,31 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         />
       </View>
 
-      {/* Hero carousel — "Buy" banners, auto-scrolling */}
-      {banners.length > 0 ? (
-        <View style={{ marginTop: 12 }}>
-          <ScrollView
-            ref={bannerRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / heroW))}
-          >
-            {banners.map((b) => {
-              const uri = bannerImage(b);
-              return (
-                <View key={b.id} style={{ width: heroW }}>
-                  <Pressable
-                    onPress={() => {
-                      const t = b.linkTarget || b.link_target;
-                      if (t && /^https?:\/\//i.test(t)) Linking.openURL(t).catch(() => {});
-                      else setSelected(null);
-                    }}
-                    className="rounded-3xl overflow-hidden active:opacity-95"
-                    style={{ ...cardShadow, backgroundColor: '#FFFFFF' }}
-                  >
-                    {uri ? (
-                      <Image source={{ uri }} style={{ width: '100%', aspectRatio: heroRatio }} resizeMode="contain" />
-                    ) : (
-                      <View style={{ width: '100%', aspectRatio: heroRatio, backgroundColor: '#E5F3F5' }} />
-                    )}
-                  </Pressable>
-                </View>
-              );
-            })}
-          </ScrollView>
-          {banners.length > 1 ? (
-            <View className="flex-row items-center justify-center" style={{ marginTop: 10 }}>
-              {banners.map((b, i) => (
-                <View
-                  key={b.id}
-                  style={{
-                    height: 6,
-                    width: i === bannerIndex ? 18 : 6,
-                    borderRadius: 3,
-                    marginHorizontal: 3,
-                    backgroundColor: i === bannerIndex ? GREEN : '#D1D5DB',
-                  }}
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-      ) : (
-        <View style={{ paddingHorizontal: padH, marginTop: 12 }}>
-          <OfferBanner
-            badge="NEARBY DEALS"
-            title="Buy refurbished & spares"
-            subtitle="From verified shops & customers within your area."
-            cta="Browse all"
-            palette="emerald"
-            onPress={() => setSelected(null)}
-          />
-        </View>
-      )}
-
-      {/* Trust strip */}
-      <View style={{ paddingHorizontal: padH, marginTop: 14 }}>
-        <View className="bg-white rounded-2xl flex-row" style={{ paddingVertical: 12, paddingHorizontal: 6, ...cardShadow }}>
-          {TRUST.map((t) => {
-            const Icon = t.icon;
-            return (
-              <View key={t.title} className="items-center" style={{ flex: 1, paddingHorizontal: 2 }}>
-                <View className="h-9 w-9 rounded-full items-center justify-center mb-1.5" style={{ backgroundColor: t.bg }}>
-                  <Icon size={17} color={t.color} strokeWidth={2.3} />
-                </View>
-                <Text className="text-[10px] font-extrabold text-gray-900 text-center" numberOfLines={1}>{t.title}</Text>
-                <Text className="text-[8.5px] text-text-muted text-center mt-0.5" numberOfLines={1}>{t.sub}</Text>
-              </View>
-            );
-          })}
-        </View>
+      {/* Top Listings · Nearby · Recently Added */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 12, padding: 4, borderRadius: 999, backgroundColor: '#EEF1F3' }}>
+        {[
+          { key: 'TOP', label: 'Top Listings' },
+          { key: 'NEARBY', label: 'Nearby' },
+          { key: 'RECENT', label: 'Recently Added' },
+        ].map((t) => {
+          const on = listTab === t.key;
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => setListTab(t.key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              className="active:opacity-80"
+              style={{ flex: 1, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? '#FFFFFF' : 'transparent', ...(on ? cardShadow : {}) }}
+            >
+              <Text numberOfLines={1} style={{ fontSize: isSmall ? 11.5 : 13, fontWeight: on ? '800' : '600', color: on ? GREEN_DARK : '#374151' }}>{t.label}</Text>
+              {on ? <View style={{ position: 'absolute', bottom: 3, height: 2.5, width: 28, borderRadius: 2, backgroundColor: GREEN_DARK }} /> : null}
+            </Pressable>
+          );
+        })}
       </View>
 
-      {/* Discovery rails (only when not browsing a category / search) */}
-      {!browsing ? (
-        <>
-          {trending.length > 0 ? (
-            <>
-              <SectionHead icon={<TrendingUp size={17} color={GREEN_DARK} />} title="Nearby Deals" onViewAll={() => setSelected(null)} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: padH, paddingBottom: 2 }}>
-                {trending.map((it) => <TrendingCard key={`trend-${it._key}`} item={it} />)}
-              </ScrollView>
-            </>
-          ) : null}
-
-        </>
-      ) : (
+      {browsing && (
         <View style={{ paddingHorizontal: padH, marginTop: 16, marginBottom: 4 }} className="flex-row items-center">
           <Text className="text-[13px] font-extrabold text-gray-900 flex-1" numberOfLines={1}>
             {selected ? selected.name : (brandFilter ? brandFilter.name : 'Search results')}
@@ -960,37 +771,35 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
   );
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#F3F4F6' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View className="flex-1" style={{ backgroundColor: '#F7F9FA' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F7F9FA" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View
-          style={{
-            backgroundColor: '#FFFFFF', paddingTop: 10, paddingBottom: 16,
-            borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-            borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
-          }}
-        >
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#F7F9FA' }}>
+        <View style={{ paddingTop: 8, paddingBottom: 4 }}>
           <View style={[{ paddingHorizontal: padH }, capStyle]}>
-            {/* Back · Buy (+subtitle) · Cart */}
+            {/* Back · Discover (+subtitle) · Cart */}
             <View className="flex-row items-center">
               <Pressable
                 onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
                 hitSlop={10}
-                className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                className="h-9 w-9 items-center justify-center active:opacity-70"
               >
-                <ChevronLeft size={20} color="#111111" />
+                <ArrowLeft size={22} color="#111111" />
               </Pressable>
               <View className="flex-1 items-center">
-                <Text className="text-text text-[17px] font-extrabold" numberOfLines={1}>Buy</Text>
-                <Text className="text-text-muted text-[11px] font-medium mt-0.5" numberOfLines={1}>Buy devices, spares & more</Text>
+                <Text style={{ fontSize: isSmall ? 18 : 20, fontWeight: '800', color: '#111111' }} numberOfLines={1}>Discover</Text>
+                <Text style={{ fontSize: 11.5, color: '#4B5563', marginTop: 1 }} numberOfLines={1}>Devices, spares and shop listings</Text>
               </View>
               <Pressable
                 onPress={() => navigation.navigate('OwnerCart')}
                 hitSlop={10}
-                className="h-9 w-9 rounded-full items-center justify-center bg-surface-muted"
+                accessibilityRole="button"
+                accessibilityLabel="Cart"
+                className="h-9 w-9 items-center justify-center active:opacity-70"
               >
-                <ShoppingCart size={18} color="#111111" />
+                <ShoppingCart size={20} color="#111111" />
                 {cartCount > 0 ? (
                   <View className="absolute -top-1 -right-1 rounded-full min-w-[16px] h-4 px-1 items-center justify-center" style={{ backgroundColor: '#F59E0B', borderWidth: 1.5, borderColor: '#FFFFFF' }}>
                     <Text className="text-text text-[9px] font-extrabold">{cartCount > 9 ? '9+' : cartCount}</Text>
@@ -1003,7 +812,7 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
             <View className="flex-row items-center" style={{ marginTop: 14 }}>
               <View
                 className="flex-1 flex-row items-center"
-                style={{ backgroundColor: '#F3F4F6', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 11 }}
+                style={{ backgroundColor: '#EEF1F4', borderRadius: 999, paddingHorizontal: 16, height: 46 }}
               >
                 <Search size={18} color={GREEN} />
                 <TextInput
@@ -1031,11 +840,13 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
               </View>
               <Pressable
                 onPress={() => setShowFilters(true)}
-                className="ml-2 flex-row items-center rounded-2xl px-3.5 active:opacity-80"
-                style={{ height: 46, backgroundColor: activeFilters > 0 ? GREEN : '#FFFFFF', borderWidth: 1, borderColor: activeFilters > 0 ? GREEN : '#E5E7EB' }}
+                accessibilityRole="button"
+                accessibilityLabel="Filter"
+                className="ml-2 flex-row items-center px-4 active:opacity-80"
+                style={{ height: 46, borderRadius: 999, backgroundColor: activeFilters > 0 ? GREEN : '#FFFFFF', borderWidth: 1, borderColor: activeFilters > 0 ? GREEN : '#E5E7EB' }}
               >
-                <SlidersHorizontal size={16} color={activeFilters > 0 ? '#FFFFFF' : '#111111'} />
-                <Text className="text-[13px] font-extrabold ml-1.5" style={{ color: activeFilters > 0 ? '#FFFFFF' : '#111111' }}>Filters</Text>
+                <SlidersHorizontal size={17} color={activeFilters > 0 ? '#FFFFFF' : '#111111'} />
+                <Text className="text-[13.5px] font-extrabold ml-1.5" style={{ color: activeFilters > 0 ? '#FFFFFF' : '#111111' }}>Filter</Text>
                 {activeFilters > 0 ? (
                   <View className="ml-1.5 px-1.5 rounded-full" style={{ backgroundColor: '#FFFFFF' }}>
                     <Text className="text-[10px] font-extrabold" style={{ color: GREEN_DARK }}>{activeFilters}</Text>
@@ -1059,22 +870,22 @@ export default function OwnerBuyListingScreen({ navigation, route }) {
         <ActivityIndicator style={{ flex: 1 }} size="large" color={GREEN} />
       ) : (
         <FlatList
-          data={browsing ? visibleItems : []}
+          data={tabItems}
           keyExtractor={(item) => item._key}
           renderItem={renderItem}
           ListHeaderComponent={ListHeader}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[GREEN]} tintColor={GREEN} />}
           contentContainerStyle={[{ paddingHorizontal: padH - 2, paddingBottom: 110 }, capStyle]}
           ListEmptyComponent={
-            browsing ? (
+            (
               <View className="items-center pt-10 px-8">
                 <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: '#E5F3F5' }}>
                   <Store size={32} color={GREEN_DARK} />
                 </View>
-                <Text className="text-[13px] font-extrabold text-gray-700 text-center">{selected ? `No ${brandFilter ? `${brandFilter.name} ` : ''}${selected.name} products available` : `No ${brandFilter ? `${brandFilter.name} ` : ''}items yet`}</Text>
+                <Text className="text-[13px] font-extrabold text-gray-700 text-center">{listTab === 'NEARBY' && visibleItems.length ? 'No listings with a location nearby' : selected ?`No ${brandFilter ? `${brandFilter.name} ` : ''}${selected.name} products available` : `No ${brandFilter ? `${brandFilter.name} ` : ''}items yet`}</Text>
                 <Text className="text-[12px] text-gray-400 mt-2 text-center leading-5">Listings from customers & shops and shop catalogue items will show up here.</Text>
               </View>
-            ) : null
+            )
           }
         />
       )}

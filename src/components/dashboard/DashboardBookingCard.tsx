@@ -53,10 +53,6 @@ export function DashboardBookingCard({ image, device, ticketNo, customer, date, 
         <View style={{ position: 'absolute', top: 0, left: 0, maxWidth: '86%', backgroundColor: tone.text, paddingHorizontal: 8, paddingVertical: 4, borderBottomRightRadius: 12 }}>
           <Text style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: '800' }} numberOfLines={1}>{status}</Text>
         </View>
-        {/* VIEW, bottom-right — the whole card opens the job too. */}
-        <View pointerEvents="none" style={{ position: 'absolute', right: 6, bottom: 6, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: TEAL, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
-          <Text style={{ color: TEAL, fontSize: 11, fontWeight: '800' }}>VIEW</Text>
-        </View>
       </View>
 
       <View style={{ paddingHorizontal: 8, paddingBottom: 8 }}>

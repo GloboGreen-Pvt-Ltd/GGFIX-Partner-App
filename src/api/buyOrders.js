@@ -36,6 +36,6 @@ export const shopBuyOrderAction = (id, action, body = {}) =>
 export async function listAssignableStaff() {
   const list = await ticketApi.get('/technicians');
   return (Array.isArray(list) ? list : [])
-    .filter((t) => t?.userId && t?.isActive !== false && t?.active !== false)
+    .filter((t) => t?.userId && t?.isActive !== false && t?.active !== false && t?.checkedIn !== false)
     .map((t) => ({ userId: t.userId, name: t.name || t.fullName || 'Employee', phone: t.phone || t.mobile || '' }));
 }

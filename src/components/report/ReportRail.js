@@ -125,24 +125,17 @@ export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad 
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={`${it.label}, ${n}`}
-            style={{
-              marginVertical: 4, borderRadius: 14, backgroundColor: RC.white,
-              shadowColor: tone, shadowOpacity: on ? 0.12 : 0.06, shadowRadius: 4,
-              shadowOffset: { width: 0, height: 2 }, elevation: on ? 2 : 1,
-            }}
+            style={{ marginVertical: 4 }}
           >
-            <LinearGradient
-              colors={jobsLook ? ['#FFFFFF', '#FFFFFF'] : ['#FFFFFF', `${tone}${on ? '24' : '10'}`]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={{
-                alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                borderWidth: on ? 1.5 : 1, borderColor: jobsLook ? (on ? '#035C6C' : '#E5E7EB') : (on ? tone : `${tone}22`),
-              }}
-            >
+            {/* No tile box — Home-style icon: white circle, white rim, soft tinted shadow, dark glyph. */}
+            <View style={{ alignItems: 'center', paddingVertical: 6, paddingHorizontal: 3 }}>
               <View>
-                <View style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
+                <View style={{
+                  width: disc + 12, height: disc + 12, borderRadius: (disc + 12) / 2, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: '#FAFBFD', borderWidth: on ? 1.5 : 3, borderColor: on ? '#035C6C' : '#FFFFFF',
+                  shadowColor: tone, shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                }}>
+                  <Icon size={Math.round(disc * 0.62)} color={on ? '#035C6C' : '#17191B'} strokeWidth={1.5} />
                 </View>
                 {it.count != null ? (
                   <View style={[s.railCount, { borderColor: tone }]}>
@@ -158,7 +151,7 @@ export function StatusRail({ items, active, onSelect, width, isSmall, bottomPad 
               >
                 {it.label}
               </Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         );
       })}

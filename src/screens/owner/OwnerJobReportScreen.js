@@ -462,24 +462,24 @@ export default function OwnerJobReportScreen({ route, navigation }) {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${s.label}, ${n}`}
-                style={{
-                  marginVertical: 4, borderRadius: 14, backgroundColor: C.white,
-                  shadowColor: tone, shadowOpacity: active ? 0.12 : 0.06, shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 2 }, elevation: active ? 2 : 1,
-                }}
+                style={{ marginVertical: 4 }}
               >
                 <LinearGradient
-                  colors={['#FFFFFF', `${tone}${active ? '24' : '10'}`]}
+                  colors={['transparent', 'transparent']} // no tile box
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={{
-                    alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                    borderWidth: active ? 1.5 : 1, borderColor: active ? tone : `${tone}22`,
+                    alignItems: 'center', paddingVertical: 6, paddingHorizontal: 3,
                   }}
                 >
                   <View>
-                    <View style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
+                    {/* Home-style icon: white circle, white rim, soft tinted shadow, dark glyph (no tile box). */}
+                    <View style={{
+                      width: disc + 12, height: disc + 12, borderRadius: (disc + 12) / 2, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: '#FAFBFD', borderWidth: active ? 1.5 : 3, borderColor: active ? '#035C6C' : '#FFFFFF',
+                      shadowColor: tone, shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                    }}>
+                      <Icon size={Math.round(disc * 0.62)} color={active ? '#035C6C' : '#17191B'} strokeWidth={1.5} />
                     </View>
                     <View style={[styles.railCount, { borderColor: tone }]}>
                       <Text style={{ fontSize: rz.badge, fontWeight: '800', color: tone }} numberOfLines={1}>{n > 99 ? '99+' : n}</Text>

@@ -48,9 +48,6 @@ function DealImage({ uri, tag }: { uri?: string | null; tag?: string | null }) {
           <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }} numberOfLines={1}>{tag}</Text>
         </View>
       ) : null}
-      <View pointerEvents="none" style={{ position: 'absolute', right: 5, bottom: 5, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: G, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 2 }}>
-        <Text style={{ color: G, fontSize: 10, fontWeight: '800' }}>VIEW</Text>
-      </View>
     </View>
   );
 }

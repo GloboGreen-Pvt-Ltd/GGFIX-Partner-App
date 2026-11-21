@@ -49,7 +49,9 @@ export default function BuyOrdersScreen({ navigation }) {
       ...(buys.status === 'fulfilled' ? (buys.value || []).map(fromBuy) : []),
     ];
     setRows(all.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
-    const failed = [leads, buys].filter((r) => r.status === 'rejected').map((r) => r.reason);
+    // A 403 on one source (role not allowed for it) just means "no rows" — not a page error.
+    const forbidden = (e) => e?.status === 403 || e?.response?.status === 403 || /forbidden|permission/i.test(`${e?.code || ''} ${e?.message || ''}`);
+    const failed = [leads, buys].filter((r) => r.status === 'rejected').map((r) => r.reason).filter((e) => !forbidden(e));
     const hard = failed.find((e) => e?.code !== 'SERVER_UPDATE_REQUIRED');
     setError(hard ? (hard.message || 'Could not load purchase orders.') : null);
     setNotice(failed.find((e) => e?.code === 'SERVER_UPDATE_REQUIRED')?.message || null);

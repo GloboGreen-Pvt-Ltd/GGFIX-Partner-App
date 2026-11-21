@@ -54,7 +54,7 @@ function notInstalled() {
  * be evaluated on a binary that can't support it. `get` is the non-throwing
  * sibling of `getEnforcing`; NativeModules covers the old architecture.
  */
-function shareSingleModule() {
+export function shareSingleModule() {
   let native = null;
   try { native = TurboModuleRegistry?.get?.('RNShare') || null; } catch (_) { native = null; }
   if (!native && !NativeModules?.RNShare) return null;

@@ -14,7 +14,10 @@ import { RefreshControl,
   Image,
   Pressable,
   StatusBar,
+  Modal,
 } from 'react-native';
+import { NewPinFlow } from '../../security/SecurityFlows';
+import { useKeyboardHeight } from '../../security/PinPad';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
@@ -394,6 +397,8 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
   const [dateField, setDateField] = useState(null); // 'dateOfJoin' | 'dateOfBirth' | null
   const [showPassword, setShowPassword] = useState(false);
   const [mpinSheet, setMpinSheet] = useState(false);
+  const [mpinPad, setMpinPad] = useState(false);
+  const kbHeight = useKeyboardHeight();
   const [loginEnabled, setLoginEnabled] = useState(true);
   const [form, setForm] = useState({
     name: employee?.name ?? '',
@@ -1310,43 +1315,35 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
               {(isAdd && loginEnabled) || (isEdit && linkedUserId) ? (
                 <>
                   <Text style={styles.addLabel}>{isEdit ? 'Reset Login MPIN (leave blank to keep current)' : 'Login MPIN *'}</Text>
-                  <View style={styles.addInputRow}>
-                    <TextInput
-                      style={styles.addInputInline}
-                      placeholder="6-digit MPIN"
-                      placeholderTextColor="#9CA3AF"
-                      value={form.mpin}
-                      onChangeText={(v) => set('mpin', v.replace(/\D/g, '').slice(0, 6))}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      autoComplete="off"
-                      secureTextEntry={!showPassword}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword((s) => !s)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={rs(18)} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.addLabel}>Confirm MPIN{isEdit ? '' : ' *'}</Text>
-                  <View style={styles.addInputRow}>
-                    <TextInput
-                      style={styles.addInputInline}
-                      placeholder="Re-enter 6-digit MPIN"
-                      placeholderTextColor="#9CA3AF"
-                      value={form.mpinConfirm}
-                      onChangeText={(v) => set('mpinConfirm', v.replace(/\D/g, '').slice(0, 6))}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      autoComplete="off"
-                      secureTextEntry={!showPassword}
-                    />
-                  </View>
+                  <TouchableOpacity style={styles.addInputRow} activeOpacity={0.7} onPress={() => setMpinPad(true)}>
+                    <Text style={[styles.addInputInline, { color: form.mpin ? '#111827' : '#9CA3AF', paddingVertical: rs(12) }]}>
+                      {form.mpin ? '•••••• (set)' : 'Tap to set 6-digit MPIN'}
+                    </Text>
+                    <Ionicons name="keypad-outline" size={rs(18)} color="#6B7280" />
+                  </TouchableOpacity>
+                  <Modal visible={mpinPad} transparent animationType="slide" onRequestClose={() => setMpinPad(false)}>
+                    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,24,39,0.45)' }}>
+                      <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 + kbHeight, alignItems: 'center' }}>
+                        <TouchableOpacity onPress={() => setMpinPad(false)} style={{ alignSelf: 'flex-end' }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="close" size={rs(22)} color="#6B7280" />
+                        </TouchableOpacity>
+                        <NewPinFlow
+                          type="MPIN"
+                          subtitle="Employee Login MPIN. Avoid repeated or sequential digits"
+                          onSubmit={async (pin) => {
+                            const err = employeeMpinProblem(pin);
+                            if (err) throw new Error(err);
+                            setForm((f) => ({ ...f, mpin: pin, mpinConfirm: pin }));
+                          }}
+                          onDone={() => setMpinPad(false)}
+                        />
+                      </View>
+                    </View>
+                  </Modal>
                 </>
               ) : null}
 
-              <TouchableOpacity
+              {isAdd ? <TouchableOpacity
                 style={styles.loginCheckRow}
                 onPress={() => setLoginEnabled((v) => !v)}
                 activeOpacity={0.7}
@@ -1355,40 +1352,7 @@ export default function OwnerEmployeeDetailScreen({ route, navigation }) {
                   {loginEnabled ? <Ionicons name="checkmark" size={rs(14)} color="#FFFFFF" /> : null}
                 </View>
                 <Text style={styles.loginCheckLabel}>Employee login enabled</Text>
-              </TouchableOpacity>
-
-              {loginEnabled ? (
-                <>
-                  <Text style={styles.addLabel}>Login MPIN (6 digits) *</Text>
-                  <View style={styles.addInputRow}>
-                    <TextInput
-                      style={styles.addInputInline}
-                      placeholder="••••••"
-                      placeholderTextColor="#9CA3AF"
-                      value={form.mpin}
-                      onChangeText={(v) => set('mpin', v.replace(/\D/g, '').slice(0, 6))}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      secureTextEntry
-                      autoComplete="off"
-                    />
-                  </View>
-                  <Text style={styles.addLabel}>Confirm Login MPIN *</Text>
-                  <View style={styles.addInputRow}>
-                    <TextInput
-                      style={styles.addInputInline}
-                      placeholder="••••••"
-                      placeholderTextColor="#9CA3AF"
-                      value={form.mpinConfirm}
-                      onChangeText={(v) => set('mpinConfirm', v.replace(/\D/g, '').slice(0, 6))}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      secureTextEntry
-                      autoComplete="off"
-                    />
-                  </View>
-                </>
-              ) : null}
+              </TouchableOpacity> : null}
 
               <View style={styles.otpHint}>
                 <Ionicons name="information-circle-outline" size={rs(13)} color="#035C6C" />

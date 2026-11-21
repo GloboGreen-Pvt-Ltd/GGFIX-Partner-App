@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl,
   Alert,
   Platform,
@@ -18,7 +18,7 @@ import {
 import { Loader } from '../../../components/rnr';
 import { confirm, notify } from '../../../components/confirm';
 import { sendWhatsAppText } from '../../../lib/whatsappShare';
-import { saveToDownloads, notifyDownloaded, shareLocalFile, viewLocalFile } from '../../../lib/downloads';
+import { canShareWithCaption, saveToDownloads, notifyDownloaded, shareLocalFile, stagePrintedPdf, viewLocalFile } from '../../../lib/downloads';
 import { ticketApi, authApi } from '../../../api/client';
 import { getSession } from '../../../auth/session';
 import { useImeiApplies } from '../../../utils/imeiPolicy';
@@ -46,6 +46,9 @@ const getSharingModule = () => {
 };
 
 // Sanitise a string for safe use as a filename on Android / iOS / Windows.
+/** ASCII-only (file:// URIs, FileProvider, WhatsApp/Gmail attachment names). */
+const invoiceStem = (no) => `Service_Invoice_${String(no || '').replace(/[^A-Za-z0-9]+/g, '') || 'Invoice'}`;
+
 function safeFilename(s) {
   return String(s || 'document')
     .replace(/[\\/:*?"<>|\s]+/g, '_')
@@ -121,6 +124,7 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
   const [deleting, setDeleting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const opRef = useRef(false); // sync guard: rapid taps start only one PDF operation
   const [delivering, setDelivering] = useState(false);
   const [openRows, setOpenRows] = useState({});       // expanded repair-item rows
   const showImei = useImeiApplies(ticket); // mobile phones only
@@ -371,24 +375,28 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       fail('PDF module not installed', 'expo-print is missing. Run `npm install --legacy-peer-deps` and restart Metro with `npx expo start --clear`.');
       return;
     }
+    if (opRef.current) return;
+    opRef.current = true;
     setDownloading(true);
     try {
-      const printed = await Print.printToFileAsync({ html: buildInvoiceHtml(), base64: false });
+      const printed = await Print.printToFileAsync({ html: buildInvoiceHtml(), base64: true });
       if (!printed?.uri) {
         fail('PDF render failed', 'No file URI returned by expo-print.');
         return;
       }
+      const pdfUri = await stagePrintedPdf(printed, `${invoiceStem(invoice.invoiceNo || trackingId)}.pdf`);
       const saved = await saveToDownloads({
-        stem: `NearGFix_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}`,
+        stem: invoiceStem(invoice.invoiceNo || trackingId),
         extension: 'pdf',
         mimeType: 'application/pdf',
-        sourceUri: printed.uri,
+        sourceUri: pdfUri,
       });
-      if (!saved.shared) notify('Invoice downloaded successfully to Downloads.', saved.name, { preset: 'done' });
+      notify(`Invoice saved to ${saved.location}.`, saved.name, { preset: 'done' });
       notifyDownloaded(saved);
     } catch (e) {
-      fail('Download failed', e?.message || 'Could not save the invoice.');
+      if (!/cancel/i.test(e?.message || '')) fail('Download failed', e?.message || 'Could not save the invoice.');
     } finally {
+      opRef.current = false;
       setDownloading(false);
     }
   };
@@ -399,28 +407,31 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
     // up. (`notify` failed silently for some users on this screen.)
     const fail = (title, message) => notify(title, message || '', { preset: 'error' });
 
-    // Customer's number on file → the invoice goes to their WhatsApp chat as text.
-    const lines = [...serviceLines, ...spareLines]
-      .map((row) => `• ${row.description || 'Item'} — ₹${fmt(Number(row.totalAmount) || Number(row.rate) || 0)}`);
+    // Caption for the shared PDF. Android's file share can't carry text with
+    // the attachment, so it is copied to the clipboard to paste in the chat.
     const invoiceText = [
-      `🧾 *Invoice ${invoice.invoiceNo || trackingId}*`,
-      shopName ? `${shopName}` : null,
+      `Dear ${customerName || 'Customer'},`,
       '',
-      `Customer: ${customerName || '-'}`,
-      deviceModel ? `Device: ${deviceModel}` : null,
-      deviceComplaint ? `Complaint: ${deviceComplaint}` : null,
-      `Tracking ID: #${trackingId}`,
+      `Thank you for choosing *${shopName}*! 💚`,
       '',
-      ...lines,
+      '✅ *Your Device is Successfully Delivered!*',
       '',
-      `*Total: ₹${fmt(invoice.finalPayableAmount)}*`,
-      advancePaid > 0 ? `Advance paid: ₹${fmt(advancePaid)}` : null,
-      amountPaid > 0 ? `Paid: ₹${fmt(amountPaid)}` : null,
-      creditAmount > 0 ? `Balance due: ₹${fmt(creditAmount)}` : null,
+      `Your ${deviceModel || 'device'} service has been completed and your device has been delivered successfully.`,
       '',
-      'Thank you!',
+      '📋 *Service Invoice Details*',
+      deviceModel ? `📱 *Device:* ${deviceModel}` : null,
+      `🧾 *Invoice No:* ${invoice.invoiceNo || trackingId}`,
+      `💰 *Total Amount:* ₹${fmt(invoice.finalPayableAmount)}`,
+      `✅ *Payment Status:* ${creditAmount > 0 ? `Balance due ₹${fmt(creditAmount)}` : 'Paid'}`,
+      '',
+      '📎 Your service invoice (PDF) is attached for your records.',
+      '',
+      'Thank you for trusting us!',
+      '',
+      '*Warm Regards,*',
+      `*${shopName}*`,
+      'Powered by NearGFix',
     ].filter((l) => l !== null).join('\n');
-    if (Platform.OS !== 'web' && await sendWhatsAppText(ticket?.customerPhone, invoiceText)) return;
 
     try {
       const html = buildInvoiceHtml();
@@ -445,13 +456,15 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
         return;
       }
 
+      if (opRef.current) return;
+      opRef.current = true;
       setSharing(true);
 
       // Step 1: render the PDF (this is the must-succeed step).
       let tempUri;
       try {
-        const printed = await Print.printToFileAsync({ html, base64: false });
-        tempUri = printed?.uri;
+        const printed = await Print.printToFileAsync({ html, base64: true });
+        tempUri = printed?.uri ? await stagePrintedPdf(printed, `${invoiceStem(invoice.invoiceNo || trackingId)}.pdf`) : null;
       } catch (e) {
         fail('PDF render failed', e?.message || 'Could not generate PDF');
         return;
@@ -466,20 +479,29 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       // is always allowed to read — and falls back to the temp URI if refused.
       // Don't gate on isAvailableAsync — on Android it can return false in some
       // build types even though shareAsync works fine.
-      const fileName = `Mobile_service_Invoice_${safeFilename(invoice.invoiceNo || trackingId)}.pdf`;
+      const fileName = `${invoiceStem(invoice.invoiceNo || trackingId)}.pdf`;
       try {
-        await shareLocalFile(tempUri, fileName, 'application/pdf');
+        // Dev build / APK: PDF + caption in one share. Expo Go can't attach a
+        // caption to a file, so the message goes to the clipboard to paste.
+        if (!canShareWithCaption()) {
+          try {
+            await require('expo-clipboard').setStringAsync(invoiceText);
+            notify('Message copied', "Expo Go can't add a caption. Paste it in the chat with the PDF.", { preset: 'done' });
+          } catch (_) { /* clipboard unavailable: the PDF still shares */ }
+        }
+        await shareLocalFile(tempUri, fileName, 'application/pdf', invoiceText);
       } catch (e) {
         // Some Android versions throw "User did not share" on cancel — that
         // isn't a real failure. Surface only message-bearing errors.
         const msg = e?.message || '';
-        if (msg && !/cancel|dismiss|user/i.test(msg)) {
+        if (msg && !/cancel|dismiss|did not share/i.test(msg)) {
           fail('Share failed', msg);
         }
       }
     } catch (e) {
       fail('Share failed', e?.message || 'Try again');
     } finally {
+      opRef.current = false;
       setSharing(false);
     }
   };
@@ -492,13 +514,16 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       notify('PDF is not available on this build', '', { type: 'warning' });
       return;
     }
+    if (opRef.current) return;
+    opRef.current = true;
     setPrinting(true);
     try {
       await Print.printAsync({ html: buildInvoiceHtml() });
     } catch (e) {
       const msg = e?.message || '';
-      if (!/cancel|dismiss/i.test(msg)) notify('Print failed', 'Could not open the printer.', { preset: 'error' });
+      if (!/cancel|dismiss/i.test(msg)) notify('Print failed', msg || 'Could not open the printer.', { preset: 'error' });
     } finally {
+      opRef.current = false;
       setPrinting(false);
     }
   };
@@ -510,19 +535,26 @@ export default function DeliveryInvoiceReportScreen({ navigation, route }) {
       notify('PDF is not available on this build', '', { type: 'warning' });
       return;
     }
+    if (opRef.current) return;
+    opRef.current = true;
     setPreviewing(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildInvoiceHtml(), base64: false });
+      const printed = await Print.printToFileAsync({ html: buildInvoiceHtml(), base64: true });
+      if (!printed?.uri) throw new Error('No file URI returned by expo-print.');
+      const uri = await stagePrintedPdf(printed, `${invoiceStem(invoice.invoiceNo || trackingId)}.pdf`);
       try {
+        // Opens the PDF in an installed viewer (Drive PDF Viewer, Adobe…); Back returns here.
         await viewLocalFile(uri, 'application/pdf');
       } catch (_) {
-        // No PDF viewer installed (or iOS): the print preview shows the same file.
+        // No PDF viewer app (or iOS): the system print preview renders the same
+        // PDF file and has its own back/close. Never the share sheet.
         await Print.printAsync({ uri });
       }
     } catch (e) {
       const msg = e?.message || '';
-      if (!/cancel|dismiss/i.test(msg)) notify('Preview failed', 'Could not open the PDF.', { preset: 'error' });
+      if (!/cancel|dismiss/i.test(msg)) notify('Preview failed', msg || 'Could not open the PDF.', { preset: 'error' });
     } finally {
+      opRef.current = false;
       setPreviewing(false);
     }
   };

@@ -119,6 +119,9 @@ import BulkFlowDoneScreen from '../screens/owner/sell/bulk/BulkFlowDoneScreen';
 import BuyBrowseScreen from '../screens/owner/buy/BuyBrowseScreen';
 import BuyLeadsScreen from '../screens/owner/buy/BuyLeadsScreen';
 import BuyLeadDetailScreen from '../screens/owner/buy/BuyLeadDetailScreen';
+import OwnerShopPresenceScreen from '../screens/owner/presence/OwnerShopPresenceScreen';
+import OwnerShopPresenceDetailScreen from '../screens/owner/presence/OwnerShopPresenceDetailScreen';
+import OwnerShopPresenceSettingsScreen from '../screens/owner/presence/OwnerShopPresenceSettingsScreen';
 import BuyScheduleVisitScreen from '../screens/owner/buy/BuyScheduleVisitScreen';
 import BuyInspectionReviewScreen from '../screens/owner/buy/BuyInspectionReviewScreen';
 import BuyCustomerDecisionScreen from '../screens/owner/buy/BuyCustomerDecisionScreen';
@@ -841,6 +844,9 @@ export default function OwnerNavigator({ session, onLogout }) {
       <Stack.Screen name="OwnerLeaveRequests" component={OwnerLeaveRequestsScreen} options={{ headerShown: false }} />
       {/* Same screen, PERMISSION-type requests only (Dashboard → Permissions). */}
       <Stack.Screen name="OwnerPermissionRequests" component={OwnerLeaveRequestsScreen} initialParams={{ kind: 'PERMISSION' }} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerShopPresence" component={OwnerShopPresenceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerShopPresenceDetail" component={OwnerShopPresenceDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OwnerShopPresenceSettings" component={OwnerShopPresenceSettingsScreen} options={{ headerShown: false }} />
       {/* Staff Tasks — draw their own headers. */}
       <Stack.Screen name="StaffTasks" component={StaffTasksHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="StaffTaskCalendar" component={StaffTaskCalendarScreen} options={{ headerShown: false }} />

@@ -3,7 +3,6 @@ import { Text, View, useWindowDimensions } from 'react-native';
 import type { OverviewStatItem } from '../../types/dashboard';
 import { Touchable, withAlpha } from './theme';
 
-import { LinearGradient } from 'expo-linear-gradient';
 
 // Overview stat card — same look as the Repair / Buy / Sell cards:
 //
@@ -52,13 +51,6 @@ export function DashboardOverviewCard({ item, width, gap, last }: DashboardOverv
         }}
         pressedStyle={{ opacity: 0.7 }}
       >
-        <LinearGradient
-          pointerEvents="none"
-          colors={['#FFFFFF', withAlpha(item.color, 0.12)]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-        />
         <View style={{ flex: 1, paddingHorizontal: 9, paddingVertical: 6, justifyContent: 'space-between' }}>
           {/* Label left, small icon right. */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>

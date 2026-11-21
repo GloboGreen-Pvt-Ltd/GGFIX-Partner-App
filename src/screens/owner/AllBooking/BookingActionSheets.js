@@ -1131,7 +1131,7 @@ export function TechnicianPickerSheet({
         ticketApi.get(`/tickets/${bookingId}`).catch(() => null),
       ]);
       const rows = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
-      setTechs(rows);
+      setTechs(rows.filter((t) => t?.checkedIn !== false)); // checked-in staff only
       // The refetched ticket wins; the row that opened the sheet is the
       // fallback for when that call fails.
       const src = fresh || bookingRef.current;
@@ -1696,7 +1696,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
       // real roleLabel, which is what the pickup filter below keys off.
       const data = await ticketApi.get('/technicians');
       const rows = Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
-      setPeople(rows.filter((e) => String(e?.roleLabel || '').toLowerCase() === PICKUP_ROLE.toLowerCase()));
+      setPeople(rows.filter((e) => String(e?.roleLabel || '').toLowerCase() === PICKUP_ROLE.toLowerCase() && e?.checkedIn !== false));
     } catch (e) {
       setPeople([]);
       notify('Could not load pickup persons', e?.message || 'Please try again.', { preset: 'error' });
@@ -1766,8 +1766,7 @@ export function PickupPersonPickerSheet({ visible, booking, onClose, onAssigned 
         ) : people.length === 0 ? (
           <View style={{ paddingVertical: 20, paddingHorizontal: 4 }}>
             <Text className="text-[12px] text-gray-500">
-              No pickup persons yet. Add staff with the "Pickup Person" role from
-              Employee Management.
+              No employees available. Ask employees to check in from the Employee App.
             </Text>
           </View>
         ) : (

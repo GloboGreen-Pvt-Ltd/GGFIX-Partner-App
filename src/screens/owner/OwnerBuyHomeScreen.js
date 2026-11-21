@@ -1,18 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Keyboard, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Keyboard, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector } from 'react-redux';
 import {
-  ArrowLeft, Bell, Cable, History, ChevronRight, Eye, FileText, Headphones, Laptop, LayoutGrid, MapPin, Package,
-  Search, Settings, ShieldCheck, SlidersHorizontal, Smartphone, Store, Tablet, Truck, UserRound, Watch, X,
+  ArrowRight, Bell, Cable, CheckCircle2, ChevronRight, Compass, Eye, FileText, Headphones, Laptop, LayoutGrid, MapPin,
+  MessageSquareText, Package, Search, Settings, ShoppingCart, SlidersHorizontal, Smartphone, Store, Tablet, Truck,
+  UserRound, UsersRound, Watch, X,
 } from 'lucide-react-native';
 import { EmptyState, Loader } from '../../components/rnr';
 import SafeModal from '../../components/SafeModal';
+import PageHeader, { HeaderIconButton } from '../../components/PageHeader';
 import { getDeviceCategories, getBanners, getCategoryMenuImages, categoryMenuKey, getAllModels } from '../../api/masterData';
 import { listProducts } from '../../api/marketplace';
-import { isOwnListing, ownShopIdsOf } from '../../api/nearbyListings';
+import { isOwnListing, listingConditionLabel, ownShopIdsOf } from '../../api/nearbyListings';
 import { getSession } from '../../auth/session';
 import { getUnreadCount } from '../../api/notifications';
 import { resolveDeviceImageSource } from '../../utils/images';
@@ -30,7 +32,6 @@ import { productToCard } from './OwnerBuyListingScreen';
 // View · Quote · Pickup · Track. Listings, details and orders open the Partner screens.
 
 const TEAL = '#035C6C';
-const TEAL_LIGHT = '#E5F3F5';
 const INK = '#111111';
 const MUTED = '#6B7280';
 const HINT = '#9CA3AF';
@@ -170,46 +171,58 @@ function CardAction({ Icon, text, label, onPress, disabled, first }) {
   );
 }
 
-// Lead / listing card: photo, status tag, title, specs, expected price, chevron;
-// customer leads add View · Quote · Pickup · Track (Pickup / Track after the quote is accepted).
-function HomeLeadCard({ it, tag, accepted, purchase, navigation, onOpen }) {
+// Listing card: photo · name · specs • condition · seller badge · location ·
+// price (or Open for Quote) · status tag · View Details. Customer leads keep
+// Quote · Pickup · Track (Pickup / Track after the quote is accepted).
+function HomeLeadCard({ it, thumbUri, tag, accepted, purchase, navigation, onOpen, compact }) {
   const customer = it.sellerType === 'CUSTOMER';
   const price = leadPrice(it);
-  const specs = specLine(it);
+  const specs = [specLine(it), it.condition ? listingConditionLabel(it.condition) : null].filter(Boolean).join('  •  ');
+  const km = it.distanceKm != null ? Number(it.distanceKm) : null;
+  const dist = km != null && Number.isFinite(km) && km > 0 ? `${km < 10 ? Math.round(km * 10) / 10 : Math.round(km)} km` : null;
+  const place = [it.city || it.state || null, dist].filter(Boolean).join(' • ');
   const TagIcon = tag.Icon;
+  const thumb = compact ? 84 : 104;
+  const open = customer ? () => navigation.navigate('BuyLeadDetail', { lead: it, mode: 'detail' }) : onOpen;
   return (
-    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: LINE, marginBottom: 10, ...cardShadow }}>
-      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={it.productName || 'Device'} className="active:opacity-90" style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
-        <View style={{ width: 84, height: 84, borderRadius: 14, backgroundColor: '#F3F5F7', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-          {it.productImage ? (
-            <Image resizeMethod="resize" source={{ uri: it.productImage }} style={{ width: '86%', height: '86%' }} resizeMode="contain" />
+    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: LINE, marginBottom: 12, ...cardShadow }}>
+      <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={it.productName || 'Device'} className="active:opacity-90" style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+        <View style={{ width: thumb, height: thumb, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {thumbUri || it.productImage ? (
+            <Image resizeMethod="resize" source={{ uri: thumbUri || it.productImage }} style={{ width: '88%', height: '88%' }} resizeMode="contain" />
           ) : (
-            <Smartphone size={28} color={TEAL} />
+            <Smartphone size={30} color={TEAL} />
           )}
         </View>
         <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
-          <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: tag.tint, maxWidth: '100%' }}>
-            <TagIcon size={13} color={tag.fg} strokeWidth={2.2} />
-            <Text numberOfLines={1} style={{ marginLeft: 5, fontSize: rf(11), fontWeight: '800', color: tag.fg, flexShrink: 1 }}>{tag.text}</Text>
+          <Text numberOfLines={1} style={{ fontSize: rf(compact ? 14.5 : 16), fontWeight: '800', color: INK }}>{it.productName || 'Device'}</Text>
+          {specs ? <Text numberOfLines={1} style={{ marginTop: 3, fontSize: rf(12), color: '#4B5563' }}>{specs}</Text> : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: tag.tint, maxWidth: '58%' }}>
+              <TagIcon size={12} color={tag.fg} strokeWidth={2.2} />
+              <Text numberOfLines={1} style={{ marginLeft: 4, fontSize: rf(10.5), fontWeight: '800', color: tag.fg, flexShrink: 1 }}>{tag.text}</Text>
+            </View>
+            {place ? (
+              <>
+                <MapPin size={12} color={MUTED} style={{ marginLeft: 8 }} />
+                <Text numberOfLines={1} style={{ marginLeft: 3, fontSize: rf(11), color: MUTED, flexShrink: 1 }}>{place}</Text>
+              </>
+            ) : null}
           </View>
-          <Text numberOfLines={1} style={{ marginTop: 5, fontSize: rf(14.5), fontWeight: '800', color: INK }}>{it.productName || 'Device'}</Text>
-          {specs ? <Text numberOfLines={1} style={{ marginTop: 2, fontSize: rf(12), color: MUTED }}>{specs}</Text> : null}
-          <Text numberOfLines={1} style={{ marginTop: 3, fontSize: rf(12.5), color: INK }}>
-            Exp: <Text style={{ fontWeight: '800', color: price ? TEAL : ORANGE }}>{price || 'Open for quote'}</Text>
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 7 }}>
+            {price ? <Text numberOfLines={1} style={{ fontSize: rf(compact ? 16 : 18), fontWeight: '800', color: TEAL }}>{price}</Text> : null}
+            {!price ? <Text numberOfLines={1} style={{ fontSize: rf(12.5), fontWeight: '700', color: ORANGE }}>(Open for Quote)</Text> : null}
+            <View style={{ flex: 1 }} />
+            {(
+              <Pressable onPress={open} accessibilityRole="button" accessibilityLabel="View details" className="active:opacity-90"
+                style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', backgroundColor: TEAL, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                <Text style={{ fontSize: rf(10.5), fontWeight: '700', color: '#FFFFFF' }}>View Details</Text>
+                <ArrowRight size={11} color="#FFFFFF" style={{ marginLeft: 3 }} />
+              </Pressable>
+            )}
+          </View>
         </View>
-        <ChevronRight size={20} color={INK} style={{ marginLeft: 6 }} />
       </Pressable>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: LINE }}>
-        <CardAction first Icon={Eye} text="View" label="View product detail" onPress={customer ? () => navigation.navigate('BuyLeadDetail', { lead: it, mode: 'detail' }) : onOpen} />
-        {customer ? (
-          <>
-            <CardAction Icon={FileText} text="Quote" label="Product quotation" onPress={() => navigation.navigate('BuyLeadDetail', { lead: it, mode: 'quote' })} />
-            <CardAction Icon={Truck} text="Pickup" label="Pickup" disabled={!accepted} onPress={() => navigation.navigate('BuyLeadQuote', { lead: it })} />
-            <CardAction Icon={MapPin} text="Track" label="Track pickup" disabled={!accepted} onPress={() => openPickupTracking(navigation, it, purchase)} />
-          </>
-        ) : null}
-      </View>
     </View>
   );
 }
@@ -236,8 +249,6 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   const shopId = useSelector(selectShopId);
   const [cats, setCats] = useState([]);
   const [menuImages, setMenuImages] = useState({});
-  const [searchOpen, setSearchOpen] = useState(false);
-  const toggleSearch = () => setSearchOpen((v) => { if (v) setSearchText(''); return !v; });
   const [buyBanners, setBuyBanners] = useState([]);
   const [bannerRatio, setBannerRatio] = useState(null); // width / height of the first admin banner
   useEffect(() => {
@@ -249,11 +260,14 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   // Every nearby sell listing — customer and shop (GET /marketplace/buy/nearby).
   const [leads, setLeads] = useState([]);
   const [buys, setBuys] = useState({}); // listingId → my purchase (accepted quote)
+  const [purchaseRows, setPurchaseRows] = useState([]); // all my purchases (summary counts)
+  const searchRef = useRef(null);
   const [quotes, setQuotes] = useState({}); // listingId → my quote status
   const [selCat, setSelCat] = useState('ALL');
   const [stage, setStage] = useState('ALL');
   // Products carry a modelId, not a category: mapped through the catalogue.
   const [modelCat, setModelCat] = useState({});
+  const [modelImg, setModelImg] = useState({}); // catalogue model photo for list cards
   const listRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -291,24 +305,33 @@ export default function OwnerBuyHomeScreen({ navigation }) {
     })();
     getAllModels().then((rows) => {
       const m = {};
-      (rows || []).forEach((r) => { if (r.id && r.categoryId) m[r.id] = r.categoryId; });
+      const img = {};
+      (rows || []).forEach((r) => {
+        if (r.id && r.categoryId) m[r.id] = r.categoryId;
+        if (r.imageUrl) { if (r.id) img[`id:${r.id}`] = r.imageUrl; if (r.name) img[`n:${String(r.name).trim().toLowerCase()}`] = r.imageUrl; }
+      });
       setModelCat(m);
+      setModelImg(img);
     }).catch(() => {});
   }, []);
 
-  useFocusEffect(useCallback(() => {
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshLive = useCallback(() => Promise.all([
     getListingOrigin()
       .then((o) => fetchNearbyListings(o))
-      .then((list) => setLeads((list || []).filter(Boolean)))
-      .catch(() => {});
+      .then((list) => { setLeads((list || []).filter(Boolean)); setLoading(false); }) // show listings as soon as they arrive
+      .catch(() => {}),
     listShopPurchases()
+      .then((rows) => { setPurchaseRows(rows || []); return rows; })
       .then((rows) => setBuys(Object.fromEntries((rows || []).filter((r) => r?.listingId).map((r) => [String(r.listingId), r]))))
-      .catch(() => {});
+      .catch(() => {}),
     listMyLeadQuotes()
       .then((rows) => setQuotes(Object.fromEntries((rows || []).filter((r) => r?.listingId).map((r) => [String(r.listingId), r]))))
-      .catch(() => {});
-    getUnreadCount().then((n) => { if (n != null) setUnread(Number(n) || 0); }).catch(() => {});
-  }, []));
+      .catch(() => {}),
+    getUnreadCount().then((n) => { if (n != null) setUnread(Number(n) || 0); }).catch(() => {}),
+  ]), []);
+  useFocusEffect(useCallback(() => { refreshLive(); }, [refreshLive]));
+  const onRefresh = async () => { setRefreshing(true); try { await refreshLive(); } finally { setRefreshing(false); } };
 
   // Rail taps filter this page in place — no navigation.
   const pickCat = (id) => {
@@ -368,8 +391,15 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   const stageCount = (k) => (k === 'ALL' ? feed.length : feed.filter((it) => stageOf(it) === k).length);
   const shown = stage === 'ALL' ? feed : feed.filter((it) => stageOf(it) === stage);
 
+  // Card photo = the catalogue model image; the customer's own photos show only on the detail page.
+  const catalogImage = (it) => {
+    const name = String(it.productName || it.modelName || '').trim().toLowerCase();
+    const brandless = name.replace(/^\S+\s+/, '');
+    return modelImg[`id:${it.modelId}`] || modelImg[`n:${name}`] || modelImg[`n:${brandless}`] || null;
+  };
+
   const tagFor = (it) => {
-    if (it.sellerType !== 'CUSTOMER') return { Icon: Store, text: 'From Shop', tint: TEAL_LIGHT, fg: TEAL };
+    if (it.sellerType !== 'CUSTOMER') return { Icon: Store, text: 'Shop Listing', tint: '#E7F6EE', fg: '#0B6B4B' };
     const b = buys[String(it.id)];
     if (b) { const h = purchaseHero(b); return { Icon: h.Icon, text: h.title, tint: h.tint, fg: h.fg }; }
     const q = QUOTE_TAG[quoteOf(it)];
@@ -378,7 +408,7 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   };
 
   const openItem = (it) => {
-    if (it.sellerType === 'CUSTOMER') { navigation.navigate('BuyLeadDetail', { lead: it }); return; }
+    if (it.sellerType === 'CUSTOMER') { navigation.navigate('BuyLeadDetail', { lead: it, mode: 'detail' }); return; }
     const card = it.source === 'product' ? it : toListingCard(it);
     navigation.navigate('OwnerBuyListingDetails', {
       listing: { ...card, categoryName: it.categoryName || cats.find((c) => c.id === it.categoryId)?.name || undefined },
@@ -397,6 +427,16 @@ export default function OwnerBuyHomeScreen({ navigation }) {
   const heroSmall = bannerW < 300;
   const heroImage = menuImages[categoryMenuKey('Mobile')] || 'https://cdn.neargfix.com/buy&sell-categories-image/Sell-Phone.png';
   const centered = { width: '100%', maxWidth: MAX_W, alignSelf: 'center' };
+  const compact = width < 360;
+  const heroH = Math.round(Math.max(120, Math.min(190, contentW * 0.36)));
+
+  // Summary cards — live counts only (nearby leads + my purchases).
+  const isClosed = (p) => ['COMPLETED', 'CANCELLED'].includes(String(p?.status || '').toUpperCase());
+  const newRequests = leads.filter((l) => l?.sellerType === 'CUSTOMER' && !buys[String(l.id)] && !quoteOf(l)).length;
+  const activeOrders = purchaseRows.filter((p) => !isClosed(p)).length;
+  const todayKey = new Date().toDateString();
+  const doneToday = purchaseRows.filter((p) => String(p?.status || '').toUpperCase() === 'COMPLETED'
+    && new Date(p.completedAt || p.updatedAt || 0).toDateString() === todayKey).length;
   const slides = 1 + buyBanners.length;
 
   const onBannerScroll = (e) => {
@@ -406,86 +446,59 @@ export default function OwnerBuyHomeScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: PAGE_BG }}>
-      {/* ---------- Header: back · Buy / Devices & Spares · bell ---------- */}
-      <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 8, paddingHorizontal: 14, paddingBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Pressable onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back" className="active:opacity-70" style={{ height: 40, width: 36, justifyContent: 'center' }}>
-            <ArrowLeft size={22} color={INK} />
-          </Pressable>
-          {/* Title centred on the screen (behind the buttons, not between them). */}
-          <View pointerEvents="none" style={{ position: 'absolute', left: 112, right: 112, alignItems: 'center' }}>
-            <Text numberOfLines={1} style={{ fontSize: rf(17), fontWeight: '800', color: INK }}>Buy</Text>
-            <Text numberOfLines={1} style={{ fontSize: rf(12), color: MUTED, marginTop: 1 }}>Devices & Spares</Text>
-          </View>
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={toggleSearch} hitSlop={6} accessibilityRole="button" accessibilityLabel="Search" className="active:opacity-80"
-            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: searchOpen ? TEAL : '#E5F3F5' }}>
-            <Search size={15} color={searchOpen ? '#FFFFFF' : TEAL} />
-          </Pressable>
-          <Pressable onPress={() => setShowFilters(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Filters" className="active:opacity-80"
-            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: activeFilters > 0 ? TEAL : '#E5F3F5' }}>
-            <SlidersHorizontal size={15} color={activeFilters > 0 ? '#FFFFFF' : TEAL} />
-            {activeFilters > 0 ? (
-              <View style={{ position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: RED, borderWidth: 1.5, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{activeFilters}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('BuyOrders')} hitSlop={6} accessibilityRole="button" accessibilityLabel="Purchase history" className="active:opacity-80"
-            style={{ height: 32, width: 32, borderRadius: 16, marginLeft: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: false ? TEAL : '#E5F3F5' }}>
-            <History size={15} color={TEAL} />
-          </Pressable>
-        </View>
-
-        {/* Search: hidden until the header Search icon is tapped (Jobs screen). */}
-        {searchOpen ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: LINE, paddingHorizontal: 14, height: 46, ...cardShadow }}>
-            <Pressable onPress={() => runSearch()} hitSlop={6} accessibilityLabel="Search">
-              <Search size={19} color={TEAL} />
-            </Pressable>
-            <TextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              onSubmitEditing={() => runSearch()}
-              returnKeyType="search"
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="Search mobiles, spares, accessories..."
-              placeholderTextColor={HINT}
-              style={{ flex: 1, marginLeft: 10, color: INK, fontSize: rf(13), padding: 0, outlineStyle: 'none' }}
-            />
-            {searchText ? (
-              <Pressable onPress={() => setSearchText('')} hitSlop={6} accessibilityLabel="Clear search" style={{ height: 28, width: 28, alignItems: 'center', justifyContent: 'center' }}>
-                <X size={14} color={MUTED} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-        ) : null}
-      </View>
-
       <View style={{ flex: 1 }}>
-        {/* Category menu — All, each category (with its image), Spares; tapping filters this page. */}
-        {loading ? (
-          <View style={{ paddingVertical: 14 }}><Loader /></View>
-        ) : (
-          <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 8 }}>
-              <RailItem label="All" Icon={LayoutGrid} active={selCat === 'ALL'} onPress={openAll} />
-              {cats.map((c) => (
-                <RailItem key={c.id} label={c.name} Icon={catIcon(c)} image={catImage(c)} active={selCat === c.id} onPress={() => pickCat(c.id)} />
-              ))}
-              <RailItem label="Spares" Icon={Settings} image={menuImages[categoryMenuKey('Spares')] || menuImages[categoryMenuKey('Spare Parts')]} active={selCat === SPARES} onPress={() => pickCat(SPARES)} />
-            </ScrollView>
-          </View>
-        )}
+        <ScrollView ref={listRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#035C6C']} tintColor="#035C6C" />}>
+          {/* Header: same as Sell (title · subtitle · search · bell) */}
+          <PageHeader
+            title="Buy"
+            subtitle="Source devices and spares"
+            sideWidth={90}
+            right={(
+              <View style={{ flexDirection: 'row' }}>
+                <HeaderIconButton icon={Bell} label="Notifications" badge={unread} onPress={() => navigation.navigate('OwnerNotifications')} />
+              </View>
+            )}
+          >
+            {/* Search + Filter (filters this page in place) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF1F4', borderRadius: 999, paddingHorizontal: 16, height: 46 }}>
+                <Search size={19} color={MUTED} />
+                <TextInput
+                  ref={searchRef}
+                  value={searchText}
+                  onChangeText={setSearchText}
+                  onSubmitEditing={() => runSearch()}
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Search devices, brands..."
+                  placeholderTextColor={HINT}
+                  style={{ flex: 1, marginLeft: 10, color: INK, fontSize: rf(13.5), padding: 0, outlineStyle: 'none' }}
+                />
+                {searchText ? (
+                  <Pressable onPress={() => setSearchText('')} hitSlop={6} accessibilityLabel="Clear search" style={{ height: 28, width: 28, alignItems: 'center', justifyContent: 'center' }}>
+                    <X size={14} color={MUTED} />
+                  </Pressable>
+                ) : null}
+              </View>
+              <Pressable onPress={() => setShowFilters(true)} hitSlop={4} accessibilityRole="button" accessibilityLabel="Filter" className="active:opacity-80"
+                style={{ marginLeft: 8, height: 46, paddingHorizontal: 14, borderRadius: 999, flexDirection: 'row', alignItems: 'center', backgroundColor: activeFilters > 0 ? TEAL : '#FFFFFF', borderWidth: 1, borderColor: activeFilters > 0 ? TEAL : LINE }}>
+                <SlidersHorizontal size={17} color={activeFilters > 0 ? '#FFFFFF' : INK} />
+                <Text style={{ marginLeft: 6, fontSize: rf(13.5), fontWeight: '700', color: activeFilters > 0 ? '#FFFFFF' : INK }}>Filter</Text>
+                {activeFilters > 0 ? (
+                  <View style={{ marginLeft: 6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: TEAL }}>{activeFilters}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
 
-        <ScrollView ref={listRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: tabSpace }}>
+          </PageHeader>
+
           <View style={centered}>
             {/* Banner: the Buy promo, then any admin "Buy" banners. */}
-            <View style={{ marginTop: 12 }}>
+            <View style={{ marginTop: 14 }}>
               <View style={{ marginHorizontal: PAD, height: bannerH, borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: LINE, ...cardShadow }}>
                 <ScrollView
                   horizontal
@@ -495,26 +508,20 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                   scrollEventThrottle={16}
                   style={{ width: bannerW - 2, height: bannerH - 2, flexGrow: 0 }}
                 >
-                  <LinearGradient colors={['#F6FBFB', '#E6F4F4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: bannerW - 2, height: bannerH - 2, flexDirection: 'row' }}>
-                    <View pointerEvents="none" style={{ position: 'absolute', right: -bannerH * 0.35, top: -bannerH * 0.25, height: bannerH * 1.5, width: bannerH * 1.5, borderRadius: bannerH, backgroundColor: '#CBEBE7' }} />
-                    <View pointerEvents="none" style={{ position: 'absolute', right: -bannerH * 0.55, top: bannerH * 0.05, height: bannerH * 1.3, width: bannerH * 1.3, borderRadius: bannerH, backgroundColor: '#9ED8D1' }} />
-                    <View style={{ flex: 1, paddingLeft: heroSmall ? 12 : 16, paddingRight: 4, justifyContent: 'center' }}>
-                      <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: heroTitle, fontWeight: '800', color: INK, lineHeight: Math.round(heroTitle * 1.22) }}>
-                        Buy Devices & Spares{'\n'}for <Text style={{ color: TEAL }}>Your Shop</Text>
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 10, marginTop: 2 }}>
-                          <ShieldCheck size={14} color={TEAL} />
-                          <Text style={{ marginLeft: 4, fontSize: rf(10.5), fontWeight: '600', color: INK }} numberOfLines={1}>Verified Sellers</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                          <Truck size={14} color={TEAL} />
-                          <Text style={{ marginLeft: 4, fontSize: rf(10.5), fontWeight: '600', color: INK }} numberOfLines={1}>Pickup / Delivery</Text>
-                        </View>
-                      </View>
+                  <LinearGradient colors={['#F2FAFA', '#DDF0F0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: bannerW - 2, height: bannerH - 2, flexDirection: 'row' }}>
+                    <View pointerEvents="none" style={{ position: 'absolute', right: -bannerH * 0.35, top: -bannerH * 0.25, height: bannerH * 1.5, width: bannerH * 1.5, borderRadius: bannerH, backgroundColor: '#9ED8D1' }} />
+                    <View pointerEvents="none" style={{ position: 'absolute', right: -bannerH * 0.6, top: bannerH * 0.1, height: bannerH * 1.3, width: bannerH * 1.3, borderRadius: bannerH, backgroundColor: TEAL, opacity: 0.85 }} />
+                    <View style={{ flex: 1, paddingLeft: heroSmall ? 12 : 18, paddingRight: 4, justifyContent: 'center' }}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ fontSize: heroTitle, fontWeight: '800', color: INK }}>Upgrade Your Business</Text>
+                      <Text numberOfLines={2} style={{ marginTop: 4, fontSize: rf(12.5), color: '#1F2937' }}>Get the best deals on pre-owned devices</Text>
+                      <Pressable onPress={() => navigation.navigate('OwnerBuyListing')} accessibilityRole="button" accessibilityLabel="Explore deals" className="active:opacity-90"
+                        style={{ alignSelf: 'flex-start', marginTop: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: TEAL, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
+                        <Text style={{ fontSize: rf(12), fontWeight: '700', color: '#FFFFFF' }}>Explore Deals</Text>
+                        <ArrowRight size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                      </Pressable>
                     </View>
-                    <View style={{ width: Math.min(bannerW * 0.36, bannerH * 1.1), alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
-                      <Image resizeMethod="resize" source={{ uri: heroImage }} style={{ width: '100%', height: bannerH * 0.82 }} resizeMode="contain" />
+                    <View style={{ width: Math.min(bannerW * 0.38, bannerH * 1.1), alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                      <Image resizeMethod="resize" source={{ uri: heroImage }} style={{ width: '100%', height: bannerH * 0.86 }} resizeMode="contain" />
                     </View>
                   </LinearGradient>
                   {buyBanners.map((b) => (
@@ -532,9 +539,50 @@ export default function OwnerBuyHomeScreen({ navigation }) {
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
                 {Array.from({ length: slides }, (_, i) => (
-                  <View key={i} style={{ height: 6, width: i === slide ? 22 : 7, borderRadius: 3, marginHorizontal: 3, backgroundColor: i === slide ? TEAL : '#D1D5DB' }} />
+                  <View key={i} style={{ height: 8, width: 8, borderRadius: 4, marginHorizontal: 4, backgroundColor: i === slide ? TEAL : '#D1D5DB' }} />
                 ))}
               </View>
+            </View>
+
+            {/* Categories — All, each category (with its image), Spares; tapping filters this page. */}
+            {loading ? (
+              <View style={{ paddingVertical: 14 }}><Loader /></View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: PAD - 4, paddingTop: 14 }}>
+                <RailItem label="All" Icon={LayoutGrid} active={selCat === 'ALL'} onPress={openAll} />
+                {cats.map((c) => (
+                  <RailItem key={c.id} label={c.name} Icon={catIcon(c)} image={catImage(c)} active={selCat === c.id} onPress={() => pickCat(c.id)} />
+                ))}
+                <RailItem label="Spares" Icon={Settings} image={menuImages[categoryMenuKey('Spares')] || menuImages[categoryMenuKey('Spare Parts')]} active={selCat === SPARES} onPress={() => pickCat(SPARES)} />
+              </ScrollView>
+            )}
+
+            {/* Summary: New Requests · Active Orders · Completed Today (live counts) */}
+            <View style={{ flexDirection: 'row', paddingHorizontal: PAD, marginTop: 16 }}>
+              {[
+                { key: 'req', Icon: MessageSquareText, tint: TEAL, bg: '#EAF6FB', value: newRequests, label: 'New Requests', go: () => navigation.navigate('OwnerSellRequests') },
+                { key: 'act', Icon: ShoppingCart, tint: '#E08A00', bg: '#FFF6E6', value: activeOrders, label: 'Active Orders', go: () => navigation.navigate('BuyOrders') },
+                { key: 'done', Icon: CheckCircle2, tint: '#16A34A', bg: '#EAF8EE', value: doneToday, label: 'Completed Today', go: () => navigation.navigate('BuyOrders') },
+              ].map((s, i) => (
+                <Pressable key={s.key} onPress={s.go} accessibilityRole="button" accessibilityLabel={`${s.label}: ${s.value}`} className="active:opacity-80"
+                  style={{ flex: 1, marginLeft: i ? 8 : 0, backgroundColor: s.bg, borderRadius: 16, borderWidth: 1, borderColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 14, ...cardShadow }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <s.Icon size={compact ? 18 : 22} color={s.tint} strokeWidth={2.2} />
+                    <Text numberOfLines={1} style={{ flex: 1, marginLeft: 8, fontSize: rf(compact ? 17 : 20), fontWeight: '800', color: INK }}>{loading ? '–' : s.value}</Text>
+                    <ChevronRight size={16} color={TEAL} />
+                  </View>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ marginTop: 6, fontSize: rf(11.5), color: '#374151' }}>{s.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Top Listings · View All */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: PAD + 2, marginTop: 16 }}>
+              <Text style={{ flex: 1, fontSize: rf(17), fontWeight: '800', color: INK }}>Top Listings</Text>
+              <Pressable onPress={() => navigation.navigate('OwnerBuyListing')} hitSlop={6} accessibilityRole="button" accessibilityLabel="View all listings" className="active:opacity-70" style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: rf(13.5), fontWeight: '700', color: TEAL }}>View All</Text>
+                <ArrowRight size={16} color={TEAL} style={{ marginLeft: 4 }} />
+              </Pressable>
             </View>
 
             {/* Status chips */}
@@ -543,18 +591,19 @@ export default function OwnerBuyHomeScreen({ navigation }) {
                 <StageChip key={s.key} label={s.label} count={stageCount(s.key)} active={stage === s.key} onPress={() => setStage(s.key)} />
               ))}
             </ScrollView>
-
             {/* Customer + shop sell listings for the selected category and stage. */}
             <View style={{ paddingHorizontal: PAD, paddingTop: 10 }}>
               {shown.map((it) => (
                 <HomeLeadCard
                   key={it._key || `listing:${it.id}`}
                   it={it}
+                  thumbUri={catalogImage(it) || it.productImage}
                   tag={tagFor(it)}
                   accepted={!!buys[String(it.id)] || quoteOf(it) === 'ACCEPTED'}
                   purchase={buys[String(it.id)]}
                   navigation={navigation}
                   onOpen={() => openItem(it)}
+                  compact={compact}
                 />
               ))}
               {!loading && !shown.length ? (

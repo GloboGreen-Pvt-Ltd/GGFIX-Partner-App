@@ -1,244 +1,158 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 /**
- * NearGFix Partner boot screen (same design as the Customer app's LaunchOverlay), shown
- * by RootNavigator while the session loads; RootNavigator owns the fade-out:
- * green wavy top (glowing logo, wordmark, services), the device line-up over
- * the wave edge, then tagline · progress · trust row on a light base.
- *  - All art ships in the app (assets/boot-device.png, boot-logo-glyph.png;
- *    the rest is drawn), so it shows instantly on a cold launch.
- *  - The whole block scales down to fit between the system bars.
+ * NearGFix Partner boot screen, shown by RootNavigator while the session
+ * loads (RootNavigator owns the fade-out). Dark teal gradient with cyan/gold
+ * glow waves, glyph in a glowing frame, wordmark, gold PARTNER, four service
+ * icons and an indeterminate gold shimmer bar (no real progress is available,
+ * so it never shows a percentage). All loops use the native driver.
  */
-const DEVICE = require('../../assets/boot-device.png');
 const GLYPH = require('../../assets/boot-logo-glyph.png');
-const DEVICE_RATIO = 675 / 900; // height / width of boot-device.png
 
-const BASE = '#F4F6F5';
-const INK = '#141414';
-const GREEN = '#035C6C';
-const NEON = '#357D89';
-const YELLOW = '#F3BF23';
-const MINT = '#E5F3F5';
+const T1 = '#035C6C';
+const T3 = '#012F38';
+const CYAN = '#4FD1E0';
+const GOLD = '#E8B84A';
+const GOLD_LIGHT = '#F8DC8A';
+const LEAF = '#4CC38A';
+
+const SERVICES = [
+  { icon: 'tools', label: 'Repair' },
+  { icon: 'truck-fast-outline', label: 'Pickup' },
+  { icon: 'cart-outline', label: 'Buy' },
+  { icon: 'tag-outline', label: 'Sell' },
+];
+const SPARKS = [0.18, 0.42, 0.66, 0.88]; // x-positions along the bar
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+const FONT_CAP = 1.15;
 
-function TrustIcon({ kind, size }) {
+function Waves({ W, h, flip }) {
+  // Two soft glowing curves (cyan + gold) for the top/bottom edges.
+  const y = (f) => h * f;
+  const p1 = `M0 ${y(0.55)}C${W * 0.3} ${y(0.95)} ${W * 0.65} ${y(0.15)} ${W} ${y(0.5)}`;
+  const p2 = `M0 ${y(0.75)}C${W * 0.35} ${y(0.4)} ${W * 0.7} ${y(1)} ${W} ${y(0.7)}`;
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      {kind === 'shield' ? (
-        <>
-          <Path d="M12 2.2l7.6 2.9v6c0 5-3.4 8.9-7.6 10.7-4.2-1.8-7.6-5.7-7.6-10.7v-6z" fill={GREEN} />
-          <Path d="M8.3 12.1l2.6 2.6 5-5.2" fill="none" stroke="#FFFFFF" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : kind === 'people' ? (
-        <>
-          <Path d="M12 1.6l1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3z" fill={YELLOW} />
-          <Circle cx={6.2} cy={11.2} r={2.1} fill={GREEN} />
-          <Circle cx={17.8} cy={11.2} r={2.1} fill={GREEN} />
-          <Circle cx={12} cy={10.4} r={2.6} fill={GREEN} />
-          <Path d="M2.4 20.5c0-2.6 1.7-4.4 3.8-4.4s3.8 1.8 3.8 4.4zM14 20.5c0-2.6 1.7-4.4 3.8-4.4s3.8 1.8 3.8 4.4z" fill={GREEN} />
-          <Path d="M7 21.4c0-3.3 2.2-5.6 5-5.6s5 2.3 5 5.6z" fill={GREEN} />
-        </>
-      ) : (
-        <>
-          <Path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z" fill={GREEN} />
-          <Circle cx={12} cy={9} r={3} fill={YELLOW} />
-        </>
-      )}
+    <Svg pointerEvents="none" width={W} height={h} style={[{ position: 'absolute', left: 0 }, flip ? { bottom: 0, transform: [{ scaleY: -1 }] } : { top: 0 }]}>
+      <Path d={p1} stroke={CYAN} strokeOpacity={0.12} strokeWidth={10} fill="none" />
+      <Path d={p1} stroke={CYAN} strokeOpacity={0.55} strokeWidth={1.2} fill="none" />
+      <Path d={p2} stroke={GOLD} strokeOpacity={0.12} strokeWidth={10} fill="none" />
+      <Path d={p2} stroke={GOLD} strokeOpacity={0.6} strokeWidth={1.2} fill="none" />
     </Svg>
   );
 }
 
-function TrustItem({ kind, label, circle, font }) {
-  return (
-    <View style={styles.trustItem}>
-      <View style={{ width: circle, height: circle, borderRadius: circle / 2, backgroundColor: MINT, alignItems: 'center', justifyContent: 'center' }}>
-        <TrustIcon kind={kind} size={circle * 0.56} />
-      </View>
-      <Text style={[styles.trustLabel, { fontSize: font, lineHeight: font * 1.3, marginTop: 6 }]}>{label}</Text>
-    </View>
-  );
-}
-
 export default function BootSplash() {
-  const { width: W, height } = useWindowDimensions();
+  const { width: W, height: H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [fit, setFit] = useState(1);
-  const [device, setDevice] = useState(null); // { y, h } of the device art inside the block
+  const availH = H - insets.top - insets.bottom;
 
-  // Size tiers from the height actually available between the system bars.
-  const availH = height - insets.top - insets.bottom;
-  const tier = (s, m, l) => (availH < 680 ? s : availH < 820 ? m : l);
-  const k = clamp(W / 390, 0.82, 1.3);
-  const cw = Math.min(W, 460); // content column
-  const gap = (n) => n * tier(0.6, 0.8, 1) * k;
+  const k = clamp(Math.min(W / 390, availH / 780), 0.8, 1.2);
+  const u = (n) => Math.round(n * k);
+  const frame = clamp(Math.min(W * 0.28, availH * 0.15), 80, 120);
+  const logoSz = frame * 0.62 + 20; // visible logo size (+20dp)
+  const barW = clamp(W * 0.8, 240, 440);
+  const waveH = clamp(availH * 0.16, 90, 160);
 
-  const logo = tier(78, 90, 100) * k;
-  const word = tier(42, 48, 54) * k;
-  const devW = Math.min(cw * 0.86, (availH * tier(0.24, 0.26, 0.28)) / DEVICE_RATIO);
-  const devH = devW * DEVICE_RATIO;
-  const tag = tier(21, 24, 27) * k;
-  const barW = Math.min(cw * 0.62, 300);
-
-  // Green area: everything above roughly the middle of the device art.
-  const devTop = device ? device.y : 300;
-  const D = device ? device.h : devH;
-  const EXT = height; // the shape runs far above / beside the block so scaling never uncovers an edge
-  const SW = W * 1.8;
-  const ox = W * 0.4;
-  const yL = devTop + D * 0.02 + EXT; // edge at the far left
-  const yR = devTop + D * 0.62 + EXT; // edge at the far right
-  const greenPath = `M0 0H${SW}V${yR}C${ox + W * 0.75} ${yR - D * 0.05} ${ox + W * 0.55} ${devTop + D * 0.55 + EXT} ${ox + W * 0.3} ${devTop + D * 0.3 + EXT}S${ox - W * 0.1} ${yL - D * 0.1} 0 ${yL}Z`;
-  const mintPath = `M0 ${yL + D * 0.05}C${ox} ${yL - D * 0.05} ${ox + W * 0.25} ${devTop + D * 0.5 + EXT} ${ox + W * 0.45} ${devTop + D * 0.62 + EXT}S${ox + W * 0.9} ${yR + D * 0.12} ${SW} ${yR + D * 0.2}V${yR + D * 0.32}C${ox + W * 0.6} ${yR + D * 0.42} ${ox + W * 0.2} ${yL + D * 0.15} 0 ${yL + D * 0.55}Z`;
-  const glowPath = `M${ox + W * 0.55} 0C${ox + W * 0.9} ${EXT + D * 0.4} ${ox + W * 1.05} ${EXT + devTop * 0.5} ${SW} ${EXT + devTop * 0.9}V0Z`;
-
-  const logoAnim = useRef(new Animated.Value(0)).current;
-  const textAnim = useRef(new Animated.Value(0)).current;
-  const deviceAnim = useRef(new Animated.Value(0)).current;
-  const barAnim = useRef(new Animated.Value(0)).current;
+  const enter = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.stagger(140, [
-      Animated.timing(logoAnim, { toValue: 1, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(textAnim, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(deviceAnim, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [logoAnim, textAnim, deviceAnim]);
+    Animated.timing(enter, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    const spin = Animated.loop(Animated.timing(slide, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true }));
+    spin.start();
+    return () => spin.stop();
+  }, [enter, slide]);
+  const spinner = clamp(34 * k, 28, 40);
+  const sr = spinner / 2 - 2; // arc radius
+  const circ = 2 * Math.PI * sr;
 
-  // RootNavigator keeps this up for its minimum boot time (~5 s) and then
-  // fades it, so the bar fills over that window.
-  useEffect(() => {
-    Animated.timing(barAnim, {
-      toValue: 0.95,
-      duration: 4600,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: false, // animates `width`, which the native driver can't touch
-    }).start();
-  }, [barAnim]);
-
+  const textProps = { numberOfLines: 1, adjustsFontSizeToFit: true, maxFontSizeMultiplier: FONT_CAP };
+  const rise = (d) => ({ opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [d, 0] }) }] });
 
   return (
-    <View
-      accessibilityRole="progressbar"
-      accessibilityLabel="Loading NearGFix Partner"
-      style={[StyleSheet.absoluteFill, styles.root]}
-    >
-      <StatusBar style="light" />
-      {/* Soft light waves along the bottom edge. */}
-      <Svg pointerEvents="none" style={{ position: 'absolute', left: 0, bottom: 0 }} width={W} height={height * 0.22} viewBox={`0 0 ${W} 100`} preserveAspectRatio="none">
-        <Path d={`M0 30C${W * 0.25} 10 ${W * 0.45} 70 ${W} 40V100H0Z`} fill="#EAF0EC" />
-        <Path d={`M0 70C${W * 0.35} 45 ${W * 0.6} 95 ${W} 75V100H0Z`} fill="#E5F3F5" />
+    <View accessibilityRole="progressbar" accessibilityLabel="Loading NearGFix Partner" style={[StyleSheet.absoluteFill, styles.root]}>
+      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={W} height={H}>
+        <Defs>
+          <LinearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+            <Stop offset="0" stopColor={T1} />
+            <Stop offset="1" stopColor={T3} />
+          </LinearGradient>
+          <RadialGradient id="glow" cx="50%" cy="40%" r="55%">
+            <Stop offset="0" stopColor={CYAN} stopOpacity={0.18} />
+            <Stop offset="1" stopColor={CYAN} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={W} height={H} fill="url(#bg)" />
+        <Rect x={0} y={0} width={W} height={H} fill="url(#glow)" />
       </Svg>
 
-      <View style={[styles.safe, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
-        <View
-          onLayout={(e) => {
-            // Shrink the whole block if it's still taller than the space.
-            const h = e.nativeEvent.layout.height;
-            const room = availH - 16;
-            const next = h > room ? Math.max(0.7, room / h) : 1;
-            if (Math.abs(next - fit) > 0.01) setFit(next);
-          }}
-          style={[styles.content, { transform: [{ scale: fit }] }]}
-        >
-          {/* Green wavy backdrop (drawn behind the block, bleeding past every edge). */}
-          <Svg pointerEvents="none" style={{ position: 'absolute', left: -ox, top: -EXT }} width={SW} height={yR + D * 0.5}>
-            <Defs>
-              <LinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor="#035C6C" />
-                <Stop offset="0.55" stopColor="#035C6C" />
-                <Stop offset="1" stopColor="#035C6C" />
-              </LinearGradient>
-            </Defs>
-            <Path d={mintPath} fill={MINT} />
-            <Path d={greenPath} fill="url(#g)" />
-            <Path d={glowPath} fill="#FFFFFF" opacity={0.06} />
-            <Circle cx={ox + W * 1.02} cy={EXT - 30} r={W * 0.36} fill="none" stroke="#FFFFFF" strokeOpacity={0.28} strokeWidth={1} />
-          </Svg>
+      <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={[styles.center, { paddingBottom: availH * 0.04 }]}>
+          <Animated.View style={[{ alignSelf: 'stretch', alignItems: 'center' }, rise(6)]}>
+            <View style={styles.frame}>
+              <Image source={GLYPH} style={{ width: logoSz, height: logoSz }} resizeMode="contain" fadeDuration={0} />
+            </View>
+          </Animated.View>
 
-          {/* Logo — white glyph in a glowing ring. */}
-          <Animated.View style={{ opacity: logoAnim, transform: [{ scale: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }}>
-            <View
+          <Animated.View style={[styles.block, { marginTop: u(16) }, rise(10)]}>
+            <Text {...textProps} style={[styles.word, { fontSize: clamp(40 * k, 30, 48) }]}>
+              Near<Text style={{ color: CYAN }}>GFix</Text>
+            </Text>
+            <View style={[styles.partnerRow, { marginTop: u(10) }]}>
+              <View style={styles.goldLine} />
+              <View style={[styles.pill, { paddingHorizontal: u(14), paddingVertical: u(4) }]}>
+                <Text {...textProps} style={[styles.partner, { fontSize: clamp(12 * k, 10.5, 14) }]}>PARTNER</Text>
+              </View>
+              <View style={styles.goldLine} />
+            </View>
+
+            <View style={[styles.services, { width: barW, marginTop: u(30) }]}>
+              {SERVICES.map((s) => (
+                <View key={s.label} style={[styles.card, { paddingVertical: u(12), borderRadius: u(14) }]}>
+                  <MaterialCommunityIcons name={s.icon} size={u(24)} color={GOLD} />
+                  <Text {...textProps} style={[styles.serviceLabel, { fontSize: clamp(12 * k, 10, 13.5), marginTop: u(6) }]}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Cyan circular spinner (native-driver rotation). */}
+            <Animated.View
               style={{
-                width: logo, height: logo, borderRadius: logo / 2, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: '#035C6C', borderWidth: 2.5, borderColor: NEON,
-                shadowColor: NEON, shadowOpacity: 0.9, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 12,
+                marginTop: u(32), width: spinner, height: spinner,
+                shadowColor: CYAN, shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
+                transform: [{ rotate: slide.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
               }}
             >
-              <Image source={GLYPH} style={{ width: logo * 0.64, height: logo * 0.64 }} resizeMode="contain" />
-            </View>
+              <Svg width={spinner} height={spinner}>
+                <Circle cx={spinner / 2} cy={spinner / 2} r={sr} stroke={CYAN} strokeOpacity={0.15} strokeWidth={2.5} fill="none" />
+                <Circle
+                  cx={spinner / 2} cy={spinner / 2} r={sr} stroke={CYAN} strokeWidth={2.5} fill="none"
+                  strokeLinecap="round" strokeDasharray={`${circ * 0.28} ${circ}`}
+                />
+              </Svg>
+            </Animated.View>
           </Animated.View>
+        </View>
 
-          <Animated.View style={{ alignItems: 'center', opacity: textAnim, marginTop: gap(16) }}>
-            {/* "NEAR G FIX" is twice GGFIX's width — shrink to fit narrow phones. */}
-            <Text
-              style={[styles.wordmark, { fontSize: word, lineHeight: word * 1.08, paddingHorizontal: 16 }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.6}
-            >
-              NEAR G <Text style={{ color: NEON }}>FIX</Text>
+        <View style={{ marginBottom: u(18) }}>
+          <View style={styles.footer}>
+            <View style={styles.footLine} />
+            <Text {...textProps} style={[styles.footerText, { fontSize: clamp(10 * k, 9, 11.5) }]}>Powered by</Text>
+            <View style={styles.footLine} />
+          </View>
+          <View style={[styles.footer, { marginTop: u(6) }]}>
+            <MaterialCommunityIcons name="leaf" size={clamp(14 * k, 12, 16)} color={LEAF} style={{ marginRight: 6 }} />
+            <Text {...textProps} minimumFontScale={0.7} style={[styles.company, { flexShrink: 1, fontSize: clamp(11.5 * k, 9.5, 13) }]}>
+              Globogreen System & Technology Pvt Ltd
             </Text>
-            <Text style={[styles.byline, { fontSize: 13 * k, marginTop: gap(6) }]}>PARTNER</Text>
-            <Text style={[styles.services, { fontSize: 15 * k, marginTop: gap(14) }]}>
-              Repair  <Text style={{ color: YELLOW }}>•</Text>  Pickup  <Text style={{ color: YELLOW }}>•</Text>  Buy  <Text style={{ color: YELLOW }}>•</Text>  Sell
-            </Text>
-          </Animated.View>
-
-          {/* Devices over the wave edge, with small accent ticks either side. */}
-          <Animated.View
-            onLayout={(e) => {
-              const { y, height: h } = e.nativeEvent.layout;
-              if (!device || Math.abs(device.y - y) > 1 || Math.abs(device.h - h) > 1) setDevice({ y, h });
-            }}
-            style={{
-              width: devW, height: devH, marginTop: gap(18),
-              opacity: deviceAnim,
-              transform: [{ translateY: deviceAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
-            }}
-          >
-            <Svg pointerEvents="none" style={StyleSheet.absoluteFill} viewBox="0 0 100 75">
-              <Path d="M-4 22l6 6M-6 31l7 2" stroke={GREEN} strokeWidth={1.6} strokeLinecap="round" />
-              <Path d="M95 12l-4 6M101 19l-7 3" stroke={YELLOW} strokeWidth={1.6} strokeLinecap="round" />
-            </Svg>
-            <Image source={DEVICE} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-          </Animated.View>
-
-          <View style={{ alignItems: 'center', marginTop: gap(14) }}>
-            <Text style={[styles.tagline, { fontSize: tag, lineHeight: tag * 1.22 }]}>ALL YOUR TECH NEEDS,</Text>
-            <Text style={[styles.tagline, { fontSize: tag * 1.08, lineHeight: tag * 1.3, color: GREEN }]}>COVERED.</Text>
-            <Svg width={tag * 5.4} height={tag * 0.45} viewBox="0 0 120 10" style={{ marginTop: -2 }}>
-              <Path d="M2 8h7" stroke={YELLOW} strokeWidth={2.4} strokeLinecap="round" />
-              <Path d="M24 7.5Q70 1 116 6" stroke={YELLOW} strokeWidth={2.8} strokeLinecap="round" fill="none" />
-            </Svg>
           </View>
-
-          <View style={{ width: barW, marginTop: gap(20), alignItems: 'center' }}>
-            <View style={styles.progressTrack}>
-              <Animated.View style={[styles.progressFill, { width: barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]}>
-                <View style={styles.progressShine} />
-              </Animated.View>
-            </View>
-            <Text style={[styles.loadingLabel, { fontSize: 13 * k, marginTop: gap(12) }]}>LOADING...</Text>
-          </View>
-
-          <View style={[styles.trustRow, { width: cw - 40, marginTop: gap(24) }]}>
-            <TrustItem kind="shield" circle={tier(44, 50, 56) * k} font={11 * k} label={'TRUSTED\nSERVICE'} />
-            <View style={styles.divider} />
-            <TrustItem kind="people" circle={tier(44, 50, 56) * k} font={11 * k} label={'THOUSANDS\nOF HAPPY\nCUSTOMERS'} />
-            <View style={styles.divider} />
-            <TrustItem kind="pin" circle={tier(44, 50, 56) * k} font={11 * k} label={'ACROSS\nINDIA'} />
-          </View>
-
-          {/* "Powered by" + company name on ONE line (shrinks to fit narrow phones). */}
-          <Text style={[styles.company, { fontSize: 11 * k, marginTop: gap(18) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            <Text style={{ fontWeight: '500', color: '#6B7280' }}>Powered by: </Text>
-            <Text style={{ fontWeight: '700', color: '#035C6C' }}>Globogreen System & Technology Private Limited</Text>
-          </Text>
         </View>
       </View>
     </View>
@@ -246,23 +160,34 @@ export default function BootSplash() {
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: BASE, zIndex: 1000, elevation: 1000, overflow: 'hidden' },
-  safe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { width: '100%', alignItems: 'center' },
-  wordmark: { fontWeight: '900', letterSpacing: -1, color: '#FFFFFF' },
-  byline: { fontWeight: '600', letterSpacing: 4, color: '#FFFFFF' },
-  services: { fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 },
-  tagline: { textAlign: 'center', fontWeight: '900', letterSpacing: 0.2, color: INK },
-  progressTrack: {
-    width: '100%', height: 13, borderRadius: 7, backgroundColor: '#E1E7E3', overflow: 'hidden',
-    borderWidth: 2, borderColor: '#FFFFFF',
+  root: { backgroundColor: T1, zIndex: 1000, elevation: 1000, overflow: 'hidden' },
+  safe: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  frame: {
+    alignItems: 'center', justifyContent: 'center',
   },
-  progressFill: { height: '100%', borderRadius: 6, backgroundColor: GREEN, overflow: 'hidden' },
-  progressShine: { position: 'absolute', left: 0, right: 0, top: 0, height: '45%', backgroundColor: 'rgba(255,255,255,0.22)' },
-  loadingLabel: { fontWeight: '600', letterSpacing: 5, color: '#3A3A3A' },
-  company: { fontWeight: '600', letterSpacing: 0.3, color: '#6B7280', textAlign: 'center', paddingHorizontal: 24 },
-  trustRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around' },
-  trustItem: { flex: 1, alignItems: 'center' },
-  trustLabel: { textAlign: 'center', fontWeight: '800', color: INK },
-  divider: { width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: '#DCE3DE' },
+  block: { alignItems: 'center', alignSelf: 'stretch' },
+  word: { fontWeight: '800', letterSpacing: -0.6, color: '#FFFFFF', includeFontPadding: false },
+  partnerRow: { flexDirection: 'row', alignItems: 'center' },
+  goldLine: { width: 32, height: 1, backgroundColor: GOLD, opacity: 0.8, marginHorizontal: 10 },
+  floatIcon: {
+    position: 'absolute', alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+    backgroundColor: 'rgba(1,30,36,0.55)', shadowOpacity: 0.7, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4,
+  },
+  pill: { borderRadius: 999, borderWidth: 1, borderColor: GOLD, backgroundColor: 'rgba(232,184,74,0.1)' },
+  partner: { fontWeight: '700', letterSpacing: 5, paddingLeft: 5, color: GOLD },
+  services: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  card: {
+    flex: 1, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(79,209,224,0.35)',
+    backgroundColor: 'rgba(1,30,36,0.45)',
+  },
+  serviceLabel: { fontWeight: '600', color: '#FFFFFF' },
+  edgeGlow: { position: 'absolute', backgroundColor: '#FFFFFF', shadowColor: GOLD_LIGHT, shadowOpacity: 1, shadowRadius: 8, elevation: 6 },
+  footLine: { width: 28, height: 1, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 8 },
+  barGlow: { shadowColor: GOLD, shadowOpacity: 0.6, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
+  bar: { padding: 1, borderWidth: 1, borderColor: GOLD, backgroundColor: '#012A31', overflow: 'hidden' },
+  spark: { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, backgroundColor: GOLD_LIGHT },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  footerText: { flexShrink: 1, color: 'rgba(255,255,255,0.5)', letterSpacing: 0.2 },
+  company: { fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
 });

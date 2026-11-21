@@ -54,11 +54,23 @@ function TimelineStep({ title, sub, mode, last }) {
 // and a key — otherwise the drawn schematic below stays.
 let Maps = null;
 try { Maps = require('react-native-maps'); } catch (_) { Maps = null; }
-const HAS_MAP = Platform.OS === 'android'
-  && !!Constants.expoConfig?.android?.config?.googleMaps?.apiKey
-  && !!Maps && !!UIManager.hasViewManagerConfig?.('AIRMap');
+// Same map as the Employee App pickup popup: shown whenever the map module is in the build.
+const HAS_MAP = !!Maps;
+
+function PinLabel({ text, color, Icon }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: color, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 2, borderColor: '#FFFFFF' }}>
+        <Icon size={13} color="#FFFFFF" />
+        <Text style={{ marginLeft: 4, fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>{text}</Text>
+      </View>
+      <View style={{ width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: color }} />
+    </View>
+  );
+}
 
 function RouteCard({ from, to, address }) {
+  const mapRef = React.useRef(null);
   const dist = from && to ? km(from, to) : null;
   const showMap = HAS_MAP && !!from;
   const pts = [from, to].filter(Boolean).map((p) => ({ latitude: p.lat, longitude: p.lng }));
@@ -79,12 +91,18 @@ function RouteCard({ from, to, address }) {
     <Pressable onPress={open} disabled={!from} accessibilityRole="button" accessibilityLabel="Open the route in Maps" className="active:opacity-90"
       style={{ marginTop: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: '#EEF6EF', borderWidth: 1, borderColor: '#DCEBDD' }}>
       {showMap ? (
-        <View pointerEvents="none" style={{ height: 170, backgroundColor: '#E8EEF0' }}>
-          <Maps.default provider={Maps.PROVIDER_GOOGLE} style={{ width: '100%', height: 170 }} initialRegion={region}
-            scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false} liteMode accessibilityLabel="Map of the customer and shop">
-            <Maps.Marker coordinate={pts[0]} title="Customer" pinColor="#035C6C" />
-            {pts[1] ? <Maps.Marker coordinate={pts[1]} title="Shop" pinColor="#0B6B4B" /> : null}
-            {pts[1] ? <Maps.Polyline coordinates={pts} strokeColor="#035C6C" strokeWidth={4} /> : null}
+        <View style={{ height: 240, backgroundColor: '#E8EEF0' }}>
+          <Maps.default ref={mapRef} style={{ flex: 1 }} initialRegion={region}
+            onMapReady={() => { if (pts.length > 1) mapRef.current?.fitToCoordinates(pts, { edgePadding: { top: 60, right: 50, bottom: 60, left: 50 }, animated: false }); }} toolbarEnabled={false} showsMyLocationButton={false} showsCompass={false} accessibilityLabel="Map of the customer and shop">
+            <Maps.Marker coordinate={pts[0]} title="From · Customer" description={address || undefined} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+              <PinLabel text="From" color="#035C6C" Icon={House} />
+            </Maps.Marker>
+            {pts[1] ? (
+              <Maps.Marker coordinate={pts[1]} title="To · Shop" anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+                <PinLabel text="To" color="#F38B4A" Icon={Store} />
+              </Maps.Marker>
+            ) : null}
+            {pts[1] ? <Maps.Polyline coordinates={pts} strokeColor="#1A73E8" strokeWidth={4} /> : null}
           </Maps.default>
         </View>
       ) : (

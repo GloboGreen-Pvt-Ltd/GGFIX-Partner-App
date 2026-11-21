@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, PanResponder, Linking, RefreshControl } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, StatusBar, useWindowDimensions, PanResponder, Linking, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -815,6 +814,11 @@ export default function TicketDetailScreen({ route, navigation }) {
   // The booked issues, each with its own service charge folded in (a/b lines).
   const summaryItems = groupServiceCharges(lineItems);
   // Service History: finished milestones (same tracker as the History screen).
+  // "Delivered by": the server stamps "Delivered by <name>" on the DELIVERED
+  // event (the technician whose login delivered, else "Shop").
+  const deliveredNote = String([...recordedEvents].reverse()
+    .find((e) => String(e?.status || '').toUpperCase() === 'DELIVERED' && /^Delivered by /i.test(e?.note || ''))?.note || '');
+  const deliveredByName = deliveredNote.replace(/^Delivered by /i, '').trim();
   const historyMilestones = buildMilestones(recordedEvents).filter((m) => m.state === 'done' && m.key !== 'COLLECTED'); // Booking Details: no "Device Received at Shop" row
   // Technician photos in two groups: Issue Verified & Updated, then (only
   // after a re-estimate request) Additional Issue Verified & Updated.
@@ -1101,6 +1105,12 @@ export default function TicketDetailScreen({ route, navigation }) {
                   <>
                     <Text className="text-[10px] text-text-muted" style={{ marginTop: 6 }}>Booked By</Text>
                     <Text className="text-[11px] font-bold text-text text-right" style={{ marginTop: 1 }} numberOfLines={1}>{ticket.bookedByName}{ticket.bookedByRole === 'OWNER' ? ' (Owner)' : ''}</Text>
+                  </>
+                ) : null}
+                {statusKey === 'DELIVERED' && (deliveredByName || techName) ? (
+                  <>
+                    <Text className="text-[10px] text-text-muted" style={{ marginTop: 6 }}>Delivered By</Text>
+                    <Text className="text-[11px] font-bold text-text text-right" style={{ marginTop: 1 }} numberOfLines={1}>{deliveredByName || techName}</Text>
                   </>
                 ) : null}
               </View>
@@ -1653,6 +1663,11 @@ export default function TicketDetailScreen({ route, navigation }) {
                         onComplete={markDelivered}
                       />
                     </View>
+                  ) : null}
+                  {statusKey === 'DELIVERED' && deliveredByName ? (
+                    <Text style={{ marginTop: 8, fontSize: 12.5, color: '#4B5563' }}>
+                      Delivered by <Text style={{ fontWeight: '800', color: '#111111' }}>{deliveredByName}</Text>
+                    </Text>
                   ) : null}
                 </View>
               ) : (

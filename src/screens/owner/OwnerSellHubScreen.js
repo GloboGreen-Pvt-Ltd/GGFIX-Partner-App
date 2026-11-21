@@ -474,20 +474,6 @@ export default function OwnerSellHubScreen({ navigation }) {
             </View>
           ) : (
             <>
-              {/* ---------- Active pickup assignments (live orders) ---------- */}
-              {(() => {
-                const act = buyOrders.filter((o) => o.fulfilmentType === 'HOME_DELIVERY' && ACTIVE_PICKUP.includes(o.status));
-                if (!act.length) return null;
-                return (
-                  <>
-                    <SectionTitle title="Active Pickup Assignments" sub={`${act.length} active`} action="Assign Pickup" onAction={() => navigation.navigate('SellBuyAssignList')} />
-                    {act.slice(0, 3).map((o) => (
-                      <PickupRow key={o.id} o={o} onPress={() => navigation.navigate('SellBuyAssignList', { initialSection: o.status === 'CONFIRMED' || o.status === 'DELIVERY_FAILED' ? 'READY' : 'ALL' })} />
-                    ))}
-                  </>
-                );
-              })()}
-
               {/* ---------- Recent listings ---------- */}
               <SectionTitle title="Recent Listings" sub="Devices and parts you've listed" action={recent.length ? 'See All' : null} onAction={() => navigation.navigate('SellMyListings', { initialStatus: 'ALL' })} />
               {loading && !recent.length ? (

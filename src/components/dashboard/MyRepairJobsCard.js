@@ -5,7 +5,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { C } from './theme';
 
 // Assigned glyph — technician with cap + check badge (assets/icons/assigned-icon.svg).
-function AssignedIcon({ size = 20, color = '#17191B', strokeWidth = 2 }) {
+export function AssignedIcon({ size = 20, color = '#17191B', strokeWidth = 2 }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M7 8.2a4.8 4.8 0 0 1 9.6 0" />

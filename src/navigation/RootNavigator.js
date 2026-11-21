@@ -29,7 +29,7 @@ const Stack = createNativeStackNavigator();
 // sooner, so the brand moment actually registers instead of flashing by —
 // runs in parallel with session loading, never stacked after it. To show the
 // splash for 10 seconds instead, change this single value to 10000.
-const MIN_BOOT_SPLASH_MS = 5000;
+const MIN_BOOT_SPLASH_MS = 3000;
 const BOOT_FADE_MS = 220;
 
 // Decide which app shell a session may enter. The shop app serves ONLY the shop
@@ -232,7 +232,7 @@ export default function RootNavigator() {
       ? <OwnerNavigator session={session} onLogout={handleLogout} />
       : <UnsupportedRoleScreen onLogout={handleLogout} />;
     mainContent = (
-      <SecurityGate onLogout={handleLogout}>
+      <SecurityGate onLogout={handleLogout} ready={!showBootOverlay}>
         <LegalConsentGate accountId={session.userId} onLogout={handleLogout}>{roleContent}</LegalConsentGate>
       </SecurityGate>
     );
@@ -255,7 +255,8 @@ export default function RootNavigator() {
       {mainContent}
       {showBootOverlay ? (
         <Animated.View
-          style={[StyleSheet.absoluteFill, { opacity: bootFade }]}
+          // Above SecurityGate's lock card (zIndex/elevation 9999) so the lock never covers the splash.
+          style={[StyleSheet.absoluteFill, { opacity: bootFade, zIndex: 10000, elevation: 10000 }]}
           pointerEvents={minTimeElapsed ? 'none' : 'auto'}
         >
           <BootSplash />

@@ -10,12 +10,16 @@ import {
   deleteAsync,
   documentDirectory,
   getContentUriAsync,
+  getInfoAsync,
+  readAsStringAsync,
+  StorageAccessFramework,
   writeAsStringAsync,
 } from 'expo-file-system/legacy';
 import {
   isAvailable as mediaStoreAvailable,
   saveToDownloads as mediaStoreSave,
 } from '../../modules/ggfix-downloads';
+import { shareSingleModule } from './whatsappShare';
 
 /* expo-notifications and expo-intent-launcher are NATIVE modules, and this app
    ships a committed android/ folder — so an APK built before they were added
@@ -103,11 +107,15 @@ export async function saveToDownloads({ stem, extension, mimeType, sourceUri, te
   }
 
   // Expo Go / a dev build made before modules/ggfix-downloads existed has no
-  // MediaStore bridge. Hand the file to the share sheet instead so local testing
-  // still ends with a saved copy ("Save to device", Drive, Files…).
+  // MediaStore bridge: save through the Storage Access Framework (the user
+  // picks a folder once per save). Cancelling the picker throws 'cancelled'.
   if (!mediaStoreAvailable()) {
-    await shareLocalFile(from, name, mimeType);
-    return { name, uri: null, mimeType, location: 'share sheet', shared: true };
+    const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+    if (!perm?.granted) throw new Error('Save cancelled');
+    const dest = await StorageAccessFramework.createFileAsync(perm.directoryUri, stem, mimeType);
+    const data = await readAsStringAsync(from, { encoding: EncodingType.Base64 });
+    await StorageAccessFramework.writeAsStringAsync(dest, data, { encoding: EncodingType.Base64 });
+    return { name, uri: dest, mimeType, location: 'the selected folder' };
   }
 
   // MediaStore returns the name it settled on: an existing GGFix_Invoice_X.pdf
@@ -117,29 +125,86 @@ export async function saveToDownloads({ stem, extension, mimeType, sourceUri, te
 }
 
 /**
- * Share a local file under a friendly name. The renamed copy sits NEXT TO the
- * source (same directory), because expo-sharing only reads paths the app owns —
- * a sibling of a file we just wrote is always one of those. If the copy or the
- * share of it is refused, the original file is shared as-is.
+ * Write a PDF from expo-print into this app's own cache and verify it.
+ *
+ * Why: expo-print writes to the React context's cache (`.../cache/Print/`). In
+ * Expo Go that folder belongs to Expo Go itself, outside the app's scoped
+ * directories (ExperienceData/...), so expo-file-system can't copy it and
+ * expo-sharing refuses it ("Not allowed to read file under given URL").
+ * Writing the base64 bytes into `cacheDirectory` (always the app's scoped
+ * cache) gives a file both modules may read, in Expo Go and in real builds.
+ *
+ * @param printed result of Print.printToFileAsync({ html, base64: true })
+ * @returns file:// uri of the verified PDF
  */
-export async function shareLocalFile(sourceUri, name, mimeType) {
+export async function stagePrintedPdf(printed, name) {
+  const dest = `${cacheDirectory}${encodeURIComponent(name)}`;
+  await deleteAsync(dest, { idempotent: true });
+  if (printed?.base64) await writeAsStringAsync(dest, printed.base64, { encoding: EncodingType.Base64 });
+  else await copyAsync({ from: printed?.uri, to: dest });
+  const info = await getInfoAsync(dest);
+  if (__DEV__) console.log('[pdf] staged', { printed: printed?.uri, dest, exists: info?.exists, size: info?.size });
+  if (!info?.exists || !info.size) throw new Error('The PDF file was not created.');
+  return dest;
+}
+
+/**
+ * Share a local file under a friendly name. The renamed copy goes into the
+ * app's cache (`cacheDirectory`), which expo-sharing may always read. Pass a
+ * file from stagePrintedPdf (already there) when the source came from expo-print.
+ */
+/** True when this binary can send a file AND a caption in one share
+ *  (react-native-share: dev build / APK). Expo Go cannot: expo-sharing has no
+ *  text option. */
+export const canShareWithCaption = () => !!shareSingleModule()?.open;
+
+export async function shareLocalFile(sourceUri, name, mimeType, message) {
+  if (!sourceUri || !sourceUri.startsWith('file://')) throw new Error('Invalid local file URI.');
   let uri = sourceUri;
-  try {
-    const sibling = sourceUri.replace(/[^/]+$/, encodeURIComponent(name));
-    if (sibling !== sourceUri) {
-      await deleteAsync(sibling, { idempotent: true });
-      await copyAsync({ from: sourceUri, to: sibling });
-      uri = sibling;
-    }
-  } catch (_) { uri = sourceUri; }
+  const dest = `${cacheDirectory}${encodeURIComponent(name)}`;
+  if (cacheDirectory && sourceUri !== dest) {
+    await deleteAsync(dest, { idempotent: true });
+    await copyAsync({ from: sourceUri, to: dest });
+    uri = dest;
+  }
+  const info = await getInfoAsync(uri);
+  const available = await Sharing.isAvailableAsync().catch(() => false);
+  if (__DEV__) console.log('[share]', { uri, exists: info?.exists, size: info?.size, mimeType, available });
+  if (!info?.exists || !info.size) throw new Error('The file to share was not found.');
+
+  // File + caption in ONE share: ACTION_SEND with EXTRA_STREAM (the PDF, read
+  // permission granted through react-native-share's FileProvider, which covers
+  // the app cache) and EXTRA_TEXT (WhatsApp shows it as the file's caption).
+  const RNShare = message ? shareSingleModule() : null;
+  if (RNShare?.open) {
+    const opened = RNShare.open({
+      url: uri, type: mimeType, filename: name.replace(/\.[^.]+$/, ''), title: name,
+      message, useInternalStorage: true, failOnCancel: false,
+    });
+    await Promise.race([opened, new Promise((r) => setTimeout(r, 3000))]);
+    return { captioned: true };
+  }
 
   const opts = { mimeType, dialogTitle: name, UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : undefined };
   try {
-    await Sharing.shareAsync(uri, opts);
+    // Settles only when Android reports the sheet's result, which Expo Go
+    // sometimes never delivers: once the sheet has had time to open, stop
+    // waiting so the button doesn't spin forever. Errors still arrive first.
+    await Promise.race([Sharing.shareAsync(uri, opts), new Promise((r) => setTimeout(r, 3000))]);
   } catch (e) {
-    if (uri === sourceUri || !/not allowed/i.test(e?.message || '')) throw e;
-    await Sharing.shareAsync(sourceUri, opts);
+    if (__DEV__) console.log('[share] failed', uri, e?.cause?.message || e?.message);
+    throw shareError(e);
   }
+}
+
+/** Surface the native reason ("Not allowed to read…", "Another share request…")
+ *  instead of the generic "Call to function … has been rejected". */
+function shareError(e) {
+  const reason = e?.cause?.message || e?.message || 'Share failed';
+  if (/another share request/i.test(reason)) {
+    return Object.assign(new Error('The previous share is still open. Close it, or reload the app, then try again.'), { cause: e });
+  }
+  return Object.assign(new Error(reason.replace(/^Call to function '[^']+' has been rejected\.?\s*(→\s*Caused by:\s*)?/i, '') || reason), { cause: e });
 }
 
 /* ── the shade ─────────────────────────────────────────────────────────── */

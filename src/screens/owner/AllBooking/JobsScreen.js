@@ -1126,9 +1126,9 @@ export default function JobsScreen({ navigation, route }) {
                   accessibilityRole="button"
                   accessibilityLabel={`Call ${phone}`}
                   className="items-center justify-center active:opacity-70"
-                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#FAFBFD', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#035C6C', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}
                 >
-                  <Phone size={14} color={ACCENT_GREEN} />
+                  <Phone size={14} color="#17191B" strokeWidth={1.75} />
                 </Pressable>
                 <Pressable
                   onPress={() => copyPhone(phone)}
@@ -1136,9 +1136,9 @@ export default function JobsScreen({ navigation, route }) {
                   accessibilityRole="button"
                   accessibilityLabel={`Copy mobile number ${phone}`}
                   className="items-center justify-center active:opacity-70"
-                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#E5F3F5' }}
+                  style={{ height: 26, width: 26, borderRadius: 13, backgroundColor: '#FAFBFD', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#035C6C', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}
                 >
-                  <Copy size={14} color={ACCENT_GREEN} />
+                  <Copy size={14} color="#17191B" strokeWidth={1.75} />
                 </Pressable>
               </>
           </View>
@@ -1382,12 +1382,12 @@ export default function JobsScreen({ navigation, route }) {
           {phone ? (
             <>
               <Pressable onPress={() => callPhone(phone)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Call ${phone}`}
-                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Phone size={12} color={ACCENT_GREEN} />
+                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#FAFBFD', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#035C6C', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Phone size={12} color="#17191B" strokeWidth={1.75} />
               </Pressable>
               <Pressable onPress={() => copyPhone(phone)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Copy mobile number ${phone}`}
-                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
-                <Copy size={12} color={ACCENT_GREEN} />
+                style={{ height: 24, width: 24, borderRadius: 12, backgroundColor: '#FAFBFD', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#035C6C', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
+                <Copy size={12} color="#17191B" strokeWidth={1.75} />
               </Pressable>
             </>
           ) : null}
@@ -1480,23 +1480,24 @@ export default function JobsScreen({ navigation, route }) {
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${s.chipLabel || s.label}, ${counts[s.key] ?? 0}`}
                 className="active:opacity-80"
-                style={{
-                  marginVertical: 4, borderRadius: 14, backgroundColor: '#FFFFFF',
-                }}
+                style={{ marginVertical: 4 }}
               >
-                {/* White at the top fading to a light tint of the tile's colour. */}
                 <LinearGradient
-                  colors={['#FFFFFF', '#FFFFFF']} // plain white tile
+                  colors={['transparent', 'transparent']} // no tile box
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={{
-                    alignItems: 'center', paddingVertical: 9, paddingHorizontal: 3, borderRadius: 14,
-                    borderWidth: active ? 1.5 : 1, borderColor: active ? '#035C6C' : '#E5E7EB',
+                    alignItems: 'center', paddingVertical: 6, paddingHorizontal: 3,
                   }}
                 >
                 <View>
-                  <View className="items-center justify-center" style={{ width: disc, height: disc, borderRadius: disc / 2, backgroundColor: tone }}>
-                    <Icon size={rz.icon} color="#FFFFFF" strokeWidth={2.2} />
+                  {/* Home-style icon: white circle, white rim, soft tinted shadow, dark glyph (no tile box). */}
+                  <View style={{
+                    width: disc + 12, height: disc + 12, borderRadius: (disc + 12) / 2, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: '#FAFBFD', borderWidth: active ? 1.5 : 3, borderColor: active ? '#035C6C' : '#FFFFFF',
+                    shadowColor: tone, shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                  }}>
+                    <Icon size={Math.round(disc * 0.62)} color={active ? '#035C6C' : '#17191B'} strokeWidth={1.5} />
                   </View>
                   <View
                     className="absolute items-center justify-center"

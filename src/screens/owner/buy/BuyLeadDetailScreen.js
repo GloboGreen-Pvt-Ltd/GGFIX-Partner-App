@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowRight, Check, ChevronRight, CircleCheck, Clock, Lock, Navigation, Send, Store, Truck, XCircle } from 'lucide-react-native';
-import { getListingOrigin, listingConditionLabel } from '../../../api/nearbyListings';
+import { ArrowRight, Check, ChevronRight, CircleCheck, Clock, Lock, Navigation, Phone, Send, Store, Truck, XCircle } from 'lucide-react-native';
+import { getListingOrigin, listingConditionLabel, listingCustomerName } from '../../../api/nearbyListings';
 import { getMyLeadQuote, getShopPurchase, submitLeadQuote } from '../../../api/orders';
 import { showToast } from '../../../components/Toast';
 import { rf } from '../../../utils/responsive';
@@ -98,6 +98,8 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => { setRefreshing(true); try { await Promise.all([load(), getListingOrigin().then(setOrigin).catch(() => {})]); } finally { setRefreshing(false); } };
 
   const load = useCallback(async () => {
     try {
@@ -224,6 +226,13 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
     const url = Platform.OS === 'ios' ? `http://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
     Linking.openURL(url).catch(() => {});
   };
+  // Seller contact — whichever phone field the listing carries.
+  const sellerPhone = l.sellerPhone || l.customerPhone || l.phone || l.mobile || l.contactPhone || l.seller?.phone || l.customer?.phone || null;
+  const callSeller = () => {
+    const tel = String(sellerPhone || '').replace(/[^\d+]/g, '');
+    if (tel) Linking.openURL(`tel:${tel}`).catch(() => showToast('This device cannot place calls.'));
+  };
+  const sellerName = l.sellerType === 'CUSTOMER' ? listingCustomerName(l) : (l.shopName || 'Shop');
 
   const status = !q ? null
     : qStatus === 'ACCEPTED' ? { Icon: CircleCheck, title: 'Customer accepted your quote', fg: C.green, bg: C.greenBg }
@@ -233,10 +242,11 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
 
   return (
     <SellScreen
-      title={mode === 'detail' ? 'Product Detail' : 'Product Quotation'}
+      title={mode === 'detail' ? 'Product Details' : 'Product Quotation'}
       subtitle={mode === 'detail' ? 'Lead information' : accepted ? 'Quote accepted' : 'Send or revise your quote'}
       onBack={() => navigation.goBack()}
       right={<BellButton navigation={navigation} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.primary || '#035C6C']} tintColor={C.primary || '#035C6C'} />}
     >
       {mode === 'detail' ? <ImageCarousel images={leadImages(l)} size={imgSize} /> : (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
@@ -274,7 +284,34 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
           <InfoRow label="Location" value={[place, dist].filter(Boolean).join(' · ')} />
           <InfoRow label="Posted" value={timeAgo(l.createdAt)} />
         </Card>
-        {hasGeo ? <PrimaryButton title="Directions" icon={Navigation} variant="soft" small onPress={openMaps} style={{ marginTop: 10, alignSelf: 'flex-start' }} /> : null}
+      </Section>
+      ) : null}
+
+      {mode === 'detail' ? (
+      <Section title="Seller Details">
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} style={{ fontSize: rf(14), fontWeight: '800', color: C.text }}>{sellerName}</Text>
+              <Text numberOfLines={1} style={{ fontSize: rf(11.5), color: C.muted, marginTop: 2 }}>
+                {[l.sellerType === 'CUSTOMER' ? 'Customer' : 'Shop', place].filter(Boolean).join(' · ')}
+              </Text>
+              {sellerPhone ? <Text style={{ fontSize: rf(12), color: C.text, marginTop: 2 }}>{sellerPhone}</Text> : null}
+            </View>
+            {sellerPhone ? (
+              <Pressable onPress={callSeller} hitSlop={6} accessibilityRole="button" accessibilityLabel="Call seller"
+                style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: C.greenBg, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Phone size={18} color={C.green} />
+              </Pressable>
+            ) : null}
+            {hasGeo ? (
+              <Pressable onPress={openMaps} hitSlop={6} accessibilityRole="button" accessibilityLabel="Directions to seller"
+                style={{ height: 38, width: 38, borderRadius: 19, backgroundColor: '#E5F3F5', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Navigation size={18} color={C.teal} />
+              </Pressable>
+            ) : null}
+          </View>
+        </Card>
       </Section>
       ) : null}
 
@@ -323,6 +360,16 @@ export default function BuyLeadDetailScreen({ navigation, route }) {
       ) : null}
 
       {loading ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} /> : null}
+
+      {mode === 'detail' && !loading ? (
+        accepted ? (
+          <PrimaryButton title={visit ? 'Open Shop Visit' : 'Open Pickup'} icon={visit ? Store : Truck} onPress={manage} disabled={!orderId} style={{ marginTop: 16 }} />
+        ) : sentOpen ? (
+          <PrimaryButton title="View Quotation Status" icon={ArrowRight} onPress={() => openQuote(mine)} style={{ marginTop: 16 }} />
+        ) : !closed && !blocked ? (
+          <PrimaryButton title="Send Quotation" icon={Send} onPress={() => navigation.push('BuyLeadDetail', { lead: l, mode: 'quote' })} style={{ marginTop: 16 }} />
+        ) : null
+      ) : null}
 
       {mode === 'quote' ? (<>
       {accepted ? (

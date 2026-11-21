@@ -142,7 +142,7 @@ export default function App() {
     // backgroundColor matches BootSplash's page and the native launch splash
     // (both the brand #F8F8F8) — a safety base so no other colour can flash
     // in the instant between the native splash hiding and BootSplash painting.
-    <View style={{ flex: 1, backgroundColor: '#F8F8F8' }} onLayout={handleRootLayout}>
+    <View style={{ flex: 1, backgroundColor: '#035C6C' }} onLayout={handleRootLayout}>
       <Provider store={store}>
         <GluestackUIProvider config={config}>
           {/* KeyboardProvider must sit above the navigation tree so every screen's
