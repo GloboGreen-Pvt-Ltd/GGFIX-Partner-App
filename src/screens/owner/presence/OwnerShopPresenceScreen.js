@@ -6,6 +6,7 @@ import { getShopPresence } from '../../../api/presence';
 import { rf } from '../../../utils/responsive';
 import { C, ErrorBox, SellScreen } from '../sell/kit';
 import { PresencePill, StatBox, fmtClock, fmtDuration, fmtTime, ymd } from './presenceKit';
+import PresenceLine from './PresenceLine';
 
 // Shop Presence — every employee of this shop for a day: current presence
 // (server state; a reading older than 5 min is shown as unverified, never as
@@ -117,6 +118,10 @@ export default function OwnerShopPresenceScreen({ navigation, route }) {
                       <Text style={{ fontSize: rf(12), color: C.muted }}>{`In ${fmtTime(e.checkInTime)}${e.checkOutTime ? ` · Out ${fmtTime(e.checkOutTime)}` : ''}${e.lastVerifiedAt ? ` · Verified ${fmtClock(e.lastVerifiedAt)}` : ''}`}</Text>
                       <Text style={{ fontSize: rf(12), fontWeight: '800', color: C.text }}>{`Outside ${fmtDuration(e.outsideSeconds)}`}</Text>
                     </View>
+                  ) : null}
+                  {e.checkInTime && e.presence !== 'NOT_CHECKED_IN' ? (
+                    <PresenceLine employeeId={e.employeeId} date={key} today={key === today} checkInTime={e.checkInTime}
+                      checkOutTime={e.checkOutTime} lastVerifiedAt={e.lastVerifiedAt} version={data} />
                   ) : null}
                 </Pressable>
               );
