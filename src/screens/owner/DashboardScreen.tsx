@@ -77,6 +77,7 @@ import { ACCENT_TONES, C, getSizeClass, HAIRLINE, OV_TONE, T, Touchable, statusL
 import { DashboardHeader } from '../../components/dashboard/DashboardHeader';
 import { DashboardSection } from '../../components/dashboard/DashboardSection';
 import { DashboardOverviewGrid } from '../../components/dashboard/DashboardOverviewGrid';
+import ShopPresenceSummary from '../../components/dashboard/ShopPresenceSummary';
 import { DashboardShortcutCards, type DashboardShortcut } from '../../components/dashboard/DashboardShortcutCards';
 import { ion, mci } from '../../components/dashboard/solidIcons';
 import { RepairCategoryModal, type PickedRepairCategory } from '../../components/dashboard/RepairCategoryModal';
@@ -226,6 +227,7 @@ export const EMPLOYEE_ACTIONS: DashboardTool[] = [
   { key: 'OwnerEmployeePickupReport', label: 'Pickup Report', icon: mci('truck-delivery-outline'), color: TOOL_TONES[4], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
   { key: 'OwnerLeaveRequests', label: 'Leave', icon: mci('calendar-remove-outline'), color: TOOL_TONES[5], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
   { key: 'OwnerPermissionRequests', label: 'Permissions', icon: mci('shield-check-outline'), color: TOOL_TONES[6], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
+  { key: 'OwnerShopPresence', label: 'Shop Presence', icon: mci('map-marker-check-outline'), color: TOOL_TONES[0], iconColor: '#FFFFFF', iconBg: '#0788C9', via: 'parent' },
 ];
 
 export const REPORT_ACTIONS: DashboardTool[] = [
@@ -997,6 +999,11 @@ export default function DashboardScreen({ navigation, onLogout }: DashboardScree
         <View style={{ marginTop: SECTION_GAP }}>
           <DashboardSection title="Overview" pad={PAD} />
           <DashboardOverviewGrid items={overview} pad={PAD} />
+        </View>
+
+        {/* Shop presence (owner only; hides itself otherwise). */}
+        <View style={{ marginTop: SECTION_GAP }}>
+          <ShopPresenceSummary pad={PAD} onOpen={() => gotoParent('OwnerShopPresence')} />
         </View>
 
         {ownerTech?.enabled ? (
